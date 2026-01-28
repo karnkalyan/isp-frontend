@@ -1,0 +1,992 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import 'leaflet/dist/leaflet.css';
+
+
+
+/* Prevent flash of wrong theme */
+.theme-initializing * {
+  transition: none !important;
+}
+
+/* Default dark mode styles that apply before JavaScript loads */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 142.1 70.6% 45.3%;
+    --primary-foreground: 144.9 80.4% 10%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 142.4 71.8% 29.2%;
+
+    /* Custom theme variables */
+    --theme-bg: #0b1120;
+    --theme-text: #f9fafb;
+    --theme-card: #1e293b;
+    --theme-card-foreground: #f9fafb;
+    --theme-border: #334155;
+    --theme-muted: #334155;
+    --theme-muted-foreground: #94a3b8;
+
+    color-scheme: dark;
+  }
+}
+
+/* Apply dark mode styles immediately when .dark class is present */
+:root.dark {
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 40% 98%;
+  --card: 222.2 84% 4.9%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222.2 84% 4.9%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 142.1 70.6% 45.3%;
+  --primary-foreground: 144.9 80.4% 10%;
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 217.2 32.6% 17.5%;
+  --input: 217.2 32.6% 17.5%;
+  --ring: 142.4 71.8% 29.2%;
+
+  /* Custom theme variables */
+  --theme-bg: #0b1120;
+  --theme-text: #f9fafb;
+  --theme-card: #1e293b;
+  --theme-card-foreground: #f9fafb;
+  --theme-border: #334155;
+  --theme-muted: #334155;
+  --theme-muted-foreground: #94a3b8;
+
+  color-scheme: dark;
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 142.1 76.2% 36.3%;
+    --primary-foreground: 355.7 100% 97.3%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 142.1 76.2% 36.3%;
+
+    --radius: 0.75rem;
+
+    /* Custom theme variables */
+    --theme-bg: #f9fafb;
+    --theme-text: #111827;
+    --theme-card: #ffffff;
+    --theme-card-foreground: #111827;
+    --theme-border: #e2e8f0;
+    --theme-muted: #f1f5f9;
+    --theme-muted-foreground: #64748b;
+
+    /* Chart colors */
+    --chart-1: 217 91% 50%;
+    --chart-2: 142 71% 35%;
+    --chart-3: 0 84% 50%;
+    --chart-4: 250 91% 50%;
+
+    --primary-rgb: 16, 185, 129;
+
+    color-scheme: light;
+  }
+}
+
+/* Add these CSS variables and transition styles at the appropriate location in your CSS file */
+
+:root {
+  --theme-transition: var(--theme-transition, 0.2s);
+}
+
+/* Apply transitions to specific properties for smoother theme changes */
+body,
+.bg-background,
+.bg-card,
+.bg-muted,
+.bg-accent,
+.text-foreground,
+.text-muted-foreground,
+.border-border,
+[class*="border-"],
+[class*="bg-"],
+[class*="text-"] {
+  transition:
+    background-color var(--theme-transition) ease-in-out,
+    color var(--theme-transition) ease-in-out,
+    border-color var(--theme-transition) ease-in-out,
+    fill var(--theme-transition) ease-in-out,
+    stroke var(--theme-transition) ease-in-out;
+}
+
+/* Disable transitions during page load */
+.no-js * {
+  transition: none !important;
+}
+
+/* Force immediate theme application for certain elements */
+.theme-critical {
+  transition: none !important;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    background-color: var(--theme-bg);
+    color: var(--theme-text);
+  }
+}
+
+/* Apply theme variables to components */
+.card-container {
+  background-color: var(--theme-card);
+  color: var(--theme-card-foreground);
+  border-color: var(--theme-border);
+}
+
+.bg-card {
+  background-color: var(--theme-card);
+}
+
+.text-card-foreground {
+  color: var(--theme-card-foreground);
+}
+
+/* Add a container for the page background that respects border radius */
+.page-background {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image: radial-gradient(circle at 5% 5%, rgba(16, 185, 129, 0.1), transparent 25%),
+    radial-gradient(circle at 95% 95%, rgba(16, 185, 129, 0.1), transparent 25%);
+}
+
+/* Glassmorphism Styles */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+}
+
+.dark .glass {
+  background: rgba(17, 25, 40, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+}
+
+.glass-navbar {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.dark .glass-navbar {
+  background: rgba(17, 25, 40, 0.1);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.glass-sidebar {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-right: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 4px 0 30px rgba(0, 0, 0, 0.05);
+}
+
+.dark .glass-sidebar {
+  background: rgba(17, 25, 40, 0.1);
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 4px 0 30px rgba(0, 0, 0, 0.1);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+  border-radius: var(--radius);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-card:hover {
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+  transform: translateY(-2px);
+}
+
+.dark .glass-card {
+  background: rgba(17, 25, 40, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+}
+
+.dark .glass-card:hover {
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.15);
+}
+
+/* Submenu Styles */
+.submenu-bullet {
+  @apply w-1.5 h-1.5 rounded-full bg-muted-foreground/70 mr-2 inline-block;
+}
+
+.submenu-item:hover .submenu-bullet {
+  @apply bg-primary;
+}
+
+.sidebar-submenu {
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+  border-radius: var(--radius);
+}
+
+.dark .sidebar-submenu {
+  background: rgba(17, 25, 40, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+}
+
+/* Custom Scrollbar - Hide by default, show on hover */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(240, 240, 240, 0.5);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(180, 180, 180, 0.7);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(150, 150, 150, 0.8);
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: rgba(30, 30, 30, 0.5);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(80, 80, 80, 0.7);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 100, 100, 0.8);
+}
+
+/* Hide scrollbars by default, show on hover */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+*:hover {
+  scrollbar-color: rgba(180, 180, 180, 0.7) rgba(240, 240, 240, 0.5);
+}
+
+.dark *:hover {
+  scrollbar-color: rgba(80, 80, 80, 0.7) rgba(30, 30, 30, 0.5);
+}
+
+/* Thin scrollbar for sidebar */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+  opacity: 0;
+}
+
+.scrollbar-thin:hover::-webkit-scrollbar {
+  opacity: 1;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: rgba(180, 180, 180, 0.5);
+  border-radius: 10px;
+  opacity: 0;
+}
+
+.scrollbar-thin:hover::-webkit-scrollbar-thumb {
+  opacity: 1;
+}
+
+.dark .scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: rgba(80, 80, 80, 0.5);
+}
+
+/* Fix for vh height issue */
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Background gradient */
+.bg-gradient-soft {
+  background-image: radial-gradient(circle at top right,
+      rgba(var(--primary-rgb), 0.1),
+      rgba(var(--background-rgb), 0.1));
+}
+
+/* Animation utilities */
+.animate-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Ensure text is visible in light mode */
+.text-adaptive {
+  @apply text-foreground;
+}
+
+/* Shadow depth utility */
+.shadow-depth {
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.3s ease;
+}
+
+.dark .shadow-depth {
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.3);
+}
+
+/* Gradient text */
+.gradient-text {
+  @apply bg-gradient-to-r from-green-500 via-blue-500 to-green-500 bg-clip-text text-transparent;
+}
+
+/* Improved chart visibility */
+.chart-container {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(4px);
+  border-radius: var(--radius);
+  padding: 1rem;
+}
+
+.dark .chart-container {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+/* Category styles for sidebar */
+.sidebar-category {
+  @apply text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-1;
+}
+
+.sidebar-divider {
+  @apply my-2 mx-auto w-4 border-t border-border/40;
+}
+
+/* Add these new styles for sidebar icon gradients and shadows */
+
+/* Base icon styling for sidebar */
+.sidebar-icon {
+  @apply relative flex items-center justify-center w-5 h-5 rounded-md;
+  transition: all 0.3s ease;
+}
+
+/* Gradient backgrounds for different icon types */
+.sidebar-icon-dashboard {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.4);
+}
+
+.sidebar-icon-management {
+  background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+  box-shadow: 0 2px 6px rgba(139, 92, 246, 0.4);
+}
+
+.sidebar-icon-services {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.4);
+}
+
+.sidebar-icon-finance {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.4);
+}
+
+.sidebar-icon-support {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
+}
+
+.sidebar-icon-analytics {
+  background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+  box-shadow: 0 2px 6px rgba(6, 182, 212, 0.4);
+}
+
+.sidebar-icon-infrastructure {
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.4);
+}
+
+.sidebar-icon-resources {
+  background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
+  box-shadow: 0 2px 6px rgba(236, 72, 153, 0.4);
+}
+
+.sidebar-icon-system {
+  background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+  box-shadow: 0 2px 6px rgba(100, 116, 139, 0.4);
+}
+
+/* Icon inner styling */
+.sidebar-icon svg {
+  @apply h-3.5 w-3.5 text-white;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.1));
+}
+
+/* Hover effects */
+.sidebar-icon:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+}
+
+/* Active state */
+.sidebar-icon-active {
+  filter: brightness(1.2);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.3);
+}
+
+/* Dark mode adjustments */
+.dark .sidebar-icon {
+  filter: brightness(0.9);
+}
+
+.dark .sidebar-icon:hover {
+  filter: brightness(1.1);
+}
+
+.dark .sidebar-icon-active {
+  filter: brightness(1.3);
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.4);
+}
+
+/* Remove the dashboard-card styles with corner gradients */
+.dashboard-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.dashboard-card::before,
+.dashboard-card::after {
+  display: none;
+}
+
+/* Icon styles with shadows */
+.icon-with-shadow {
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+}
+
+.dark .icon-with-shadow {
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.2));
+}
+
+/* Task icon styles */
+.task-icon {
+  @apply flex items-center justify-center w-8 h-8 rounded-full;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.task-icon-pending {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+
+.task-icon-completed {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.task-icon-urgent {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+}
+
+.dark .task-icon {
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+/* Light mode overrides */
+:root:not(.dark) {
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+
+  /* Ensure text is visible in light mode */
+  .text-adaptive {
+    @apply text-gray-900;
+  }
+
+  /* Fix background for light mode */
+  body {
+    background-color: #f9fafb;
+    color: #111827;
+  }
+
+  /* Fix card backgrounds in light mode */
+  .glass-card,
+  .glass-bg {
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+  }
+
+  /* Fix navbar in light mode */
+  .glass-navbar {
+    background: rgba(255, 255, 255, 0.8);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  }
+
+  /* Fix sidebar in light mode */
+  .glass-sidebar {
+    background: rgba(255, 255, 255, 0.8);
+    border-right: 1px solid rgba(0, 0, 0, 0.1);
+  }
+}
+
+/* Fix for sidebar icons in light mode */
+:root:not(.dark) .sidebar-icon {
+  filter: brightness(1);
+}
+
+:root:not(.dark) .sidebar-icon:hover {
+  filter: brightness(1.1);
+}
+
+:root:not(.dark) .sidebar-icon-active {
+  filter: brightness(1.2);
+}
+
+/* Add responsive padding for mobile views
+// Fix any theme transition issues */
+
+/* Add these styles at the end of the file */
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+  .dashboard-container {
+    padding-bottom: 4rem;
+  }
+
+  .page-container {
+    padding: 1rem;
+  }
+}
+
+/* Ensure dark mode is applied before hydration */
+html.dark {
+  color-scheme: dark;
+}
+
+html {
+  color-scheme: light;
+}
+
+/* Force immediate theme application */
+html.js-loaded body {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+body {
+  background-color: var(--theme-bg);
+  color: var(--theme-text);
+}
+
+/* Smooth theme transitions */
+html {
+  transition: background-color 0.3s ease;
+}
+
+body {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Fix for initial load flicker */
+.theme-transitioning * {
+  transition: none !important;
+}
+
+/* Theme transition improvements */
+html.js-loaded * {
+  transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out, color 0.2s ease-in-out;
+}
+
+/* Prevent flash during initial load */
+html.no-js .theme-toggle {
+  display: none;
+}
+
+/* Ensure proper background colors */
+:root {
+  --background-light: #f9fafb;
+  --background-dark: #0b1120;
+  --text-light: #111827;
+  --text-dark: #f9fafb;
+}
+
+/* Apply background colors based on theme */
+html {
+  background-color: var(--background-light);
+}
+
+html.dark {
+  background-color: var(--background-dark);
+}
+
+body {
+  background-color: var(--background-light);
+  color: var(--text-light);
+}
+
+html.dark body {
+  background-color: var(--background-dark);
+  color: var(--text-dark);
+}
+
+/* Remove the theme-transitioning class as we're handling it differently now */
+.theme-transitioning * {
+  transition: none !important;
+}
+
+/* Ensure glass effects work properly in both themes */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+}
+
+html.dark .glass {
+  background: rgba(17, 25, 40, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+}
+
+/* Ensure consistent card styling */
+.glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+}
+
+html.dark .glass-card {
+  background: rgba(17, 25, 40, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+}
+
+/* Ensure TR069 components respect the theme */
+.dark [class*="tr069"] {
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 40% 98%;
+  --card: 222.2 84% 4.9%;
+  --card-foreground: 210 40% 98%;
+  --border: 217.2 32.6% 17.5%;
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+
+  background-color: var(--theme-bg);
+  color: var(--theme-text);
+}
+
+/* Force dark mode styles for specific components that might be problematic */
+.dark .card,
+.dark .glass-card,
+.dark [class*="device-"],
+.dark [class*="speed-test"] {
+  background-color: var(--theme-card);
+  color: var(--theme-card-foreground);
+  border-color: var(--theme-border);
+}
+
+/* Disable transitions during theme change to prevent staggered updates */
+.disable-transitions,
+.disable-transitions * {
+  transition: none !important;
+  animation: none !important;
+}
+
+/* Ensure all components respect theme variables */
+.card,
+.glass-card,
+[class*="tr069-"],
+[class*="device-"],
+[class*="dashboard-"],
+[class*="sidebar-"],
+[class*="navbar-"],
+[class*="content-"],
+[class*="speed-test"],
+[class*="status-"],
+[class*="table-"],
+[class*="chart-"] {
+  transition: none !important;
+  background-color: var(--theme-card);
+  color: var(--theme-card-foreground);
+  border-color: var(--theme-border);
+}
+
+/* Force immediate theme application for all components */
+html.dark .card,
+html.dark .glass-card,
+html.dark [class*="tr069-"],
+html.dark [class*="device-"],
+html.dark [class*="dashboard-"],
+html.dark [class*="sidebar-"],
+html.dark [class*="navbar-"],
+html.dark [class*="content-"],
+html.dark [class*="speed-test"],
+html.dark [class*="status-"],
+html.dark [class*="table-"],
+html.dark [class*="chart-"] {
+  background-color: var(--theme-card);
+  color: var(--theme-card-foreground);
+  border-color: var(--theme-border);
+}
+
+/* Ensure all text respects theme */
+html.dark p,
+html.dark h1,
+html.dark h2,
+html.dark h3,
+html.dark h4,
+html.dark h5,
+html.dark h6,
+html.dark span,
+html.dark div {
+  color: var(--theme-text);
+}
+
+/* Ensure background colors are applied */
+html.dark,
+html.dark body,
+html.dark main,
+html.dark .bg-background {
+  background-color: var(--theme-bg);
+}
+
+/* Ensure consistent card styling */
+html.dark .card,
+html.dark .glass-card {
+  background-color: var(--theme-card);
+}
+
+/* Connection Status Component Styling */
+.connection-status-container {
+  @apply rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden;
+}
+
+.connection-status-header {
+  @apply flex items-center justify-between p-6 pb-2;
+}
+
+.connection-status-title {
+  @apply text-lg font-semibold leading-none tracking-tight;
+}
+
+.connection-status-subtitle {
+  @apply text-sm text-muted-foreground;
+}
+
+.connection-status-grid {
+  @apply grid grid-cols-3 gap-4 p-6;
+}
+
+.connection-status-item {
+  @apply flex flex-col items-center justify-center text-center p-4 rounded-lg;
+}
+
+.connection-status-item-online {
+  @apply bg-green-50 dark:bg-green-950/30;
+}
+
+.connection-status-item-warning {
+  @apply bg-amber-50 dark:bg-amber-950/30;
+}
+
+.connection-status-item-offline {
+  @apply bg-red-50 dark:bg-red-950/30;
+}
+
+.connection-status-percentage {
+  @apply text-4xl font-bold mb-1;
+}
+
+.connection-status-percentage-online {
+  @apply text-green-600 dark:text-green-500;
+}
+
+.connection-status-percentage-warning {
+  @apply text-amber-600 dark:text-amber-500;
+}
+
+.connection-status-percentage-offline {
+  @apply text-red-600 dark:text-red-500;
+}
+
+.connection-status-label {
+  @apply flex items-center justify-center text-sm font-medium mb-1;
+}
+
+.connection-status-label-online {
+  @apply text-green-700 dark:text-green-400;
+}
+
+.connection-status-label-warning {
+  @apply text-amber-700 dark:text-amber-400;
+}
+
+.connection-status-label-offline {
+  @apply text-red-700 dark:text-red-400;
+}
+
+.connection-status-icon {
+  @apply h-5 w-5 mr-1;
+}
+
+.connection-status-devices {
+  @apply text-xs text-muted-foreground;
+}
+
+/* Enhanced Sidebar Submenu Hover Functionality */
+.sidebar-collapsed .sidebar-menu-item {
+  position: relative;
+}
+
+.sidebar-collapsed .sidebar-submenu-container {
+  display: none;
+  position: absolute;
+  left: 100%;
+  top: 0;
+  min-width: 200px;
+  background: var(--theme-card);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  padding: 0.5rem;
+  z-index: 50;
+}
+
+.sidebar-collapsed .sidebar-menu-item:hover .sidebar-submenu-container {
+  display: block;
+}
+
+.sidebar-collapsed .sidebar-submenu-title {
+  @apply text-sm font-medium px-3 py-2 border-b border-border mb-1;
+}
+
+.sidebar-collapsed .sidebar-submenu-item {
+  @apply flex items-center rounded-md px-3 py-2 text-sm transition-colors;
+}
+
+.sidebar-collapsed .sidebar-submenu-item:hover {
+  @apply bg-muted;
+}
+
+.sidebar-collapsed .sidebar-submenu-bullet {
+  @apply w-1.5 h-1.5 rounded-full bg-muted-foreground/70 mr-2 inline-block;
+}
+
+.sidebar-collapsed .sidebar-submenu-item:hover .sidebar-submenu-bullet {
+  @apply bg-primary;
+}
+
+/* Add these CSS rules to ensure text colors are preserved in dark mode */
+
+/* Add this at the end of the file */
+/* Preserve text colors in dark mode for status indicators */
+.dark .text-green-500,
+.dark .text-amber-500,
+.dark .text-red-500,
+.dark .text-blue-500,
+.dark .text-purple-500 {
+  color: inherit;
+}
+
+/* Ensure icon colors match text in dark mode */
+.dark .text-green-500 svg,
+.dark .text-amber-500 svg,
+.dark .text-red-500 svg,
+.dark .text-blue-500 svg,
+.dark .text-purple-500 svg {
+  color: inherit;
+}
+
+/* Ensure background colors for indicators are visible in dark mode */
+.dark .bg-green-500,
+.dark .bg-blue-500,
+.dark .bg-purple-500,
+.dark .bg-amber-500,
+.dark .bg-gray-500 {
+  opacity: 0.9;
+}
