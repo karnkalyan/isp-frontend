@@ -7640,12 +7640,12 @@ Updated: ${formatDate(selectedSplitter.updatedAt)}
                             <Label className="text-xs">Slot Number</Label>
                             <Input
                               type="number"
-                              min="1"
+                              min="0"
                               max="16"
                               value={board.slot}
                               onChange={(e) => {
                                 const newBoards = [...serviceBoardsForm]
-                                const newSlot = parseInt(e.target.value) || 1
+                                const newSlot = parseInt(e.target.value) || 0
                                 // Check for duplicate slots
                                 if (newBoards.some((b, i) => i !== index && b.slot === newSlot)) {
                                   toast.error(`Slot ${newSlot} is already in use`)

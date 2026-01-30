@@ -127,6 +127,24 @@ const menuCategories: MenuCategory[] = [
         ],
       },
       {
+        title: "Branch",
+        icon: Building,
+        href: "/branch",
+        submenu: [
+          { title: "Branch Management", href: "/branch" },
+        ],
+      },
+
+      {
+        title: "Department",
+        icon: Building,
+        href: "/department",
+        submenu: [
+          { title: "Department Management", href: "/department" },
+        ],
+      },
+
+      {
         title: "Membership",
         icon: Crown,
         href: "/membership",
@@ -156,6 +174,11 @@ const menuCategories: MenuCategory[] = [
           // { title: "Conversion Tracking", href: "/leads/conversion" },
         ],
       },
+
+
+
+
+
       {
         title: "Existing ISP",
         icon: Building,
@@ -620,7 +643,7 @@ const menuCategories: MenuCategory[] = [
         title: "Master Settings",
         icon: Sliders,
         href: "/master-settings",
-        highlight: true,
+        // highlight: true,
         submenu: [
           { title: "Service Settings", href: "/master-settings" },
           { title: "System Configuration", href: "/master-settings/system" },
