@@ -25,7 +25,10 @@ jobs:
     - name: Build
       run: npm run build
       env:
-        NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+        NEXT_PUBLIC_API_BASE_URL: ${{ secrets.NEXT_PUBLIC_API_BASE_URL }}
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
+        ACCESS_SECRET: ${{ secrets.ACCESS_SECRET }}
+        REFRESH_SECRET: ${{ secrets.REFRESH_SECRET }}
 
     # Optional: Build Docker image
     # - name: Set up Docker Buildx
