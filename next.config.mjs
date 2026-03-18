@@ -15,8 +15,8 @@ const nextConfig = {
       allowedOrigins: [
         "radius.kisan.net.np",
         "radius.namaste.net.np",
-        "localhost:4001",
-        "192.168.200.11:3000" // It is good practice to keep localhost explicitly
+        "localhost:4000",
+        "cms.arrownet.simulcast.com.np" // It is good practice to keep localhost explicitly
       ],
     },
   },

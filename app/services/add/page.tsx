@@ -1,4 +1,4 @@
-// app/dashboard/services/add/page.tsx
+// app/services/add/page.tsx
 "use client";
 
 import { useState } from "react";
@@ -20,11 +20,11 @@ export default function AddServicePage() {
     const [activeTab, setActiveTab] = useState("catalog");
 
     const handleSuccess = () => {
-        router.push("/dashboard/services");
+        router.push("/services");
     };
 
     const handleCancel = () => {
-        router.push("/dashboard/services");
+        router.push("/services");
     };
 
     return (
@@ -37,7 +37,7 @@ export default function AddServicePage() {
                     actions={[
                         {
                             label: "View All Services",
-                            onClick: () => router.push("/dashboard/services"),
+                            onClick: () => router.push("/services"),
                             variant: "outline",
                             icon: <ArrowLeft className="h-4 w-4 mr-2" />
                         }

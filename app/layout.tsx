@@ -6,6 +6,7 @@ import { Toaster } from "react-hot-toast"
 
 // Import the SettingsProvider
 // import { SettingsProvider } from "@/contexts/settings-context"
+import { WebSocketProvider } from '@/contexts/WebSocketContext'
 
 export const metadata: Metadata = {
   title: "Radius Manager - ISP Dashboard",
@@ -81,30 +82,32 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           {/* <SettingsProvider> */}
-          {children}
-          <Toaster
-            position="top-right"
-            toastOptions={{
-              style: {
-                background: "var(--theme-card)",
-                color: "var(--theme-card-foreground)",
-                border: "1px solid var(--theme-border)",
-              },
-              success: {
-                iconTheme: {
-                  primary: "#10b981",
-                  secondary: "white",
+          <WebSocketProvider>
+            {children}
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                style: {
+                  background: "var(--theme-card)",
+                  color: "var(--theme-card-foreground)",
+                  border: "1px solid var(--theme-border)",
                 },
-              },
-              error: {
-                iconTheme: {
-                  primary: "#ef4444",
-                  secondary: "white",
+                success: {
+                  iconTheme: {
+                    primary: "#10b981",
+                    secondary: "white",
+                  },
                 },
-              },
-            }}
-          />
-          {/* </SettingsProvider> */}
+                error: {
+                  iconTheme: {
+                    primary: "#ef4444",
+                    secondary: "white",
+                  },
+                },
+              }}
+            />
+            {/* </SettingsProvider> */}
+          </WebSocketProvider>
         </ThemeProvider>
       </body>
     </html>

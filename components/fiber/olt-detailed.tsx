@@ -444,6 +444,7 @@ interface ONT {
     lastSync: string
   }
 }
+type Transport = "ssh" | "telnet";
 
 interface OLT {
   id: string
@@ -461,6 +462,7 @@ interface OLT {
   totalSubscribers: number
   activeSubscribers: number
   serviceBoards: ServiceBoard[]
+  defaultTransport: Transport
   sshConfig: {
     host: string
     port: number
@@ -569,8 +571,15 @@ const VENDOR_OPTIONS = [
   { value: "Nokia", label: "Nokia" },
   { value: "FiberHome", label: "FiberHome" },
   { value: "MikroTik", label: "MikroTik" },
-  { value: "Cisco", label: "Cisco" }
+  { value: "Cisco", label: "Cisco" },
+  { value: "BDCOM", label: "BDCOM" }
 ]
+
+
+const TRANSPORT_OPTIONS: { value: Transport; label: string }[] = [
+  { value: "ssh", label: "SSH" },
+  { value: "telnet", label: "Telnet" }
+];
 
 // Board type options
 const BOARD_TYPE_OPTIONS = [
@@ -679,6 +688,9 @@ export function OLTDetailed() {
   const terminalOutputRef = useRef<HTMLDivElement>(null)
 
 
+
+
+
   // ONT Search and Pagination - Default 10 per page
   const [ontSearch, setOntSearch] = useState("")
   const [ontStatusFilter, setOntStatusFilter] = useState("all")
@@ -719,7 +731,8 @@ export function OLTDetailed() {
     vendor: "Huawei",
     serialNumber: "",
     firmwareVersion: "",
-    status: "online" as "online" | "offline" | "maintenance"
+    status: "online" as "online" | "offline" | "maintenance",
+    transport: "ssh" as "ssh" | "telnet"
   })
 
   const [sshForm, setSshForm] = useState({
@@ -1093,6 +1106,250 @@ export function OLTDetailed() {
   };
 
 
+  interface VLANForm {
+    vlanId: string;
+    name: string;
+    description: string;
+    type: string;
+    gemIndex: number;
+  }
+
+  interface ServiceBoardPort {
+    id: number;
+    boardId: number;
+    portNumber: number;
+    status: string;
+    board?: ServiceBoard;
+  }
+
+  interface ServiceBoard {
+    id: number;
+    slot: number;
+    type: string;
+    status: string;
+    ports: ServiceBoardPort[];
+  }
+
+  // In your component
+
+  const [selectedPorts, setSelectedPorts] = useState<number[]>([]);
+  const [serviceBoards, setServiceBoards] = useState<ServiceBoard[]>([]);
+  const [selectedBoardFilter, setSelectedBoardFilter] = useState<string>('all');
+  const [showAllPorts, setShowAllPorts] = useState<boolean>(false);
+  const [portMappings, setPortMappings] = useState<Record<number, any[]>>({});
+
+
+  const [showVLANDialog, setShowVLANDialog] = useState(false);
+  const [showProfileDialog, setShowProfileDialog] = useState(false);
+  const [selectedVLAN, setSelectedVLAN] = useState<any>(null);
+  const [selectedProfile, setSelectedProfile] = useState<any>(null);
+  const [vlanForm, setVlanForm] = useState({
+    vlanId: '',
+    name: '',
+    description: '',
+    type: 'standard' as 'standard' | 'voice' | 'management' | 'data',
+    priority: 0,
+    status: 'active' as 'active' | 'inactive',
+    gemIndex: 0,
+  });
+  const [profileForm, setProfileForm] = useState({
+    profileId: '',
+    name: '',
+    description: '',
+    type: 'line' as 'line' | 'service',
+    upstreamBandwidth: '',
+    downstreamBandwidth: '',
+    services: [] as string[],
+    vlans: [] as string[],
+    assignedOnts: [] as string[]
+  });
+
+  // VLAN and Profile data states
+  const [vlans, setVlans] = useState<any[]>([]);
+  const [profiles, setProfiles] = useState<any[]>([]);
+
+
+  const fetchVLANs = async () => {
+    try {
+      if (!selectedOLT) return;
+      const response = await apiRequest<{ success: boolean; data: any[] }>(
+        `/olt/${selectedOLT.id}/vlans`
+      );
+      if (response.success) {
+        setVlans(response.data || []);
+      }
+    } catch (error: any) {
+      console.error("Failed to fetch VLANs:", error);
+      toast.error("Failed to load VLANs");
+    }
+  };
+
+  const fetchProfiles = async () => {
+    try {
+      if (!selectedOLT) return;
+      const response = await apiRequest<{ success: boolean; data: any[] }>(
+        `/olt/${selectedOLT.id}/profiles`
+      );
+      if (response.success) {
+        setProfiles(response.data || []);
+      }
+    } catch (error: any) {
+      console.error("Failed to fetch profiles:", error);
+      toast.error("Failed to load profiles");
+    }
+  };
+
+  const createVLAN = async (vlanData: any) => {
+    try {
+      if (!selectedOLT) return;
+      const response = await apiRequest<{ success: boolean; data: any }>(
+        `/olt/${selectedOLT.id}/vlans`,
+        {
+          method: 'POST',
+          body: JSON.stringify(vlanData)
+        }
+      );
+      return response.success ? response.data : null;
+    } catch (error: any) {
+      console.error("Failed to create VLAN:", error);
+      throw error;
+    }
+  };
+
+  const updateVLAN = async (vlanId: string, vlanData: any) => {
+    try {
+      if (!selectedOLT) return;
+      const response = await apiRequest<{ success: boolean; data: any }>(
+        `/olt/${selectedOLT.id}/vlans/${vlanId}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify(vlanData)
+        }
+      );
+      return response.success ? response.data : null;
+    } catch (error: any) {
+      console.error("Failed to update VLAN:", error);
+      throw error;
+    }
+  };
+
+  const deleteVLAN = async (vlanId: string) => {
+    try {
+      if (!selectedOLT) return;
+      const response = await apiRequest<{ success: boolean }>(
+        `/olt/${selectedOLT.id}/vlans/${vlanId}`,
+        { method: 'DELETE' }
+      );
+      if (response.success) {
+        setVlans(vlans.filter(v => v.id !== vlanId));
+        toast.success("VLAN deleted successfully");
+      }
+      return response.success;
+    } catch (error: any) {
+      console.error("Failed to delete VLAN:", error);
+      toast.error("Failed to delete VLAN");
+      throw error;
+    }
+  };
+
+  const createProfile = async (profileData: any) => {
+    try {
+      if (!selectedOLT) return;
+      const response = await apiRequest<{ success: boolean; data: any }>(
+        `/olt/${selectedOLT.id}/profiles`,
+        {
+          method: 'POST',
+          body: JSON.stringify(profileData)
+        }
+      );
+      return response.success ? response.data : null;
+    } catch (error: any) {
+      console.error("Failed to create profile:", error);
+      throw error;
+    }
+  };
+
+  const updateProfile = async (profileId: string, profileData: any) => {
+    try {
+      if (!selectedOLT) return;
+      const response = await apiRequest<{ success: boolean; data: any }>(
+        `/olt/${selectedOLT.id}/profiles/${profileId}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify(profileData)
+        }
+      );
+      return response.success ? response.data : null;
+    } catch (error: any) {
+      console.error("Failed to update profile:", error);
+      throw error;
+    }
+  };
+
+  const deleteProfile = async (profileId: string) => {
+    try {
+      if (!selectedOLT) return;
+      const response = await apiRequest<{ success: boolean }>(
+        `/olt/${selectedOLT.id}/profiles/${profileId}`,
+        { method: 'DELETE' }
+      );
+      if (response.success) {
+        setProfiles(profiles.filter(p => p.id !== profileId));
+        toast.success("Profile deleted successfully");
+      }
+      return response.success;
+    } catch (error: any) {
+      console.error("Failed to delete profile:", error);
+      toast.error("Failed to delete profile");
+      throw error;
+    }
+  };
+  useEffect(() => {
+    if (selectedOLT && activeTab === "details") {
+      fetchVLANs();
+      fetchProfiles();
+    }
+  }, [selectedOLT, activeTab]);
+
+
+  // Add these functions in your component
+  useEffect(() => {
+    if (selectedVLAN) {
+      setVlanForm({
+        vlanId: selectedVLAN.vlanId?.toString() || '',
+        name: selectedVLAN.name || '',
+        description: selectedVLAN.description || '',
+        type: selectedVLAN.type || 'standard',
+        priority: selectedVLAN.priority || 0,
+        status: selectedVLAN.status || 'active',
+        gemIndex: selectedVLAN.gemIndex || '',
+      });
+    }
+  }, [selectedVLAN]);
+
+  useEffect(() => {
+    if (selectedProfile?.id) {
+      setProfileForm({
+        profileId: selectedProfile.profileId || '',
+        name: selectedProfile.name || '',
+        description: selectedProfile.description || '',
+        type: selectedProfile.type || 'line',
+        upstreamBandwidth: selectedProfile.upstreamBandwidth || '',
+        downstreamBandwidth: selectedProfile.downstreamBandwidth || '',
+        services: selectedProfile.services || [],
+        vlans: selectedProfile.vlans || [],
+        assignedOnts: selectedProfile.assignedOnts || []
+      });
+    } else if (selectedProfile?.type) {
+      // New profile with type set
+      setProfileForm({
+        ...profileForm,
+        type: selectedProfile.type
+      });
+    }
+  }, [selectedProfile]);
+
+
 
   // Fetch ONTs for selected OLT with pagination - Default 10 per page
   const fetchONTs = async (oltId: string, page = 1, search = "", status = "all") => {
@@ -1216,14 +1473,14 @@ export function OLTDetailed() {
       }))
 
       if (response.success) {
-        toast.success("SSH connection successful")
+        toast.success("connection successful")
         setShowSSHTestDialog(true)
       } else {
-        toast.error(response.error || "SSH connection failed")
+        toast.error(response.error || "connection failed")
       }
     } catch (error: any) {
-      console.error("Failed to test SSH:", error)
-      toast.error(error.message || "Failed to test SSH connection")
+      console.error("Failed to test:", error)
+      toast.error(error.message || "Failed to test connection")
     } finally {
       setTestingSSH(prev => ({ ...prev, [olt.id]: false }))
     }
@@ -1386,7 +1643,7 @@ export function OLTDetailed() {
         }> = [];
 
         olt.serviceBoards.forEach(board => {
-          for (let i = 1; i <= board.portCount; i++) {
+          for (let i = 0; i <= board.portCount; i++) {
             const port = `0/${board.slot}/${i}`;
             allPorts.push({
               boardSlot: board.slot,
@@ -1799,7 +2056,8 @@ export function OLTDetailed() {
       vendor: olt.vendor,
       serialNumber: olt.serialNumber || "",
       firmwareVersion: olt.firmwareVersion || "",
-      status: olt.status
+      status: olt.status,
+      transport: olt.defaultTransport
     })
 
     setSshForm({
@@ -1897,7 +2155,8 @@ export function OLTDetailed() {
         vendor: basicForm.vendor,
         serialNumber: basicForm.serialNumber,
         firmwareVersion: basicForm.firmwareVersion,
-        status: basicForm.status
+        status: basicForm.status,
+        defaultTransport: basicForm.transport
       }
 
       const response = await apiRequest<{ success: boolean; data: OLT; message: string }>(`/olt/${selectedOLT.id}`, {
@@ -4200,7 +4459,7 @@ export function OLTDetailed() {
                       ) : (
                         <Terminal className="h-4 w-4 mr-2" />
                       )}
-                      Test SSH
+                      Test Connection
                     </Button>
 
                     <Button
@@ -4256,7 +4515,7 @@ export function OLTDetailed() {
                 </CardHeader>
                 <CardContent className="p-6 relative z-10">
                   <Tabs defaultValue="basic">
-                    <TabsList className="grid grid-cols-7">
+                    <TabsList className="grid grid-cols-9">
                       <TabsTrigger value="basic">Basic</TabsTrigger>
                       <TabsTrigger value="networking">Networking</TabsTrigger>
                       <TabsTrigger value="management">Management</TabsTrigger>
@@ -4264,6 +4523,8 @@ export function OLTDetailed() {
                       <TabsTrigger value="location">Location</TabsTrigger>
                       <TabsTrigger value="onts">ONTs</TabsTrigger>
                       <TabsTrigger value="splitters">Splitters</TabsTrigger>
+                      <TabsTrigger value="vlans">VLANs</TabsTrigger>
+                      <TabsTrigger value="profiles">Profiles</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="basic" className="space-y-6 pt-6">
@@ -4348,7 +4609,7 @@ export function OLTDetailed() {
                               <Alert className={sshTestResults[selectedOLT.id].success ? "bg-green-500/10 border-green-500/20" : "bg-red-500/10 border-red-500/20"}>
                                 <AlertTriangle className="h-4 w-4" />
                                 <AlertDescription>
-                                  <strong>{sshTestResults[selectedOLT.id].success ? "SSH Connection Successful" : "SSH Connection Failed"}</strong>
+                                  <strong>{sshTestResults[selectedOLT.id].success ? "Connection Successful" : "Connection Failed"}</strong>
                                   <p className="mt-1 text-sm">{sshTestResults[selectedOLT.id].message}</p>
                                   {sshTestResults[selectedOLT.id].output && (
                                     <pre className="mt-2 text-xs bg-black/10 dark:bg-white/10 p-2 rounded overflow-auto">
@@ -5187,6 +5448,368 @@ export function OLTDetailed() {
                         })()}
                       </div>
                     </TabsContent>
+                    <TabsContent value="vlans" className="pt-6">
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <h3 className="text-lg font-semibold">VLAN Configuration</h3>
+                            <p className="text-sm text-gray-500">
+                              Configure VLANs and assign them to service ports
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setSelectedVLAN(null);
+                              setShowVLANDialog(true);
+                            }}
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add VLAN
+                          </Button>
+                        </div>
+
+                        {/* VLANs Table */}
+                        {vlans.length === 0 ? (
+                          <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                            <Layers className="h-12 w-12 mx-auto text-gray-300" />
+                            <p className="text-gray-500 mt-2">No VLANs configured</p>
+                            <p className="text-sm text-gray-500">Click "Add VLAN" to configure VLANs</p>
+                          </div>
+                        ) : (
+                          <div className="rounded-md border">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>VLAN ID</TableHead>
+                                  <TableHead>Name</TableHead>
+                                  <TableHead>GEM Index</TableHead>
+                                  <TableHead>Description</TableHead>
+                                  <TableHead>Type</TableHead>
+                                  <TableHead>Priority</TableHead>
+                                  <TableHead className="text-right">Actions</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {vlans.map((vlan: any) => (
+                                  <TableRow key={vlan.id}>
+                                    <TableCell className="font-mono">VLAN {vlan.vlanId}</TableCell>
+                                    <TableCell>{vlan.name}</TableCell>
+                                    <TableCell>{vlan.gemIndex}</TableCell>
+                                    <TableCell className="max-w-xs truncate">{vlan.description || '-'}</TableCell>
+                                    <TableCell>
+                                      <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
+                                        {vlan.type || 'Standard'}
+                                      </Badge>
+                                    </TableCell>
+
+                                    <TableCell>
+                                      <Badge variant="outline" className="bg-purple-500/10 text-purple-500 border-purple-500/20">
+                                        {vlan.priority || 0}
+                                      </Badge>
+                                    </TableCell>
+
+                                    <TableCell className="text-right">
+                                      <div className="flex justify-end gap-2">
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => {
+                                            setSelectedVLAN(vlan);
+                                            setShowVLANDialog(true);
+                                          }}
+                                        >
+                                          <Edit2 className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={async () => {
+                                            const isConfirmed = await confirm({
+                                              title: "Delete VLAN",
+                                              message: `Are you sure you want to delete VLAN ${vlan.vlanId}?`,
+                                              type: "danger",
+                                              confirmText: "Delete",
+                                              cancelText: "Cancel"
+                                            })
+
+                                            if (isConfirmed) {
+                                              await deleteVLAN(vlan.id);
+                                            }
+                                          }}
+                                          className="hover:bg-red-50 hover:text-red-600"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+
+                        {/* VLAN Statistics */}
+                        <div className="grid grid-cols-4 gap-4 mt-6">
+                          <div className="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+                            <p className="text-sm text-gray-500">Total VLANs</p>
+                            <p className="text-xl font-bold">{vlans.length}</p>
+                          </div>
+                          <div className="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+                            <p className="text-sm text-gray-500">Active</p>
+                            <p className="text-xl font-bold text-green-600">
+                              {vlans.filter((v: any) => v.status === 'active').length}
+                            </p>
+                          </div>
+                          <div className="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+                            <p className="text-sm text-gray-500">Standard</p>
+                            <p className="text-xl font-bold text-blue-600">
+                              {vlans.filter((v: any) => v.type === 'standard' || !v.type).length}
+                            </p>
+                          </div>
+                          <div className="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+                            <p className="text-sm text-gray-500">Voice</p>
+                            <p className="text-xl font-bold text-purple-600">
+                              {vlans.filter((v: any) => v.type === 'voice').length}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="profiles" className="pt-6">
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <h3 className="text-lg font-semibold">Profile Configuration</h3>
+                            <p className="text-sm text-gray-500">
+                              Configure Line and Service Profiles
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                setSelectedProfile({ type: 'line' });
+                                setShowProfileDialog(true);
+                              }}
+                            >
+                              <Plus className="h-4 w-4 mr-2" />
+                              Add Line Profile
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedProfile({ type: 'service' });
+                                setShowProfileDialog(true);
+                              }}
+                            >
+                              <Plus className="h-4 w-4 mr-2" />
+                              Add Service Profile
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Tabs for Line and Service Profiles */}
+                        <Tabs defaultValue="line" className="w-full">
+                          <TabsList className="grid w-full grid-cols-2">
+                            <TabsTrigger value="line">Line Profiles</TabsTrigger>
+                            <TabsTrigger value="service">Service Profiles</TabsTrigger>
+                          </TabsList>
+
+                          <TabsContent value="line" className="space-y-4 pt-4">
+                            {(() => {
+                              const lineProfiles = profiles.filter((p: any) => p.type === 'line');
+                              return lineProfiles.length === 0 ? (
+                                <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                                  <Settings2 className="h-12 w-12 mx-auto text-gray-300" />
+                                  <p className="text-gray-500 mt-2">No Line Profiles configured</p>
+                                  <p className="text-sm text-gray-500">Click "Add Line Profile" to get started</p>
+                                </div>
+                              ) : (
+                                <div className="rounded-md border">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>Profile ID</TableHead>
+                                        <TableHead>Name</TableHead>
+                                        <TableHead>Description</TableHead>
+                                        <TableHead>Bandwidth</TableHead>
+                                        <TableHead>Assigned ONTs</TableHead>
+                                        <TableHead className="text-right">Actions</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {lineProfiles.map((profile: any) => (
+                                        <TableRow key={profile.id}>
+                                          <TableCell className="font-mono">{profile.profileId}</TableCell>
+                                          <TableCell className="font-medium">{profile.name}</TableCell>
+                                          <TableCell>{profile.description || '-'}</TableCell>
+                                          <TableCell>
+                                            <div className="space-y-1">
+                                              <div className="flex items-center gap-2">
+                                                <Upload className="h-3 w-3 text-blue-500" />
+                                                <span className="text-xs">{profile.upstreamBandwidth || 'N/A'}</span>
+                                              </div>
+                                              <div className="flex items-center gap-2">
+                                                <Download className="h-3 w-3 text-green-500" />
+                                                <span className="text-xs">{profile.downstreamBandwidth || 'N/A'}</span>
+                                              </div>
+                                            </div>
+                                          </TableCell>
+                                          <TableCell>{profile.assignedOnts?.length || 0}</TableCell>
+                                          <TableCell className="text-right">
+                                            <div className="flex justify-end gap-2">
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => {
+                                                  setSelectedProfile(profile);
+                                                  setShowProfileDialog(true);
+                                                }}
+                                              >
+                                                <Edit2 className="h-4 w-4" />
+                                              </Button>
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={async () => {
+                                                  const isConfirmed = await confirm({
+                                                    title: "Delete Profile",
+                                                    message: `Are you sure you want to delete profile "${profile.name}"?`,
+                                                    type: "danger",
+                                                    confirmText: "Delete",
+                                                    cancelText: "Cancel"
+                                                  })
+
+                                                  if (isConfirmed) {
+                                                    await deleteProfile(profile.id);
+                                                  }
+                                                }}
+                                                className="hover:bg-red-50 hover:text-red-600"
+                                              >
+                                                <Trash2 className="h-4 w-4" />
+                                              </Button>
+                                            </div>
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              );
+                            })()}
+                          </TabsContent>
+
+                          <TabsContent value="service" className="space-y-4 pt-4">
+                            {(() => {
+                              const serviceProfiles = profiles.filter((p: any) => p.type === 'service');
+                              return serviceProfiles.length === 0 ? (
+                                <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                                  <Settings2 className="h-12 w-12 mx-auto text-gray-300" />
+                                  <p className="text-gray-500 mt-2">No Service Profiles configured</p>
+                                  <p className="text-sm text-gray-500">Click "Add Service Profile" to get started</p>
+                                </div>
+                              ) : (
+                                <div className="rounded-md border">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>Profile ID</TableHead>
+                                        <TableHead>Name</TableHead>
+                                        <TableHead>Description</TableHead>
+                                        <TableHead>Services</TableHead>
+                                        <TableHead>VLANs</TableHead>
+                                        <TableHead>Assigned ONTs</TableHead>
+                                        <TableHead className="text-right">Actions</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {serviceProfiles.map((profile: any) => (
+                                        <TableRow key={profile.id}>
+                                          <TableCell className="font-mono">{profile.profileId}</TableCell>
+                                          <TableCell className="font-medium">{profile.name}</TableCell>
+                                          <TableCell>{profile.description || '-'}</TableCell>
+                                          <TableCell>
+                                            <div className="flex flex-wrap gap-1">
+                                              {profile.services?.slice(0, 3).map((service: string, idx: number) => (
+                                                <Badge key={idx} variant="outline" className="text-xs">
+                                                  {service}
+                                                </Badge>
+                                              ))}
+                                              {profile.services?.length > 3 && (
+                                                <Badge variant="outline" className="text-xs">
+                                                  +{profile.services.length - 3} more
+                                                </Badge>
+                                              )}
+                                            </div>
+                                          </TableCell>
+                                          <TableCell>
+                                            <div className="flex flex-wrap gap-1">
+                                              {profile.vlans?.slice(0, 3).map((vlan: string, idx: number) => (
+                                                <Badge key={idx} variant="outline" className="text-xs bg-blue-500/10 text-blue-500 border-blue-500/20">
+                                                  VLAN {vlan}
+                                                </Badge>
+                                              ))}
+                                              {profile.vlans?.length > 3 && (
+                                                <Badge variant="outline" className="text-xs">
+                                                  +{profile.vlans.length - 3} more
+                                                </Badge>
+                                              )}
+                                            </div>
+                                          </TableCell>
+                                          <TableCell>{profile.assignedOnts?.length || 0}</TableCell>
+                                          <TableCell className="text-right">
+                                            <div className="flex justify-end gap-2">
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => {
+                                                  setSelectedProfile(profile);
+                                                  setShowProfileDialog(true);
+                                                }}
+                                              >
+                                                <Edit2 className="h-4 w-4" />
+                                              </Button>
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={async () => {
+                                                  const isConfirmed = await confirm({
+                                                    title: "Delete Profile",
+                                                    message: `Are you sure you want to delete profile "${profile.name}"?`,
+                                                    type: "danger",
+                                                    confirmText: "Delete",
+                                                    cancelText: "Cancel"
+                                                  })
+
+                                                  if (isConfirmed) {
+                                                    await deleteProfile(profile.id);
+                                                  }
+                                                }}
+                                                className="hover:bg-red-50 hover:text-red-600"
+                                              >
+                                                <Trash2 className="h-4 w-4" />
+                                              </Button>
+                                            </div>
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              );
+                            })()}
+                          </TabsContent>
+                        </Tabs>
+                      </div>
+                    </TabsContent>
+
+
+
+
                   </Tabs>
                 </CardContent>
               </Card>
@@ -5218,9 +5841,9 @@ export function OLTDetailed() {
       <Dialog open={showSSHTestDialog} onOpenChange={setShowSSHTestDialog}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>SSH Connection Test Results</DialogTitle>
+            <DialogTitle>Test Connection  Results</DialogTitle>
             <DialogDescription>
-              SSH connection test results for {selectedOLT?.name}
+              Test connection  results for {selectedOLT?.name}
             </DialogDescription>
           </DialogHeader>
 
@@ -5234,7 +5857,7 @@ export function OLTDetailed() {
                     <XCircle className="h-5 w-5 text-red-500" />
                   )}
                   <AlertDescription>
-                    <strong>{sshTestResults[selectedOLT.id].success ? "SSH Connection Successful" : "SSH Connection Failed"}</strong>
+                    <strong>{sshTestResults[selectedOLT.id].success ? "Connection Successful" : "Connection Failed"}</strong>
                     <p className="mt-1">{sshTestResults[selectedOLT.id].message}</p>
                   </AlertDescription>
                 </div>
@@ -5260,6 +5883,324 @@ export function OLTDetailed() {
       </Dialog>
 
 
+
+      <Dialog open={showVLANDialog} onOpenChange={setShowVLANDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{selectedVLAN ? 'Edit VLAN' : 'Add New VLAN'}</DialogTitle>
+            <DialogDescription>
+              {selectedVLAN ? 'Update VLAN configuration' : 'Configure a new VLAN'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="vlan-id">VLAN ID *</Label>
+                <Input
+                  id="vlan-id"
+                  type="number"
+                  min="1"
+                  max="4094"
+                  value={vlanForm.vlanId}
+                  onChange={(e) => setVlanForm({ ...vlanForm, vlanId: e.target.value })}
+                  placeholder="100"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vlan-name">VLAN Name *</Label>
+                <Input
+                  id="vlan-name"
+                  value={vlanForm.name}
+                  onChange={(e) => setVlanForm({ ...vlanForm, name: e.target.value })}
+                  placeholder="Data_VLAN"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="gem-index">GEM Index *</Label>
+                <Input
+                  id="gem-index"
+                  type="number"
+                  min="0"
+                  value={vlanForm.gemIndex}
+                  onChange={(e) => setVlanForm({ ...vlanForm, gemIndex: parseInt(e.target.value) || 0 })}
+                  placeholder="1000"
+                  required
+                />
+                <p className="text-xs text-gray-500">Unique GEM port index for this VLAN</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vlan-type">VLAN Type</Label>
+                <SearchableSelect
+                  options={[
+                    { value: 'standard', label: 'Standard' },
+                    { value: 'voice', label: 'Voice' },
+                    { value: 'management', label: 'Management' },
+                    { value: 'data', label: 'Data' },
+                    { value: 'iptv', label: 'IPTV' }
+                  ]}
+                  value={vlanForm.type}
+                  onValueChange={(value) => setVlanForm({ ...vlanForm, type: value as any })}
+                  placeholder="Select VLAN type"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="vlan-description">Description</Label>
+              <Textarea
+                id="vlan-description"
+                value={vlanForm.description}
+                onChange={(e) => setVlanForm({ ...vlanForm, description: e.target.value })}
+                placeholder="Enter VLAN description..."
+                rows={2}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <div className="flex justify-between items-center w-full">
+              <div className="text-sm text-gray-500">
+                {selectedPorts.length > 0 && `Selected ${selectedPorts.length} port(s)`}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowVLANDialog(false);
+                    setSelectedVLAN(null);
+                    setVlanForm({
+                      vlanId: '',
+                      name: '',
+                      description: '',
+                      type: 'standard',
+                      gemIndex: 0
+                    });
+                    setSelectedPorts([]);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={async () => {
+                  if (!vlanForm.vlanId || !vlanForm.name || vlanForm.gemIndex === undefined) {
+                    toast.error('VLAN ID, Name, and GEM Index are required');
+                    return;
+                  }
+
+                  try {
+                    let result;
+                    const vlanData = {
+                      ...vlanForm,
+                      portIds: selectedPorts // Send selected port IDs
+                    };
+
+                    if (selectedVLAN) {
+                      result = await updateVLAN(selectedVLAN.id, vlanData);
+                    } else {
+                      result = await createVLAN(vlanData);
+                    }
+
+                    if (result) {
+                      setShowVLANDialog(false);
+                      setSelectedVLAN(null);
+                      setVlanForm({
+                        vlanId: '',
+                        name: '',
+                        description: '',
+                        type: 'standard',
+                        gemIndex: 0
+                      });
+                      setSelectedPorts([]);
+                      toast.success(`VLAN ${selectedVLAN ? 'updated' : 'created'} successfully`);
+                      fetchVLANs();
+                    }
+                  } catch (error: any) {
+                    toast.error(error.message || `Failed to ${selectedVLAN ? 'update' : 'create'} VLAN`);
+                  }
+                }}>
+                  <Save className="h-4 w-4 mr-2" />
+                  {selectedVLAN ? 'Update VLAN' : 'Create VLAN'}
+                </Button>
+              </div>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+
+
+      {/* Profile Dialog */}
+      <Dialog open={showProfileDialog} onOpenChange={setShowProfileDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedProfile?.id ? 'Edit Profile' : `Add New ${profileForm.type === 'line' ? 'Line' : 'Service'} Profile`}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedProfile?.id ? 'Update profile configuration' : `Configure a new ${profileForm.type === 'line' ? 'line' : 'service'} profile`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="profile-id">Profile ID *</Label>
+                <Input
+                  id="profile-id"
+                  value={profileForm.profileId}
+                  onChange={(e) => setProfileForm({ ...profileForm, profileId: e.target.value })}
+                  placeholder="PROFILE_001"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="profile-name">Profile Name *</Label>
+                <Input
+                  id="profile-name"
+                  value={profileForm.name}
+                  onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                  placeholder="High_Speed_Profile"
+                  required
+                />
+              </div>
+              {profileForm.type === 'line' && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="upstream-bandwidth">Upstream Bandwidth</Label>
+                    <Input
+                      id="upstream-bandwidth"
+                      value={profileForm.upstreamBandwidth}
+                      onChange={(e) => setProfileForm({ ...profileForm, upstreamBandwidth: e.target.value })}
+                      placeholder="e.g., 100M"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="downstream-bandwidth">Downstream Bandwidth</Label>
+                    <Input
+                      id="downstream-bandwidth"
+                      value={profileForm.downstreamBandwidth}
+                      onChange={(e) => setProfileForm({ ...profileForm, downstreamBandwidth: e.target.value })}
+                      placeholder="e.g., 1G"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="profile-description">Description</Label>
+              <Textarea
+                id="profile-description"
+                value={profileForm.description}
+                onChange={(e) => setProfileForm({ ...profileForm, description: e.target.value })}
+                placeholder="Enter profile description..."
+                rows={2}
+              />
+            </div>
+
+            {profileForm.type === 'service' && (
+              <>
+                <div className="space-y-2">
+                  <Label>Services</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {['internet', 'voice', 'iptv', 'management'].map((service) => (
+                      <Badge
+                        key={service}
+                        variant={profileForm.services.includes(service) ? "default" : "outline"}
+                        className="cursor-pointer capitalize"
+                        onClick={() => {
+                          const newServices = profileForm.services.includes(service)
+                            ? profileForm.services.filter(s => s !== service)
+                            : [...profileForm.services, service];
+                          setProfileForm({ ...profileForm, services: newServices });
+                        }}
+                      >
+                        {service}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="profile-vlans">VLANs (comma-separated)</Label>
+                  <Input
+                    id="profile-vlans"
+                    value={profileForm.vlans.join(', ')}
+                    onChange={(e) => setProfileForm({
+                      ...profileForm,
+                      vlans: e.target.value.split(',').map(v => v.trim()).filter(v => v)
+                    })}
+                    placeholder="e.g., 100, 101, 102"
+                  />
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowProfileDialog(false);
+                setSelectedProfile(null);
+                setProfileForm({
+                  profileId: '',
+                  name: '',
+                  description: '',
+                  type: 'line',
+                  upstreamBandwidth: '',
+                  downstreamBandwidth: '',
+                  services: [],
+                  vlans: [],
+                  assignedOnts: []
+                });
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={async () => {
+              if (!profileForm.profileId || !profileForm.name) {
+                toast.error('Profile ID and Name are required');
+                return;
+              }
+
+              try {
+                let result;
+                if (selectedProfile?.id) {
+                  result = await updateProfile(selectedProfile.id, profileForm);
+                } else {
+                  result = await createProfile(profileForm);
+                }
+
+                if (result) {
+                  setShowProfileDialog(false);
+                  setSelectedProfile(null);
+                  setProfileForm({
+                    profileId: '',
+                    name: '',
+                    description: '',
+                    type: 'line',
+                    upstreamBandwidth: '',
+                    downstreamBandwidth: '',
+                    services: [],
+                    vlans: [],
+                    assignedOnts: []
+                  });
+                  toast.success(`Profile ${selectedProfile?.id ? 'updated' : 'created'} successfully`);
+                  fetchProfiles();
+                }
+              } catch (error: any) {
+                toast.error(error.message || `Failed to ${selectedProfile?.id ? 'update' : 'create'} profile`);
+              }
+            }}>
+              <Save className="h-4 w-4 mr-2" />
+              {selectedProfile?.id ? 'Update Profile' : 'Create Profile'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Google Map Dialog - Alternative without API key */}
       <Dialog open={showMapDialog} onOpenChange={setShowMapDialog}>
@@ -5700,6 +6641,7 @@ export function OLTDetailed() {
                   <Label className="text-sm text-gray-500">Model</Label>
                   <p>{selectedONT.model || 'Unknown'}</p>
                 </div>
+
               </div>
 
               {/* Optical Information */}
@@ -6201,10 +7143,8 @@ export function OLTDetailed() {
                         <SearchableSelect
                           options={availablePorts.map((port) => ({
                             value: port.boardPort,
-                            label: `Port ${port.boardPort} (Slot ${port.boardSlot}, ${port.boardType}) - ${port.status === 'used' ? '⚠️ In Use' : '✓ Available'}`,
-                            disabled: port.status === 'used' && !(
-                              selectedSplitter?.connectedServiceBoard?.boardPort === port.boardPort
-                            )
+                            label: `Port ${port.boardPort} (Slot ${port.boardSlot}, ${port.boardType}) - ${port.status === "used" ? "⚠️ In Use" : "✓ Available"
+                              }`
                           }))}
                           value={splitterForm.connectedServiceBoard?.boardPort || ""}
                           onValueChange={(value) => {
@@ -7223,6 +8163,18 @@ Updated: ${formatDate(selectedSplitter.updatedAt)}
                       placeholder="Select vendor"
                     />
                   </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="update-vendor">Default Transport</Label>
+                    <SearchableSelect
+                      options={TRANSPORT_OPTIONS}
+                      value={basicForm.transport}
+                      onValueChange={(value: Transport) =>
+                        setBasicForm({ ...basicForm, transport: value })
+                      } placeholder="Select transport"
+                    />
+                  </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="update-model">Model</Label>
                     <Input

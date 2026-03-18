@@ -1,4 +1,4 @@
-// components/services/service-configure-dialog.tsx
+// components/services/service-configure-dialog.tsx - FIXED VERSION
 "use client";
 
 import { useState } from "react";
@@ -53,17 +53,21 @@ export function ServiceConfigureDialog({
                 throw new Error("Invalid JSON configuration");
             }
 
-            await ServicesAPI.configureService({
+            const response = await ServicesAPI.configureService({
                 serviceCode: service.service.code,
-                baseUrl: formData.baseUrl || undefined,
+                baseUrl: formData.baseUrl || null,
                 apiVersion: formData.apiVersion,
                 config,
                 isActive: formData.isActive,
             });
 
-            toast.success("Service configuration updated successfully");
-            onSuccess();
-            onOpenChange(false);
+            if (response.success) {
+                toast.success(response.message || "Service configuration updated successfully");
+                onSuccess();
+                onOpenChange(false);
+            } else {
+                toast.error(response.error || "Failed to update service configuration");
+            }
         } catch (error: any) {
             toast.error(error.message || "Failed to update service configuration");
         } finally {

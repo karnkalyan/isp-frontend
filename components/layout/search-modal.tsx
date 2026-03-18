@@ -4,10 +4,11 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { User, FileText, Wifi, X } from "lucide-react"
+import { User, FileText, Wifi, X, Users } from "lucide-react"
 import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { apiRequest } from "@/lib/api"
 
 type SearchResult = {
   id: string
@@ -20,87 +21,7 @@ type SearchResult = {
   status?: "active" | "inactive" | "pending"
 }
 
-// Mock database of search results
-const searchDatabase: SearchResult[] = [
-  {
-    id: "CUST-001",
-    title: "Alex Johnson",
-    description: "Premium Plan • $89.99/mo • Active since Jan 2023",
-    url: "/customers/CUST-001",
-    category: "Customers",
-    avatar: "/abstract-letter-aj.png",
-    initials: "AJ",
-    status: "active",
-  },
-  {
-    id: "CUST-002",
-    title: "Sarah Williams",
-    description: "Business Plan • $129.99/mo • Active since Mar 2022",
-    url: "/customers/CUST-002",
-    category: "Customers",
-    avatar: "/stylized-sw.png",
-    initials: "SW",
-    status: "active",
-  },
-  {
-    id: "CUST-003",
-    title: "Michael Brown",
-    description: "Standard Plan • $59.99/mo • Active since Nov 2023",
-    url: "/customers/CUST-003",
-    category: "Customers",
-    avatar: "/monogram-mb.png",
-    initials: "MB",
-    status: "active",
-  },
-  {
-    id: "CUST-004",
-    title: "Emily Davis",
-    description: "Premium Plan • $89.99/mo • Active since Feb 2023",
-    url: "/customers/CUST-004",
-    category: "Customers",
-    avatar: "/ed-initials-abstract.png",
-    initials: "ED",
-    status: "inactive",
-  },
-  {
-    id: "CUST-005",
-    title: "David Wilson",
-    description: "Business Plan • $129.99/mo • Pending activation",
-    url: "/customers/CUST-005",
-    category: "Customers",
-    avatar: "/abstract-dw.png",
-    initials: "DW",
-    status: "pending",
-  },
-  {
-    id: "INV-2023-04",
-    title: "Invoice #INV-2023-04",
-    description: "Amount: $89.99 • Due: 15/05/2023 • Alex Johnson",
-    url: "/finance/invoices/INV-2023-04",
-    category: "Invoices",
-  },
-  {
-    id: "INV-2023-05",
-    title: "Invoice #INV-2023-05",
-    description: "Amount: $129.99 • Due: 22/05/2023 • Sarah Williams",
-    url: "/finance/invoices/INV-2023-05",
-    category: "Invoices",
-  },
-  {
-    id: "ONT-5678",
-    title: "Router ONT-5678",
-    description: "Status: Online • Uptime: 15 days • Alex Johnson",
-    url: "/networking/devices/ONT-5678",
-    category: "Devices",
-  },
-  {
-    id: "ONT-5679",
-    title: "Router ONT-5679",
-    description: "Status: Offline • Last seen: 2 hours ago • Emily Davis",
-    url: "/networking/devices/ONT-5679",
-    category: "Devices",
-  },
-]
+
 
 type SearchModalProps = {
   open: boolean
@@ -118,47 +39,49 @@ export function SearchModal({ open, onOpenChange, initialQuery = "" }: SearchMod
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Dynamic search function - triggered on keyup
-  const performSearch = (searchQuery: string, category: string | null = null) => {
-    if (!searchQuery.trim() && !category) {
+  const performSearch = async (searchQuery: string, category: string | null = null) => {
+    if (!searchQuery.trim()) {
       setResults([])
       return
     }
 
-    // Filter results based on query and category
-    let filteredResults = searchDatabase
+    try {
+      const response = await apiRequest(`/lead?search=${encodeURIComponent(searchQuery)}`)
+      
+      let dataArray = []
+      if (response && response.data && Array.isArray(response.data)) {
+        dataArray = response.data
+      } else if (Array.isArray(response)) {
+        dataArray = response
+      }
 
-    // Filter by category if selected
-    if (category) {
-      filteredResults = filteredResults.filter((result) => result.category === category)
+      const leadResults: SearchResult[] = dataArray.map((lead: any) => ({
+        id: String(lead.id),
+        title: `${lead.firstName} ${lead.lastName}`,
+        description: `${lead.email || 'No email'} • ${lead.phoneNumber || 'No phone'} • Status: ${lead.status}`,
+        url: `/leads/view/${lead.id}`,
+        category: "Leads",
+        initials: `${lead.firstName[0]}${lead.lastName[0]}`.toUpperCase(),
+        status: lead.status === 'qualified' ? 'active' : lead.status === 'unqualified' ? 'inactive' : 'pending'
+      }))
+
+      setResults(leadResults)
+    } catch (error) {
+      console.error("Search failed:", error)
     }
-
-    // Then filter by search query
-    if (searchQuery.trim()) {
-      filteredResults = filteredResults.filter(
-        (result) =>
-          result.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          result.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          result.id.toLowerCase().includes(searchQuery.toLowerCase()),
-      )
-    }
-
-    setResults(filteredResults)
   }
 
-  // Handle input change
-  const handleQueryChange = (value: string) => {
-    setQuery(value)
-    performSearch(value, selectedCategory)
-  }
+  // Handle input change with debounce
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      performSearch(query, selectedCategory)
+    }, 300)
 
-  // Handle category selection
-  const handleCategorySelect = (category: string) => {
-    setSelectedCategory(category === selectedCategory ? null : category)
-    performSearch(query, category === selectedCategory ? null : category)
-  }
+    return () => clearTimeout(timer)
+  }, [query, selectedCategory])
 
   const handleSelect = (result: SearchResult) => {
-    router.push(result.url)
+    router.push(`/leads/view/${result.id}`)
     if (typeof onOpenChange === "function") {
       onOpenChange(false)
     }
@@ -205,15 +128,19 @@ export function SearchModal({ open, onOpenChange, initialQuery = "" }: SearchMod
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
-      case "Customers":
-        return <User className="h-4 w-4 text-blue-500" />
-      case "Invoices":
-        return <FileText className="h-4 w-4 text-amber-500" />
-      case "Devices":
-        return <Wifi className="h-4 w-4 text-green-500" />
+      case "Leads":
+        return <Users className="h-4 w-4 text-primary" />
       default:
         return null
     }
+  }
+
+  const handleQueryChange = (value: string) => {
+    setQuery(value)
+  }
+
+  const handleCategorySelect = (category: string) => {
+    setSelectedCategory(category === selectedCategory ? null : category)
   }
 
   return (
@@ -230,13 +157,13 @@ export function SearchModal({ open, onOpenChange, initialQuery = "" }: SearchMod
           border: isDarkMode ? "1px solid rgba(255, 255, 255, 0.1)" : "1px solid rgba(255, 255, 255, 0.8)",
         }}
       >
-        <Command className="rounded-lg bg-transparent">
+        <Command className="rounded-lg bg-transparent" shouldFilter={false}>
           {/* Search input - properly centered with no duplicate icons */}
           <div className="flex items-center px-4 py-3 border-b border-border/20">
             <div className="relative w-full">
               <CommandInput
                 ref={inputRef}
-                placeholder="Search for customers, invoices, or devices"
+                placeholder="Search for leads by name, email or phone..."
                 className="flex h-10 w-full bg-transparent py-2 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 border-none"
                 value={query}
                 onValueChange={handleQueryChange}
@@ -272,31 +199,15 @@ export function SearchModal({ open, onOpenChange, initialQuery = "" }: SearchMod
                     />
                   </svg>
                 </div>
-                <p className="text-sm text-muted-foreground">Type to search customers, invoices, or devices</p>
+                <p className="text-sm text-muted-foreground">Type to search leads</p>
                 <div className="mt-6 flex flex-wrap justify-center gap-2 px-6">
                   <Button
-                    variant={selectedCategory === "Customers" ? "default" : "outline"}
+                    variant={selectedCategory === "Leads" ? "default" : "outline"}
                     size="sm"
                     className="text-xs"
-                    onClick={() => handleCategorySelect("Customers")}
+                    onClick={() => handleCategorySelect("Leads")}
                   >
-                    Customers
-                  </Button>
-                  <Button
-                    variant={selectedCategory === "Invoices" ? "default" : "outline"}
-                    size="sm"
-                    className="text-xs"
-                    onClick={() => handleCategorySelect("Invoices")}
-                  >
-                    Invoices
-                  </Button>
-                  <Button
-                    variant={selectedCategory === "Devices" ? "default" : "outline"}
-                    size="sm"
-                    className="text-xs"
-                    onClick={() => handleCategorySelect("Devices")}
-                  >
-                    Devices
+                    Leads
                   </Button>
                 </div>
               </div>
@@ -319,12 +230,12 @@ export function SearchModal({ open, onOpenChange, initialQuery = "" }: SearchMod
                       />
                     </svg>
                   </div>
-                  <p className="text-sm text-muted-foreground">No results found for "{query}"</p>
+                  <p className="text-sm text-muted-foreground">No leads found for "{query}"</p>
                 </div>
               </CommandEmpty>
             ) : (
               <>
-                {["Customers", "Invoices", "Devices"].map((category) => {
+                {["Leads"].map((category) => {
                   const categoryResults = results.filter((result) => result.category === category)
                   if (categoryResults.length === 0) return null
 
@@ -337,7 +248,7 @@ export function SearchModal({ open, onOpenChange, initialQuery = "" }: SearchMod
                           className="mx-2 my-1 rounded-md cursor-pointer transition-all duration-200 hover:bg-primary/10"
                         >
                           <div className="flex items-center gap-2 w-full py-1">
-                            {result.category === "Customers" && result.avatar ? (
+                            {result.category === "Leads" ? (
                               <Avatar className="h-8 w-8">
                                 <AvatarImage src={result.avatar || "/placeholder.svg"} alt={result.title} />
                                 <AvatarFallback>{result.initials}</AvatarFallback>
@@ -381,3 +292,6 @@ export function SearchModal({ open, onOpenChange, initialQuery = "" }: SearchMod
     </Dialog>
   )
 }
+
+
+

@@ -29,7 +29,7 @@ const getDynamicApiUrl = (endpoint: string) => {
   } else if (hostname.includes("kisan.net.np")) {
     base = "https://api.radius.kisan.net.np"
   }
-  
+
   return `${base}${endpoint}`
 }
 
@@ -58,7 +58,7 @@ export function UserNav() {
       toast.dismiss(loadingToast)
       localStorage.removeItem("user")
       toast.success("Logged out successfully")
-      
+
       // Redirect to login
       router.push("/login")
     } catch (error) {

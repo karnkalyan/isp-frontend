@@ -1,8 +1,7 @@
 "use client"
-
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { MoreHorizontal, ArrowUpDown, ChevronDown, Check, User, FileText, Wifi, AlertTriangle, Ban, Loader2, Calendar, CreditCard } from "lucide-react"
+import { MoreHorizontal, ChevronDown, Check, User, FileText, Wifi, AlertTriangle, Ban, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -19,40 +18,28 @@ import { CardContainer } from "@/components/ui/card-container"
 import { toast } from "react-hot-toast"
 import { apiRequest } from "@/lib/api"
 
+// Updated interface to match actual API response
 interface Customer {
   id: number
-  firstName: string
-  middleName: string | null
-  lastName: string
-  email: string
-  phoneNumber: string
-  status: string
-  streetAddress: string
-  city: string
-  state: string
-  zipCode: string
-  lat: number
-  lon: number
-  deviceName: string
-  deviceMac: string
-  connectionType: string
-  billingCycle: string
-  paymentMethod: string | null
-  vlanId: string | null
-  vlanPriority: string
-  rechargeable: boolean
-  isDeleted: boolean
-  createdAt: string
-  updatedAt: string
+  customerUniqueId: string
+  panNo?: string
+  idNumber?: string
+  leadId?: number
+  membershipId?: number | null
+  branchId?: number | null
+  ispId: number
+  isRechargeable: boolean
+  installedById?: number | null
+  oltId?: number | null
+  splitterId?: number | null
+  existingISPId?: number | null
   assignedPkg: number
   subscribedPkgId: number
-  ispId: number
-  membershipId: number | null
-  installedById: number | null
-  isReferenced: boolean
-  referencedById: number | null
-  existingISPId: number | null
-  leadId: number | null
+  status: string
+  isDeleted: boolean
+  onboardStatus: string
+  createdAt: string
+  updatedAt: string
   packagePrice: {
     id: number
     packageName: string
@@ -86,28 +73,55 @@ interface Customer {
     name: string
     code: string
   } | null
-  installedBy: {
-    name: string
-    email: string
-  } | null
-  referencedBy: {
-    firstName: string
-    lastName: string
-    email: string
-  } | null
-  existingISP: {
+  devices: Array<{
     id: number
-    name: string
-  } | null
-  documents: Array<{
-    id: number
-    documentType: string
-    fileName: string
+    deviceType: string
+    brand: string
+    model: string
+    serialNumber: string
+    macAddress: string
+    ponSerial: string
+    provisioningStatus: string
+    notes: string | null
+    createdAt: string
+    updatedAt: string
   }>
+  serviceDetails: Array<{
+    id: number
+    oltId: number
+    splitterId: number
+    oltPort: string
+    splitterPort: string
+    vlanId: string
+    vlanPriority: string
+    connectionType: string
+    status: string
+    provisioningNotes: string | null
+    createdAt: string
+    updatedAt: string
+    olt?: any
+    splitter?: any
+    vlanDetails?: Array<{
+      id: number
+      oltId: number
+      vlanId: number
+      name: string
+      description: string
+      gemIndex: number
+      vlanType: string
+      priority: number
+      status: string
+      createdAt: string
+      updatedAt: string
+    }>
+  }>
+  documents: any[]
   connectionUsers: Array<{
     id: number
     username: string
     password: string
+    isActive: boolean
+    createdAt: string
   }>
   customerSubscriptions: Array<{
     id: number
@@ -116,7 +130,18 @@ interface Customer {
     planStart: string
     planEnd: string
     isActive: boolean
+    createdAt: string
+    updatedAt: string
   }>
+  firstName: string
+  lastName: string
+  email: string
+  phoneNumber: string
+  secondaryPhone?: string
+  gender?: string
+  street?: string
+  district?: string
+  state?: string
 }
 
 interface PaginationInfo {
@@ -144,14 +169,13 @@ export function CustomersList() {
   })
   const router = useRouter()
 
-  // Fetch customers from API with pagination
   const fetchCustomers = async (page: number = 1, limit: number = 10) => {
     try {
       setLoading(true)
       setError(null)
-      
+
       const data = await apiRequest<CustomersResponse>(`/customer?page=${page}&limit=${limit}`)
-      
+
       if (data && Array.isArray(data.data)) {
         setCustomers(data.data)
         if (data.pagination) {
@@ -211,11 +235,9 @@ export function CustomersList() {
       await apiRequest(`/customer/${customerId}`, {
         method: 'DELETE',
       })
-      
+
       toast.success("Customer deleted successfully")
-      // Refresh the customer list
       fetchCustomers(pagination.page, pagination.limit)
-      // Remove from selected
       setSelectedCustomers(selectedCustomers.filter(id => id !== customerId))
     } catch (error: any) {
       console.error("Error deleting customer:", error)
@@ -225,114 +247,64 @@ export function CustomersList() {
 
   const getStatusIcon = (status: string) => {
     const statusLower = status.toLowerCase()
-    
     switch (statusLower) {
-      case "active":
-        return <Check className="mr-2 h-4 w-4 text-green-500" />
-      case "suspended":
-        return <AlertTriangle className="mr-2 h-4 w-4 text-amber-500" />
-      case "inactive":
-        return <Ban className="mr-2 h-4 w-4 text-red-500" />
-      default:
-        return null
+      case "active": return <Check className="mr-2 h-4 w-4 text-green-500" />
+      case "suspended": return <AlertTriangle className="mr-2 h-4 w-4 text-amber-500" />
+      case "inactive": return <Ban className="mr-2 h-4 w-4 text-red-500" />
+      default: return null
     }
   }
 
   const getStatusBadge = (status: string) => {
     const statusLower = status.toLowerCase()
-    
-    switch (statusLower) {
-      case "active":
-        return (
-          <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">
-            active
-          </Badge>
-        )
-      case "suspended":
-        return (
-          <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/20">
-            suspended
-          </Badge>
-        )
-      case "inactive":
-        return (
-          <Badge variant="outline" className="bg-red-500/10 text-red-500 border-red-500/20">
-            inactive
-          </Badge>
-        )
-      default:
-        return (
-          <Badge variant="outline" className="bg-gray-500/10 text-gray-500 border-gray-500/20">
-            {statusLower}
-          </Badge>
-        )
+    const variants: Record<string, string> = {
+      active: "bg-green-500/10 text-green-500 border-green-500/20",
+      suspended: "bg-amber-500/10 text-amber-500 border-amber-500/20",
+      inactive: "bg-red-500/10 text-red-500 border-red-500/20",
     }
+    return (
+      <Badge variant="outline" className={variants[statusLower] || "bg-gray-500/10 text-gray-500 border-gray-500/20"}>
+        {statusLower}
+      </Badge>
+    )
   }
 
-  const getConnectionTypeBadge = (connectionType: string) => {
-    const typeLower = connectionType.toLowerCase()
-    
-    switch (typeLower) {
-      case "fiber":
-        return (
-          <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
-            Fiber
-          </Badge>
-        )
-      case "pppoe":
-        return (
-          <Badge variant="outline" className="bg-purple-500/10 text-purple-500 border-purple-500/20">
-            PPPoE
-          </Badge>
-        )
-      case "hotspot":
-        return (
-          <Badge variant="outline" className="bg-orange-500/10 text-orange-500 border-orange-500/20">
-            Hotspot
-          </Badge>
-        )
-      default:
-        return (
-          <Badge variant="outline" className="bg-gray-500/10 text-gray-500 border-gray-500/20">
-            {connectionType}
-          </Badge>
-        )
+  const getConnectionTypeBadge = (connectionType?: string) => {
+    const typeLower = connectionType?.toLowerCase() ?? "unknown"
+    const variants: Record<string, string> = {
+      fiber: "bg-blue-500/10 text-blue-500 border-blue-500/20",
+      pppoe: "bg-purple-500/10 text-purple-500 border-purple-500/20",
+      hotspot: "bg-orange-500/10 text-orange-500 border-orange-500/20",
     }
+    return (
+      <Badge variant="outline" className={variants[typeLower] || "bg-gray-500/10 text-gray-500 border-gray-500/20"}>
+        {typeLower}
+      </Badge>
+    )
   }
 
-  // Format date
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
+    return new Date(dateString).toLocaleDateString('en-US', {
+      day: '2-digit', month: 'short', year: 'numeric'
     })
   }
 
-  // Format price
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'NRS',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
+      style: 'currency', currency: 'NPR', minimumFractionDigits: 0
     }).format(price)
   }
 
-  // Get customer's full name
   const getCustomerFullName = (customer: Customer) => {
-    return `${customer.firstName} ${customer.middleName ? customer.middleName + ' ' : ''}${customer.lastName}`
+    return `${customer.firstName} ${customer.lastName}`.trim()
   }
 
-  // Handle page change
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
       setPagination(prev => ({ ...prev, page: newPage }))
     }
   }
 
-  // Handle limit change
   const handleLimitChange = (newLimit: number) => {
     setPagination(prev => ({ ...prev, limit: newLimit, page: 1 }))
     fetchCustomers(1, newLimit)
@@ -342,10 +314,7 @@ export function CustomersList() {
     return (
       <CardContainer title="Customers" description="All registered customers">
         <div className="flex justify-center items-center py-12">
-          <div className="flex flex-col items-center gap-2">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">Loading customers...</p>
-          </div>
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       </CardContainer>
     )
@@ -354,19 +323,12 @@ export function CustomersList() {
   if (error) {
     return (
       <CardContainer title="Customers" description="All registered customers">
-        <div className="flex justify-center items-center py-12">
-          <div className="flex flex-col items-center gap-2">
-            <AlertTriangle className="h-8 w-8 text-destructive" />
-            <p className="text-sm text-muted-foreground">{error}</p>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => fetchCustomers(pagination.page, pagination.limit)}
-              className="mt-2"
-            >
-              Retry
-            </Button>
-          </div>
+        <div className="flex flex-col items-center py-12 gap-2">
+          <AlertTriangle className="h-8 w-8 text-destructive" />
+          <p className="text-sm text-muted-foreground">{error}</p>
+          <Button variant="outline" size="sm" onClick={() => fetchCustomers(pagination.page, pagination.limit)}>
+            Retry
+          </Button>
         </div>
       </CardContainer>
     )
@@ -379,12 +341,7 @@ export function CustomersList() {
           {customers.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-muted-foreground">No customers found</p>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => router.push('/customers/new')}
-                className="mt-2"
-              >
+              <Button variant="outline" size="sm" onClick={() => router.push('/customers/new')} className="mt-2">
                 Add New Customer
               </Button>
             </div>
@@ -392,7 +349,7 @@ export function CustomersList() {
             <>
               <table className="w-full caption-bottom text-sm">
                 <thead className="[&_tr]:border-b">
-                  <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+                  <tr className="border-b transition-colors hover:bg-muted/50">
                     <th className="h-12 px-4 text-left align-middle font-medium">
                       <div className="flex items-center space-x-2">
                         <Checkbox
@@ -403,30 +360,10 @@ export function CustomersList() {
                         <span>Customer ID</span>
                       </div>
                     </th>
-                    <th className="h-12 px-4 text-left align-middle font-medium">
-                      <div className="flex items-center space-x-2">
-                        <span>Customer</span>
-                        <ChevronDown className="h-4 w-4" />
-                      </div>
-                    </th>
-                    <th className="h-12 px-4 text-left align-middle font-medium">
-                      <div className="flex items-center space-x-2">
-                        <span>Plan</span>
-                        <ChevronDown className="h-4 w-4" />
-                      </div>
-                    </th>
-                    <th className="h-12 px-4 text-left align-middle font-medium">
-                      <div className="flex items-center space-x-2">
-                        <span>Status</span>
-                        <ChevronDown className="h-4 w-4" />
-                      </div>
-                    </th>
-                    <th className="h-12 px-4 text-left align-middle font-medium">
-                      <div className="flex items-center space-x-2">
-                        <span>Connection</span>
-                        <ChevronDown className="h-4 w-4" />
-                      </div>
-                    </th>
+                    <th className="h-12 px-4 text-left align-middle font-medium">Customer</th>
+                    <th className="h-12 px-4 text-left align-middle font-medium">Plan</th>
+                    <th className="h-12 px-4 text-left align-middle font-medium">Status</th>
+                    <th className="h-12 px-4 text-left align-middle font-medium">Connection</th>
                     <th className="h-12 px-4 text-left align-middle font-medium"></th>
                   </tr>
                 </thead>
@@ -434,11 +371,16 @@ export function CustomersList() {
                   {customers.map((customer) => {
                     const customerId = customer.id.toString()
                     const fullName = getCustomerFullName(customer)
-                    
+                    const serviceDetail = customer.serviceDetails?.[0]
+                    const connectionType = serviceDetail?.connectionType
+                    const deviceModel = customer.devices?.[0]?.model
+                    const plan = customer.subscribedPkg
+                    const isTrial = customer.customerSubscriptions?.[0]?.isTrial
+
                     return (
                       <tr
                         key={customerId}
-                        className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted cursor-pointer"
+                        className="border-b transition-colors hover:bg-muted/50 cursor-pointer"
                         onClick={() => handleViewProfile(customerId)}
                       >
                         <td className="p-4 align-middle" onClick={(e) => e.stopPropagation()}>
@@ -454,13 +396,8 @@ export function CustomersList() {
                         <td className="p-4 align-middle">
                           <div className="flex items-center gap-3">
                             <Avatar>
-                              <AvatarImage 
-                                src={`/placeholder.svg?text=${customer.firstName.charAt(0)}${customer.lastName.charAt(0)}`} 
-                                alt={fullName} 
-                              />
-                              <AvatarFallback>
-                                {customer.firstName.charAt(0)}{customer.lastName.charAt(0)}
-                              </AvatarFallback>
+                              <AvatarImage src={`/placeholder.svg?text=${customer.firstName.charAt(0)}${customer.lastName.charAt(0)}`} alt={fullName} />
+                              <AvatarFallback>{customer.firstName.charAt(0)}{customer.lastName.charAt(0)}</AvatarFallback>
                             </Avatar>
                             <div>
                               <div className="font-medium">{fullName}</div>
@@ -471,19 +408,19 @@ export function CustomersList() {
                         </td>
                         <td className="p-4 align-middle">
                           <div>
-                            <div className="font-medium">{customer.subscribedPkg.packagePlanDetails.planName}</div>
+                            <div className="font-medium">{plan?.packagePlanDetails?.planName ?? 'N/A'}</div>
                             <div className="text-xs text-muted-foreground">
-                              {customer.subscribedPkg.packageDuration} • {formatPrice(customer.subscribedPkg.price)}
+                              {plan?.packageDuration ?? ''} • {plan?.price ? formatPrice(plan.price) : 'N/A'}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              {customer.subscribedPkg.packagePlanDetails.downSpeed} Mbps
+                              {plan?.packagePlanDetails?.downSpeed ?? 0} Mbps
                             </div>
                           </div>
                         </td>
                         <td className="p-4 align-middle">
                           <div className="flex flex-col gap-1">
                             {getStatusBadge(customer.status)}
-                            {customer.customerSubscriptions.length > 0 && customer.customerSubscriptions[0].isTrial && (
+                            {isTrial && (
                               <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20 text-xs">
                                 Trial Active
                               </Badge>
@@ -493,21 +430,27 @@ export function CustomersList() {
                         <td className="p-4 align-middle">
                           <div className="flex flex-col gap-1">
                             <div className="flex items-center gap-2">
-                              {getConnectionTypeBadge(customer.connectionType)}
-                              {/* <Badge variant="outline" className="text-xs">
-                                {customer.billingCycle}
-                              </Badge> */}
+                              {getConnectionTypeBadge(connectionType)}
                             </div>
-                            {customer.deviceName && (
+                            {deviceModel && (
                               <div className="text-xs text-muted-foreground">
-                                Device: {customer.deviceName}
+                                Device: {deviceModel}
                               </div>
                             )}
-                            {customer.vlanId && (
-                              <div className="text-xs text-muted-foreground">
-                                VLAN: {customer.vlanId}
+                            {/* VLAN details: show actual VLAN IDs with names if available */}
+                            {serviceDetail?.vlanDetails && serviceDetail.vlanDetails.length > 0 ? (
+                              <div className="text-xs text-muted-foreground space-y-0.5">
+                                {serviceDetail.vlanDetails.map(vlan => (
+                                  <div key={vlan.id}>
+                                    VLAN {vlan.vlanId}: {vlan.name}
+                                  </div>
+                                ))}
                               </div>
-                            )}
+                            ) : serviceDetail?.vlanId ? (
+                              <div className="text-xs text-muted-foreground">
+                                VLAN: {serviceDetail.vlanId}
+                              </div>
+                            ) : null}
                           </div>
                         </td>
                         <td className="p-4 align-middle" onClick={(e) => e.stopPropagation()}>
@@ -521,23 +464,17 @@ export function CustomersList() {
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>Actions</DropdownMenuLabel>
                               <DropdownMenuItem onClick={() => handleViewProfile(customerId)}>
-                                <User className="mr-2 h-4 w-4" />
-                                <span>View Profile</span>
+                                <User className="mr-2 h-4 w-4" /> View Profile
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleViewInvoices(customerId)}>
-                                <FileText className="mr-2 h-4 w-4" />
-                                <span>View Invoices</span>
+                                <FileText className="mr-2 h-4 w-4" /> View Invoices
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleCheckConnection(customerId)}>
-                                <Wifi className="mr-2 h-4 w-4" />
-                                <span>Check Connection</span>
+                                <Wifi className="mr-2 h-4 w-4" /> Check Connection
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                className="text-red-600"
-                                onClick={() => handleDeleteCustomer(customerId)}
-                              >
-                                <span>Delete Customer</span>
+                              <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteCustomer(customerId)}>
+                                Delete Customer
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -548,16 +485,11 @@ export function CustomersList() {
                 </tbody>
               </table>
 
-              {/* Pagination Controls */}
+              {/* Pagination */}
               <div className="flex items-center justify-between px-4 py-3 border-t">
                 <div className="text-sm text-muted-foreground">
-                  Showing <span className="font-medium">{(pagination.page - 1) * pagination.limit + 1}</span> to{" "}
-                  <span className="font-medium">
-                    {Math.min(pagination.page * pagination.limit, pagination.total)}
-                  </span>{" "}
-                  of <span className="font-medium">{pagination.total}</span> customers
+                  Showing {(pagination.page - 1) * pagination.limit + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} customers
                 </div>
-                
                 <div className="flex items-center space-x-2">
                   <div className="flex items-center space-x-2">
                     <span className="text-sm text-muted-foreground">Rows per page:</span>
@@ -566,58 +498,32 @@ export function CustomersList() {
                       value={pagination.limit}
                       onChange={(e) => handleLimitChange(Number(e.target.value))}
                     >
-                      <option value="5">5</option>
-                      <option value="10">10</option>
-                      <option value="25">25</option>
-                      <option value="50">50</option>
-                      <option value="100">100</option>
+                      {[5, 10, 25, 50, 100].map(limit => (
+                        <option key={limit} value={limit}>{limit}</option>
+                      ))}
                     </select>
                   </div>
-                  
                   <div className="flex items-center space-x-1">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handlePageChange(pagination.page - 1)}
-                      disabled={pagination.page === 1}
-                    >
+                    <Button variant="outline" size="sm" onClick={() => handlePageChange(pagination.page - 1)} disabled={pagination.page === 1}>
                       Previous
                     </Button>
-                    
                     <div className="flex items-center space-x-1">
-                      {(() => {
-                        const pages = []
-                        const maxVisiblePages = 5
-                        let startPage = Math.max(1, pagination.page - Math.floor(maxVisiblePages / 2))
-                        let endPage = Math.min(pagination.totalPages, startPage + maxVisiblePages - 1)
-                        
-                        if (endPage - startPage + 1 < maxVisiblePages) {
-                          startPage = Math.max(1, endPage - maxVisiblePages + 1)
-                        }
-                        
-                        for (let i = startPage; i <= endPage; i++) {
-                          pages.push(
+                      {Array.from({ length: pagination.totalPages }, (_, i) => i + 1)
+                        .filter(page => Math.abs(page - pagination.page) <= 2 || page === 1 || page === pagination.totalPages)
+                        .map((page, idx, arr) => (
+                          <React.Fragment key={page}>
+                            {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-2">…</span>}
                             <Button
-                              key={i}
-                              variant={pagination.page === i ? "default" : "outline"}
+                              variant={pagination.page === page ? "default" : "outline"}
                               size="sm"
-                              onClick={() => handlePageChange(i)}
+                              onClick={() => handlePageChange(page)}
                             >
-                              {i}
+                              {page}
                             </Button>
-                          )
-                        }
-                        
-                        return pages
-                      })()}
+                          </React.Fragment>
+                        ))}
                     </div>
-                    
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handlePageChange(pagination.page + 1)}
-                      disabled={pagination.page >= pagination.totalPages}
-                    >
+                    <Button variant="outline" size="sm" onClick={() => handlePageChange(pagination.page + 1)} disabled={pagination.page >= pagination.totalPages}>
                       Next
                     </Button>
                   </div>
@@ -627,49 +533,37 @@ export function CustomersList() {
           )}
         </div>
       </div>
-      
+
       {/* Bulk Actions */}
       {selectedCustomers.length > 0 && (
         <div className="mt-4 flex items-center justify-between rounded-lg border p-4">
-          <div className="text-sm text-muted-foreground">
+          <span className="text-sm text-muted-foreground">
             <span className="font-medium">{selectedCustomers.length}</span> customers selected
-          </div>
-          <div className="space-x-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  Bulk Actions
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={() => {
-                    toast.loading(`Exporting ${selectedCustomers.length} customers...`, { duration: 2000 })
-                  }}
-                >
-                  Export Selected
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    toast.loading(`Sending emails to ${selectedCustomers.length} customers...`, { duration: 2000 })
-                  }}
-                >
-                  Send Email
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-red-600"
-                  onClick={() => {
-                    if (confirm(`Are you sure you want to delete ${selectedCustomers.length} customers?`)) {
-                      toast.loading(`Deleting ${selectedCustomers.length} customers...`, { duration: 2000 })
-                    }
-                  }}
-                >
-                  Delete Selected
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          </span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">Bulk Actions</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => toast.loading(`Exporting ${selectedCustomers.length} customers...`)}>
+                Export Selected
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.loading(`Sending emails...`)}>
+                Send Email
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-red-600"
+                onClick={() => {
+                  if (confirm(`Delete ${selectedCustomers.length} customers?`)) {
+                    toast.loading(`Deleting...`)
+                  }
+                }}
+              >
+                Delete Selected
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       )}
     </CardContainer>

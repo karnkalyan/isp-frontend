@@ -1,6 +1,6 @@
 "use client"
 
-import { BarChart3, CreditCard, HelpCircle, LayoutDashboard, Settings, Users } from "lucide-react"
+import { BarChart3, CreditCard, HelpCircle, LayoutDashboard, Settings, Users, Server } from "lucide-react"
 import {
   Sidebar as SidebarComponent,
   SidebarContent,
@@ -43,6 +43,11 @@ const menuItems = [
     title: "Settings",
     icon: Settings,
     href: "/settings",
+  },
+  {
+    title: "NAS Management",
+    icon: Server,
+    href: "/nas",
   },
 ]
 

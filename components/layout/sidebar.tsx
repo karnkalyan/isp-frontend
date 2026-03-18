@@ -90,9 +90,9 @@ const menuCategories: MenuCategory[] = [
         href: "/",
         submenu: [
           { title: "Overview", href: "/dashboard/overview" },
-          { title: "Real-Time Stats", href: "/dashboard/real-time" },
-          { title: "System Health", href: "/dashboard/system-health" },
-          { title: "Quick Insights", href: "/dashboard/insights" },
+          // { title: "Real-Time Stats", href: "/dashboard/real-time" },
+          // { title: "System Health", href: "/dashboard/system-health" },
+          // { title: "Quick Insights", href: "/dashboard/insights" },
         ],
       },
     ],
@@ -195,40 +195,48 @@ const menuCategories: MenuCategory[] = [
   {
     category: "Network Infrastructure",
     items: [
-      {
-        title: "Networking",
-        icon: Globe,
-        submenu: [
-          { title: "Topology Map", href: "/networking/topology" },
-          { title: "Devices", href: "/networking/devices" },
-          { title: "VLANs/Subnets", href: "/networking/vlans" },
-          { title: "Routing Policies", href: "/networking/routing" },
-          { title: "Firewall Rules", href: "/networking/firewall" },
-        ],
-      },
-      {
-        title: "Peering & Transit",
-        icon: Share2,
-        submenu: [
-          { title: "Peering Partners", href: "/peering/partners" },
-          { title: "BGP Sessions", href: "/peering/bgp-sessions" },
-          { title: "Transit Providers", href: "/peering/transit" },
-          { title: "IX Management", href: "/peering/ix" },
-          { title: "AS Path Analysis", href: "/peering/as-path" },
-          { title: "Traffic Exchange", href: "/peering/traffic" },
-        ],
-      },
+      // {
+      //   title: "Networking",
+      //   icon: Globe,
+      //   submenu: [
+      //     { title: "Topology Map", href: "/networking/topology" },
+      //     { title: "Devices", href: "/networking/devices" },
+      //     { title: "VLANs/Subnets", href: "/networking/vlans" },
+      //     { title: "Routing Policies", href: "/networking/routing" },
+      //     { title: "Firewall Rules", href: "/networking/firewall" },
+      //   ],
+      // },
+      // {
+      //   title: "Peering & Transit",
+      //   icon: Share2,
+      //   submenu: [
+      //     { title: "Peering Partners", href: "/peering/partners" },
+      //     { title: "BGP Sessions", href: "/peering/bgp-sessions" },
+      //     { title: "Transit Providers", href: "/peering/transit" },
+      //     { title: "IX Management", href: "/peering/ix" },
+      //     { title: "AS Path Analysis", href: "/peering/as-path" },
+      //     { title: "Traffic Exchange", href: "/peering/traffic" },
+      //   ],
+      // },
       {
         title: "TR-069 ACS",
         icon: Cpu,
         submenu: [
           { title: "Dashboard", href: "/tr069" },
           { title: "Device Management", href: "/tr069/devices" },
-          { title: "Device Details", href: "/tr069/device" },
-          { title: "Virtual Hosts", href: "/tr069/virtual-hosts" },
-          { title: "Provisioning", href: "/tr069/provisioning" },
-          { title: "Firmware Updates", href: "/tr069/firmware" },
-          { title: "Configuration", href: "/tr069/config" },
+          // { title: "Device Details", href: "/tr069/device" },
+          // { title: "Virtual Hosts", href: "/tr069/virtual-hosts" },
+          // { title: "Provisioning", href: "/tr069/provisioning" },
+          // { title: "Firmware Updates", href: "/tr069/firmware" },
+          // { title: "Configuration", href: "/tr069/config" },
+        ],
+      },
+      {
+        title: "NAS Management",
+        icon: Server,
+        submenu: [
+          { title: "NAS List", href: "/nas" },
+          { title: "Add NAS", href: "/nas/new" }
         ],
       },
     ],
@@ -240,392 +248,389 @@ const menuCategories: MenuCategory[] = [
         title: "Fiber Management",
         icon: Cable,
         submenu: [
-          { title: "FTTH/FTTB Networks", href: "/fiber/networks" },
+          // { title: "FTTH/FTTB Networks", href: "/fiber/networks" },
           { title: "OLT Management", href: "/fiber/olt" },
-          { title: "ONT/ONU Inventory", href: "/fiber/ont" },
-          { title: "Splitter Management", href: "/fiber/splitters" },
+          // { title: "ONT/ONU Inventory", href: "/fiber/ont" },
+          // { title: "Splitter Management", href: "/fiber/splitters" },
           { title: "Fiber Mapping", href: "/fiber/map" },
-          { title: "PON Diagnostics", href: "/fiber/diagnostics" },
+          // { title: "PON Diagnostics", href: "/fiber/diagnostics" },
         ],
       },
-      {
-        title: "Wireless Networks",
-        icon: Radar,
-        submenu: [
-          { title: "WISP Infrastructure", href: "/wireless/infrastructure" },
-          { title: "Access Points", href: "/wireless/access-points" },
-          { title: "CPE Management", href: "/wireless/cpe" },
-          { title: "Frequency Planning", href: "/wireless/frequency" },
-          { title: "Signal Analysis", href: "/wireless/signal" },
-          { title: "Interference Mgmt", href: "/wireless/interference" },
-        ],
-      },
+      // {
+      //   title: "Wireless Networks",
+      //   icon: Radar,
+      //   submenu: [
+      //     { title: "WISP Infrastructure", href: "/wireless/infrastructure" },
+      //     { title: "Access Points", href: "/wireless/access-points" },
+      //     { title: "CPE Management", href: "/wireless/cpe" },
+      //     { title: "Frequency Planning", href: "/wireless/frequency" },
+      //     { title: "Signal Analysis", href: "/wireless/signal" },
+      //     { title: "Interference Mgmt", href: "/wireless/interference" },
+      //   ],
+      // },
     ],
   },
   {
     category: "Services",
     items: [
       {
-        title: "Tariff Plans",
+        title: "3rd Party Services",
         icon: ListChecks,
         submenu: [
-          { title: "Plan Catalog", href: "/tariffs/catalog" },
-          { title: "Create/Edit Plan", href: "/tariffs/edit" },
-          { title: "Usage Analytics", href: "/tariffs/analytics" },
-          { title: "Promotional Bundles", href: "/tariffs/promotions" },
+          { title: "Service List", href: "/services" },
         ],
       },
-      {
-        title: "Service List",
-        icon: RefreshCw,
-        submenu: [
-          { title: "eSewa", href: "/services/esewa" },
-          { title: "Khalti", href: "/services/khalti" },
-          { title: "IME Pay", href: "/services/imepay" },
-          { title: "TSHUL", href: "/services/tshul" },
-          { title: "RADIUS", href: "/services/radius" },
-          { title: "IPTV", href: "/services/iptv" },
-        ],
-      },
-      {
-        title: "WiFi",
-        icon: Wifi,
-        submenu: [
-          { title: "SSID Config", href: "/wifi/config" },
-          { title: "AP Management", href: "/wifi/ap" },
-          { title: "Usage Heatmap", href: "/wifi/heatmap" },
-          { title: "Guest Controls", href: "/wifi/guest" },
-        ],
-      },
-      {
-        title: "IPTV",
-        icon: Tv,
-        submenu: [
-          { title: "Channel Lineup", href: "/iptv/channels" },
-          { title: "EPG Scheduler", href: "/iptv/epg" },
-          { title: "Quality Metrics", href: "/iptv/quality" },
-          { title: "PPV Modules", href: "/iptv/ppv" },
-        ],
-      },
-      {
-        title: "OTT",
-        icon: Video,
-        submenu: [
-          { title: "Content Library", href: "/ott/library" },
-          { title: "Subscription Management", href: "/ott/subscriptions" },
-          { title: "Stream Analytics", href: "/ott/analytics" },
-          { title: "DRM Settings", href: "/ott/drm" },
-        ],
-      },
-      {
-        title: "Voice",
-        icon: Headphones,
-        submenu: [
-          { title: "Call Logs", href: "/voice/logs" },
-          { title: "SIP Accounts", href: "/voice/sip" },
-          { title: "QoS Monitoring", href: "/voice/qos" },
-          { title: "Recordings Manager", href: "/voice/recordings" },
-        ],
-      },
-      {
-        title: "IVR",
-        icon: Phone,
-        submenu: [
-          { title: "Menu Designer", href: "/ivr/designer" },
-          { title: "Call Flow Simulator", href: "/ivr/simulator" },
-          { title: "Recording Archive", href: "/ivr/recordings" },
-          { title: "Performance Stats", href: "/ivr/stats" },
-        ],
-      },
-      {
-        title: "CDN & Caching",
-        icon: Server,
-        submenu: [
-          { title: "Cache Servers", href: "/cdn/servers" },
-          { title: "Content Distribution", href: "/cdn/distribution" },
-          { title: "Cache Rules", href: "/cdn/rules" },
-          { title: "Performance Analytics", href: "/cdn/performance" },
-          { title: "Origin Servers", href: "/cdn/origin" },
-          { title: "Edge Locations", href: "/cdn/edge" },
-        ],
-      },
+      // {
+      //   title: "Service List",
+      //   icon: RefreshCw,
+      //   submenu: [
+      //     { title: "eSewa", href: "/services/esewa" },
+      //     { title: "Khalti", href: "/services/khalti" },
+      //     { title: "IME Pay", href: "/services/imepay" },
+      //     { title: "TSHUL", href: "/services/tshul" },
+      //     { title: "RADIUS", href: "/services/radius" },
+      //     { title: "IPTV", href: "/services/iptv" },
+      //   ],
+      // },
+      // {
+      //   title: "WiFi",
+      //   icon: Wifi,
+      //   submenu: [
+      //     { title: "SSID Config", href: "/wifi/config" },
+      //     { title: "AP Management", href: "/wifi/ap" },
+      //     { title: "Usage Heatmap", href: "/wifi/heatmap" },
+      //     { title: "Guest Controls", href: "/wifi/guest" },
+      //   ],
+      // },
+      // {
+      //   title: "IPTV",
+      //   icon: Tv,
+      //   submenu: [
+      //     { title: "Channel Lineup", href: "/iptv/channels" },
+      //     { title: "EPG Scheduler", href: "/iptv/epg" },
+      //     { title: "Quality Metrics", href: "/iptv/quality" },
+      //     { title: "PPV Modules", href: "/iptv/ppv" },
+      //   ],
+      // },
+      // {
+      //   title: "OTT",
+      //   icon: Video,
+      //   submenu: [
+      //     { title: "Content Library", href: "/ott/library" },
+      //     { title: "Subscription Management", href: "/ott/subscriptions" },
+      //     { title: "Stream Analytics", href: "/ott/analytics" },
+      //     { title: "DRM Settings", href: "/ott/drm" },
+      //   ],
+      // },
+      // {
+      //   title: "Voice",
+      //   icon: Headphones,
+      //   submenu: [
+      //     { title: "Call Logs", href: "/voice/logs" },
+      //     { title: "SIP Accounts", href: "/voice/sip" },
+      //     { title: "QoS Monitoring", href: "/voice/qos" },
+      //     { title: "Recordings Manager", href: "/voice/recordings" },
+      //   ],
+      // },
+      // {
+      //   title: "IVR",
+      //   icon: Phone,
+      //   submenu: [
+      //     { title: "Menu Designer", href: "/ivr/designer" },
+      //     { title: "Call Flow Simulator", href: "/ivr/simulator" },
+      //     { title: "Recording Archive", href: "/ivr/recordings" },
+      //     { title: "Performance Stats", href: "/ivr/stats" },
+      //   ],
+      // },
+      // {
+      //   title: "CDN & Caching",
+      //   icon: Server,
+      //   submenu: [
+      //     { title: "Cache Servers", href: "/cdn/servers" },
+      //     { title: "Content Distribution", href: "/cdn/distribution" },
+      //     { title: "Cache Rules", href: "/cdn/rules" },
+      //     { title: "Performance Analytics", href: "/cdn/performance" },
+      //     { title: "Origin Servers", href: "/cdn/origin" },
+      //     { title: "Edge Locations", href: "/cdn/edge" },
+      //   ],
+      // },
     ],
   },
-  {
-    category: "Finance",
-    items: [
-      {
-        title: "Finance",
-        icon: CreditCard,
-        href: "/finance",
-        submenu: [
-          { title: "Invoices & Statements", href: "/finance/invoices" },
-          { title: "Transactions Ledger", href: "/finance/transactions" },
-          { title: "Payment Gateways", href: "/finance/gateways" },
-          { title: "Refunds/Disputes", href: "/finance/refunds" },
-          { title: "Tax Reports", href: "/finance/tax" },
-        ],
-      },
-      {
-        title: "Billing",
-        icon: Receipt,
-        submenu: [
-          { title: "Billing Cycles", href: "/billing/cycles" },
-          { title: "Invoice Generation", href: "/billing/invoice-generation" },
-          { title: "Payment Processing", href: "/billing/payment-processing" },
-          { title: "Dunning Management", href: "/billing/dunning" },
-          { title: "Credit Management", href: "/billing/credit" },
-          { title: "Billing Reports", href: "/billing/reports" },
-        ],
-      },
-      {
-        title: "Revenue Management",
-        icon: Coins,
-        submenu: [
-          { title: "Revenue Dashboard", href: "/revenue/dashboard" },
-          { title: "Revenue Forecasting", href: "/revenue/forecasting" },
-          { title: "Revenue Analysis", href: "/revenue/analysis" },
-          { title: "Churn Impact", href: "/revenue/churn-impact" },
-          { title: "Revenue Optimization", href: "/revenue/optimization" },
-        ],
-      },
-    ],
-  },
-  {
-    category: "Sales & Support",
-    items: [
-      {
-        title: "Complaints",
-        icon: MessageSquare,
-        submenu: [
-          { title: "Open Tickets", href: "/complaints/open" },
-          { title: "Escalation Matrix", href: "/complaints/escalation" },
-          { title: "SLA Dashboards", href: "/complaints/sla" },
-          { title: "Resolution History", href: "/complaints/history" },
-        ],
-      },
-      {
-        title: "Support",
-        icon: HelpCircle,
-        href: "/support",
-      },
-      {
-        title: "SLA Management",
-        icon: Hourglass,
-        submenu: [
-          { title: "SLA Definitions", href: "/sla/definitions" },
-          { title: "SLA Monitoring", href: "/sla/monitoring" },
-          { title: "Compliance Reports", href: "/sla/compliance" },
-          { title: "Violation Alerts", href: "/sla/violations" },
-          { title: "Customer SLAs", href: "/sla/customer" },
-        ],
-      },
-      {
-        title: "Customer Portal",
-        icon: Laptop,
-        submenu: [
-          { title: "Portal Management", href: "/portal/management" },
-          { title: "Self-Service Tools", href: "/portal/self-service" },
-          { title: "Knowledge Base", href: "/portal/knowledge-base" },
-          { title: "Usage Monitoring", href: "/portal/usage" },
-          { title: "Bill Payment", href: "/portal/payment" },
-          { title: "Support Tickets", href: "/portal/tickets" },
-        ],
-      },
-    ],
-  },
-  {
-    category: "Analytics & Reporting",
-    items: [
-      {
-        title: "Reports",
-        icon: FileText,
-        href: "/reports",
-        submenu: [
-          { title: "Custom Builder", href: "/reports/builder" },
-          { title: "Scheduled Reports", href: "/reports/scheduled" },
-          { title: "Export CSV/PDF", href: "/reports/export" },
-          { title: "Templates", href: "/reports/templates" },
-        ],
-      },
-      {
-        title: "Analytics",
-        icon: BarChart3,
-        submenu: [
-          { title: "User Behavior", href: "/analytics/behavior" },
-          { title: "Traffic Sources", href: "/analytics/traffic" },
-          { title: "Churn Predictions", href: "/analytics/churn" },
-          { title: "Heatmaps", href: "/analytics/heatmaps" },
-        ],
-      },
-      {
-        title: "Network Analytics",
-        icon: Activity,
-        submenu: [
-          { title: "Traffic Analysis", href: "/network-analytics/traffic" },
-          { title: "Bandwidth Utilization", href: "/network-analytics/bandwidth" },
-          { title: "Congestion Points", href: "/network-analytics/congestion" },
-          { title: "Latency Monitoring", href: "/network-analytics/latency" },
-          { title: "Packet Loss Analysis", href: "/network-analytics/packet-loss" },
-          { title: "Network Forecasting", href: "/network-analytics/forecasting" },
-        ],
-      },
-      {
-        title: "Regulatory Reporting",
-        icon: FileSpreadsheet,
-        submenu: [
-          { title: "Compliance Reports", href: "/regulatory/compliance" },
-          { title: "Data Retention", href: "/regulatory/data-retention" },
-          { title: "Legal Intercept", href: "/regulatory/legal-intercept" },
-          { title: "Regulatory Filings", href: "/regulatory/filings" },
-          { title: "Audit Trails", href: "/regulatory/audit" },
-        ],
-      },
-    ],
-  },
-  {
-    category: "Infrastructure",
-    items: [
-      {
-        title: "Network Monitoring",
-        icon: MonitorCheck,
-        submenu: [
-          { title: "Live Dashboard", href: "/monitoring/live" },
-          { title: "Alert Rules", href: "/monitoring/alerts" },
-          { title: "Historical Uptime", href: "/monitoring/uptime" },
-          { title: "SNMP/ICMP Tools", href: "/monitoring/tools" },
-        ],
-      },
-      {
-        title: "TR-069",
-        icon: Cpu,
-        submenu: [
-          { title: "Device Profiles", href: "/tr069/profiles" },
-          { title: "Provisioning Templates", href: "/tr069/templates" },
-          { title: "Session Logs", href: "/tr069/logs" },
-          { title: "Firmware Management", href: "/tr069/firmware" },
-        ],
-      },
-      {
-        title: "SysLog Mgmt",
-        icon: FileCode,
-        submenu: [
-          { title: "Log Servers", href: "/syslog/servers" },
-          { title: "Live Viewer", href: "/syslog/viewer" },
-          { title: "Alert Rules", href: "/syslog/alerts" },
-          { title: "Archive & Export", href: "/syslog/archive" },
-        ],
-      },
-      {
-        title: "Server Info",
-        icon: Cloud,
-        submenu: [
-          { title: "Real-Time Metrics", href: "/server/metrics" },
-          { title: "Resource Usage", href: "/server/resources" },
-          { title: "Service Status", href: "/server/status" },
-          { title: "Maintenance Scheduler", href: "/server/maintenance" },
-        ],
-      },
-      {
-        title: "Capacity Planning",
-        icon: Sliders,
-        submenu: [
-          { title: "Bandwidth Planning", href: "/capacity/bandwidth" },
-          { title: "Growth Forecasting", href: "/capacity/forecasting" },
-          { title: "Upgrade Planning", href: "/capacity/upgrades" },
-          { title: "Capacity Reports", href: "/capacity/reports" },
-          { title: "Bottleneck Analysis", href: "/capacity/bottlenecks" },
-        ],
-      },
-    ],
-  },
-  {
-    category: "Advanced Networking",
-    items: [
-      {
-        title: "Traffic Management",
-        icon: Sliders,
-        submenu: [
-          { title: "Bandwidth Control", href: "/traffic/bandwidth" },
-          { title: "QoS Policies", href: "/traffic/qos" },
-          { title: "Traffic Shaping", href: "/traffic/shaping" },
-          { title: "Deep Packet Inspection", href: "/traffic/dpi" },
-          { title: "Traffic Graphs", href: "/traffic/graphs" },
-        ],
-      },
-      {
-        title: "Hotspot System",
-        icon: Milestone,
-        submenu: [
-          { title: "Hotspot Servers", href: "/hotspot/servers" },
-          { title: "User Profiles", href: "/hotspot/profiles" },
-          { title: "Walled Garden", href: "/hotspot/walled-garden" },
-          { title: "Voucher Generator", href: "/hotspot/vouchers" },
-          { title: "Captive Portal", href: "/hotspot/captive-portal" },
-        ],
-      },
-    ],
-  },
-  {
-    category: "Resources",
-    items: [
-      {
-        title: "Inventory",
-        icon: Package,
-        submenu: [
-          { title: "Hardware Catalog", href: "/inventory/catalog" },
-          { title: "Stock Levels", href: "/inventory/stock" },
-          { title: "Stock Management", href: "/inventory/stock-management" },
-          { title: "Inventory Tracking", href: "/inventory/tracking" },
-          { title: "Supplier Management", href: "/inventory/suppliers" },
-          { title: "Reorder Points", href: "/inventory/reorder" },
-          { title: "Asset Assignment", href: "/inventory/assets" },
-          { title: "Purchase Orders", href: "/inventory/orders" },
-        ],
-      },
-      {
-        title: "Location Mgmt",
-        icon: Map,
-        submenu: [
-          { title: "Site Directory", href: "/locations/directory" },
-          { title: "Geofencing Rules", href: "/locations/geofencing" },
-          { title: "Map Dashboard", href: "/locations/map" },
-          { title: "GPS Sync Logs", href: "/locations/gps" },
-        ],
-      },
-      {
-        title: "Tools",
-        icon: Tool,
-        submenu: [
-          { title: "Diagnostics Suite", href: "/tools/diagnostics" },
-          { title: "API Explorer", href: "/tools/api" },
-          { title: "CLI/SSH Access", href: "/tools/cli" },
-          { title: "Debug Console", href: "/tools/debug" },
-        ],
-      },
-      {
-        title: "Maintenance",
-        icon: Wrench,
-        submenu: [
-          { title: "Scheduled Tasks", href: "/maintenance/scheduled" },
-          { title: "Maintenance Windows", href: "/maintenance/windows" },
-          { title: "Change Management", href: "/maintenance/change" },
-          { title: "Backup Schedules", href: "/maintenance/backup" },
-        ],
-      },
-      {
-        title: "Field Operations",
-        icon: Truck,
-        submenu: [
-          { title: "Technician Dispatch", href: "/field/dispatch" },
-          { title: "Installation Jobs", href: "/field/installations" },
-          { title: "Service Calls", href: "/field/service-calls" },
-          { title: "Field Equipment", href: "/field/equipment" },
-          { title: "Mobile Apps", href: "/field/mobile-apps" },
-        ],
-      },
-    ],
-  },
+  // {
+  //   category: "Finance",
+  //   items: [
+  //     {
+  //       title: "Finance",
+  //       icon: CreditCard,
+  //       href: "/finance",
+  //       submenu: [
+  //         { title: "Invoices & Statements", href: "/finance/invoices" },
+  //         { title: "Transactions Ledger", href: "/finance/transactions" },
+  //         { title: "Payment Gateways", href: "/finance/gateways" },
+  //         { title: "Refunds/Disputes", href: "/finance/refunds" },
+  //         { title: "Tax Reports", href: "/finance/tax" },
+  //       ],
+  //     },
+  //     {
+  //       title: "Billing",
+  //       icon: Receipt,
+  //       submenu: [
+  //         { title: "Billing Cycles", href: "/billing/cycles" },
+  //         { title: "Invoice Generation", href: "/billing/invoice-generation" },
+  //         { title: "Payment Processing", href: "/billing/payment-processing" },
+  //         { title: "Dunning Management", href: "/billing/dunning" },
+  //         { title: "Credit Management", href: "/billing/credit" },
+  //         { title: "Billing Reports", href: "/billing/reports" },
+  //       ],
+  //     },
+  //     {
+  //       title: "Revenue Management",
+  //       icon: Coins,
+  //       submenu: [
+  //         { title: "Revenue Dashboard", href: "/revenue/dashboard" },
+  //         { title: "Revenue Forecasting", href: "/revenue/forecasting" },
+  //         { title: "Revenue Analysis", href: "/revenue/analysis" },
+  //         { title: "Churn Impact", href: "/revenue/churn-impact" },
+  //         { title: "Revenue Optimization", href: "/revenue/optimization" },
+  //       ],
+  //     },
+  //   ],
+  // },
+  // {
+  //   category: "Sales & Support",
+  //   items: [
+  //     {
+  //       title: "Complaints",
+  //       icon: MessageSquare,
+  //       submenu: [
+  //         { title: "Open Tickets", href: "/complaints/open" },
+  //         { title: "Escalation Matrix", href: "/complaints/escalation" },
+  //         { title: "SLA Dashboards", href: "/complaints/sla" },
+  //         { title: "Resolution History", href: "/complaints/history" },
+  //       ],
+  //     },
+  //     {
+  //       title: "Support",
+  //       icon: HelpCircle,
+  //       href: "/support",
+  //     },
+  //     {
+  //       title: "SLA Management",
+  //       icon: Hourglass,
+  //       submenu: [
+  //         { title: "SLA Definitions", href: "/sla/definitions" },
+  //         { title: "SLA Monitoring", href: "/sla/monitoring" },
+  //         { title: "Compliance Reports", href: "/sla/compliance" },
+  //         { title: "Violation Alerts", href: "/sla/violations" },
+  //         { title: "Customer SLAs", href: "/sla/customer" },
+  //       ],
+  //     },
+  //     {
+  //       title: "Customer Portal",
+  //       icon: Laptop,
+  //       submenu: [
+  //         { title: "Portal Management", href: "/portal/management" },
+  //         { title: "Self-Service Tools", href: "/portal/self-service" },
+  //         { title: "Knowledge Base", href: "/portal/knowledge-base" },
+  //         { title: "Usage Monitoring", href: "/portal/usage" },
+  //         { title: "Bill Payment", href: "/portal/payment" },
+  //         { title: "Support Tickets", href: "/portal/tickets" },
+  //       ],
+  //     },
+  //   ],
+  // },
+  // {
+  //   category: "Analytics & Reporting",
+  //   items: [
+  //     {
+  //       title: "Reports",
+  //       icon: FileText,
+  //       href: "/reports",
+  //       submenu: [
+  //         { title: "Custom Builder", href: "/reports/builder" },
+  //         { title: "Scheduled Reports", href: "/reports/scheduled" },
+  //         { title: "Export CSV/PDF", href: "/reports/export" },
+  //         { title: "Templates", href: "/reports/templates" },
+  //       ],
+  //     },
+  //     {
+  //       title: "Analytics",
+  //       icon: BarChart3,
+  //       submenu: [
+  //         { title: "User Behavior", href: "/analytics/behavior" },
+  //         { title: "Traffic Sources", href: "/analytics/traffic" },
+  //         { title: "Churn Predictions", href: "/analytics/churn" },
+  //         { title: "Heatmaps", href: "/analytics/heatmaps" },
+  //       ],
+  //     },
+  //     {
+  //       title: "Network Analytics",
+  //       icon: Activity,
+  //       submenu: [
+  //         { title: "Traffic Analysis", href: "/network-analytics/traffic" },
+  //         { title: "Bandwidth Utilization", href: "/network-analytics/bandwidth" },
+  //         { title: "Congestion Points", href: "/network-analytics/congestion" },
+  //         { title: "Latency Monitoring", href: "/network-analytics/latency" },
+  //         { title: "Packet Loss Analysis", href: "/network-analytics/packet-loss" },
+  //         { title: "Network Forecasting", href: "/network-analytics/forecasting" },
+  //       ],
+  //     },
+  //     {
+  //       title: "Regulatory Reporting",
+  //       icon: FileSpreadsheet,
+  //       submenu: [
+  //         { title: "Compliance Reports", href: "/regulatory/compliance" },
+  //         { title: "Data Retention", href: "/regulatory/data-retention" },
+  //         { title: "Legal Intercept", href: "/regulatory/legal-intercept" },
+  //         { title: "Regulatory Filings", href: "/regulatory/filings" },
+  //         { title: "Audit Trails", href: "/regulatory/audit" },
+  //       ],
+  //     },
+  //   ],
+  // },
+  // {
+  //   category: "Infrastructure",
+  //   items: [
+  //     {
+  //       title: "Network Monitoring",
+  //       icon: MonitorCheck,
+  //       submenu: [
+  //         { title: "Live Dashboard", href: "/monitoring/live" },
+  //         { title: "Alert Rules", href: "/monitoring/alerts" },
+  //         { title: "Historical Uptime", href: "/monitoring/uptime" },
+  //         { title: "SNMP/ICMP Tools", href: "/monitoring/tools" },
+  //       ],
+  //     },
+  //     {
+  //       title: "TR-069",
+  //       icon: Cpu,
+  //       submenu: [
+  //         { title: "Device Profiles", href: "/tr069/profiles" },
+  //         { title: "Provisioning Templates", href: "/tr069/templates" },
+  //         { title: "Session Logs", href: "/tr069/logs" },
+  //         { title: "Firmware Management", href: "/tr069/firmware" },
+  //       ],
+  //     },
+  //     {
+  //       title: "SysLog Mgmt",
+  //       icon: FileCode,
+  //       submenu: [
+  //         { title: "Log Servers", href: "/syslog/servers" },
+  //         { title: "Live Viewer", href: "/syslog/viewer" },
+  //         { title: "Alert Rules", href: "/syslog/alerts" },
+  //         { title: "Archive & Export", href: "/syslog/archive" },
+  //       ],
+  //     },
+  //     {
+  //       title: "Server Info",
+  //       icon: Cloud,
+  //       submenu: [
+  //         { title: "Real-Time Metrics", href: "/server/metrics" },
+  //         { title: "Resource Usage", href: "/server/resources" },
+  //         { title: "Service Status", href: "/server/status" },
+  //         { title: "Maintenance Scheduler", href: "/server/maintenance" },
+  //       ],
+  //     },
+  //     {
+  //       title: "Capacity Planning",
+  //       icon: Sliders,
+  //       submenu: [
+  //         { title: "Bandwidth Planning", href: "/capacity/bandwidth" },
+  //         { title: "Growth Forecasting", href: "/capacity/forecasting" },
+  //         { title: "Upgrade Planning", href: "/capacity/upgrades" },
+  //         { title: "Capacity Reports", href: "/capacity/reports" },
+  //         { title: "Bottleneck Analysis", href: "/capacity/bottlenecks" },
+  //       ],
+  //     },
+  //   ],
+  // },
+  // {
+  //   category: "Advanced Networking",
+  //   items: [
+  //     {
+  //       title: "Traffic Management",
+  //       icon: Sliders,
+  //       submenu: [
+  //         { title: "Bandwidth Control", href: "/traffic/bandwidth" },
+  //         { title: "QoS Policies", href: "/traffic/qos" },
+  //         { title: "Traffic Shaping", href: "/traffic/shaping" },
+  //         { title: "Deep Packet Inspection", href: "/traffic/dpi" },
+  //         { title: "Traffic Graphs", href: "/traffic/graphs" },
+  //       ],
+  //     },
+  //     {
+  //       title: "Hotspot System",
+  //       icon: Milestone,
+  //       submenu: [
+  //         { title: "Hotspot Servers", href: "/hotspot/servers" },
+  //         { title: "User Profiles", href: "/hotspot/profiles" },
+  //         { title: "Walled Garden", href: "/hotspot/walled-garden" },
+  //         { title: "Voucher Generator", href: "/hotspot/vouchers" },
+  //         { title: "Captive Portal", href: "/hotspot/captive-portal" },
+  //       ],
+  //     },
+  //   ],
+  // },
+  // {
+  //   category: "Resources",
+  //   items: [
+  //     {
+  //       title: "Inventory",
+  //       icon: Package,
+  //       submenu: [
+  //         { title: "Hardware Catalog", href: "/inventory/catalog" },
+  //         { title: "Stock Levels", href: "/inventory/stock" },
+  //         { title: "Stock Management", href: "/inventory/stock-management" },
+  //         { title: "Inventory Tracking", href: "/inventory/tracking" },
+  //         { title: "Supplier Management", href: "/inventory/suppliers" },
+  //         { title: "Reorder Points", href: "/inventory/reorder" },
+  //         { title: "Asset Assignment", href: "/inventory/assets" },
+  //         { title: "Purchase Orders", href: "/inventory/orders" },
+  //       ],
+  //     },
+  //     {
+  //       title: "Location Mgmt",
+  //       icon: Map,
+  //       submenu: [
+  //         { title: "Site Directory", href: "/locations/directory" },
+  //         { title: "Geofencing Rules", href: "/locations/geofencing" },
+  //         { title: "Map Dashboard", href: "/locations/map" },
+  //         { title: "GPS Sync Logs", href: "/locations/gps" },
+  //       ],
+  //     },
+  //     {
+  //       title: "Tools",
+  //       icon: Tool,
+  //       submenu: [
+  //         { title: "Diagnostics Suite", href: "/tools/diagnostics" },
+  //         { title: "API Explorer", href: "/tools/api" },
+  //         { title: "CLI/SSH Access", href: "/tools/cli" },
+  //         { title: "Debug Console", href: "/tools/debug" },
+  //       ],
+  //     },
+  //     {
+  //       title: "Maintenance",
+  //       icon: Wrench,
+  //       submenu: [
+  //         { title: "Scheduled Tasks", href: "/maintenance/scheduled" },
+  //         { title: "Maintenance Windows", href: "/maintenance/windows" },
+  //         { title: "Change Management", href: "/maintenance/change" },
+  //         { title: "Backup Schedules", href: "/maintenance/backup" },
+  //       ],
+  //     },
+  //     {
+  //       title: "Field Operations",
+  //       icon: Truck,
+  //       submenu: [
+  //         { title: "Technician Dispatch", href: "/field/dispatch" },
+  //         { title: "Installation Jobs", href: "/field/installations" },
+  //         { title: "Service Calls", href: "/field/service-calls" },
+  //         { title: "Field Equipment", href: "/field/equipment" },
+  //         { title: "Mobile Apps", href: "/field/mobile-apps" },
+  //       ],
+  //     },
+  //   ],
+  // },
   {
     category: "System",
     items: [
@@ -634,43 +639,43 @@ const menuCategories: MenuCategory[] = [
         icon: Settings,
         submenu: [
           { title: "System Settings & Packages", href: "/dashboard/settings" },
-          { title: "Security & SSO", href: "/settings/security" },
-          { title: "Notifications", href: "/settings/notifications" },
-          { title: "Localization", href: "/settings/localization" },
+          // { title: "Security & SSO", href: "/settings/security" },
+          // { title: "Notifications", href: "/settings/notifications" },
+          // { title: "Localization", href: "/settings/localization" },
         ],
       },
-      {
-        title: "Master Settings",
-        icon: Sliders,
-        href: "/master-settings",
-        // highlight: true,
-        submenu: [
-          { title: "Service Settings", href: "/master-settings" },
-          { title: "System Configuration", href: "/master-settings/system" },
-          { title: "Integration Settings", href: "/master-settings/integrations" },
-        ],
-      },
-      {
-        title: "Integration",
-        icon: Plug,
-        submenu: [
-          { title: "API Management", href: "/integration/api" },
-          { title: "Webhooks", href: "/integration/webhooks" },
-          { title: "Third-Party Services", href: "/integration/third-party" },
-          { title: "Data Exchange", href: "/integration/data-exchange" },
-        ],
-      },
-      {
-        title: "Automation",
-        icon: Workflow,
-        submenu: [
-          { title: "Workflow Builder", href: "/automation/workflows" },
-          { title: "Scheduled Tasks", href: "/automation/scheduled" },
-          { title: "Event Triggers", href: "/automation/triggers" },
-          { title: "Automation Logs", href: "/automation/logs" },
-          { title: "Templates", href: "/automation/templates" },
-        ],
-      },
+      // {
+      //   title: "Master Settings",
+      //   icon: Sliders,
+      //   href: "/master-settings",
+      //   // highlight: true,
+      //   submenu: [
+      //     { title: "Service Settings", href: "/master-settings" },
+      //     { title: "System Configuration", href: "/master-settings/system" },
+      //     { title: "Integration Settings", href: "/master-settings/integrations" },
+      //   ],
+      // },
+      // {
+      //   title: "Integration",
+      //   icon: Plug,
+      //   submenu: [
+      //     { title: "API Management", href: "/integration/api" },
+      //     { title: "Webhooks", href: "/integration/webhooks" },
+      //     { title: "Third-Party Services", href: "/integration/third-party" },
+      //     { title: "Data Exchange", href: "/integration/data-exchange" },
+      //   ],
+      // },
+      // {
+      //   title: "Automation",
+      //   icon: Workflow,
+      //   submenu: [
+      //     { title: "Workflow Builder", href: "/automation/workflows" },
+      //     { title: "Scheduled Tasks", href: "/automation/scheduled" },
+      //     { title: "Event Triggers", href: "/automation/triggers" },
+      //     { title: "Automation Logs", href: "/automation/logs" },
+      //     { title: "Templates", href: "/automation/templates" },
+      //   ],
+      // },
     ],
   },
 ]

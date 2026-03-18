@@ -2,14 +2,14 @@ services:
   frontend:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.frontend
     container_name: kisan-isp-frontend
+    restart: always
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=production
-      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
-      - NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID}
-      - ACCESS_SECRET=${ACCESS_SECRET}
-      - REFRESH_SECRET=${REFRESH_SECRET}
-    restart: always
+      NODE_ENV: production
+      NEXT_PUBLIC_API_BASE_URL: "http://api.cms.arrownet.com.np"
+      NEXT_PUBLIC_GOOGLE_CLIENT_ID: "497249566156-jed3q4fsm8ndrip7sdopqtk9gp5rh0eh.apps.googleusercontent.com"
+      ACCESS_SECRET: "IspMainAdminPanel123@!23"
+      REFRESH_SECRET: "ispMainAdminPanelRefresh123"

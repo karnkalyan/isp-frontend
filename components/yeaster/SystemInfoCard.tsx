@@ -33,7 +33,7 @@ export default function SystemInfoCard({ ispId }: SystemInfoCardProps) {
     const fetchSystemInfo = async () => {
         try {
             setLoading(true)
-            const data = await apiRequest<SystemInfo>(`/yeastar/${ispId}/system/info`)
+            const data = await apiRequest<SystemInfo>(`/yeaster/system/info`)
             setInfo(data)
         } catch (error: any) {
             console.error("Error fetching system info:", error)

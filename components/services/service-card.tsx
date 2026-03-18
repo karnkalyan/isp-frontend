@@ -1,4 +1,4 @@
-// components/services/service-card.tsx
+// components/services/service-card.tsx - FIXED BUTTON HANDLERS
 "use client";
 
 import { useState } from "react";
@@ -13,21 +13,15 @@ import {
     CheckCircle,
     XCircle,
     AlertCircle,
-    ExternalLink,
-    Shield,
-    CreditCard,
-    Tv,
-    Phone,
-    Server,
-    Lock,
-    Mail
+    Lock
 } from "lucide-react";
-import { ISPService, ServiceStatus } from "@/types/service.types";
+import { ISPService } from "@/types/service.types";
 import { ServicesAPI } from "@/lib/api/service";
 import { toast } from "react-hot-toast";
 import { ServiceConfigureDialog } from "./service-configure-dialog";
 import { ServiceTestDialog } from "./service-test-dialog";
 import { ServiceCredentialsDialog } from "./service-credentials-dialog";
+import { useRouter } from "next/navigation";
 
 interface ServiceCardProps {
     service: ISPService;
@@ -35,18 +29,18 @@ interface ServiceCardProps {
 }
 
 const serviceIcons: Record<string, React.ReactNode> = {
-    TSHUL: <CreditCard className="h-5 w-5" />,
-    RADIUS: <Shield className="h-5 w-5" />,
-    NETTV: <Tv className="h-5 w-5" />,
-    YEASTAR: <Phone className="h-5 w-5" />,
-    MIKROTIK: <Server className="h-5 w-5" />,
-    HUAWEI_OLT: <Server className="h-5 w-5" />,
-    ZTE_OLT: <Server className="h-5 w-5" />,
-    FORTIGATE: <Shield className="h-5 w-5" />,
-    ESEWA: <CreditCard className="h-5 w-5" />,
-    KHALTI: <CreditCard className="h-5 w-5" />,
-    SMS_GATEWAY: <Mail className="h-5 w-5" />,
-    EMAIL_SERVICE: <Mail className="h-5 w-5" />
+    TSHUL: <div className="h-5 w-5">💰</div>,
+    RADIUS: <div className="h-5 w-5">🔐</div>,
+    NETTV: <div className="h-5 w-5">📺</div>,
+    YEASTAR: <div className="h-5 w-5">📞</div>,
+    MIKROTIK: <div className="h-5 w-5">🛰️</div>,
+    HUAWEI_OLT: <div className="h-5 w-5">🌐</div>,
+    ZTE_OLT: <div className="h-5 w-5">🌐</div>,
+    FORTIGATE: <div className="h-5 w-5">🛡️</div>,
+    ESEWA: <div className="h-5 w-5">💳</div>,
+    KHALTI: <div className="h-5 w-5">💳</div>,
+    SMS_GATEWAY: <div className="h-5 w-5">✉️</div>,
+    EMAIL_SERVICE: <div className="h-5 w-5">📧</div>
 };
 
 const categoryColors: Record<string, string> = {
@@ -62,6 +56,7 @@ const categoryColors: Record<string, string> = {
 };
 
 export function ServiceCard({ service, onStatusChange }: ServiceCardProps) {
+    const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [showConfigure, setShowConfigure] = useState(false);
     const [showTest, setShowTest] = useState(false);
@@ -94,6 +89,10 @@ export function ServiceCard({ service, onStatusChange }: ServiceCardProps) {
         }
     };
 
+    const handleViewDetails = () => {
+        router.push(`/services/${service.id}`);
+    };
+
     const getStatusIcon = () => {
         if (!service.isActive) return <XCircle className="h-4 w-4 text-red-500" />;
         if (!service.baseUrl) return <AlertCircle className="h-4 w-4 text-amber-500" />;
@@ -116,7 +115,7 @@ export function ServiceCard({ service, onStatusChange }: ServiceCardProps) {
 
     return (
         <>
-            <Card className="hover:shadow-md transition-shadow">
+            <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={handleViewDetails}>
                 <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
                         <div className="flex items-center gap-3">
@@ -138,7 +137,10 @@ export function ServiceCard({ service, onStatusChange }: ServiceCardProps) {
                         <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => setShowConfigure(true)}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setShowConfigure(true);
+                            }}
                             disabled={loading}
                         >
                             <Settings className="h-4 w-4" />
@@ -195,7 +197,10 @@ export function ServiceCard({ service, onStatusChange }: ServiceCardProps) {
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={handleTestConnection}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleTestConnection();
+                                        }}
                                         disabled={loading}
                                     >
                                         <Wifi className="h-3 w-3 mr-1" />
@@ -212,7 +217,10 @@ export function ServiceCard({ service, onStatusChange }: ServiceCardProps) {
                         <Button
                             variant={service.isActive ? "destructive" : "default"}
                             size="sm"
-                            onClick={handleToggleActivation}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleActivation();
+                            }}
                             disabled={loading}
                         >
                             <Power className="h-3 w-3 mr-1" />
@@ -222,7 +230,10 @@ export function ServiceCard({ service, onStatusChange }: ServiceCardProps) {
                         <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => setShowCredentials(true)}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setShowCredentials(true);
+                            }}
                             disabled={loading || !service.baseUrl}
                         >
                             <Lock className="h-3 w-3 mr-1" />
@@ -234,7 +245,10 @@ export function ServiceCard({ service, onStatusChange }: ServiceCardProps) {
                         <Button
                             variant="ghost"
                             size="sm"
-                            onClick={onStatusChange}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onStatusChange();
+                            }}
                             disabled={loading}
                         >
                             <RefreshCw className="h-3 w-3" />

@@ -55,7 +55,7 @@ export function ExtraChargesSettings() {
     { value: "false", label: "False" },
     { value: "true", label: "True" },
   ]
-  
+
   // Memoize a map for quick package name lookups
   const packageMap = useMemo(() => {
     return new Map(packageOptions.map(opt => [Number(opt.value), opt.label]));
@@ -265,7 +265,7 @@ export function ExtraChargesSettings() {
               />
             </div>
           </div>
-          
+
           <div className="flex justify-end space-x-2">
             <Button variant="outline" onClick={handleCancel}>
               <X className="mr-2 h-4 w-4" /> Cancel
@@ -344,7 +344,7 @@ export function ExtraChargesSettings() {
                       {charge.applicablePackages.length > 0
                         // FIX #3: Use p.id to correctly look up the package name.
                         ? charge.applicablePackages.map(p => packageMap.get(p.id)).filter(Boolean).join(', ')
-                        : "All Packages"}
+                        : "No Packages Selected"}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end space-x-1">

@@ -1,4 +1,4 @@
-// components/services/service-credentials-dialog.tsx
+// components/services/service-credentials-dialog.tsx - FIXED
 "use client";
 
 import { useState, useEffect } from "react";
@@ -56,7 +56,11 @@ export function ServiceCredentialsDialog({
 
     useEffect(() => {
         if (open && service.credentials) {
-            setCredentials(service.credentials);
+            // Make sure credentials is an array
+            const credsArray = Array.isArray(service.credentials)
+                ? service.credentials
+                : Object.values(service.credentials);
+            setCredentials(credsArray);
         }
     }, [open, service.credentials]);
 
@@ -67,11 +71,17 @@ export function ServiceCredentialsDialog({
         }
 
         const credential: ServiceCredential = {
+            id: Date.now(), // Temporary ID
             credentialType: newCredential.credentialType || "api_key",
             key: newCredential.key,
             value: newCredential.value,
             label: newCredential.label || newCredential.key,
             isEncrypted: newCredential.isEncrypted !== false,
+            isActive: true,
+            isDeleted: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            ispServiceId: service.id
         };
 
         setCredentials([...credentials, credential]);
@@ -97,10 +107,29 @@ export function ServiceCredentialsDialog({
     const handleSave = async () => {
         try {
             setLoading(true);
-            await ServicesAPI.setServiceCredentials(service.service.code, credentials);
-            toast.success("Credentials saved successfully");
-            onSuccess();
-            onOpenChange(false);
+
+            // Prepare credentials for API
+            const credentialsToSave = credentials.map(cred => ({
+                credentialType: cred.credentialType,
+                key: cred.key,
+                value: cred.value,
+                label: cred.label || cred.key,
+                isEncrypted: cred.isEncrypted,
+                description: cred.description || ''
+            }));
+
+            const response = await ServicesAPI.setServiceCredentials(
+                service.service.code,
+                credentialsToSave
+            );
+
+            if (response.success) {
+                toast.success(response.message || "Credentials saved successfully");
+                onSuccess();
+                onOpenChange(false);
+            } else {
+                toast.error(response.error || "Failed to save credentials");
+            }
         } catch (error: any) {
             toast.error(error.message || "Failed to save credentials");
         } finally {
@@ -233,7 +262,7 @@ export function ServiceCredentialsDialog({
                                                 <Badge variant="outline" className="text-xs">
                                                     {cred.credentialType}
                                                 </Badge>
-                                                <span className="font-medium">{cred.label}</span>
+                                                <span className="font-medium">{cred.label || cred.key}</span>
                                                 {cred.isEncrypted && (
                                                     <Badge variant="secondary" className="text-xs">
                                                         Encrypted

@@ -1,4 +1,4 @@
-// components/services/service-catalog.tsx
+// components/services/service-catalog.tsx - FIXED VERSION
 "use client";
 
 import { useState, useEffect } from "react";
@@ -13,32 +13,34 @@ import { Service, ServiceCategory } from "@/types/service.types";
 import { ServicesAPI } from "@/lib/api/service";
 import { ServiceCatalogCard } from "./service-catalog-card";
 import { toast } from "react-hot-toast";
+import { useRouter } from "next/navigation";
 
-const categories: ServiceCategory[] = [
-    "ALL",
-    "BILLING",
-    "AUTHENTICATION",
-    "PAYMENT",
-    "STREAMING",
-    "NETWORK",
-    "VOIP",
-    "SECURITY",
-    "COMMUNICATION",
-    "OTHER"
-] as any;
+const categories: (ServiceCategory | 'ALL')[] = [
+    'ALL',
+    'BILLING',
+    'AUTHENTICATION',
+    'PAYMENT',
+    'STREAMING',
+    'NETWORK',
+    'VOIP',
+    'SECURITY',
+    'COMMUNICATION',
+    'OTHER'
+];
 
 export function ServiceCatalog() {
+    const router = useRouter();
     const [services, setServices] = useState<Service[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
-    const [selectedCategory, setSelectedCategory] = useState<ServiceCategory | "ALL">("ALL");
+    const [selectedCategory, setSelectedCategory] = useState<ServiceCategory | 'ALL'>('ALL');
 
     const fetchServices = async () => {
         try {
             setLoading(true);
             const filters: any = {};
 
-            if (selectedCategory !== "ALL") {
+            if (selectedCategory !== 'ALL') {
                 filters.category = selectedCategory;
             }
 
@@ -47,9 +49,13 @@ export function ServiceCatalog() {
             }
 
             const response = await ServicesAPI.getServicesCatalog(filters);
-            setServices(response.data);
+            if (response.success) {
+                setServices(response.data);
+            } else {
+                toast.error("Failed to load services catalog");
+            }
         } catch (error: any) {
-            toast.error("Failed to load services catalog");
+            toast.error(error.message || "Failed to load services catalog");
         } finally {
             setLoading(false);
         }
@@ -65,7 +71,7 @@ export function ServiceCatalog() {
     };
 
     const filteredServices = services.filter(service =>
-        selectedCategory === "ALL" || service.category === selectedCategory
+        selectedCategory === 'ALL' || service.category === selectedCategory
     );
 
     const getCategoryCount = (category: ServiceCategory) => {
@@ -116,6 +122,14 @@ export function ServiceCatalog() {
                             <Filter className="h-4 w-4 mr-2" />
                             Search
                         </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => router.push('/services/add')}
+                        >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add Service
+                        </Button>
                     </form>
 
                     {/* Category Tabs */}
@@ -123,10 +137,10 @@ export function ServiceCatalog() {
                         <TabsList className="flex-wrap h-auto">
                             {categories.map((category) => (
                                 <TabsTrigger key={category} value={category} className="relative">
-                                    {category === "ALL" ? "All" : category}
-                                    {category !== "ALL" && (
+                                    {category === 'ALL' ? 'All' : category}
+                                    {category !== 'ALL' && (
                                         <Badge variant="secondary" className="ml-2 h-5 w-5 p-0 text-xs">
-                                            {getCategoryCount(category)}
+                                            {getCategoryCount(category as ServiceCategory)}
                                         </Badge>
                                     )}
                                 </TabsTrigger>
@@ -147,11 +161,16 @@ export function ServiceCatalog() {
                                 ? `No services match "${searchQuery}"`
                                 : "No services available in this category"}
                         </p>
-                        {searchQuery && (
-                            <Button variant="outline" onClick={() => setSearchQuery("")}>
-                                Clear Search
+                        <div className="flex gap-2 justify-center">
+                            {searchQuery && (
+                                <Button variant="outline" onClick={() => setSearchQuery("")}>
+                                    Clear Search
+                                </Button>
+                            )}
+                            <Button onClick={() => router.push('/services/add')}>
+                                Browse All Services
                             </Button>
-                        )}
+                        </div>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

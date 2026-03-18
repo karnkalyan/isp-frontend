@@ -1,14 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect, useCallback, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CardContainer } from "@/components/ui/card-container"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { CustomerDeviceStatus } from "@/components/customers/customer-device-status"
-import { CustomerUsageChart } from "@/components/customers/customer-usage-chart"
 import { CustomerInvoices } from "@/components/customers/customer-invoices"
 import { CustomerTickets } from "@/components/customers/customer-tickets"
 import { Progress } from "@/components/ui/progress"
@@ -41,10 +39,27 @@ import {
   Link,
   Globe,
   HardDrive,
+  Box,
+  Server,
+  Split,
+  Cpu,
+  Zap,
+  BarChart,
+  Play,
+  Pause,
 } from "lucide-react"
 import { apiRequest } from "@/lib/api"
 
-// Add these dialog components for modals
+// TR-069 components
+import { TR069DeviceDetails } from "@/components/tr069/device-details"
+import { TR069DeviceWanConnections } from "@/components/tr069/device-wan-connections"
+import { TR069DeviceWifi } from "@/components/tr069/device-wifi"
+import { TR069DeviceLanInfo } from "@/components/tr069/device-lan"
+import { TR069DeviceNeighbors } from "@/components/tr069/device-neighbors"
+
+// Realtime Usage Chart
+import { RealtimeUsageChart } from "@/components/customers/realtime-charts"
+
 import {
   Dialog,
   DialogContent,
@@ -63,42 +78,45 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
+// Chart.js (for DataUsageHistory)
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler,
+} from "chart.js"
+import { Line } from "react-chartjs-2"
+import { useTheme } from "next-themes"
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
+
+// ========== Types ==========
 interface Customer {
   id: number
-  firstName: string
-  middleName: string | null
-  lastName: string
-  email: string
-  phoneNumber: string
+  customerUniqueId: string | null
+  panNo?: string
   idNumber: string
-  status: string
-  streetAddress: string
-  city: string
-  state: string
-  zipCode: string
-  lat: number
-  lon: number
-  deviceName: string
-  deviceMac: string
-  connectionType: string
-  billingCycle: string
-  paymentMethod: string | null
-  vlanId: string | null
-  vlanPriority: string
-  rechargeable: boolean
-  isDeleted: boolean
-  createdAt: string
-  updatedAt: string
+  leadId?: number
+  membershipId: number | null
+  branchId: number | null
+  ispId: number
+  isRechargeable: boolean
+  installedById: number | null
+  oltId: number | null
+  splitterId: number | null
+  existingISPId: number | null
   assignedPkg: number
   subscribedPkgId: number
-  ispId: number
-  membershipId: number | null
-  installedById: number | null
-  isReferenced: boolean
-  referencedById: number | null
-  existingISPId: number | null
-  leadId: number | null
-  customerUniqueId: string | null
+  status: string
+  isDeleted: boolean
+  onboardStatus: string
+  createdAt: string
+  updatedAt: string
   packagePrice: {
     id: number
     planId: number
@@ -153,9 +171,9 @@ interface Customer {
     id: number
     name: string
     code: string
-    description: string
+    description: string | null
     address: string
-    details: string
+    details: string | null
     newMemberEnabled: boolean
     newMemberIsPercent: boolean
     newMemberValue: number
@@ -165,16 +183,16 @@ interface Customer {
     isActive: boolean
     isDeleted: boolean
   } | null
-  installedBy: {
+  installedBy?: {
     name: string
     email: string
   } | null
-  referencedBy: {
+  referencedBy?: {
     firstName: string
     lastName: string
     email: string
   } | null
-  existingISP: {
+  existingISP?: {
     id: number
     name: string
   } | null
@@ -260,6 +278,78 @@ interface Customer {
     phoneNumber: string
     masterEmail: string
   }
+  firstName: string
+  lastName: string
+  middleName: string | null
+  email: string
+  phoneNumber: string
+  secondaryPhone?: string
+  gender?: string
+  street?: string
+  district?: string
+  state?: string
+  devices: Array<{
+    id: number
+    deviceType: string
+    brand: string
+    model: string
+    serialNumber: string
+    macAddress: string
+    ponSerial: string
+    provisioningStatus: string
+    notes: string | null
+    createdAt: string
+    updatedAt: string
+  }>
+  serviceDetails: Array<{
+    id: number
+    oltId: number
+    splitterId: number
+    oltPort: string
+    splitterPort: string
+    vlanId: string
+    vlanPriority: string
+    connectionType: string
+    status: string
+    provisioningNotes: string | null
+    createdAt: string
+    updatedAt: string
+    olt?: any
+    splitter?: any
+    vlanDetails?: Array<{
+      id: number
+      oltId: number
+      vlanId: number
+      name: string
+      description?: string
+      gemIndex?: number
+      vlanType?: string
+      priority?: number
+      status: string
+      createdAt: string
+      updatedAt: string
+    }>
+  }>
+  subscribedApps: Array<{
+    id: number
+    customerId: number
+    serviceId: number
+    status: string
+    validUntil: string | null
+    serviceData: any
+    createdAt: string
+    updatedAt: string
+    service: {
+      id: number
+      name: string
+      code: string
+      description: string
+      iconUrl: string
+      category: string
+      isActive: boolean
+      isDeleted: boolean
+    }
+  }>
 }
 
 interface PackageOption {
@@ -274,33 +364,458 @@ interface PackageOption {
   }
 }
 
+interface RadiusSession {
+  radacctid: number
+  acctsessionid: string
+  acctuniqueid: string
+  username: string
+  realm: string
+  nasipaddress: string
+  nasportid: string
+  nasporttype: string
+  acctstarttime: string | null
+  acctupdatetime: string | null
+  acctstoptime: string | null
+  acctinterval: number | null
+  acctsessiontime: number | null
+  acctauthentic: string
+  connectinfo_start: string
+  connectinfo_stop: string
+  acctinputoctets: number
+  acctoutputoctets: number
+  calledstationid: string
+  callingstationid: string
+  acctterminatecause: string
+  servicetype: string
+  framedprotocol: string
+  framedipaddress: string
+  framedipv6address: string
+  framedipv6prefix: string
+  framedinterfaceid: string
+  delegatedipv6prefix: string
+  class: any
+}
+
+// ========== Helper Functions ==========
+function formatDuration(seconds: number | null): string {
+  if (!seconds) return "N/A"
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  const s = seconds % 60
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+}
+
+function formatBytesToGB(bytes: number): string {
+  if (bytes === 0) return "0 GB"
+  const gb = bytes / (1024 * 1024 * 1024)
+  return gb.toFixed(2) + " GB"
+}
+
+type AggregateBy = "daily" | "weekly" | "monthly"
+
+function aggregateSessions(sessions: RadiusSession[], by: AggregateBy): any[] {
+  const grouped: { [key: string]: { download: number; upload: number; count: number } } = {}
+
+  sessions.forEach(s => {
+    if (!s.acctstarttime) return
+    const date = new Date(s.acctstarttime)
+    let key: string
+    if (by === "daily") {
+      key = date.toISOString().split('T')[0] // YYYY-MM-DD
+    } else if (by === "weekly") {
+      const d = new Date(date)
+      d.setDate(d.getDate() - d.getDay() + (d.getDay() === 0 ? -6 : 1)) // Monday
+      key = d.toISOString().split('T')[0]
+    } else {
+      key = date.toISOString().slice(0, 7) // YYYY-MM
+    }
+
+    if (!grouped[key]) {
+      grouped[key] = { download: 0, upload: 0, count: 0 }
+    }
+    grouped[key].download += s.acctoutputoctets / (1024 * 1024) // MB
+    grouped[key].upload += s.acctinputoctets / (1024 * 1024)
+    grouped[key].count += 1
+  })
+
+  return Object.entries(grouped)
+    .map(([date, values]) => ({
+      date,
+      download: values.download,
+      upload: values.upload,
+      sessions: values.count,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+}
+
+// ========== Data Usage History Component (Chart.js version) ==========
+interface DataUsageHistoryProps {
+  usernames: string[]
+}
+
+function DataUsageHistory({ usernames }: DataUsageHistoryProps) {
+  const { resolvedTheme } = useTheme()
+  const [selectedUser, setSelectedUser] = useState<string>("")
+  const [sessions, setSessions] = useState<RadiusSession[]>([])
+  const [loading, setLoading] = useState(false)
+  const [liveUpdate, setLiveUpdate] = useState(false)
+  const [intervalSec, setIntervalSec] = useState<number>(60)
+  const [aggregateBy, setAggregateBy] = useState<AggregateBy>("daily")
+  const [selectedMonth, setSelectedMonth] = useState<string>("")
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => {
+    if (usernames.length > 0 && !selectedUser) {
+      setSelectedUser(usernames[0])
+    }
+  }, [usernames, selectedUser])
+
+  const fetchSessions = useCallback(async (username: string) => {
+    if (!username) return
+    setLoading(true)
+    try {
+      const response = await apiRequest<{ success: boolean; data: RadiusSession[] }>(
+        `/services/radius/act/${username}`
+      )
+      if (response.success && response.data) {
+        setSessions(response.data)
+        if (response.data.length > 0) {
+          const dates = response.data
+            .map(s => s.acctstarttime ? new Date(s.acctstarttime).toISOString().slice(0, 7) : "")
+            .filter(Boolean)
+          if (dates.length > 0) {
+            const latest = dates.sort().pop() || ""
+            setSelectedMonth(latest)
+          }
+        }
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to fetch usage data",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error fetching RADIUS sessions:", error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch usage data",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (selectedUser) {
+      fetchSessions(selectedUser)
+    }
+  }, [selectedUser, fetchSessions])
+
+  useEffect(() => {
+    if (liveUpdate && selectedUser) {
+      intervalRef.current = setInterval(() => {
+        fetchSessions(selectedUser)
+      }, intervalSec * 1000)
+    } else {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+    }
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+      }
+    }
+  }, [liveUpdate, intervalSec, selectedUser, fetchSessions])
+
+  const toggleLiveUpdate = () => setLiveUpdate(prev => !prev)
+
+  const availableMonths = React.useMemo(() => {
+    const months = sessions
+      .map(s => s.acctstarttime ? new Date(s.acctstarttime).toISOString().slice(0, 7) : "")
+      .filter(Boolean)
+    return [...new Set(months)].sort().reverse()
+  }, [sessions])
+
+  const filteredSessions = React.useMemo(() => {
+    if (!selectedMonth) return sessions
+    return sessions.filter(s => {
+      if (!s.acctstarttime) return false
+      const month = new Date(s.acctstarttime).toISOString().slice(0, 7)
+      return month === selectedMonth
+    })
+  }, [sessions, selectedMonth])
+
+  // Group by date and convert to GB (ascending order)
+  const groupedByDate = React.useMemo(() => {
+    const groups: { [date: string]: { totalDownload: number; totalUpload: number; sessions: RadiusSession[] } } = {}
+    filteredSessions.forEach(session => {
+      if (!session.acctstarttime) return
+      const date = new Date(session.acctstarttime).toLocaleDateString()
+      if (!groups[date]) {
+        groups[date] = { totalDownload: 0, totalUpload: 0, sessions: [] }
+      }
+      groups[date].totalDownload += session.acctoutputoctets
+      groups[date].totalUpload += session.acctinputoctets
+      groups[date].sessions.push(session)
+    })
+    return Object.entries(groups)
+      .map(([date, data]) => ({
+        date,
+        totalDownloadGB: data.totalDownload / (1024 * 1024 * 1024),
+        totalUploadGB: data.totalUpload / (1024 * 1024 * 1024),
+        sessionCount: data.sessions.length,
+        sampleIP: data.sessions[0]?.framedipaddress || "N/A",
+        sampleNAS: data.sessions[0]?.nasipaddress || "N/A",
+        sampleMAC: data.sessions[0]?.callingstationid || "N/A",
+        sampleCause: data.sessions[0]?.acctterminatecause || "N/A",
+      }))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) // ascending
+  }, [filteredSessions])
+
+  const chartData = aggregateSessions(filteredSessions, aggregateBy)
+  const isDarkMode = resolvedTheme === "dark"
+
+  const chartLabels = chartData.map(d => d.date)
+  const chartDatasets = [
+    {
+      label: "Download (MB)",
+      data: chartData.map(d => d.download),
+      borderColor: "rgb(59, 130, 246)",
+      backgroundColor: "rgba(59, 130, 246, 0.1)",
+      fill: true,
+      tension: 0.4,
+    },
+    {
+      label: "Upload (MB)",
+      data: chartData.map(d => d.upload),
+      borderColor: "rgb(16, 185, 129)",
+      backgroundColor: "rgba(16, 185, 129, 0.1)",
+      fill: true,
+      tension: 0.4,
+    },
+  ]
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: "top" as const,
+        labels: {
+          color: isDarkMode ? "#e2e8f0" : "#334155",
+        },
+      },
+      tooltip: {
+        mode: "index" as const,
+        intersect: false,
+        callbacks: {
+          label: (context: any) => {
+            let label = context.dataset.label || ""
+            if (label) label += ": "
+            if (context.parsed.y !== null) label += context.parsed.y.toFixed(2) + " MB"
+            return label
+          },
+        },
+        backgroundColor: isDarkMode ? "rgba(15, 23, 42, 0.8)" : "rgba(255, 255, 255, 0.8)",
+        titleColor: isDarkMode ? "#e2e8f0" : "#334155",
+        bodyColor: isDarkMode ? "#e2e8f0" : "#334155",
+        borderColor: isDarkMode ? "rgba(71, 85, 105, 0.5)" : "rgba(203, 213, 225, 0.5)",
+        borderWidth: 1,
+      },
+    },
+    scales: {
+      x: {
+        grid: {
+          display: false,
+          color: isDarkMode ? "rgba(71, 85, 105, 0.3)" : "rgba(203, 213, 225, 0.5)",
+        },
+        ticks: {
+          color: isDarkMode ? "#94a3b8" : "#64748b",
+        },
+      },
+      y: {
+        beginAtZero: true,
+        title: {
+          display: true,
+          text: "MB",
+          color: isDarkMode ? "#94a3b8" : "#64748b",
+        },
+        grid: {
+          color: isDarkMode ? "rgba(71, 85, 105, 0.3)" : "rgba(203, 213, 225, 0.5)",
+        },
+        ticks: {
+          color: isDarkMode ? "#94a3b8" : "#64748b",
+        },
+      },
+    },
+    interaction: {
+      mode: "nearest" as const,
+      axis: "x" as const,
+      intersect: false,
+    },
+  }
+
+  if (usernames.length === 0) {
+    return <div className="text-center py-4 text-muted-foreground">No connection users available</div>
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Controls */}
+      <div className="flex items-center gap-4 flex-wrap">
+        <div className="w-48">
+          <Select value={selectedUser} onValueChange={setSelectedUser}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select user" />
+            </SelectTrigger>
+            <SelectContent>
+              {usernames.map((user) => (
+                <SelectItem key={user} value={user}>
+                  {user}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant={liveUpdate ? "default" : "outline"} onClick={toggleLiveUpdate} className="gap-2">
+            {liveUpdate ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            {liveUpdate ? "Stop" : "Start"} Live Update
+          </Button>
+
+          <Select value={intervalSec.toString()} onValueChange={(val) => setIntervalSec(parseInt(val))} disabled={!liveUpdate}>
+            <SelectTrigger className="w-28">
+              <SelectValue placeholder="Interval" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10 sec</SelectItem>
+              <SelectItem value="60">1 min</SelectItem>
+              <SelectItem value="300">5 min</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={aggregateBy} onValueChange={(val: AggregateBy) => setAggregateBy(val)}>
+            <SelectTrigger className="w-28">
+              <SelectValue placeholder="Group by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="daily">Daily</SelectItem>
+              <SelectItem value="weekly">Weekly</SelectItem>
+              <SelectItem value="monthly">Monthly</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {availableMonths.length > 0 && (
+          <div className="flex items-center gap-2">
+            <Label htmlFor="month" className="text-sm">Month:</Label>
+            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+              <SelectTrigger className="w-32">
+                <SelectValue placeholder="Select month" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableMonths.map((month) => (
+                  <SelectItem key={month} value={month}>
+                    {month}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
+
+      {/* Chart */}
+      {!loading && chartData.length > 0 && (
+        <div className="h-80 w-full">
+          <Line data={{ labels: chartLabels, datasets: chartDatasets }} options={chartOptions} />
+        </div>
+      )}
+
+      {loading && (
+        <div className="flex justify-center py-4">
+          <Loader2 className="h-6 w-6 animate-spin" />
+        </div>
+      )}
+
+      {!loading && filteredSessions.length === 0 && (
+        <div className="text-center py-4 text-muted-foreground">No sessions found for this period</div>
+      )}
+
+      {/* Grouped Table with GB */}
+      {!loading && groupedByDate.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted">
+              <tr>
+                <th className="p-2 text-left">Date</th>
+                <th className="p-2 text-left">Total Download (GB)</th>
+                <th className="p-2 text-left">Total Upload (GB)</th>
+                <th className="p-2 text-left">Sessions</th>
+                <th className="p-2 text-left">Sample IP</th>
+                <th className="p-2 text-left">Sample NAS IP</th>
+                <th className="p-2 text-left">Sample MAC</th>
+                <th className="p-2 text-left">Sample Cause</th>
+              </tr>
+            </thead>
+            <tbody>
+              {groupedByDate.map((row, idx) => (
+                <tr key={idx} className="border-b hover:bg-muted/50">
+                  <td className="p-2">{row.date}</td>
+                  <td className="p-2">{row.totalDownloadGB.toFixed(2)} GB</td>
+                  <td className="p-2">{row.totalUploadGB.toFixed(2)} GB</td>
+                  <td className="p-2">{row.sessionCount}</td>
+                  <td className="p-2">{row.sampleIP}</td>
+                  <td className="p-2">{row.sampleNAS}</td>
+                  <td className="p-2">{row.sampleMAC}</td>
+                  <td className="p-2">{row.sampleCause}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ========== Main Component ==========
 export function CustomerProfile() {
   const [activeTab, setActiveTab] = useState("overview")
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [packages, setPackages] = useState<PackageOption[]>([])
-  
+
+  // Additional service details
+  const [tshulDetails, setTshulDetails] = useState<any>(null)
+  const [nettvDetails, setNettvDetails] = useState<any>(null)
+  const [loadingTshul, setLoadingTshul] = useState(false)
+  const [loadingNettv, setLoadingNettv] = useState(false)
+
   // Modal states
   const [changeUsernameOpen, setChangeUsernameOpen] = useState(false)
   const [changePackageOpen, setChangePackageOpen] = useState(false)
   const [resetMacOpen, setResetMacOpen] = useState(false)
-  const [renewPackageOpen, setRenewPackageOpen] = useState(false) // New state
-  
+  const [renewPackageOpen, setRenewPackageOpen] = useState(false)
+
   // Form states
   const [newUsername, setNewUsername] = useState("")
   const [selectedConnectionUser, setSelectedConnectionUser] = useState("")
   const [selectedPackage, setSelectedPackage] = useState("")
   const [newMacAddress, setNewMacAddress] = useState("")
   const [actionLoading, setActionLoading] = useState(false)
-  const [renewLoading, setRenewLoading] = useState(false) // New loading state
-  
+  const [renewLoading, setRenewLoading] = useState(false)
+
   const params = useParams()
   const router = useRouter()
-
   const customerId = params.id as string
 
-  // Add state for network settings
   const [networkSettings, setNetworkSettings] = useState({
     dnd: false,
     autoRenew: true,
@@ -311,49 +826,34 @@ export function CustomerProfile() {
     bindNASPORT: false,
   })
 
-  // Fetch customer data from API
   useEffect(() => {
     const fetchCustomer = async () => {
       try {
         setLoading(true)
         setError(null)
-        
         const data = await apiRequest<Customer>(`/customer/${customerId}`)
-        
         if (data) {
           setCustomer(data)
-          // Set initial values for forms
           if (data.connectionUsers.length > 0) {
             setSelectedConnectionUser(data.connectionUsers[0].id.toString())
           }
-          setNewMacAddress(data.deviceMac || "")
+          const currentMac = data.devices?.[0]?.macAddress || ""
+          setNewMacAddress(currentMac)
         } else {
           setError("Customer not found")
-          toast({
-            title: "Error",
-            description: "Customer not found",
-            variant: "destructive",
-          })
+          toast({ title: "Error", description: "Customer not found", variant: "destructive" })
         }
       } catch (error: any) {
         console.error("Error fetching customer:", error)
         setError(error.message || "Failed to fetch customer data")
-        toast({
-          title: "Error",
-          description: "Failed to load customer data",
-          variant: "destructive",
-        })
+        toast({ title: "Error", description: "Failed to load customer data", variant: "destructive" })
       } finally {
         setLoading(false)
       }
     }
-
-    if (customerId) {
-      fetchCustomer()
-    }
+    if (customerId) fetchCustomer()
   }, [customerId])
 
-  // Fetch available packages
   useEffect(() => {
     const fetchPackages = async () => {
       try {
@@ -368,25 +868,48 @@ export function CustomerProfile() {
         console.error("Error fetching packages:", error)
       }
     }
-    
-    if (customer) {
-      fetchPackages()
-    }
+    if (customer) fetchPackages()
   }, [customer])
 
-  // Function to toggle network settings
+  useEffect(() => {
+    if (customer?.customerUniqueId) {
+      const fetchTshul = async () => {
+        setLoadingTshul(true)
+        try {
+          const res = await apiRequest(`/services/tshul/customers/${customer.customerUniqueId}`)
+          if (res.success) setTshulDetails(res.data)
+        } catch (error) {
+          console.error("Failed to fetch TSHUL details:", error)
+        } finally {
+          setLoadingTshul(false)
+        }
+      }
+      fetchTshul()
+    }
+  }, [customer?.customerUniqueId])
+
+  useEffect(() => {
+    if (customer?.customerUniqueId) {
+      const fetchNettv = async () => {
+        setLoadingNettv(true)
+        try {
+          const res = await apiRequest(`/services/nettv/subscribers/${customer.customerUniqueId}`)
+          if (res.success) setNettvDetails(res.data)
+        } catch (error) {
+          console.error("Failed to fetch NETTV details:", error)
+        } finally {
+          setLoadingNettv(false)
+        }
+      }
+      fetchNettv()
+    }
+  }, [customer?.customerUniqueId])
+
   const toggleSetting = (setting: keyof typeof networkSettings) => {
-    setNetworkSettings((prev) => ({
-      ...prev,
-      [setting]: !prev[setting],
-    }))
-    toast({
-      title: "Setting updated",
-      description: `${setting} has been ${!networkSettings[setting] ? "enabled" : "disabled"}.`,
-    })
+    setNetworkSettings((prev) => ({ ...prev, [setting]: !prev[setting] }))
+    toast({ title: "Setting updated", description: `${setting} has been ${!networkSettings[setting] ? "enabled" : "disabled"}.` })
   }
 
-  // Function to change username
   const handleChangeUsername = async () => {
     if (!newUsername.trim() || !selectedConnectionUser) {
       toast({
@@ -406,18 +929,17 @@ export function CustomerProfile() {
           newUsername: newUsername.trim()
         }
       })
-      
+
       toast({
         title: "Success",
         description: response.message || "Username changed successfully",
       })
-      
-      // Refresh customer data
+
       const updatedCustomer = await apiRequest<Customer>(`/customer/${customerId}`)
       if (updatedCustomer) {
         setCustomer(updatedCustomer)
       }
-      
+
       setChangeUsernameOpen(false)
       setNewUsername("")
     } catch (error: any) {
@@ -432,7 +954,6 @@ export function CustomerProfile() {
     }
   }
 
-  // Function to change package
   const handleChangePackage = async () => {
     if (!selectedPackage) {
       toast({
@@ -451,18 +972,17 @@ export function CustomerProfile() {
           newPackageId: parseInt(selectedPackage)
         }
       })
-      
+
       toast({
         title: "Success",
         description: response.message || "Package changed successfully",
       })
-      
-      // Refresh customer data
+
       const updatedCustomer = await apiRequest<Customer>(`/customer/${customerId}`)
       if (updatedCustomer) {
         setCustomer(updatedCustomer)
       }
-      
+
       setChangePackageOpen(false)
     } catch (error: any) {
       console.error("Error changing package:", error)
@@ -476,7 +996,6 @@ export function CustomerProfile() {
     }
   }
 
-  // Function to reset MAC address
   const handleResetMac = async () => {
     if (!newMacAddress.trim()) {
       toast({
@@ -487,7 +1006,6 @@ export function CustomerProfile() {
       return
     }
 
-    // Validate MAC format
     const macRegex = /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/;
     if (!macRegex.test(newMacAddress.trim())) {
       toast({
@@ -506,19 +1024,18 @@ export function CustomerProfile() {
           newMacAddress: newMacAddress.trim()
         }
       })
-      
+
       toast({
         title: "Success",
         description: response.message || "MAC address reset successfully",
       })
-      
-      // Refresh customer data
+
       const updatedCustomer = await apiRequest<Customer>(`/customer/${customerId}`)
       if (updatedCustomer) {
         setCustomer(updatedCustomer)
-        setNewMacAddress(updatedCustomer.deviceMac || "")
+        setNewMacAddress(updatedCustomer.devices?.[0]?.macAddress || "")
       }
-      
+
       setResetMacOpen(false)
     } catch (error: any) {
       console.error("Error resetting MAC:", error)
@@ -532,32 +1049,28 @@ export function CustomerProfile() {
     }
   }
 
-  // Function to renew package
   const handleRenewPackage = async () => {
     try {
       setRenewLoading(true)
-      
-      const response = 
-            await apiRequest("/customer/subscribe", {
-              method: 'POST',
-              body: JSON.stringify({ customerId: parseInt(customerId),   "createOrder": true }),
-              headers: {
-                'Content-Type': 'application/json',
-              }
-            })
-      
-      
+
+      const response = await apiRequest("/customer/subscribe", {
+        method: 'POST',
+        body: JSON.stringify({ customerId: parseInt(customerId), createOrder: true }),
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
+
       toast({
         title: "Success",
         description: "Package renewed successfully",
       })
-      
-      // Refresh customer data
+
       const updatedCustomer = await apiRequest<Customer>(`/customer/${customerId}`)
       if (updatedCustomer) {
         setCustomer(updatedCustomer)
       }
-      
+
       setRenewPackageOpen(false)
     } catch (error: any) {
       console.error("Error renewing package:", error)
@@ -571,7 +1084,6 @@ export function CustomerProfile() {
     }
   }
 
-  // Function to delete customer
   const handleDeleteCustomer = async () => {
     if (!confirm("Are you sure you want to delete this customer? This action cannot be undone.")) {
       return
@@ -582,12 +1094,12 @@ export function CustomerProfile() {
       await apiRequest(`/customer/${customerId}`, {
         method: 'DELETE',
       })
-      
+
       toast({
         title: "Success",
         description: "Customer deleted successfully",
       })
-      
+
       router.push('/customers')
     } catch (error: any) {
       console.error("Error deleting customer:", error)
@@ -601,25 +1113,13 @@ export function CustomerProfile() {
     }
   }
 
-  // Helper functions to format data
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    return date.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
   }
 
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'NRS',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    }).format(price)
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'NPR', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(price)
   }
 
   const formatFileSize = (bytes: number) => {
@@ -637,25 +1137,38 @@ export function CustomerProfile() {
 
   const getStatusBadge = (status: string) => {
     const statusLower = status.toLowerCase()
-    
     switch (statusLower) {
       case "active":
-        return (
-          <Badge className="bg-gradient-to-r from-green-500 to-emerald-600 text-white border-0">ACTIVE</Badge>
-        )
+        return <Badge className="bg-gradient-to-r from-green-500 to-emerald-600 text-white border-0">ACTIVE</Badge>
       case "suspended":
-        return (
-          <Badge className="bg-gradient-to-r from-amber-500 to-orange-600 text-white border-0">SUSPENDED</Badge>
-        )
+        return <Badge className="bg-gradient-to-r from-amber-500 to-orange-600 text-white border-0">SUSPENDED</Badge>
       case "inactive":
-        return (
-          <Badge className="bg-gradient-to-r from-red-500 to-rose-600 text-white border-0">INACTIVE</Badge>
-        )
+        return <Badge className="bg-gradient-to-r from-red-500 to-rose-600 text-white border-0">INACTIVE</Badge>
       default:
-        return (
-          <Badge className="bg-gradient-to-r from-gray-500 to-gray-600 text-white border-0">{status.toUpperCase()}</Badge>
-        )
+        return <Badge className="bg-gradient-to-r from-gray-500 to-gray-600 text-white border-0">{status.toUpperCase()}</Badge>
     }
+  }
+
+  const getConnectionType = () => customer?.serviceDetails?.[0]?.connectionType ?? "N/A"
+  const getMacAddress = () => customer?.devices?.[0]?.macAddress ?? "N/A"
+  const getDeviceModel = () => customer?.devices?.[0]?.model ?? "N/A"
+  const getVlanId = () => customer?.serviceDetails?.[0]?.vlanId ?? "N/A"
+  const getVlanPriority = () => customer?.serviceDetails?.[0]?.vlanPriority ?? "N/A"
+  const formatConnectionType = (type: string) => type?.toUpperCase() ?? "N/A"
+
+  const getServiceMessage = (app: any): string => {
+    const data = app.serviceData
+    if (!data) return "No data"
+    if (data.message) return data.message
+    if (data.Message) return data.Message
+    if (data.Data?.Message) return data.Data.Message
+    if (data.Error) return data.Error
+    if (data.success === false && data.error) return data.error
+    if (typeof data === 'object') {
+      if (data.data?.radcheck?.username) return `User ${data.data.radcheck.username} created`
+      if (data.subscriber?.id) return `Subscriber ID: ${data.subscriber.id}`
+    }
+    return "Success"
   }
 
   if (loading) {
@@ -675,31 +1188,18 @@ export function CustomerProfile() {
         <div className="flex flex-col items-center gap-2">
           <AlertCircle className="h-8 w-8 text-destructive" />
           <p className="text-sm text-muted-foreground">{error || "Customer not found"}</p>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => router.push('/customers')}
-            className="mt-2"
-          >
-            Back to Customers
-          </Button>
+          <Button variant="outline" size="sm" onClick={() => router.push('/customers')} className="mt-2">Back to Customers</Button>
         </div>
       </div>
     )
   }
 
-  // Calculate financial data from orders
   const invoiceAmount = customer.orders.reduce((sum, order) => sum + order.totalAmount, 0)
   const totalPaid = customer.orders.filter(order => order.isPaid).reduce((sum, order) => sum + order.totalAmount, 0)
   const dueAmount = invoiceAmount - totalPaid
   const latestOrder = customer.orders.length > 0 ? customer.orders[customer.orders.length - 1] : null
+  const latestSubscription = customer.customerSubscriptions.length > 0 ? customer.customerSubscriptions[0] : null
 
-  // Get latest subscription
-  const latestSubscription = customer.customerSubscriptions.length > 0 
-    ? customer.customerSubscriptions[0]
-    : null
-
-  // Calculate days until expiry
   const getDaysUntilExpiry = () => {
     if (!latestSubscription) return 0
     const expiryDate = new Date(latestSubscription.planEnd)
@@ -707,24 +1207,22 @@ export function CustomerProfile() {
     const diffTime = expiryDate.getTime() - today.getTime()
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
   }
-
   const daysUntilExpiry = getDaysUntilExpiry()
 
-  // Format connection type
-  const formatConnectionType = (type: string) => {
-    return type.toUpperCase()
-  }
+  const serviceDetail = customer.serviceDetails?.[0]
+  const olt = serviceDetail?.olt
+  const splitter = serviceDetail?.splitter
+  const vlanDetails = serviceDetail?.vlanDetails || []
+  const usernames = customer.connectionUsers.map(u => u.username)
 
   return (
     <div className="space-y-6">
-      {/* Change Username Dialog */}
+      {/* Dialogs */}
       <Dialog open={changeUsernameOpen} onOpenChange={setChangeUsernameOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Change Username</DialogTitle>
-            <DialogDescription>
-              Update the username for this customer's connection.
-            </DialogDescription>
+            <DialogDescription>Update the username for this customer's connection.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -735,27 +1233,18 @@ export function CustomerProfile() {
                 </SelectTrigger>
                 <SelectContent>
                   {customer.connectionUsers.map((user) => (
-                    <SelectItem key={user.id} value={user.id.toString()}>
-                      {user.username}
-                    </SelectItem>
+                    <SelectItem key={user.id} value={user.id.toString()}>{user.username}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="new-username">New Username</Label>
-              <Input
-                id="new-username"
-                value={newUsername}
-                onChange={(e) => setNewUsername(e.target.value)}
-                placeholder="Enter new username"
-              />
+              <Input id="new-username" value={newUsername} onChange={(e) => setNewUsername(e.target.value)} placeholder="Enter new username" />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setChangeUsernameOpen(false)}>
-              Cancel
-            </Button>
+            <Button variant="outline" onClick={() => setChangeUsernameOpen(false)}>Cancel</Button>
             <Button onClick={handleChangeUsername} disabled={actionLoading}>
               {actionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Change Username
@@ -764,14 +1253,11 @@ export function CustomerProfile() {
         </DialogContent>
       </Dialog>
 
-      {/* Change Package Dialog */}
       <Dialog open={changePackageOpen} onOpenChange={setChangePackageOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Change Package</DialogTitle>
-            <DialogDescription>
-              Select a new package for this customer.
-            </DialogDescription>
+            <DialogDescription>Select a new package for this customer.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -791,16 +1277,12 @@ export function CustomerProfile() {
             </div>
             {selectedPackage && (
               <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                <p className="text-sm text-muted-foreground">
-                  The customer will be switched to the selected package immediately.
-                </p>
+                <p className="text-sm text-muted-foreground">The customer will be switched to the selected package immediately.</p>
               </div>
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setChangePackageOpen(false)}>
-              Cancel
-            </Button>
+            <Button variant="outline" onClick={() => setChangePackageOpen(false)}>Cancel</Button>
             <Button onClick={handleChangePackage} disabled={actionLoading}>
               {actionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Change Package
@@ -809,42 +1291,25 @@ export function CustomerProfile() {
         </DialogContent>
       </Dialog>
 
-      {/* Reset MAC Dialog */}
       <Dialog open={resetMacOpen} onOpenChange={setResetMacOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Reset MAC Address</DialogTitle>
-            <DialogDescription>
-              Update the MAC address for this customer's device.
-            </DialogDescription>
+            <DialogDescription>Update the MAC address for this customer's device.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="current-mac">Current MAC Address</Label>
-              <Input
-                id="current-mac"
-                value={customer.deviceMac || "Not set"}
-                readOnly
-                className="bg-slate-50 dark:bg-slate-800"
-              />
+              <Input id="current-mac" value={getMacAddress()} readOnly className="bg-slate-50 dark:bg-slate-800" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="new-mac">New MAC Address</Label>
-              <Input
-                id="new-mac"
-                value={newMacAddress}
-                onChange={(e) => setNewMacAddress(e.target.value)}
-                placeholder="00:1A:2B:3C:4D:5E"
-              />
-              <p className="text-xs text-muted-foreground">
-                Format: 00:1A:2B:3C:4D:5E or 00-1A-2B-3C-4D-5E
-              </p>
+              <Input id="new-mac" value={newMacAddress} onChange={(e) => setNewMacAddress(e.target.value)} placeholder="00:1A:2B:3C:4D:5E" />
+              <p className="text-xs text-muted-foreground">Format: 00:1A:2B:3C:4D:5E or 00-1A-2B-3C-4D-5E</p>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setResetMacOpen(false)}>
-              Cancel
-            </Button>
+            <Button variant="outline" onClick={() => setResetMacOpen(false)}>Cancel</Button>
             <Button onClick={handleResetMac} disabled={actionLoading}>
               {actionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Reset MAC Address
@@ -853,7 +1318,6 @@ export function CustomerProfile() {
         </DialogContent>
       </Dialog>
 
-      {/* Renew Package Dialog */}
       <Dialog open={renewPackageOpen} onOpenChange={setRenewPackageOpen}>
         <DialogContent>
           <DialogHeader>
@@ -874,7 +1338,6 @@ export function CustomerProfile() {
                 </div>
               </div>
             </div>
-            
             <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
               <div className="flex items-center gap-2">
                 <AlertCircle className="h-5 w-5 text-amber-500" />
@@ -885,14 +1348,8 @@ export function CustomerProfile() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRenewPackageOpen(false)}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleRenewPackage} 
-              disabled={renewLoading}
-              className="bg-gradient-to-r from-green-500 to-emerald-600"
-            >
+            <Button variant="outline" onClick={() => setRenewPackageOpen(false)}>Cancel</Button>
+            <Button onClick={handleRenewPackage} disabled={renewLoading} className="bg-gradient-to-r from-green-500 to-emerald-600">
               {renewLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Renew Package
             </Button>
@@ -917,159 +1374,70 @@ export function CustomerProfile() {
                   {latestSubscription?.isTrial && (
                     <Badge className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white border-0">TRIAL</Badge>
                   )}
-                  {customer.rechargeable && (
+                  {customer.isRechargeable && (
                     <Badge className="bg-gradient-to-r from-purple-500 to-pink-600 text-white border-0">RECHARGEABLE</Badge>
                   )}
-                  {/* FIX: Only show REFERRED if customer is referenced AND has a referrer */}
-                  {customer.isReferenced && customer.referencedById && (
+                  {customer.referencedById && (
                     <Badge className="bg-gradient-to-r from-cyan-500 to-teal-600 text-white border-0">REFERRED</Badge>
                   )}
                 </div>
               </div>
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 text-sm text-muted-foreground mt-1">
-                <div className="flex items-center">
-                  <Shield className="mr-1 h-4 w-4" />
-                  ID Number: {customer.idNumber || "N/A"}
-                </div>
-                <div className="flex items-center">
-                  <Phone className="mr-1 h-4 w-4" />
-                  Mobile: {customer.phoneNumber}
-                </div>
-                <div className="flex items-center">
-                  <Mail className="mr-1 h-4 w-4" />
-                  Email: {customer.email}
-                </div>
-                <div className="flex items-center">
-                  <Calendar className="mr-1 h-4 w-4" />
-                  Member Since: {formatDate(customer.createdAt)}
-                </div>
+                <div className="flex items-center"><Shield className="mr-1 h-4 w-4" /> ID Number: {customer.idNumber || "N/A"}</div>
+                <div className="flex items-center"><Phone className="mr-1 h-4 w-4" /> Mobile: {customer.phoneNumber}</div>
+                <div className="flex items-center"><Mail className="mr-1 h-4 w-4" /> Email: {customer.email}</div>
+                <div className="flex items-center"><Calendar className="mr-1 h-4 w-4" /> Member Since: {formatDate(customer.createdAt)}</div>
               </div>
               <div className="text-xs text-muted-foreground mt-2">
-                Customer ID: CUST-{customer.id.toString().padStart(3, '0')} | ISP: {customer.isp.companyName} | Lead ID: {customer.leadId || "N/A"}
+                Customer ID: {customer.customerUniqueId || `CUST-${customer.id.toString().padStart(3, '0')}`} | ISP: {customer.isp.companyName} | Lead ID: {customer.leadId || "N/A"}
               </div>
             </div>
           </div>
         </div>
       </CardContainer>
 
-      {/* Action Buttons */}
       <div className="flex flex-wrap gap-2 p-2 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-lg shadow-sm">
-        <Button
-          size="sm"
-          className="h-9 bg-gradient-to-r from-green-500 to-emerald-600 text-white border-0 shadow-sm hover:shadow-md transition-all"
-          onClick={() => setRenewPackageOpen(true)}
-        >
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Renew Package
+        <Button size="sm" className="h-9 bg-gradient-to-r from-green-500 to-emerald-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={() => setRenewPackageOpen(true)}>
+          <RefreshCw className="mr-2 h-4 w-4" /> Renew Package
         </Button>
-        
-        <Button
-          size="sm"
-          className="h-9 bg-gradient-to-r from-blue-500 to-indigo-600 text-white border-0 shadow-sm hover:shadow-md transition-all"
-          onClick={() => setChangeUsernameOpen(true)}
-        >
-          <User className="mr-2 h-4 w-4" />
-          Change Username
+        <Button size="sm" className="h-9 bg-gradient-to-r from-blue-500 to-indigo-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={() => setChangeUsernameOpen(true)}>
+          <User className="mr-2 h-4 w-4" /> Change Username
         </Button>
-        
-        <Button
-          size="sm"
-          className="h-9 bg-gradient-to-r from-amber-500 to-orange-600 text-white border-0 shadow-sm hover:shadow-md transition-all"
-          onClick={() => setChangePackageOpen(true)}
-        >
-          <Package className="mr-2 h-4 w-4" />
-          Change Packages
+        <Button size="sm" className="h-9 bg-gradient-to-r from-amber-500 to-orange-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={() => setChangePackageOpen(true)}>
+          <Package className="mr-2 h-4 w-4" /> Change Packages
         </Button>
-        
-        <Button
-          size="sm"
-          className="h-9 bg-gradient-to-r from-red-500 to-rose-600 text-white border-0 shadow-sm hover:shadow-md transition-all"
-          onClick={() => setResetMacOpen(true)}
-        >
-          <RefreshCw className="mr-2 h-4 w-4" />
-          MAC RESET
+        <Button size="sm" className="h-9 bg-gradient-to-r from-red-500 to-rose-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={() => setResetMacOpen(true)}>
+          <RefreshCw className="mr-2 h-4 w-4" /> MAC RESET
         </Button>
-        
-        <Button
-          size="sm"
-          className="h-9 bg-gradient-to-r from-red-500 to-rose-600 text-white border-0 shadow-sm hover:shadow-md transition-all"
-          onClick={handleDeleteCustomer}
-          disabled={actionLoading}
-        >
-          {actionLoading ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Trash2 className="mr-2 h-4 w-4" />
-          )}
+        <Button size="sm" className="h-9 bg-gradient-to-r from-red-500 to-rose-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={handleDeleteCustomer} disabled={actionLoading}>
+          {actionLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
           Delete Customer
         </Button>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="w-full bg-gradient-to-r from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 p-1 rounded-lg">
-          <TabsTrigger
-            value="overview"
-            className="flex-1 flex items-center justify-center data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/80 data-[state=active]:to-primary data-[state=active]:text-white"
-          >
-            <User className="mr-2 h-4 w-4" />
-            Overview
-          </TabsTrigger>
-          <TabsTrigger
-            value="billing"
-            className="flex-1 flex items-center justify-center data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/80 data-[state=active]:to-primary data-[state=active]:text-white"
-          >
-            <CreditCard className="mr-2 h-4 w-4" />
-            Billing
-          </TabsTrigger>
-          <TabsTrigger
-            value="devices"
-            className="flex-1 flex items-center justify-center data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/80 data-[state=active]:to-primary data-[state=active]:text-white"
-          >
-            <Wifi className="mr-2 h-4 w-4" />
-            Devices
-          </TabsTrigger>
-          <TabsTrigger
-            value="documents"
-            className="flex-1 flex items-center justify-center data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/80 data-[state=active]:to-primary data-[state=active]:text-white"
-          >
-            <FileText className="mr-2 h-4 w-4" />
-            Documents
-          </TabsTrigger>
-          <TabsTrigger
-            value="support"
-            className="flex-1 flex items-center justify-center data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/80 data-[state=active]:to-primary data-[state=active]:text-white"
-          >
-            <LifeBuoy className="mr-2 h-4 w-4" />
-            Support
-          </TabsTrigger>
+          <TabsTrigger value="overview" className="flex-1"><User className="mr-2 h-4 w-4" />Overview</TabsTrigger>
+          <TabsTrigger value="billing" className="flex-1"><CreditCard className="mr-2 h-4 w-4" />Billing</TabsTrigger>
+          <TabsTrigger value="devices" className="flex-1"><Wifi className="mr-2 h-4 w-4" />Devices</TabsTrigger>
+          <TabsTrigger value="usage" className="flex-1"><BarChart className="mr-2 h-4 w-4" />Usage</TabsTrigger>
+          <TabsTrigger value="realtime" className="flex-1"><Activity className="mr-2 h-4 w-4" />Realtime Usage</TabsTrigger>
+          <TabsTrigger value="documents" className="flex-1"><FileText className="mr-2 h-4 w-4" />Documents</TabsTrigger>
+          <TabsTrigger value="support" className="flex-1"><LifeBuoy className="mr-2 h-4 w-4" />Support</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Account Details */}
-            <CardContainer
-              title="Account Details"
-              className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md"
-            >
+            <CardContainer title="Account Details" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
               <div className="space-y-3">
                 <div className="grid grid-cols-1 gap-2">
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Customer ID:</span>
-                    <span className="font-medium">CUST-{customer.id.toString().padStart(3, '0')}</span>
+                    <span className="font-medium">{customer.customerUniqueId || `CUST-${customer.id.toString().padStart(3, '0')}`}</span>
                   </div>
-
-                  <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                  <span className="text-muted-foreground">Customer Unique ID:</span>
-                  <span className="font-medium font-mono bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">
-                    {customer.customerUniqueId || `CUST-${customer.id.toString().padStart(3, '0')}`}
-                  </span>
-                </div>
-
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Primary Username:</span>
-                    <span className="font-medium">
-                      {customer.connectionUsers.length > 0 ? customer.connectionUsers[0].username : "N/A"}
-                    </span>
+                    <span className="font-medium">{customer.connectionUsers.length > 0 ? customer.connectionUsers[0].username : "N/A"}</span>
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">ID Number:</span>
@@ -1103,11 +1471,7 @@ export function CustomerProfile() {
               </div>
             </CardContainer>
 
-            {/* Service Information */}
-            <CardContainer
-              title="Service Information"
-              className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md"
-            >
+            <CardContainer title="Service Information" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
               <div className="space-y-3">
                 <div className="grid grid-cols-1 gap-2">
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
@@ -1141,23 +1505,27 @@ export function CustomerProfile() {
                       </div>
                     </div>
                   )}
+                  {customer.existingISP && (
+                    <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                      <span className="text-muted-foreground">Previous ISP:</span>
+                      <div className="text-right">
+                        <div className="font-medium">{customer.existingISP.name}</div>
+                      </div>
+                    </div>
+                  )}
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Lead ID:</span>
                     <span className="font-medium">{customer.leadId || "N/A"}</span>
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Reference Status:</span>
-                    <span className="font-medium">{customer.isReferenced && customer.referencedById ? "Yes" : "No"}</span>
+                    <span className="font-medium">{customer.referencedById ? "Yes" : "No"}</span>
                   </div>
                 </div>
               </div>
             </CardContainer>
 
-            {/* Subscription & Billing */}
-            <CardContainer
-              title="Subscription & Billing"
-              className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md"
-            >
+            <CardContainer title="Subscription & Billing" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
               <div className="space-y-3">
                 <div className="grid grid-cols-1 gap-2">
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
@@ -1170,15 +1538,15 @@ export function CustomerProfile() {
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Billing Cycle:</span>
-                    <span className="font-medium capitalize">{customer.billingCycle || "Monthly"}</span>
+                    <span className="font-medium capitalize">{customer.subscribedPkg.packageDuration}</span>
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Subscription Type:</span>
-                    <span className="font-medium">{customer.rechargeable ? "Rechargeable" : "Standard"}</span>
+                    <span className="font-medium">{customer.isRechargeable ? "Rechargeable" : "Standard"}</span>
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Payment Method:</span>
-                    <span className="font-medium">{customer.paymentMethod || "Not set"}</span>
+                    <span className="font-medium">Not set</span>
                   </div>
                   {latestSubscription && (
                     <>
@@ -1208,54 +1576,34 @@ export function CustomerProfile() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Connection Information */}
-            <CardContainer
-              title="Connection Information"
-              className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md"
-            >
+            <CardContainer title="Connection Information" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
               <div className="space-y-3">
                 <div className="grid grid-cols-1 gap-2">
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                    <span className="text-muted-foreground">Connectivity Type:</span>
-                    <span className="font-medium">{formatConnectionType(customer.connectionType)}</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Connection Type:</span>
-                    <span className="font-medium">{customer.connectionType}</span>
+                    <span className="font-medium">{getConnectionType()}</span>
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                    <span className="text-muted-foreground">Device Name:</span>
-                    <span className="font-medium">{customer.deviceName || "N/A"}</span>
+                    <span className="text-muted-foreground">Device Model:</span>
+                    <span className="font-medium">{getDeviceModel()}</span>
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">MAC Address:</span>
-                    <span className="font-medium">{customer.deviceMac || "N/A"}</span>
+                    <span className="font-medium">{getMacAddress()}</span>
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                    <span className="text-muted-foreground">VLAN ID:</span>
-                    <span className="font-medium">{customer.vlanId || "N/A"}</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                    <span className="text-muted-foreground">VLAN Priority:</span>
-                    <span className="font-medium">{customer.vlanPriority}</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                    <span className="text-muted-foreground">Assigned Package ID:</span>
+                    <span className="text-muted-foreground">Assigned Package:</span>
                     <span className="font-medium">{customer.packagePrice.packageName}</span>
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                    <span className="text-muted-foreground">Subscribed Package ID:</span>
+                    <span className="text-muted-foreground">Subscribed Package:</span>
                     <span className="font-medium">{customer.subscribedPkg.packageName}</span>
                   </div>
                 </div>
               </div>
             </CardContainer>
 
-            {/* Package Details */}
-            <CardContainer
-              title="Package Details"
-              className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md"
-            >
+            <CardContainer title="Package Details" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
               <div className="space-y-3">
                 <div className="grid grid-cols-1 gap-2">
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
@@ -1305,51 +1653,100 @@ export function CustomerProfile() {
             </CardContainer>
           </div>
 
+          {/* Network Infrastructure Card */}
+          {serviceDetail && (
+            <CardContainer title="Network Infrastructure" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
+              <div className="space-y-4">
+                {olt && (
+                  <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Server className="h-5 w-5 text-primary" />
+                      <h4 className="font-medium">OLT: {olt.name}</h4>
+                      <Badge className={olt.status === "online" ? "bg-green-500" : "bg-red-500"}>{olt.status}</Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>Model:</div><div className="font-medium">{olt.model}</div>
+                      <div>IP Address:</div><div className="font-mono">{olt.ipAddress}</div>
+                      <div>Vendor:</div><div>{olt.vendor}</div>
+                      <div>Ports:</div><div>{olt.usedPorts}/{olt.totalPorts} used</div>
+                      {serviceDetail.oltPort && (
+                        <>
+                          <div>OLT Port:</div><div>{serviceDetail.oltPort}</div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {splitter && (
+                  <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Split className="h-5 w-5 text-primary" />
+                      <h4 className="font-medium">Splitter: {splitter.name}</h4>
+                      <Badge className={splitter.status === "active" ? "bg-green-500" : "bg-red-500"}>{splitter.status}</Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>Splitter ID:</div><div className="font-mono">{splitter.splitterId}</div>
+                      <div>Ratio:</div><div>{splitter.splitRatio}</div>
+                      <div>Type:</div><div>{splitter.splitterType || "N/A"}</div>
+                      <div>Ports:</div><div>{splitter.availablePorts}/{splitter.portCount} available</div>
+                      <div>Location:</div><div>{splitter.location?.site || "N/A"}</div>
+                      {serviceDetail.splitterPort && (
+                        <>
+                          <div>Splitter Port:</div><div>{serviceDetail.splitterPort}</div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {vlanDetails.length > 0 && (
+                  <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Network className="h-5 w-5 text-primary" />
+                      <h4 className="font-medium">VLANs</h4>
+                    </div>
+                    <div className="space-y-2">
+                      {vlanDetails.map((vlan) => (
+                        <div key={vlan.id} className="flex items-center justify-between text-sm p-2 bg-slate-100 dark:bg-slate-800 rounded">
+                          <div>
+                            <span className="font-medium">VLAN {vlan.vlanId}</span> - {vlan.name}
+                            {vlan.description && <span className="text-xs text-muted-foreground ml-1">({vlan.description})</span>}
+                          </div>
+                          <div className="flex gap-4">
+                            {vlan.gemIndex && <span>GEM: {vlan.gemIndex}</span>}
+                            <Badge className={vlan.status === "active" ? "bg-green-500" : "bg-red-500"}>{vlan.status}</Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContainer>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Location Information */}
-            <CardContainer
-              title="Location Information"
-              className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md"
-            >
+            <CardContainer title="Location Information" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
               <div className="space-y-3">
                 <div className="grid grid-cols-1 gap-2">
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                    <span className="text-muted-foreground">Street Address:</span>
-                    <span className="font-medium">{customer.streetAddress}</span>
+                    <span className="text-muted-foreground">Street:</span>
+                    <span className="font-medium">{customer.street || "N/A"}</span>
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                    <span className="text-muted-foreground">City:</span>
-                    <span className="font-medium">{customer.city}</span>
+                    <span className="text-muted-foreground">District:</span>
+                    <span className="font-medium">{customer.district || "N/A"}</span>
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                    <span className="text-muted-foreground">State/Province:</span>
-                    <span className="font-medium">{customer.state}</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                    <span className="text-muted-foreground">ZIP/Postal Code:</span>
-                    <span className="font-medium">{customer.zipCode}</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                    <span className="text-muted-foreground">Latitude:</span>
-                    <span className="font-medium">{customer.lat}</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                    <span className="text-muted-foreground">Longitude:</span>
-                    <span className="font-medium">{customer.lon}</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                    <span className="text-muted-foreground">Coordinates:</span>
-                    <span className="font-medium">{customer.lat}, {customer.lon}</span>
+                    <span className="text-muted-foreground">State:</span>
+                    <span className="font-medium">{customer.state || "N/A"}</span>
                   </div>
                 </div>
               </div>
             </CardContainer>
 
-            {/* Connection Users */}
-            <CardContainer
-              title="Connection Users"
-              className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md"
-            >
+            <CardContainer title="Connection Users" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
               <div className="space-y-3">
                 {customer.connectionUsers.length > 0 ? (
                   <div className="grid grid-cols-1 gap-2">
@@ -1383,9 +1780,7 @@ export function CustomerProfile() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center p-4 text-muted-foreground">
-                    No connection users found
-                  </div>
+                  <div className="text-center p-4 text-muted-foreground">No connection users found</div>
                 )}
                 <div className="text-xs text-muted-foreground mt-2">
                   {customer.connectionUsers.length} of {customer.subscribedPkg.packagePlanDetails.deviceLimit} devices used
@@ -1394,16 +1789,151 @@ export function CustomerProfile() {
             </CardContainer>
           </div>
 
-          {/* Keep existing usage chart component */}
-          <CustomerUsageChart />
+          {/* Subscribed Services with TSHUL & NETTV details */}
+          {customer.subscribedApps && customer.subscribedApps.length > 0 && (
+            <CardContainer title="Subscribed Services" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
+              <div className="space-y-4">
+                {/* Existing simple cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {customer.subscribedApps.map((app) => (
+                    <div key={app.id} className="p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {app.service.iconUrl ? <img src={app.service.iconUrl} alt={app.service.name} className="h-6 w-6" /> : <Box className="h-5 w-5 text-muted-foreground" />}
+                          <div>
+                            <div className="font-medium">{app.service.name}</div>
+                            <div className="text-xs text-muted-foreground">{app.service.code}</div>
+                          </div>
+                        </div>
+                        <Badge className={app.status === "active" ? "bg-green-500" : "bg-amber-500"}>{app.status}</Badge>
+                      </div>
+                      <div className="mt-2 text-xs text-muted-foreground">{getServiceMessage(app)}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* TSHUL Details */}
+                {tshulDetails && (
+                  <div className="mt-4 p-4 border rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                    <h4 className="font-medium mb-2 flex items-center gap-2"><Box className="h-4 w-4" /> TSHUL Customer Details</h4>
+                    {loadingTshul ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>Name:</div><div className="font-medium">{tshulDetails.Name}</div>
+                        <div>Customer ID:</div><div>{tshulDetails.CustomerId}</div>
+                        <div>PAN No:</div><div>{tshulDetails.PanNo}</div>
+                        <div>Address:</div><div>{tshulDetails.Address}</div>
+                        <div>Phone:</div><div>{tshulDetails.Phone}</div>
+                        <div>Email:</div><div>{tshulDetails.Email}</div>
+                        <div>Reference ID:</div><div>{tshulDetails.ReferenceId}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* NETTV Details */}
+                {nettvDetails && (
+                  <div className="mt-4 p-4 border rounded-lg bg-green-50 dark:bg-green-900/20">
+                    <h4 className="font-medium mb-2 flex items-center gap-2"><Box className="h-4 w-4" /> NETTV Subscriber Details</h4>
+                    {loadingNettv ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <div className="space-y-3">
+                        {/* Subscriber summary */}
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>Username:</div><div className="font-medium">{nettvDetails.username}</div>
+                          <div>Email:</div><div>{nettvDetails.email}</div>
+                          <div>Status:</div><div><Badge className={nettvDetails.status === 0 ? "bg-green-500" : "bg-amber-500"}>{nettvDetails.status === 0 ? "Active" : "Inactive"}</Badge></div>
+                          <div>Balance:</div><div>{nettvDetails.balance}</div>
+                          <div>Due Amount:</div><div>{nettvDetails.due_amount}</div>
+                          <div>STBs Count:</div><div>{nettvDetails.user_stbs_count}</div>
+                          <div>Active STBs:</div><div>{nettvDetails.active_user_stbs_count}</div>
+                          <div>Wallet:</div><div>{nettvDetails.is_wallet_enable ? "Enabled" : "Disabled"}</div>
+                          <div>ERP ID:</div><div className="font-mono text-xs">{nettvDetails.erp_id}</div>
+                        </div>
+                        {nettvDetails.details && (
+                          <>
+                            <h5 className="font-medium text-sm mt-2">Personal Details</h5>
+                            <div className="grid grid-cols-2 gap-2 text-sm">
+                              <div>Full Name:</div><div>{nettvDetails.details.fname} {nettvDetails.details.mname} {nettvDetails.details.lname}</div>
+                              <div>Address:</div><div>{nettvDetails.details.address}</div>
+                              <div>City:</div><div>{nettvDetails.details.city}</div>
+                              <div>District:</div><div>{nettvDetails.details.district}</div>
+                              <div>Phone:</div><div>{nettvDetails.details.phone_no}</div>
+                              <div>Mobile:</div><div>{nettvDetails.details.mobile_no}</div>
+                              {nettvDetails.details.country_info && (
+                                <>
+                                  <div>Country:</div><div>{nettvDetails.details.country_info.name}</div>
+                                </>
+                              )}
+                              {nettvDetails.details.province_info && (
+                                <>
+                                  <div>Province:</div><div>{nettvDetails.details.province_info.name}</div>
+                                </>
+                              )}
+                              {nettvDetails.details.latitude && nettvDetails.details.longitude && (
+                                <>
+                                  <div>Coordinates:</div><div>{nettvDetails.details.latitude.toFixed(4)}, {nettvDetails.details.longitude.toFixed(4)}</div>
+                                </>
+                              )}
+                            </div>
+                          </>
+                        )}
+                        {/* STBs with subscribed packages */}
+                        {nettvDetails.user_stbs && nettvDetails.user_stbs.length > 0 && (
+                          <div>
+                            <h5 className="font-medium text-sm mt-2">STBs ({nettvDetails.user_stbs.length})</h5>
+                            <div className="space-y-2">
+                              {nettvDetails.user_stbs.map((stb: any) => (
+                                <div key={stb.id} className="p-2 bg-white dark:bg-slate-800 rounded text-sm">
+                                  <div className="flex justify-between items-start">
+                                    <div>
+                                      <div className="font-medium">STB ID: {stb.stb_id}</div>
+                                      <div className="text-xs text-muted-foreground">Label: {stb.stb_label} | Type: {stb.type}</div>
+                                      <div className="text-xs">Status: <Badge className={stb.status === "1" ? "bg-green-500" : "bg-gray-500"}>{stb.status === "1" ? "Active" : "Inactive"}</Badge></div>
+                                    </div>
+                                    {stb.stb && (
+                                      <div className="text-right text-xs">
+                                        <div>MAC: {stb.stb.mac || "N/A"}</div>
+                                        <div>Serial: {stb.stb.serial}</div>
+                                        <div>Vendor: {stb.stb.vendor}</div>
+                                      </div>
+                                    )}
+                                  </div>
+                                  {stb.stb?.subscribed_packages && stb.stb.subscribed_packages.length > 0 && (
+                                    <div className="mt-2">
+                                      <div className="text-xs font-medium">Subscribed Packages:</div>
+                                      {stb.stb.subscribed_packages.map((pkg: any) => (
+                                        <div key={pkg.id} className="ml-2 mt-1 text-xs border-l-2 border-green-500 pl-2">
+                                          <div className="font-medium">{pkg.package_config_name}</div>
+                                          {pkg.description && <div className="text-muted-foreground">{pkg.description}</div>}
+                                          {pkg.package_subscription_details && pkg.package_subscription_details.map((detail: any) => (
+                                            <div key={detail.id} className="text-muted-foreground">
+                                              Expires: {new Date(detail.expiry_date).toLocaleDateString()} | Service: {detail.services?.name}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </CardContainer>
+          )}
         </TabsContent>
 
         <TabsContent value="billing" className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <CardContainer
-              title="Billing Summary"
-              className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md"
-            >
+            <CardContainer title="Billing Summary" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
               <div className="space-y-4">
                 <div className="grid grid-cols-1 gap-2">
                   <div className="flex items-start p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
@@ -1450,7 +1980,7 @@ export function CustomerProfile() {
                     <div className="w-full">
                       <div className="flex justify-between">
                         <div className="font-medium">Payment Method:</div>
-                        <div>{customer.paymentMethod || "Not set"}</div>
+                        <div>Not set</div>
                       </div>
                       <div className="text-sm text-muted-foreground mt-1">
                         Auto Renew: {networkSettings.autoRenew ? "Enabled" : "Disabled"}
@@ -1461,10 +1991,7 @@ export function CustomerProfile() {
               </div>
             </CardContainer>
 
-            <CardContainer
-              title="Subscription Details"
-              className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md"
-            >
+            <CardContainer title="Subscription Details" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
               <div className="space-y-4">
                 <div className="grid grid-cols-1 gap-2">
                   <div className="flex items-start p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
@@ -1477,13 +2004,13 @@ export function CustomerProfile() {
                   <div className="flex items-start p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <Clock className="mr-2 h-5 w-5 text-muted-foreground" />
                     <div>
-                      <div className="font-medium">Billing Cycle: {customer.billingCycle || "Monthly"}</div>
+                      <div className="font-medium">Billing Cycle: {customer.subscribedPkg.packageDuration}</div>
                       <div className="text-sm text-muted-foreground">
-                        Type: {customer.rechargeable ? "Rechargeable" : "Standard"}
+                        Type: {customer.isRechargeable ? "Rechargeable" : "Standard"}
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-start p-2 rounded-lg hover:bg-slate-100 dark:hover:bg.slate-800 transition-colors">
+                  <div className="flex items-start p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <FileText className="mr-2 h-5 w-5 text-muted-foreground" />
                     <div>
                       <div className="font-medium">Price: {formatPrice(customer.subscribedPkg.price)}</div>
@@ -1492,7 +2019,7 @@ export function CustomerProfile() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-start p-2 rounded-lg hover:bg-slate-100 dark:hover:bg.slate-800 transition-colors">
+                  <div className="flex items-start p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <Award className="mr-2 h-5 w-5 text-muted-foreground" />
                     <div>
                       <div className="font-medium">Reference ID: {customer.subscribedPkg.referenceId}</div>
@@ -1506,11 +2033,7 @@ export function CustomerProfile() {
             </CardContainer>
           </div>
 
-          {/* Orders Section */}
-          <CardContainer
-            title="Order History"
-            className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md"
-          >
+          <CardContainer title="Order History" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
             <div className="space-y-4">
               {customer.orders.length > 0 ? (
                 <div className="space-y-3">
@@ -1537,7 +2060,7 @@ export function CustomerProfile() {
                           <div className="text-sm text-muted-foreground">{order.items.length} items</div>
                         </div>
                       </div>
-                      
+
                       <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
                         <div className="text-sm font-medium mb-2">Order Items:</div>
                         <div className="space-y-2">
@@ -1558,9 +2081,7 @@ export function CustomerProfile() {
                   ))}
                 </div>
               ) : (
-                <div className="text-center p-4 text-muted-foreground">
-                  No order history found
-                </div>
+                <div className="text-center p-4 text-muted-foreground">No order history found</div>
               )}
               <div className="text-sm text-muted-foreground">
                 Total Orders: {customer.orders.length} | Total Amount: {formatPrice(invoiceAmount)}
@@ -1570,14 +2091,51 @@ export function CustomerProfile() {
         </TabsContent>
 
         <TabsContent value="devices" className="space-y-4">
-          <CustomerDeviceStatus />
+          {customer.devices.filter(d => d.deviceType === "ONT" && d.serialNumber).length > 0 && (
+            <CardContainer title="ACS Device Information" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
+              <Tabs defaultValue={customer.devices.find(d => d.deviceType === "ONT")?.serialNumber}>
+                <TabsList className="mb-4">
+                  {customer.devices.filter(d => d.deviceType === "ONT").map((device, idx) => (
+                    <TabsTrigger key={idx} value={device.serialNumber}>{device.brand} {device.model}</TabsTrigger>
+                  ))}
+                </TabsList>
+                {customer.devices.filter(d => d.deviceType === "ONT").map((device, idx) => (
+                  <TabsContent key={idx} value={device.serialNumber}>
+                    <Tabs defaultValue="basic-info">
+                      <TabsList className="mb-4">
+                        <TabsTrigger value="basic-info">Basic Info</TabsTrigger>
+                        <TabsTrigger value="wan">WAN Connections</TabsTrigger>
+                        <TabsTrigger value="wifi">WiFi</TabsTrigger>
+                        <TabsTrigger value="lan">LAN</TabsTrigger>
+                        <TabsTrigger value="neighbor-devices">Connected Devices</TabsTrigger>
+                      </TabsList>
+                      <TabsContent value="basic-info"><TR069DeviceDetails deviceId={device.serialNumber} /></TabsContent>
+                      <TabsContent value="wan"><TR069DeviceWanConnections deviceId={device.serialNumber} /></TabsContent>
+                      <TabsContent value="wifi"><TR069DeviceWifi deviceId={device.serialNumber} /></TabsContent>
+                      <TabsContent value="lan"><TR069DeviceLanInfo deviceId={device.serialNumber} /></TabsContent>
+                      <TabsContent value="neighbor-devices"><TR069DeviceNeighbors deviceId={device.serialNumber} /></TabsContent>
+                    </Tabs>
+                  </TabsContent>
+                ))}
+              </Tabs>
+            </CardContainer>
+          )}
+        </TabsContent>
+
+        <TabsContent value="usage" className="space-y-4">
+          <CardContainer title="Data Usage History" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
+            <DataUsageHistory usernames={usernames} />
+          </CardContainer>
+        </TabsContent>
+
+        <TabsContent value="realtime" className="space-y-4">
+          <CardContainer title="Realtime Usage" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
+            <RealtimeUsageChart usernames={usernames} />
+          </CardContainer>
         </TabsContent>
 
         <TabsContent value="documents" className="space-y-4">
-          <CardContainer
-            title="Customer Documents"
-            className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md"
-          >
+          <CardContainer title="Customer Documents" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
             <div className="space-y-4">
               {customer.documents.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1604,45 +2162,23 @@ export function CustomerProfile() {
                             Size: {formatFileSize(doc.size)} | Type: {doc.mimeType}
                           </div>
                           <div className="mt-3 flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-xs"
-                              onClick={() => {
-                                const filePath = doc.filePath.replace(/\\/g, '/');
-                                const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3200';
-                                const url = `${baseUrl}/${filePath}`;
-
-                                // Create a temporary link element to trigger download
-                                const link = document.createElement('a');
-                                link.href = url;
-                                link.download = doc.fileName || 'file';
-                                document.body.appendChild(link);
-                                link.click();
-                                document.body.removeChild(link);
-
-                                toast({
-                                  title: "Download started",
-                                  description: `Downloading ${doc.fileName}`,
-                                });
-                              }}
-                            >
-                              Download
-                            </Button>
-
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-xs"
-                              onClick={() => {
-                                // Direct access via backend URL
-                                const filePath = doc.filePath.replace(/\\/g, '/');
-                                const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3200';
-                                window.open(`${baseUrl}/${filePath}`, '_blank');
-                              }}
-                            >
-                              Preview
-                            </Button>
+                            <Button size="sm" variant="outline" className="text-xs" onClick={() => {
+                              const filePath = doc.filePath.replace(/\\/g, '/');
+                              const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3200';
+                              const url = `${baseUrl}/${filePath}`;
+                              const link = document.createElement('a');
+                              link.href = url;
+                              link.download = doc.fileName || 'file';
+                              document.body.appendChild(link);
+                              link.click();
+                              document.body.removeChild(link);
+                              toast({ title: "Download started", description: `Downloading ${doc.fileName}` });
+                            }}>Download</Button>
+                            <Button size="sm" variant="outline" className="text-xs" onClick={() => {
+                              const filePath = doc.filePath.replace(/\\/g, '/');
+                              const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3200';
+                              window.open(`${baseUrl}/${filePath}`, '_blank');
+                            }}>Preview</Button>
                           </div>
                         </div>
                       </div>
@@ -1650,14 +2186,12 @@ export function CustomerProfile() {
                   ))}
                 </div>
               ) : (
-                <div className="text-center p-4 text-muted-foreground">
-                  No documents uploaded for this customer
-                </div>
+                <div className="text-center p-4 text-muted-foreground">No documents uploaded for this customer</div>
               )}
               <div className="text-sm text-muted-foreground">
-                Total Documents: {customer.documents.length} | 
-                ID Proof: {customer.documents.filter(d => d.documentType === 'idProof').length} | 
-                Address Proof: {customer.documents.filter(d => d.documentType === 'addressProof').length} | 
+                Total Documents: {customer.documents.length} |
+                ID Proof: {customer.documents.filter(d => d.documentType === 'idProof').length} |
+                Address Proof: {customer.documents.filter(d => d.documentType === 'addressProof').length} |
                 Photos: {customer.documents.filter(d => d.documentType === 'photo').length}
               </div>
             </div>

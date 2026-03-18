@@ -1,4 +1,4 @@
-// app/dashboard/services/[id]/page.tsx
+// app/services/[id]/page.tsx - FIXED VERSION
 "use client";
 
 import { useState, useEffect } from "react";
@@ -47,7 +47,6 @@ export default function ServiceDetailsPage() {
     const fetchServiceDetails = async () => {
         try {
             setLoading(true);
-
             // Fetch ISP services and find the one with matching ID
             const response = await ServicesAPI.getISPServices(true);
             const foundService = response.data.find(s => s.id.toString() === serviceId);
@@ -59,10 +58,10 @@ export default function ServiceDetailsPage() {
                 setStatus(statusResponse.data);
             } else {
                 toast.error("Service not found");
-                router.push("/dashboard/services");
+                router.push("/services");
             }
         } catch (error: any) {
-            toast.error("Failed to load service details");
+            toast.error(error.message || "Failed to load service details");
             console.error(error);
         } finally {
             setLoading(false);
@@ -83,16 +82,18 @@ export default function ServiceDetailsPage() {
             setTestResult(result);
             setShowTest(true);
         } catch (error: any) {
-            toast.error("Test failed");
+            toast.error(error.message || "Test failed");
         }
     };
 
     const handleViewLogs = () => {
-        router.push(`/dashboard/services/${serviceId}/logs`);
+        // This would be a separate page for service logs
+        toast.success("Logs feature coming soon");
     };
 
     const handleViewAnalytics = () => {
-        router.push(`/dashboard/services/${serviceId}/analytics`);
+        // This would be a separate page for service analytics
+        toast.success("Analytics feature coming soon");
     };
 
     const handleServiceUpdated = () => {
@@ -133,7 +134,7 @@ export default function ServiceDetailsPage() {
                     <AlertCircle className="h-12 w-12 mx-auto text-red-500 mb-4" />
                     <h2 className="text-2xl font-bold mb-2">Service Not Found</h2>
                     <p className="text-gray-500 mb-6">The service you're looking for doesn't exist.</p>
-                    <Button onClick={() => router.push("/dashboard/services")}>
+                    <Button onClick={() => router.push("/services")}>
                         Back to Services
                     </Button>
                 </div>
@@ -362,7 +363,33 @@ export default function ServiceDetailsPage() {
                                     <CardDescription>Available operations for this service</CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    <p className="text-gray-500">Operations content will be added based on service type.</p>
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <Button
+                                                variant="outline"
+                                                onClick={() => {
+                                                    if (service.service.code === 'NETTV') {
+                                                        ServicesAPI.getNetTVSubscribers(1, 10)
+                                                            .then(() => toast.success("Fetched NetTV subscribers"))
+                                                            .catch(err => toast.error(err.message));
+                                                    } else {
+                                                        toast.info(`Operations for ${service.service.code} coming soon`);
+                                                    }
+                                                }}
+                                            >
+                                                Test Operation
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                onClick={handleTestConnection}
+                                            >
+                                                Test Connection
+                                            </Button>
+                                        </div>
+                                        <p className="text-sm text-gray-500">
+                                            Service-specific operations will be available based on service type.
+                                        </p>
+                                    </div>
                                 </CardContent>
                             </Card>
                         </TabsContent>
@@ -376,7 +403,10 @@ export default function ServiceDetailsPage() {
                                 <CardContent>
                                     <div className="text-center py-8 text-gray-500">
                                         <FileText className="h-12 w-12 mx-auto mb-4" />
-                                        <p>Logs will be displayed here</p>
+                                        <p>Logs feature coming soon</p>
+                                        <Button variant="outline" className="mt-4" onClick={handleViewLogs}>
+                                            View Logs
+                                        </Button>
                                     </div>
                                 </CardContent>
                             </Card>

@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -19,9 +18,10 @@ import {
     AlertCircle,
     Upload,
     Download,
-    Copy
+    Copy,
+    Info
 } from "lucide-react";
-import { Service, ServiceCategory, ISPService } from "@/types/service.types";
+import { ISPService } from "@/types/service.types";
 import { ServicesAPI } from "@/lib/api/service";
 import { toast } from "react-hot-toast";
 
@@ -32,43 +32,88 @@ interface ServiceManagerProps {
     onCancel?: () => void;
 }
 
-const categories: ServiceCategory[] = [
-    "BILLING",
-    "AUTHENTICATION",
-    "PAYMENT",
-    "STREAMING",
-    "NETWORK",
-    "VOIP",
-    "SECURITY",
-    "COMMUNICATION",
-    "OTHER"
-];
-
+// REAL CONFIGURATIONS FOR ALL SERVICES - FIXED JSON
 const defaultServiceTemplates = {
     TSHUL: {
-        baseUrl: "https://api.tshul.com",
+        baseUrl: "https://kisan-net.tshul.app/api",
         apiVersion: "v1",
-        config: { timeout: 30000, retryAttempts: 3 }
+        config: JSON.stringify({
+            timeout: 30000,
+            retryAttempts: 3,
+            demoCredentials: {
+                username: "demo@kisan.net.np",
+                password: "demo@kisan.net.np@123"
+            }
+        }, null, 2)
+    },
+    RADIUS: {
+        baseUrl: "http://10.3.2.6:3005/api",
+        apiVersion: "v1",
+        config: JSON.stringify({
+            timeout: 10000,
+            secret: "Kisan@radius",
+            defaultCredentials: {
+                username: "radius",
+                password: "Kisan@radius"
+            }
+        }, null, 2)
+    },
+    YEASTAR: {
+        baseUrl: "http://10.3.2.50",
+        apiVersion: "v2.0.0",
+        config: JSON.stringify({
+            tcp_port: 8333,
+            api_port: 80,
+            version: "2.0.0",
+            defaultCredentials: {
+                pbx_ip: "10.3.2.50",
+                username: "kisan",
+                password: "Kisan@123"
+            }
+        }, null, 2)
     },
     NETTV: {
         baseUrl: "https://resources.geniustv.dev.geniussystems.com.np",
         apiVersion: "v1",
-        config: { timeout: 60000 }
-    },
-    YEASTAR: {
-        baseUrl: "",
-        apiVersion: "v1",
-        config: { tcpPort: 8333, apiPort: 80 }
-    },
-    RADIUS: {
-        baseUrl: "http://localhost:1812",
-        apiVersion: "v1",
-        config: { timeout: 10000 }
+        config: JSON.stringify({
+            timeout: 60000,
+            retry: 3,
+            defaultCredentials: {
+                api_key: "5c232ef1fdf138",
+                api_secret: "72b7b119b2b98983e1ad33a385b08df489",
+                app_key: "",
+                app_secret: ""
+            }
+        }, null, 2)
     },
     MIKROTIK: {
-        baseUrl: "http://192.168.88.1",
+        baseUrl: "http://10.1.5.2",
         apiVersion: "v1",
-        config: { port: 8728, useSSL: false }
+        config: JSON.stringify({
+            port: 8728,
+            use_ssl: false,
+            timeout: 5000,
+            defaultCredentials: {
+                username: "bipin",
+                password: "bipin"
+            }
+        }, null, 2)
+    },
+    ESEWA: {
+        baseUrl: "https://uat.esewa.com.np",
+        apiVersion: "v1",
+        config: JSON.stringify({
+            environment: "uat",
+            timeout: 30000
+        }, null, 2)
+    },
+    KHALTI: {
+        baseUrl: "https://khalti.com/api/v2",
+        apiVersion: "v2",
+        config: JSON.stringify({
+            environment: "test",
+            timeout: 30000
+        }, null, 2)
     }
 };
 
@@ -76,15 +121,10 @@ export function ServiceManager({ service, mode, onSuccess, onCancel }: ServiceMa
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
         serviceCode: service?.service.code || "",
-        name: service?.service.name || "",
-        description: service?.service.description || "",
-        category: service?.service.category || "OTHER" as ServiceCategory,
-        iconUrl: service?.service.iconUrl || "",
         baseUrl: service?.baseUrl || "",
         apiVersion: service?.apiVersion || "v1",
         isActive: service?.isActive ?? true,
-        isEnabled: service?.isEnabled ?? true,
-        config: service?.config ? JSON.stringify(service.config, null, 2) : "{}",
+        config: service?.config ? (typeof service.config === 'string' ? service.config : JSON.stringify(service.config, null, 2)) : "{}",
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
@@ -102,10 +142,6 @@ export function ServiceManager({ service, mode, onSuccess, onCancel }: ServiceMa
 
         if (!formData.serviceCode) {
             newErrors.serviceCode = "Service code is required";
-        }
-
-        if (!formData.name) {
-            newErrors.name = "Service name is required";
         }
 
         if (!formData.baseUrl && mode !== 'add') {
@@ -130,21 +166,10 @@ export function ServiceManager({ service, mode, onSuccess, onCancel }: ServiceMa
                 serviceCode,
                 baseUrl: template.baseUrl || "",
                 apiVersion: template.apiVersion,
-                config: JSON.stringify(template.config || {}, null, 2)
+                config: template.config || "{}"
             }));
 
-            // Auto-fill name from known services
-            const knownServices: Record<string, string> = {
-                TSHUL: "TShul Billing",
-                NETTV: "NetTV Streaming",
-                YEASTAR: "Yeastar VoIP",
-                RADIUS: "FreeRadius",
-                MIKROTIK: "MikroTik Router"
-            };
-
-            if (knownServices[serviceCode]) {
-                handleInputChange("name", knownServices[serviceCode]);
-            }
+            toast.success(`${serviceCode} template loaded`);
         }
     };
 
@@ -159,32 +184,49 @@ export function ServiceManager({ service, mode, onSuccess, onCancel }: ServiceMa
         try {
             setLoading(true);
 
-            if (mode === 'add') {
-                // Create new service configuration
-                await ServicesAPI.configureService({
-                    serviceCode: formData.serviceCode,
-                    baseUrl: formData.baseUrl || undefined,
-                    apiVersion: formData.apiVersion,
-                    config: JSON.parse(formData.config),
-                    isActive: formData.isActive,
-                });
-
-                toast.success("Service added successfully");
-            } else {
-                // Update existing service
-                await ServicesAPI.configureService({
-                    serviceCode: formData.serviceCode,
-                    baseUrl: formData.baseUrl || undefined,
-                    apiVersion: formData.apiVersion,
-                    config: JSON.parse(formData.config),
-                    isActive: formData.isActive,
-                });
-
-                toast.success("Service updated successfully");
+            let config;
+            try {
+                config = JSON.parse(formData.config);
+            } catch (error) {
+                config = {};
             }
 
-            if (onSuccess) {
-                onSuccess();
+            if (mode === 'add') {
+                // Create new service configuration
+                const response = await ServicesAPI.configureService({
+                    serviceCode: formData.serviceCode,
+                    baseUrl: formData.baseUrl || null,
+                    apiVersion: formData.apiVersion,
+                    config: config,
+                    isActive: formData.isActive,
+                });
+
+                if (response.success) {
+                    toast.success("Service added successfully");
+                    if (onSuccess) {
+                        onSuccess();
+                    }
+                } else {
+                    toast.error(response.error || "Failed to add service");
+                }
+            } else {
+                // Update existing service
+                const response = await ServicesAPI.configureService({
+                    serviceCode: formData.serviceCode,
+                    baseUrl: formData.baseUrl || null,
+                    apiVersion: formData.apiVersion,
+                    config: config,
+                    isActive: formData.isActive,
+                });
+
+                if (response.success) {
+                    toast.success("Service updated successfully");
+                    if (onSuccess) {
+                        onSuccess();
+                    }
+                } else {
+                    toast.error(response.error || "Failed to update service");
+                }
             }
         } catch (error: any) {
             toast.error(error.message || "Failed to save service");
@@ -194,18 +236,21 @@ export function ServiceManager({ service, mode, onSuccess, onCancel }: ServiceMa
     };
 
     const handleDelete = async () => {
-        if (!service || !confirm("Are you sure you want to delete this service configuration?")) {
+        if (!service || !confirm("Are you sure you want to deactivate this service?")) {
             return;
         }
 
         try {
             setLoading(true);
-            // Deactivate instead of delete
-            await ServicesAPI.toggleServiceActivation(service.service.code, false);
-            toast.success("Service deactivated successfully");
+            const response = await ServicesAPI.toggleServiceActivation(service.service.code, false);
 
-            if (onSuccess) {
-                onSuccess();
+            if (response.success) {
+                toast.success("Service deactivated successfully");
+                if (onSuccess) {
+                    onSuccess();
+                }
+            } else {
+                toast.error(response.error || "Failed to deactivate service");
             }
         } catch (error: any) {
             toast.error(error.message || "Failed to delete service");
@@ -219,7 +264,6 @@ export function ServiceManager({ service, mode, onSuccess, onCancel }: ServiceMa
         setFormData(prev => ({
             ...prev,
             serviceCode: newCode,
-            name: `${prev.name} (Copy)`
         }));
         toast.success("Service duplicated. Please review and save.");
     };
@@ -271,6 +315,8 @@ export function ServiceManager({ service, mode, onSuccess, onCancel }: ServiceMa
         // Reset file input
         event.target.value = '';
     };
+
+    const selectedTemplate = defaultServiceTemplates[formData.serviceCode as keyof typeof defaultServiceTemplates];
 
     return (
         <Card>
@@ -334,18 +380,21 @@ export function ServiceManager({ service, mode, onSuccess, onCancel }: ServiceMa
                                     <Badge
                                         key={serviceCode}
                                         variant="outline"
-                                        className="cursor-pointer hover:bg-gray-100"
+                                        className="cursor-pointer hover:bg-gray-100 px-3 py-1"
                                         onClick={() => handleTemplateSelect(serviceCode)}
                                     >
                                         {serviceCode}
                                     </Badge>
                                 ))}
                             </div>
+                            <p className="text-xs text-gray-500">
+                                Click on a service code to load pre-configured settings
+                            </p>
                         </div>
                     )}
 
                     {/* Service Information */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 gap-6">
                         <div className="space-y-4">
                             <div className="space-y-2">
                                 <Label htmlFor="serviceCode">
@@ -368,73 +417,6 @@ export function ServiceManager({ service, mode, onSuccess, onCancel }: ServiceMa
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="name">Service Name *</Label>
-                                <Input
-                                    id="name"
-                                    value={formData.name}
-                                    onChange={(e) => handleInputChange("name", e.target.value)}
-                                    placeholder="TShul Billing System"
-                                    disabled={mode === 'view'}
-                                    className={errors.name ? "border-red-500" : ""}
-                                />
-                                {errors.name && (
-                                    <p className="text-xs text-red-500">{errors.name}</p>
-                                )}
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="category">Category</Label>
-                                <Select
-                                    value={formData.category}
-                                    onValueChange={(value: ServiceCategory) => handleInputChange("category", value)}
-                                    disabled={mode === 'view'}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select category" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {categories.map((category) => (
-                                            <SelectItem key={category} value={category}>
-                                                {category}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-
-                        <div className="space-y-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="description">Description</Label>
-                                <Textarea
-                                    id="description"
-                                    value={formData.description}
-                                    onChange={(e) => handleInputChange("description", e.target.value)}
-                                    placeholder="Brief description of the service..."
-                                    rows={3}
-                                    disabled={mode === 'view'}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="iconUrl">Icon URL</Label>
-                                <Input
-                                    id="iconUrl"
-                                    value={formData.iconUrl}
-                                    onChange={(e) => handleInputChange("iconUrl", e.target.value)}
-                                    placeholder="/icons/service.svg"
-                                    disabled={mode === 'view'}
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Connection Configuration */}
-                    <div className="space-y-4">
-                        <h3 className="text-lg font-semibold">Connection Configuration</h3>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-2">
                                 <Label htmlFor="baseUrl">
                                     Base URL {mode !== 'add' && '*'}
                                 </Label>
@@ -454,73 +436,75 @@ export function ServiceManager({ service, mode, onSuccess, onCancel }: ServiceMa
                                 </p>
                             </div>
 
-                            <div className="space-y-2">
-                                <Label htmlFor="apiVersion">API Version</Label>
-                                <Input
-                                    id="apiVersion"
-                                    value={formData.apiVersion}
-                                    onChange={(e) => handleInputChange("apiVersion", e.target.value)}
-                                    placeholder="v1"
-                                    disabled={mode === 'view'}
-                                />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="apiVersion">API Version</Label>
+                                    <Input
+                                        id="apiVersion"
+                                        value={formData.apiVersion}
+                                        onChange={(e) => handleInputChange("apiVersion", e.target.value)}
+                                        placeholder="v1"
+                                        disabled={mode === 'view'}
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="config">Configuration (JSON)</Label>
+                                    <Textarea
+                                        id="config"
+                                        value={formData.config}
+                                        onChange={(e) => handleInputChange("config", e.target.value)}
+                                        placeholder='{"timeout": 30000, "retryAttempts": 3}'
+                                        rows={4}
+                                        className={`font-mono text-sm ${errors.config ? "border-red-500" : ""}`}
+                                        disabled={mode === 'view'}
+                                    />
+                                    {errors.config && (
+                                        <p className="text-xs text-red-500">{errors.config}</p>
+                                    )}
+                                </div>
                             </div>
                         </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="config">
-                                Configuration (JSON)
-                                <span className="text-xs text-gray-500 ml-2">Service-specific settings</span>
-                            </Label>
-                            <Textarea
-                                id="config"
-                                value={formData.config}
-                                onChange={(e) => handleInputChange("config", e.target.value)}
-                                placeholder='{"timeout": 30000, "retryAttempts": 3}'
-                                rows={6}
-                                className={`font-mono text-sm ${errors.config ? "border-red-500" : ""}`}
-                                disabled={mode === 'view'}
-                            />
-                            {errors.config && (
-                                <p className="text-xs text-red-500">{errors.config}</p>
-                            )}
-                        </div>
                     </div>
+
+                    {/* Template Info */}
+                    {selectedTemplate && mode === 'add' && (
+                        <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                            <div className="flex items-start gap-2">
+                                <Info className="h-4 w-4 text-green-600 mt-0.5" />
+                                <div>
+                                    <h4 className="text-sm font-medium text-green-800 mb-1">
+                                        {formData.serviceCode} Template Loaded
+                                    </h4>
+                                    <p className="text-xs text-green-700">
+                                        Base URL: <code className="bg-green-100 px-1 rounded">{selectedTemplate.baseUrl}</code>
+                                    </p>
+                                    <p className="text-xs text-green-700 mt-1">
+                                        Check default credentials in the config section. You'll need to add credentials after saving.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Status Controls */}
                     {mode !== 'view' && (
                         <div className="space-y-4 p-4 border rounded-lg">
                             <h3 className="font-semibold">Status & Activation</h3>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="flex items-center justify-between">
-                                    <div className="space-y-0.5">
-                                        <Label htmlFor="isActive">Active Status</Label>
-                                        <p className="text-xs text-gray-500">
-                                            Enable or disable the service
-                                        </p>
-                                    </div>
-                                    <Switch
-                                        id="isActive"
-                                        checked={formData.isActive}
-                                        onCheckedChange={(checked) => handleInputChange("isActive", checked)}
-                                        disabled={mode === 'view'}
-                                    />
+                            <div className="flex items-center justify-between">
+                                <div className="space-y-0.5">
+                                    <Label htmlFor="isActive">Active Status</Label>
+                                    <p className="text-xs text-gray-500">
+                                        Enable or disable the service
+                                    </p>
                                 </div>
-
-                                <div className="flex items-center justify-between">
-                                    <div className="space-y-0.5">
-                                        <Label htmlFor="isEnabled">Enabled</Label>
-                                        <p className="text-xs text-gray-500">
-                                            Allow service to be used
-                                        </p>
-                                    </div>
-                                    <Switch
-                                        id="isEnabled"
-                                        checked={formData.isEnabled}
-                                        onCheckedChange={(checked) => handleInputChange("isEnabled", checked)}
-                                        disabled={mode === 'view'}
-                                    />
-                                </div>
+                                <Switch
+                                    id="isActive"
+                                    checked={formData.isActive}
+                                    onCheckedChange={(checked) => handleInputChange("isActive", checked)}
+                                    disabled={mode === 'view'}
+                                />
                             </div>
                         </div>
                     )}

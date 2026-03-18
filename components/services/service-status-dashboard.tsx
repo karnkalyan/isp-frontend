@@ -1,4 +1,4 @@
-// components/services/service-status-dashboard.tsx
+// components/services/service-status-dashboard.tsx - FIXED VERSION
 "use client";
 
 import { useState, useEffect } from "react";
@@ -32,9 +32,13 @@ export function ServiceStatusDashboard() {
     const fetchStatuses = async () => {
         try {
             const response = await ServicesAPI.getAllServiceStatuses();
-            setStatuses(response.data);
+            if (response.success) {
+                setStatuses(response.data);
+            } else {
+                toast.error("Failed to load service statuses");
+            }
         } catch (error: any) {
-            toast.error("Failed to load service statuses");
+            toast.error(error.message || "Failed to load service statuses");
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -190,9 +194,13 @@ export function ServiceStatusDashboard() {
                                     onClick={async () => {
                                         try {
                                             const result = await ServicesAPI.testServiceConnection(status.code);
-                                            toast[result.connected ? 'success' : 'error'](result.message);
+                                            if (result.connected) {
+                                                toast.success(result.message || "Connection test successful");
+                                            } else {
+                                                toast.error(result.message || "Connection test failed");
+                                            }
                                         } catch (error: any) {
-                                            toast.error("Test failed");
+                                            toast.error(error.message || "Test failed");
                                         }
                                     }}
                                 >

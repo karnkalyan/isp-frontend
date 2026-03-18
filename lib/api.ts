@@ -25,8 +25,25 @@ function getDynamicBaseUrl(): string {
     return "http://192.168.200.11:3200";
   }
 
+  if (hostname.includes("192.168.10.3")) {
+    return "http://192.168.10.3:3200";
+  }
+
   // Local development fallback
   return process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3200";
+}
+
+/**
+ * Get WebSocket URL based on current domain
+ */
+export function getWebSocketUrl(): string {
+  const baseUrl = getDynamicBaseUrl();
+  const url = new URL(baseUrl);
+  // Change the protocol to ws or wss
+  url.protocol = url.protocol.replace('http', 'ws');
+  // Change the path to /ws
+  url.pathname = '/ws';
+  return url.toString();
 }
 
 function isClient() {

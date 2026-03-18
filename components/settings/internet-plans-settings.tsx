@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Plus, Pencil, Trash2, Save, X, Zap, Download, Upload, Infinity } from "lucide-react"
+import { Plus, Pencil, Trash2, Save, X, Zap, Download, Upload, Infinity, RefreshCw } from "lucide-react"
 import { toast } from "react-hot-toast"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -23,13 +23,11 @@ export type InternetPlan = {
   price: number
   isPopular: boolean
   description: string
-  deviceLimit?: number      // use backend name
+  deviceLimit?: number
 }
 
-
-
 export type ISPType = {
-  id: number             // numeric ID
+  id: number
   name: string
   code: string
   description: string
@@ -51,15 +49,15 @@ const DEFAULT_PLAN: Omit<InternetPlan, "id"> = {
   deviceLimit: 1,
 }
 
-
-
 export function InternetPlansSettings() {
   const [ispTypes, setIspTypes] = useState<ISPType[]>([])
   const [internetPlans, setInternetPlans] = useState<InternetPlan[]>([])
   const [isAdding, setIsAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [newPlan, setNewPlan] = useState(DEFAULT_PLAN)
+  const [isResyncing, setIsResyncing] = useState(false)
 
+  // Load ISP types
   useEffect(() => {
     async function loadTypes() {
       try {
@@ -92,20 +90,19 @@ export function InternetPlansSettings() {
     try {
       const raw = await apiRequest("/pkgplan")
       if (!Array.isArray(raw)) throw new Error("Expected array from API.")
-const mapped: InternetPlan[] = raw.map((r: any) => ({
-  id: String(r.id),
-  name: r.planName,
-  code: r.planCode,
-  connectionType: Number(r.connectionTypeDetails?.id ?? r.connectionType ?? 0),
-  downloadSpeed: Number(r.downSpeed ?? 0),
-  uploadSpeed: Number(r.upSpeed ?? 0),
-  dataLimit: Number(r.dataLimit ?? 0),
-  price: Number(r.price ?? 0),
-  isPopular: Boolean(r.isPopular),
-  description: String(r.description ?? ""),
-  deviceLimit: Number(r.deviceLimit ?? r.numDevices ?? 1), // prefer deviceLimit
-}))
-
+      const mapped: InternetPlan[] = raw.map((r: any) => ({
+        id: String(r.id),
+        name: r.planName,
+        code: r.planCode,
+        connectionType: Number(r.connectionTypeDetails?.id ?? r.connectionType ?? 0),
+        downloadSpeed: Number(r.downSpeed ?? 0),
+        uploadSpeed: Number(r.upSpeed ?? 0),
+        dataLimit: Number(r.dataLimit ?? 0),
+        price: Number(r.price ?? 0),
+        isPopular: Boolean(r.isPopular),
+        description: String(r.description ?? ""),
+        deviceLimit: Number(r.deviceLimit ?? r.numDevices ?? 1),
+      }))
       setInternetPlans(mapped)
     } catch (err) {
       console.error("Failed to load package plans", err)
@@ -129,29 +126,27 @@ const mapped: InternetPlan[] = raw.map((r: any) => ({
 
   const handleAdd = async () => {
     if (!validateForm()) return
-const payload = {
-  planName: newPlan.name,
-  planCode: newPlan.code,
-  connectionType: newPlan.connectionType,
-  dataLimit: newPlan.dataLimit,
-  downSpeed: newPlan.downloadSpeed,
-  upSpeed: newPlan.uploadSpeed,
-  isPopular: newPlan.isPopular,
-  description: newPlan.description,
-  deviceLimit: Number(newPlan.deviceLimit ?? 1),
-}
-
+    const payload = {
+      planName: newPlan.name,
+      planCode: newPlan.code,
+      connectionType: newPlan.connectionType,
+      dataLimit: newPlan.dataLimit,
+      downSpeed: newPlan.downloadSpeed,
+      upSpeed: newPlan.uploadSpeed,
+      isPopular: newPlan.isPopular,
+      description: newPlan.description,
+      deviceLimit: Number(newPlan.deviceLimit ?? 1),
+    }
     try {
       await apiRequest("/pkgplan", { method: 'POST', body: JSON.stringify(payload) })
       toast.success("Internet plan added successfully")
       resetForm()
       setIsAdding(false)
       pkgplans()
-} catch (err: any) {
-  console.error("Failed to add internet plan:", err);
-  // toast.error(err.message || "Failed to add internet plan. Please try again.");
-}
-
+    } catch (err: any) {
+      console.error("Failed to add internet plan:", err)
+      toast.error(err.message || "Failed to add internet plan. Please try again.")
+    }
   }
 
   const handleEdit = (id: string) => {
@@ -173,7 +168,7 @@ const payload = {
       upSpeed: newPlan.uploadSpeed,
       isPopular: newPlan.isPopular,
       description: newPlan.description,
-      deviceLimit: newPlan.numDevices,
+      deviceLimit: newPlan.deviceLimit,
     }
     try {
       await apiRequest(`/pkgplan/${editingId}`, { method: 'PUT', body: JSON.stringify(payload) })
@@ -195,7 +190,7 @@ const payload = {
       pkgplans()
     } catch (err) {
       console.error("Failed to delete internet plan:", err)
-      // toast.error("Failed to delete internet plan. Please try again.")
+      toast.error("Failed to delete internet plan. Please try again.")
     }
   }
 
@@ -206,23 +201,52 @@ const payload = {
   }
 
   const formatDataLimit = (limit: number | string) => {
-    const num = typeof limit === "string" ? parseInt(limit, 10) : limit;
-    return num === 0 ? "Unlimited" : `${num}`;
+    const num = typeof limit === "string" ? parseInt(limit, 10) : limit
+    return num === 0 ? "Unlimited" : `${num}`
   }
-  
 
   const selectedType = useMemo(() => {
     return ispTypes.find((t) => t.id === newPlan.connectionType)
   }, [ispTypes, newPlan.connectionType])
 
+  // --- RESYNC FUNCTION ---
+  const handleResync = async () => {
+    try {
+      setIsResyncing(true)
+      const res = await apiRequest("/pkgplan/resync", { method: "POST" })
+      toast.success(res?.message || "Plans resynced successfully from DB & RADIUS server")
+      pkgplans()
+    } catch (err: any) {
+      console.error("Resync failed:", err)
+      toast.error(err?.message || "Failed to resync plans")
+    } finally {
+      setIsResyncing(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        {!isAdding && !editingId && (
+          <Button onClick={() => setIsAdding(true)} className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white">
+            <Plus className="mr-2 h-4 w-4" /> Add Internet Plan
+          </Button>
+        )}
+        <Button
+          onClick={handleResync}
+          className="bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 text-white"
+          disabled={isResyncing}
+        >
+          <RefreshCw className="mr-2 h-4 w-4 animate-spin-slow" /> {isResyncing ? "Resyncing..." : "Resync Plans"}
+        </Button>
+      </div>
+
       {(isAdding || editingId) && (
         <div className="bg-card border rounded-md p-4 mb-6">
           <h3 className="text-lg font-medium mb-4">
             {editingId ? "Edit Internet Plan" : "Add New Internet Plan"}
           </h3>
-
+          {/* --- Form Fields (unchanged) --- */}
           {/* Name & Code */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div className="space-y-2">
@@ -250,21 +274,20 @@ const payload = {
             <div className="space-y-2">
               <Label htmlFor="connectionType">Connection Type</Label>
               <SearchableSelect
-                  options={ISP_TYPE_OPTIONS.map(opt => ({ ...opt, value: String(opt.value) }))}
-                  value={String(newPlan.connectionType)}
-                  onValueChange={(v) =>
-                    setNewPlan({ ...newPlan, connectionType: Number(v) })
-                  }
-                  placeholder="Select Connection Type"
-                />
-
+                options={ISP_TYPE_OPTIONS.map(opt => ({ ...opt, value: String(opt.value) }))}
+                value={String(newPlan.connectionType)}
+                onValueChange={(v) =>
+                  setNewPlan({ ...newPlan, connectionType: Number(v) })
+                }
+                placeholder="Select Connection Type"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="dataLimit">Data Limit (0 for unlimited)</Label>
               <div className="relative">
                 <Input
                   id="dataLimit"
-                   type="number"
+                  type="number"
                   value={String(newPlan.dataLimit)}
                   onChange={(e) => setNewPlan({ ...newPlan, dataLimit: +e.target.value || 0 })}
                   placeholder="e.g., 500"
@@ -276,19 +299,18 @@ const payload = {
           </div>
 
           {/* Number of Devices for Extra types */}
-{selectedType?.isExtra && (
-  <div className="space-y-2 mb-4">
-    <Label htmlFor="deviceLimit">Number of Devices</Label>
-    <Input
-      id="deviceLimit"
-      type="number"
-      min={1}
-      value={String(newPlan.deviceLimit ?? 1)}
-      onChange={(e) => setNewPlan({ ...newPlan, deviceLimit: Math.max(1, Number(e.target.value) || 1) })}
-    />
-  </div>
-)}
-
+          {selectedType?.isExtra && (
+            <div className="space-y-2 mb-4">
+              <Label htmlFor="deviceLimit">Number of Devices</Label>
+              <Input
+                id="deviceLimit"
+                type="number"
+                min={1}
+                value={String(newPlan.deviceLimit ?? 1)}
+                onChange={(e) => setNewPlan({ ...newPlan, deviceLimit: Math.max(1, Number(e.target.value) || 1) })}
+              />
+            </div>
+          )}
 
           {/* Speeds */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
@@ -311,7 +333,7 @@ const payload = {
               <div className="relative">
                 <Input
                   id="uploadSpeed"
-                   type="number"
+                  type="number"
                   value={String(newPlan.uploadSpeed)}
                   onChange={(e) => setNewPlan({ ...newPlan, uploadSpeed: +e.target.value || 0 })}
                   placeholder="e.g., 20"
@@ -356,12 +378,6 @@ const payload = {
         </div>
       )}
 
-      {!isAdding && !editingId && (
-        <Button onClick={() => setIsAdding(true)} className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white">
-          <Plus className="mr-2 h-4 w-4" /> Add Internet Plan
-        </Button>
-      )}
-
       {/* Plans Table */}
       <div className="rounded-md border overflow-hidden">
         <div className="overflow-x-auto">
@@ -372,7 +388,6 @@ const payload = {
                 <TableHead className="w-[150px]">Connection Type</TableHead>
                 <TableHead className="w-[150px]">Speed</TableHead>
                 <TableHead className="w-[120px]">Data Limit</TableHead>
-                {/* <TableHead className="w-[100px]">Price</TableHead> */}
                 <TableHead className="w-[100px] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -393,11 +408,8 @@ const payload = {
                       </div>
                     </TableCell>
                     <TableCell>
-  {
-    ispTypes.find(t => t.id === plan.connectionType)?.name
-    || "(unknown)"
-  }
-</TableCell>
+                      {ispTypes.find(t => t.id === plan.connectionType)?.name || "(unknown)"}
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center">
                         <Zap className="h-4 w-4 mr-1 text-amber-500" />
@@ -405,7 +417,6 @@ const payload = {
                       </div>
                     </TableCell>
                     <TableCell>{formatDataLimit(plan.dataLimit)}</TableCell>
-                    {/* <TableCell>${plan.price.toFixed(2)}/mo</TableCell> */}
                     <TableCell className="text-right">
                       <div className="flex justify-end space-x-1">
                         <Button variant="ghost" size="icon" onClick={() => handleEdit(plan.id)} className="h-8 w-8">

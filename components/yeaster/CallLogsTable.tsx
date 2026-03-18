@@ -6,13 +6,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
 import {
     Table,
     TableBody,
@@ -21,42 +20,21 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table"
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select"
-import {
-    Search,
-    Filter,
-    PhoneIncoming,
-    PhoneOutgoing,
-    PhoneMissed,
-    PhoneOff,
-    Phone,
-    Clock,
-    User,
-    Calendar,
-    Download,
-    MoreVertical
-} from "lucide-react"
+import { Search, Filter, Download, Phone, PhoneIncoming, PhoneOutgoing, PhoneMissed, Clock, Calendar } from "lucide-react"
 import { toast } from "react-hot-toast"
 import { apiRequest } from "@/lib/api"
 
 interface CallLog {
     id: string
-    direction: 'inbound' | 'outbound'
-    caller: string
-    called: string
     startTime: string
-    endTime: string
-    duration: number
-    status: 'answered' | 'missed' | 'busy' | 'failed' | 'completed'
-    channelId: string
+    endTime?: string
+    callerId: string
+    calledNumber: string
+    extension?: string
+    direction: 'inbound' | 'outbound' | 'internal'
+    status: string
+    duration?: number
     recordingUrl?: string
-    notes?: string
 }
 
 interface CallLogsTableProps {
@@ -64,25 +42,74 @@ interface CallLogsTableProps {
 }
 
 export default function CallLogsTable({ ispId }: CallLogsTableProps) {
-    const [callLogs, setCallLogs] = useState<CallLog[]>([])
+    const [logs, setLogs] = useState<CallLog[]>([])
+    const [filteredLogs, setFilteredLogs] = useState<CallLog[]>([])
     const [loading, setLoading] = useState(true)
-    const [search, setSearch] = useState("")
-    const [directionFilter, setDirectionFilter] = useState<string>("all")
-    const [statusFilter, setStatusFilter] = useState<string>("all")
-    const [dateFilter, setDateFilter] = useState<string>("today")
+    const [searchTerm, setSearchTerm] = useState("")
+    const [filters, setFilters] = useState({
+        direction: "all",
+        status: "all",
+        dateRange: "today"
+    })
+    const [page, setPage] = useState(1)
+    const [totalPages, setTotalPages] = useState(1)
+    const limit = 20
 
+    // Fetch call logs
     const fetchCallLogs = async () => {
         try {
             setLoading(true)
-            const params = new URLSearchParams()
-            if (dateFilter !== "all") params.append('date', dateFilter)
 
-            const data = await apiRequest<CallLog[]>(`/yeastar/${ispId}/logs?${params}`)
-            setCallLogs(data || [])
+            const params = new URLSearchParams({
+                limit: limit.toString(),
+                page: page.toString()
+            })
+
+            if (filters.direction !== "all") params.append("direction", filters.direction)
+            if (filters.status !== "all") params.append("status", filters.status)
+            if (filters.dateRange !== "all") {
+                const now = new Date()
+                let startDate = new Date()
+
+                switch (filters.dateRange) {
+                    case "today":
+                        startDate.setHours(0, 0, 0, 0)
+                        break
+                    case "yesterday":
+                        startDate.setDate(now.getDate() - 1)
+                        startDate.setHours(0, 0, 0, 0)
+                        break
+                    case "week":
+                        startDate.setDate(now.getDate() - 7)
+                        break
+                    case "month":
+                        startDate.setMonth(now.getMonth() - 1)
+                        break
+                }
+
+                if (filters.dateRange !== "all") {
+                    params.append("startDate", startDate.toISOString())
+                    params.append("endDate", now.toISOString())
+                }
+            }
+
+            const response = await apiRequest<{
+                success: boolean;
+                data: CallLog[];
+                total: number;
+                answered: number;
+                missed: number;
+                totalDuration: number;
+            }>(`/yeaster/calls/logs?${params}`)
+
+            if (response.success) {
+                setLogs(response.data || [])
+                setFilteredLogs(response.data || [])
+                setTotalPages(Math.ceil(response.total / limit))
+            }
         } catch (error: any) {
             console.error("Error fetching call logs:", error)
             toast.error("Failed to fetch call logs")
-            setCallLogs([])
         } finally {
             setLoading(false)
         }
@@ -90,325 +117,263 @@ export default function CallLogsTable({ ispId }: CallLogsTableProps) {
 
     useEffect(() => {
         fetchCallLogs()
-    }, [ispId, dateFilter])
+    }, [page, filters.dateRange])
 
-    const filteredLogs = callLogs.filter(log => {
-        // Search filter
-        const searchLower = search.toLowerCase()
-        const matchesSearch =
-            log.caller.toLowerCase().includes(searchLower) ||
-            log.called.toLowerCase().includes(searchLower) ||
-            log.channelId.toLowerCase().includes(searchLower)
+    // Filter logs based on search and filters
+    useEffect(() => {
+        let filtered = [...logs]
 
-        // Direction filter
-        const matchesDirection =
-            directionFilter === "all" || log.direction === directionFilter
-
-        // Status filter
-        const matchesStatus =
-            statusFilter === "all" || log.status === statusFilter
-
-        return matchesSearch && matchesDirection && matchesStatus
-    })
-
-    const getDirectionIcon = (direction: string) => {
-        switch (direction) {
-            case 'inbound':
-                return <PhoneIncoming className="h-4 w-4 text-blue-500" />
-            case 'outbound':
-                return <PhoneOutgoing className="h-4 w-4 text-green-500" />
-            default:
-                return <Phone className="h-4 w-4" />
+        // Apply search filter
+        if (searchTerm) {
+            filtered = filtered.filter(log =>
+                log.callerId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                log.calledNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                log.extension?.toLowerCase().includes(searchTerm.toLowerCase())
+            )
         }
+
+        // Apply direction filter
+        if (filters.direction !== "all") {
+            filtered = filtered.filter(log => log.direction === filters.direction)
+        }
+
+        // Apply status filter
+        if (filters.status !== "all") {
+            filtered = filtered.filter(log =>
+                filters.status === "answered"
+                    ? (log.status === "ANSWERED" || log.status === "ANSWER")
+                    : (log.status === "NOANSWER" || log.status === "BUSY" || log.status === "MISSED")
+            )
+        }
+
+        setFilteredLogs(filtered)
+    }, [searchTerm, filters.direction, filters.status, logs])
+
+    const formatDateTime = (dateString: string) => {
+        return new Date(dateString).toLocaleString()
     }
 
-    const getDirectionBadge = (direction: string) => {
-        const directionMap = {
-            'inbound': { label: 'Inbound', variant: 'default' as const },
-            'outbound': { label: 'Outbound', variant: 'outline' as const }
-        }
-
-        const info = directionMap[direction as keyof typeof directionMap] || { label: direction, variant: 'secondary' as const }
-        return (
-            <Badge variant={info.variant} className="flex items-center gap-1">
-                {getDirectionIcon(direction)}
-                {info.label}
-            </Badge>
-        )
+    const formatDuration = (seconds?: number) => {
+        if (!seconds) return "00:00"
+        const mins = Math.floor(seconds / 60)
+        const secs = seconds % 60
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
     }
 
     const getStatusBadge = (status: string) => {
-        const statusMap = {
-            'answered': { label: 'Answered', variant: 'success' as const },
-            'missed': { label: 'Missed', variant: 'destructive' as const },
-            'busy': { label: 'Busy', variant: 'secondary' as const },
-            'failed': { label: 'Failed', variant: 'destructive' as const },
-            'completed': { label: 'Completed', variant: 'default' as const }
-        }
-
-        const info = statusMap[status as keyof typeof statusMap] || { label: status, variant: 'secondary' as const }
-        return <Badge variant={info.variant}>{info.label}</Badge>
-    }
-
-    const formatDuration = (seconds: number) => {
-        if (!seconds || seconds < 0) return "0s"
-
-        const hours = Math.floor(seconds / 3600)
-        const minutes = Math.floor((seconds % 3600) / 60)
-        const secs = seconds % 60
-
-        if (hours > 0) {
-            return `${hours}h ${minutes}m ${secs}s`
-        } else if (minutes > 0) {
-            return `${minutes}m ${secs}s`
-        } else {
-            return `${secs}s`
+        switch (status) {
+            case "ANSWERED":
+            case "ANSWER":
+                return <Badge variant="success" className="gap-1"><Phone className="h-3 w-3" /> Answered</Badge>
+            case "NOANSWER":
+                return <Badge variant="destructive" className="gap-1"><PhoneMissed className="h-3 w-3" /> No Answer</Badge>
+            case "BUSY":
+                return <Badge variant="destructive" className="gap-1"><PhoneMissed className="h-3 w-3" /> Busy</Badge>
+            case "MISSED":
+                return <Badge variant="destructive" className="gap-1"><PhoneMissed className="h-3 w-3" /> Missed</Badge>
+            default:
+                return <Badge variant="outline">{status}</Badge>
         }
     }
 
-    const formatDateTime = (dateString: string) => {
-        const date = new Date(dateString)
-        return date.toLocaleString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        })
-    }
-
-    const handlePlayRecording = (url?: string) => {
-        if (!url) {
-            toast.error("No recording available")
-            return
+    const getDirectionIcon = (direction: string) => {
+        switch (direction) {
+            case "inbound": return <PhoneIncoming className="h-4 w-4 text-green-500" />
+            case "outbound": return <PhoneOutgoing className="h-4 w-4 text-blue-500" />
+            case "internal": return <Phone className="h-4 w-4 text-purple-500" />
+            default: return <Phone className="h-4 w-4" />
         }
-        toast.success("Playing recording...")
-        // Implement audio player
     }
 
-    const handleExportLogs = () => {
-        toast.loading("Exporting call logs...", { duration: 2000 })
-    }
-
-    if (loading) {
-        return (
-            <CardContainer title="Call Logs" description="Recent call history">
-                <div className="flex justify-center items-center py-12">
-                    <div className="flex flex-col items-center gap-2">
-                        <Clock className="h-8 w-8 animate-pulse text-primary" />
-                        <p className="text-sm text-muted-foreground">Loading call logs...</p>
-                    </div>
-                </div>
-            </CardContainer>
-        )
+    const handleExport = async () => {
+        try {
+            toast.loading("Exporting call logs...")
+            // Implement export functionality
+            // This would typically download a CSV or Excel file
+            toast.success("Export started")
+        } catch (error) {
+            toast.error("Failed to export logs")
+        }
     }
 
     return (
         <CardContainer
             title="Call Logs"
-            description="Recent call history"
+            description="Historical call records and statistics"
             actions={[
                 {
                     label: "Export",
-                    onClick: handleExportLogs,
+                    onClick: handleExport,
                     icon: <Download className="h-4 w-4" />,
                     variant: "outline"
                 }
             ]}
         >
-            {/* Filters */}
-            <div className="mb-6 space-y-4">
-                {/* Search */}
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        placeholder="Search by caller, called number, or channel..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="pl-10"
-                    />
-                </div>
-
-                {/* Filter Controls */}
-                <div className="flex flex-wrap gap-2">
-                    <Select value={directionFilter} onValueChange={setDirectionFilter}>
-                        <SelectTrigger className="w-[140px]">
-                            <Filter className="mr-2 h-4 w-4" />
-                            <SelectValue placeholder="Direction" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Directions</SelectItem>
-                            <SelectItem value="inbound">Inbound</SelectItem>
-                            <SelectItem value="outbound">Outbound</SelectItem>
-                        </SelectContent>
-                    </Select>
-
-                    <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="w-[140px]">
-                            <Phone className="mr-2 h-4 w-4" />
-                            <SelectValue placeholder="Status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Status</SelectItem>
-                            <SelectItem value="answered">Answered</SelectItem>
-                            <SelectItem value="missed">Missed</SelectItem>
-                            <SelectItem value="busy">Busy</SelectItem>
-                            <SelectItem value="completed">Completed</SelectItem>
-                            <SelectItem value="failed">Failed</SelectItem>
-                        </SelectContent>
-                    </Select>
-
-                    <Select value={dateFilter} onValueChange={setDateFilter}>
-                        <SelectTrigger className="w-[140px]">
-                            <Calendar className="mr-2 h-4 w-4" />
-                            <SelectValue placeholder="Date Range" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="today">Today</SelectItem>
-                            <SelectItem value="yesterday">Yesterday</SelectItem>
-                            <SelectItem value="thisWeek">This Week</SelectItem>
-                            <SelectItem value="lastWeek">Last Week</SelectItem>
-                            <SelectItem value="thisMonth">This Month</SelectItem>
-                            <SelectItem value="all">All Time</SelectItem>
-                        </SelectContent>
-                    </Select>
-
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                            setSearch("")
-                            setDirectionFilter("all")
-                            setStatusFilter("all")
-                        }}
-                    >
-                        Clear Filters
-                    </Button>
-                </div>
-            </div>
-
-            {/* Table */}
-            {filteredLogs.length === 0 ? (
-                <div className="text-center py-12">
-                    <Phone className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">No call logs found</p>
-                    {search && (
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setSearch("")}
-                            className="mt-2"
+            <div className="space-y-4">
+                {/* Filters */}
+                <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Search calls..."
+                            className="pl-10"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        <Select
+                            value={filters.direction}
+                            onValueChange={(value) => setFilters({ ...filters, direction: value })}
                         >
-                            Clear Search
-                        </Button>
-                    )}
+                            <SelectTrigger className="w-[140px]">
+                                <Filter className="mr-2 h-4 w-4" />
+                                <SelectValue placeholder="Direction" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Directions</SelectItem>
+                                <SelectItem value="inbound">Inbound</SelectItem>
+                                <SelectItem value="outbound">Outbound</SelectItem>
+                                <SelectItem value="internal">Internal</SelectItem>
+                            </SelectContent>
+                        </Select>
+
+                        <Select
+                            value={filters.status}
+                            onValueChange={(value) => setFilters({ ...filters, status: value })}
+                        >
+                            <SelectTrigger className="w-[140px]">
+                                <Phone className="mr-2 h-4 w-4" />
+                                <SelectValue placeholder="Status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Status</SelectItem>
+                                <SelectItem value="answered">Answered</SelectItem>
+                                <SelectItem value="missed">Missed</SelectItem>
+                            </SelectContent>
+                        </Select>
+
+                        <Select
+                            value={filters.dateRange}
+                            onValueChange={(value) => {
+                                setFilters({ ...filters, dateRange: value })
+                                setPage(1)
+                            }}
+                        >
+                            <SelectTrigger className="w-[140px]">
+                                <Calendar className="mr-2 h-4 w-4" />
+                                <SelectValue placeholder="Date Range" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="today">Today</SelectItem>
+                                <SelectItem value="yesterday">Yesterday</SelectItem>
+                                <SelectItem value="week">Last 7 Days</SelectItem>
+                                <SelectItem value="month">Last 30 Days</SelectItem>
+                                <SelectItem value="all">All Time</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
-            ) : (
-                <>
+
+                {/* Call Logs Table */}
+                <div className="rounded-md border">
                     <Table>
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Time</TableHead>
                                 <TableHead>Direction</TableHead>
-                                <TableHead>From</TableHead>
-                                <TableHead>To</TableHead>
+                                <TableHead>Caller</TableHead>
+                                <TableHead>Called</TableHead>
+                                <TableHead>Extension</TableHead>
                                 <TableHead>Duration</TableHead>
                                 <TableHead>Status</TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {filteredLogs.map((log) => (
                                 <TableRow key={log.id} className="hover:bg-muted/50">
-                                    <TableCell className="font-medium">
-                                        {formatDateTime(log.startTime)}
-                                    </TableCell>
-                                    <TableCell>
-                                        {getDirectionBadge(log.direction)}
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="flex items-center gap-2">
-                                            <User className="h-3 w-3 text-muted-foreground" />
-                                            <span className="font-mono">{log.caller}</span>
+                                    <TableCell className="whitespace-nowrap">
+                                        <div className="text-sm">
+                                            {formatDateTime(log.startTime)}
                                         </div>
                                     </TableCell>
                                     <TableCell>
                                         <div className="flex items-center gap-2">
-                                            <Phone className="h-3 w-3 text-muted-foreground" />
-                                            <span className="font-mono">{log.called}</span>
+                                            {getDirectionIcon(log.direction)}
+                                            <span className="capitalize">{log.direction}</span>
                                         </div>
                                     </TableCell>
                                     <TableCell>
-                                        <div className="flex items-center gap-2">
-                                            <Clock className="h-3 w-3 text-muted-foreground" />
-                                            {formatDuration(log.duration)}
+                                        <div className="font-medium">{log.callerId}</div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div className="font-medium">{log.calledNumber}</div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div className="font-mono text-sm">{log.extension || "-"}</div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div className="flex items-center gap-1">
+                                            <Clock className="h-4 w-4 text-muted-foreground" />
+                                            <span className="font-mono">{formatDuration(log.duration)}</span>
                                         </div>
                                     </TableCell>
                                     <TableCell>
                                         {getStatusBadge(log.status)}
                                     </TableCell>
-                                    <TableCell className="text-right">
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                                    <MoreVertical className="h-4 w-4" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end">
-                                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                                <DropdownMenuItem onClick={() => handlePlayRecording(log.recordingUrl)}>
-                                                    Play Recording
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem>
-                                                    View Details
-                                                </DropdownMenuItem>
-                                                <DropdownMenuSeparator />
-                                                <DropdownMenuItem>
-                                                    Call Back
-                                                </DropdownMenuItem>
-                                                {log.notes && (
-                                                    <DropdownMenuItem>
-                                                        View Notes
-                                                    </DropdownMenuItem>
-                                                )}
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                    </TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
                     </Table>
+                </div>
 
-                    {/* Summary */}
-                    <div className="mt-4 rounded-lg border p-4">
-                        <div className="flex items-center justify-between">
-                            <div className="text-sm text-muted-foreground">
-                                Showing <span className="font-medium">{filteredLogs.length}</span> of{" "}
-                                <span className="font-medium">{callLogs.length}</span> calls
-                            </div>
-                            <div className="flex items-center gap-4 text-sm">
-                                <div className="flex items-center gap-1">
-                                    <PhoneIncoming className="h-3 w-3 text-blue-500" />
-                                    <span>
-                                        {callLogs.filter(l => l.direction === 'inbound').length} inbound
-                                    </span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                    <PhoneOutgoing className="h-3 w-3 text-green-500" />
-                                    <span>
-                                        {callLogs.filter(l => l.direction === 'outbound').length} outbound
-                                    </span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                    <PhoneMissed className="h-3 w-3 text-red-500" />
-                                    <span>
-                                        {callLogs.filter(l => l.status === 'missed').length} missed
-                                    </span>
-                                </div>
-                            </div>
+                {filteredLogs.length === 0 && !loading && (
+                    <div className="text-center py-12">
+                        <Phone className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                        <h3 className="text-lg font-semibold mb-2">No call logs found</h3>
+                        <p className="text-sm text-muted-foreground">
+                            {searchTerm ? "Try a different search term" : "No calls have been logged yet"}
+                        </p>
+                    </div>
+                )}
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                    <div className="flex items-center justify-between">
+                        <div className="text-sm text-muted-foreground">
+                            Page {page} of {totalPages}
+                        </div>
+                        <div className="flex gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setPage(prev => Math.max(1, prev - 1))}
+                                disabled={page === 1}
+                            >
+                                Previous
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
+                                disabled={page === totalPages}
+                            >
+                                Next
+                            </Button>
                         </div>
                     </div>
-                </>
-            )}
+                )}
+
+                {/* Loading State */}
+                {loading && (
+                    <div className="flex justify-center items-center py-12">
+                        <div className="flex flex-col items-center gap-2">
+                            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                            <p className="text-sm text-muted-foreground">Loading call logs...</p>
+                        </div>
+                    </div>
+                )}
+            </div>
         </CardContainer>
     )
 }

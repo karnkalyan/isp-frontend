@@ -226,10 +226,10 @@ export function Navbar({ onMenuClick }: NavbarProps) {
       </header>
 
       <SearchModal open={searchModalOpen} onOpenChange={handleOpenChange} initialQuery={searchQuery} />
-      
+
       {/* Inquiry Dialog */}
-      <InquiryDialog 
-        open={inquiryDialogOpen} 
+      <InquiryDialog
+        open={inquiryDialogOpen}
         onOpenChange={setInquiryDialogOpen}
         onCallsCountChange={setActiveCallsCount}
       />

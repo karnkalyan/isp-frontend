@@ -1,31 +1,33 @@
-"use client"
+"use client";
 
-import { CardContainer } from "@/components/ui/card-container"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useState } from "react"
-import { toast } from "react-hot-toast"
-import { Play, RefreshCw, Download } from "lucide-react"
+import { CardContainer } from "@/components/ui/card-container";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useState } from "react";
+import { toast } from "react-hot-toast";
+import { Play, RefreshCw, Download } from "lucide-react";
 
 interface TR069DeviceDiagnosticsProps {
-  deviceId: string
+  deviceId: string;
+  deviceLog?: string;
 }
 
-export function TR069DeviceDiagnostics({ deviceId }: TR069DeviceDiagnosticsProps) {
-  const [pingTarget, setPingTarget] = useState("8.8.8.8")
-  const [pingCount, setPingCount] = useState("4")
-  const [tracerouteTarget, setTracerouteTarget] = useState("google.com")
-  const [diagResults, setDiagResults] = useState("")
-  const [isRunning, setIsRunning] = useState(false)
+export function TR069DeviceDiagnostics({ deviceId, deviceLog }: TR069DeviceDiagnosticsProps) {
+  const [pingTarget, setPingTarget] = useState("8.8.8.8");
+  const [pingCount, setPingCount] = useState("4");
+  const [tracerouteTarget, setTracerouteTarget] = useState("google.com");
+  const [diagResults, setDiagResults] = useState("");
+  const [isRunning, setIsRunning] = useState(false);
+  const [logs, setLogs] = useState(deviceLog || "");
 
   const runDiagnostic = (type: string) => {
-    setIsRunning(true)
-    setDiagResults("")
+    setIsRunning(true);
+    setDiagResults("");
 
-    // Simulate diagnostic running
-    let results = ""
+    // Simulate diagnostic - in real implementation, call API
+    let results = "";
 
     if (type === "ping") {
       results =
@@ -36,7 +38,7 @@ export function TR069DeviceDiagnostics({ deviceId }: TR069DeviceDiagnosticsProps
         `64 bytes from ${pingTarget}: icmp_seq=3 ttl=116 time=10.654 ms\n\n` +
         `--- ${pingTarget} ping statistics ---\n` +
         `4 packets transmitted, 4 packets received, 0.0% packet loss\n` +
-        `round-trip min/avg/max/stddev = 10.654/11.285/12.032/0.587 ms`
+        `round-trip min/avg/max/stddev = 10.654/11.285/12.032/0.587 ms`;
     } else if (type === "traceroute") {
       results =
         `traceroute to ${tracerouteTarget} (142.250.185.78), 30 hops max, 60 byte packets\n` +
@@ -44,7 +46,7 @@ export function TR069DeviceDiagnostics({ deviceId }: TR069DeviceDiagnosticsProps
         ` 2  10.0.0.1  10.225 ms  10.015 ms  9.852 ms\n` +
         ` 3  172.16.10.1  15.632 ms  15.421 ms  15.301 ms\n` +
         ` 4  172.25.32.1  18.521 ms  18.325 ms  18.102 ms\n` +
-        ` 5  142.250.185.78  20.321 ms  20.125 ms  20.012 ms`
+        ` 5  142.250.185.78  20.321 ms  20.125 ms  20.012 ms`;
     } else if (type === "dns") {
       results =
         `Server:\t\t8.8.8.8\n` +
@@ -53,16 +55,31 @@ export function TR069DeviceDiagnostics({ deviceId }: TR069DeviceDiagnosticsProps
         `Name:\t${tracerouteTarget}\n` +
         `Address: 142.250.185.78\n` +
         `Name:\t${tracerouteTarget}\n` +
-        `Address: 2a00:1450:4001:830::200e`
+        `Address: 2a00:1450:4001:830::200e`;
     }
 
-    // Simulate delay
     setTimeout(() => {
-      setDiagResults(results)
-      setIsRunning(false)
-      toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} diagnostic completed`)
-    }, 2000)
-  }
+      setDiagResults(results);
+      setIsRunning(false);
+      toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} diagnostic completed`);
+    }, 2000);
+  };
+
+  const refreshLogs = () => {
+    toast.success("Logs refreshed (simulated)");
+    // In real implementation: fetch fresh logs
+  };
+
+  const downloadLogs = () => {
+    const element = document.createElement("a");
+    const file = new Blob([logs], { type: "text/plain" });
+    element.href = URL.createObjectURL(file);
+    element.download = `device-${deviceId}-logs.txt`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+    toast.success("Logs downloaded");
+  };
 
   return (
     <div className="space-y-6">
@@ -160,29 +177,22 @@ export function TR069DeviceDiagnostics({ deviceId }: TR069DeviceDiagnosticsProps
           <CardContainer title="System Logs" gradientColor="#f43f5e">
             <div className="space-y-4">
               <div className="flex justify-end gap-2">
-                <Button variant="outline">
+                <Button variant="outline" onClick={refreshLogs}>
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Refresh Logs
                 </Button>
-                <Button variant="outline">
+                <Button variant="outline" onClick={downloadLogs}>
                   <Download className="h-4 w-4 mr-2" />
                   Download Logs
                 </Button>
               </div>
 
-              <div className="h-64 overflow-auto p-4 bg-slate-100 dark:bg-slate-800 rounded-md font-mono text-xs">
-                <pre>
-                  {`2023-04-10 08:32:45 [INFO] Device boot completed
-2023-04-10 08:32:46 [INFO] WAN interface up
-2023-04-10 08:32:47 [INFO] DHCP server started
-2023-04-10 08:32:48 [INFO] WiFi AP started
-2023-04-10 08:33:01 [INFO] Client F4:8C:50:12:34:56 connected
-2023-04-10 08:35:22 [INFO] Client 18:65:90:AB:CD:EF connected
-2023-04-10 09:15:33 [WARN] High CPU usage detected: 85%
-2023-04-10 09:15:45 [INFO] CPU usage returned to normal: 45%
-2023-04-10 10:22:15 [INFO] Firmware update check completed
-2023-04-10 10:22:16 [INFO] No new firmware available`}
-                </pre>
+              <div className="h-64 overflow-auto p-4 bg-slate-100 dark:bg-slate-800 rounded-md font-mono text-xs whitespace-pre-wrap">
+                {logs ? (
+                  <pre className="text-xs">{logs}</pre>
+                ) : (
+                  <div className="text-center text-muted-foreground">No logs available</div>
+                )}
               </div>
             </div>
           </CardContainer>
@@ -197,5 +207,5 @@ export function TR069DeviceDiagnostics({ deviceId }: TR069DeviceDiagnosticsProps
         </CardContainer>
       )}
     </div>
-  )
+  );
 }

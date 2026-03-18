@@ -1,7 +1,8 @@
-// components/services/active-services-list.tsx
+// components/services/active-services-list.tsx - FIXED VERSION
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import { ServiceCard } from "./service-card";
 import { toast } from "react-hot-toast";
 
 export function ActiveServicesList() {
+    const router = useRouter();
     const [services, setServices] = useState<ISPService[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -25,9 +27,13 @@ export function ActiveServicesList() {
         try {
             setLoading(true);
             const response = await ServicesAPI.getISPServices(true);
-            setServices(response.data);
+            if (response.success) {
+                setServices(response.data);
+            } else {
+                toast.error("Failed to load services");
+            }
         } catch (error: any) {
-            toast.error("Failed to load services");
+            toast.error(error.message || "Failed to load services");
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -48,7 +54,7 @@ export function ActiveServicesList() {
         const matchesSearch =
             service.service.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             service.service.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            service.service.description.toLowerCase().includes(searchQuery.toLowerCase());
+            (service.service.description && service.service.description.toLowerCase().includes(searchQuery.toLowerCase()));
 
         // Status filter
         let matchesStatus = true;
@@ -93,10 +99,19 @@ export function ActiveServicesList() {
                         <CardTitle>Active Services</CardTitle>
                         <CardDescription>Services configured for your ISP</CardDescription>
                     </div>
-                    <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
-                        <RefreshCw className={`h-3 w-3 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
-                        Refresh
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => router.push('/services/add')}
+                        >
+                            Add Service
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
+                            <RefreshCw className={`h-3 w-3 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
+                            Refresh
+                        </Button>
+                    </div>
                 </div>
             </CardHeader>
 
@@ -159,11 +174,16 @@ export function ActiveServicesList() {
                                 ? `No services match "${searchQuery}"`
                                 : "No services match the selected filters"}
                         </p>
-                        {searchQuery && (
-                            <Button variant="outline" onClick={() => setSearchQuery("")}>
-                                Clear Search
+                        <div className="flex gap-2 justify-center">
+                            {searchQuery && (
+                                <Button variant="outline" onClick={() => setSearchQuery("")}>
+                                    Clear Search
+                                </Button>
+                            )}
+                            <Button onClick={() => router.push('/services/add')}>
+                                Add New Service
                             </Button>
-                        )}
+                        </div>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

@@ -17,7 +17,6 @@ import {
   Filler,
 } from "chart.js"
 
-// Register ChartJS components
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
 
 export function BandwidthMonitor() {
@@ -27,19 +26,13 @@ export function BandwidthMonitor() {
   const [data, setData] = useState<any>(null)
   const chartRef = useRef<any>(null)
 
-  // After mounting, we have access to the theme
   useEffect(() => setMounted(true), [])
 
   const isDarkMode = !mounted ? true : resolvedTheme === "dark"
 
-  // Generate initial data
   useEffect(() => {
     generateData()
-    // Update data every 5 seconds
-    const interval = setInterval(() => {
-      updateData()
-    }, 5000)
-
+    const interval = setInterval(updateData, 5000)
     return () => clearInterval(interval)
   }, [timeRange, isDarkMode])
 
@@ -48,11 +41,8 @@ export function BandwidthMonitor() {
     const downloadData: number[] = []
     const uploadData: number[] = []
 
-    // Generate time labels based on selected range
     const now = new Date()
     const pointCount = timeRange === "1h" ? 60 : timeRange === "24h" ? 24 : 7
-    const interval = timeRange === "1h" ? 1 : timeRange === "24h" ? 1 : 1
-    const format = timeRange === "1h" ? "HH:mm" : timeRange === "24h" ? "HH:00" : "ddd"
 
     for (let i = pointCount - 1; i >= 0; i--) {
       const time = new Date(now)
@@ -67,7 +57,6 @@ export function BandwidthMonitor() {
         labels.push(time.toLocaleDateString("en-US", { weekday: "short" }))
       }
 
-      // Generate random data
       downloadData.push(Math.floor(800 + Math.random() * 400))
       uploadData.push(Math.floor(300 + Math.random() * 200))
     }
@@ -97,33 +86,24 @@ export function BandwidthMonitor() {
 
   const updateData = () => {
     if (!chartRef.current) return
-
     const chart = chartRef.current
-
-    // Add new data point
     const newDownload = Math.floor(800 + Math.random() * 400)
     const newUpload = Math.floor(300 + Math.random() * 200)
 
-    // Remove first data point and add new one
     chart.data.datasets[0].data.shift()
     chart.data.datasets[0].data.push(newDownload)
     chart.data.datasets[1].data.shift()
     chart.data.datasets[1].data.push(newUpload)
 
-    // Update labels
     const now = new Date()
     chart.data.labels.shift()
-
     if (timeRange === "1h") {
-      chart.data.labels.push(
-        `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`,
-      )
+      chart.data.labels.push(`${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`)
     } else if (timeRange === "24h") {
       chart.data.labels.push(`${now.getHours().toString().padStart(2, "0")}:00`)
     } else {
       chart.data.labels.push(now.toLocaleDateString("en-US", { weekday: "short" }))
     }
-
     chart.update()
   }
 
@@ -133,9 +113,7 @@ export function BandwidthMonitor() {
     plugins: {
       legend: {
         position: "top" as const,
-        labels: {
-          color: isDarkMode ? "#e2e8f0" : "#334155",
-        },
+        labels: { color: isDarkMode ? "#e2e8f0" : "#334155" },
       },
       tooltip: {
         mode: "index" as const,
@@ -143,12 +121,8 @@ export function BandwidthMonitor() {
         callbacks: {
           label: (context: any) => {
             let label = context.dataset.label || ""
-            if (label) {
-              label += ": "
-            }
-            if (context.parsed.y !== null) {
-              label += context.parsed.y + " Mbps"
-            }
+            if (label) label += ": "
+            if (context.parsed.y !== null) label += context.parsed.y + " Mbps"
             return label
           },
         },
@@ -161,45 +135,24 @@ export function BandwidthMonitor() {
     },
     scales: {
       x: {
-        grid: {
-          display: false,
-          color: isDarkMode ? "rgba(71, 85, 105, 0.3)" : "rgba(203, 213, 225, 0.5)",
-        },
-        ticks: {
-          color: isDarkMode ? "#94a3b8" : "#64748b",
-        },
+        grid: { display: false, color: isDarkMode ? "rgba(71, 85, 105, 0.3)" : "rgba(203, 213, 225, 0.5)" },
+        ticks: { color: isDarkMode ? "#94a3b8" : "#64748b" },
       },
       y: {
         beginAtZero: true,
-        title: {
-          display: true,
-          text: "Mbps",
-          color: isDarkMode ? "#94a3b8" : "#64748b",
-        },
-        grid: {
-          color: isDarkMode ? "rgba(71, 85, 105, 0.3)" : "rgba(203, 213, 225, 0.5)",
-        },
-        ticks: {
-          color: isDarkMode ? "#94a3b8" : "#64748b",
-        },
+        title: { display: true, text: "Mbps", color: isDarkMode ? "#94a3b8" : "#64748b" },
+        grid: { color: isDarkMode ? "rgba(71, 85, 105, 0.3)" : "rgba(203, 213, 225, 0.5)" },
+        ticks: { color: isDarkMode ? "#94a3b8" : "#64748b" },
       },
     },
-    interaction: {
-      mode: "nearest" as const,
-      axis: "x" as const,
-      intersect: false,
-    },
+    interaction: { mode: "nearest" as const, axis: "x" as const, intersect: false },
   }
 
   return (
     <CardContainer title="Bandwidth Usage" description="Real-time network traffic monitoring" forceDarkMode={!mounted}>
       <div className="flex justify-end mb-4">
         <Select value={timeRange} onValueChange={setTimeRange}>
-          <SelectTrigger
-            className={`w-[120px] ${
-              isDarkMode ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-white border-slate-200 text-slate-700"
-            }`}
-          >
+          <SelectTrigger className={`w-[120px] ${isDarkMode ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-white border-slate-200 text-slate-700"}`}>
             <SelectValue placeholder="Time Range" />
           </SelectTrigger>
           <SelectContent className={isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}>

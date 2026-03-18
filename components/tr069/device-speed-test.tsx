@@ -1,78 +1,89 @@
-"use client"
+"use client";
 
-import { CardContainer } from "@/components/ui/card-container"
-import { Button } from "@/components/ui/button"
-import { useState, useEffect } from "react"
-import { toast } from "react-hot-toast"
-import { Play, ArrowUp, ArrowDown, Clock, Loader2 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { CardContainer } from "@/components/ui/card-container";
+import { Button } from "@/components/ui/button";
+import { useState, useEffect } from "react";
+import { toast } from "react-hot-toast";
+import { Play, ArrowUp, ArrowDown, Clock, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface TR069DeviceSpeedTestProps {
-  deviceId: string
+  deviceId: string;
 }
 
 export function TR069DeviceSpeedTest({ deviceId }: TR069DeviceSpeedTestProps) {
-  const [isRunning, setIsRunning] = useState(false)
-  const [progress, setProgress] = useState(0)
+  const [isRunning, setIsRunning] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<{
-    download: number | null
-    upload: number | null
-    latency: number | null
-    jitter: number | null
-    timestamp: string | null
+    download: number | null;
+    upload: number | null;
+    latency: number | null;
+    jitter: number | null;
+    timestamp: string | null;
   }>({
     download: null,
     upload: null,
     latency: null,
     jitter: null,
     timestamp: null,
-  })
+  });
 
-  const runSpeedTest = () => {
-    setIsRunning(true)
-    setProgress(0)
+  // Check if device supports speed test (placeholder - actual check would be API)
+  const [supportsSpeedTest] = useState(true);
 
-    // Simulate a speed test with progress updates
+  const runSpeedTest = async () => {
+    setIsRunning(true);
+    setProgress(0);
+
+    // Simulate speed test - in real implementation, call API endpoint
     const interval = setInterval(() => {
       setProgress((prev) => {
-        const newProgress = prev + 5
+        const newProgress = prev + 5;
         if (newProgress >= 100) {
-          clearInterval(interval)
-          setIsRunning(false)
+          clearInterval(interval);
+          setIsRunning(false);
 
-          // Set mock results
+          // Simulate results - would come from API
           setResults({
-            download: 95.6,
-            upload: 23.8,
-            latency: 18,
-            jitter: 3,
+            download: Math.round(Math.random() * 50 + 50), // 50-100 Mbps
+            upload: Math.round(Math.random() * 10 + 15),   // 15-25 Mbps
+            latency: Math.round(Math.random() * 10 + 15),  // 15-25 ms
+            jitter: Math.round(Math.random() * 5 + 2),     // 2-7 ms
             timestamp: new Date().toLocaleString(),
-          })
+          });
 
-          return 100
+          return 100;
         }
-        return newProgress
-      })
-    }, 200)
-  }
+        return newProgress;
+      });
+    }, 200);
+  };
 
-  // Determine which icon to show based on the current test phase
-  const getTestIcon = () => {
-    if (progress < 40) {
-      return <ArrowDown className="h-5 w-5 text-blue-500" />
-    } else if (progress < 80) {
-      return <ArrowUp className="h-5 w-5 text-green-500" />
-    } else {
-      return <Clock className="h-5 w-5 text-amber-500" />
-    }
-  }
-
-  // Show toast when test completes
   useEffect(() => {
     if (progress === 100 && results.timestamp) {
-      toast.success("Speed test completed successfully")
+      toast.success("Speed test completed successfully");
     }
-  }, [progress, results.timestamp])
+  }, [progress, results.timestamp]);
+
+  const getTestIcon = () => {
+    if (progress < 40) {
+      return <ArrowDown className="h-5 w-5 text-blue-500" />;
+    } else if (progress < 80) {
+      return <ArrowUp className="h-5 w-5 text-green-500" />;
+    } else {
+      return <Clock className="h-5 w-5 text-amber-500" />;
+    }
+  };
+
+  if (!supportsSpeedTest) {
+    return (
+      <CardContainer title="Speed Test" gradientColor="#6366f1">
+        <div className="text-center py-8 text-muted-foreground">
+          This device does not support speed testing.
+        </div>
+      </CardContainer>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -83,20 +94,15 @@ export function TR069DeviceSpeedTest({ deviceId }: TR069DeviceSpeedTestProps) {
               <div className="space-y-4">
                 <div className="text-lg font-medium mb-4">Running Speed Test...</div>
 
-                {/* Animated spinner with progress indicator */}
                 <div className="relative flex justify-center items-center">
-                  {/* Outer spinning circle */}
                   <div className="absolute">
                     <Loader2 className="h-20 w-20 text-muted-foreground animate-spin" />
                   </div>
-
-                  {/* Inner icon that changes based on test phase */}
                   <div className="z-10 flex items-center justify-center h-16 w-16 rounded-full bg-background border-2 border-muted">
                     {getTestIcon()}
                   </div>
                 </div>
 
-                {/* Progress percentage - moved closer to the test type text */}
                 <div className="text-center">
                   <div className="text-lg font-medium">{progress}%</div>
                   <div className="text-sm text-muted-foreground mt-1">
@@ -108,12 +114,11 @@ export function TR069DeviceSpeedTest({ deviceId }: TR069DeviceSpeedTestProps) {
                   </div>
                 </div>
 
-                {/* Visual progress indicator */}
                 <div className="w-full h-1 bg-muted rounded-full overflow-hidden mt-4">
                   <div
                     className={cn(
                       "h-full transition-all duration-200 ease-out rounded-full",
-                      progress < 40 ? "bg-blue-500" : progress < 80 ? "bg-green-500" : "bg-amber-500",
+                      progress < 40 ? "bg-blue-500" : progress < 80 ? "bg-green-500" : "bg-amber-500"
                     )}
                     style={{ width: `${progress}%` }}
                   />
@@ -185,5 +190,5 @@ export function TR069DeviceSpeedTest({ deviceId }: TR069DeviceSpeedTestProps) {
         </div>
       </CardContainer>
     </div>
-  )
+  );
 }

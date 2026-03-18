@@ -1,83 +1,126 @@
-"use client"
+"use client";
 
-import { CardContainer } from "@/components/ui/card-container"
-import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
-import { useState } from "react"
-import { toast } from "react-hot-toast"
-import { Download, Upload, CheckCircle, AlertTriangle, Clock } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
+import { useEffect, useState } from "react";
+import { CardContainer } from "@/components/ui/card-container";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "react-hot-toast";
+import { Play, RefreshCw, Download } from "lucide-react";
+import { apiRequest } from "@/lib/api";
 
-interface TR069DeviceFirmwareProps {
-  deviceId: string
+interface TR069DeviceDiagnosticsProps {
+  deviceId: string;
 }
 
-export function TR069DeviceFirmware({ deviceId }: TR069DeviceFirmwareProps) {
-  const [isUpdating, setIsUpdating] = useState(false)
-  const [updateProgress, setUpdateProgress] = useState(0)
+export function TR069DeviceDiagnostics({ deviceId }: TR069DeviceDiagnosticsProps) {
+  const [pingTarget, setPingTarget] = useState("8.8.8.8");
+  const [pingCount, setPingCount] = useState("4");
+  const [tracerouteTarget, setTracerouteTarget] = useState("google.com");
+  const [diagResults, setDiagResults] = useState("");
+  const [isRunning, setIsRunning] = useState(false);
+  const [logs, setLogs] = useState("");
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [deviceInfo, setDeviceInfo] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [currentFirmware, setCurrentFirmware] = useState<any>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState(0);
 
-  // Mock firmware data
-  const currentFirmware = {
-    version: "v3.20.1",
-    releaseDate: "2023-01-15",
-    status: "current",
-  }
+  useEffect(() => {
+    fetchDeviceLogs();
+  }, [deviceId]);
 
-  const availableFirmware = {
-    version: "v3.21.0",
-    releaseDate: "2023-04-05",
-    status: "available",
-    size: "8.4 MB",
-    releaseNotes: [
-      "Improved WiFi stability",
-      "Fixed DHCP lease renewal issue",
-      "Enhanced security features",
-      "Added support for IPv6 prefix delegation",
-      "Improved VPN passthrough functionality",
-    ],
-  }
+  const fetchDeviceLogs = async () => {
+    try {
+      setIsLoading(true);
+      const data = await apiRequest<{ success: boolean; data: any }>(
+        `/services/genieacs/devices/${deviceId}/deviceinfo`
+      );
+      if (data.success) {
+        setDeviceInfo(data.data.deviceInfo);
+      } else {
+        toast.error("Failed to load device information");
+      }
+    } catch (error) {
+      console.error("Error fetching device info:", error);
+      toast.error("Error loading device information");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  const firmwareHistory = [
-    {
-      version: "v3.20.1",
-      date: "2023-01-15",
-      status: "success",
-    },
-    {
-      version: "v3.19.5",
-      date: "2022-11-02",
-      status: "success",
-    },
-    {
-      version: "v3.18.2",
-      date: "2022-08-17",
-      status: "failed",
-    },
-    {
-      version: "v3.17.0",
-      date: "2022-05-30",
-      status: "success",
-    },
-  ]
+
+  const runDiagnostic = (type: string) => {
+    setIsRunning(true);
+    setDiagResults("");
+
+    // Simulate diagnostic - in real implementation, call API
+    let results = "";
+    if (type === "ping") {
+      results = `PING ${pingTarget} (${pingTarget}): 56 data bytes\n64 bytes from ${pingTarget}: icmp_seq=0 ttl=116 time=11.632 ms\n...`;
+    } else if (type === "traceroute") {
+      results = `traceroute to ${tracerouteTarget} (142.250.185.78), 30 hops max\n...`;
+    } else if (type === "dns") {
+      results = `Server:\t\t8.8.8.8\nAddress:\t8.8.8.8#53\n\nNon-authoritative answer:\nName:\t${tracerouteTarget}\nAddress: 142.250.185.78`;
+    }
+
+    setTimeout(() => {
+      setDiagResults(results);
+      setIsRunning(false);
+      toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} diagnostic completed`);
+    }, 2000);
+  };
+
+  const refreshLogs = async () => {
+    await fetchDeviceLogs();
+    toast.success("Logs refreshed");
+  };
+
+  const downloadLogs = () => {
+    const element = document.createElement("a");
+    const file = new Blob([logs], { type: "text/plain" });
+    element.href = URL.createObjectURL(file);
+    element.download = `device-${deviceId}-logs.txt`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+    toast.success("Logs downloaded");
+  };
+
+  // Mock available firmware - in real implementation, fetch from API
+  const [availableFirmware] = useState<{
+    version: string;
+    releaseDate: string;
+    status: string;
+    size: string;
+    releaseNotes: string[];
+  } | null>(null);
 
   const updateFirmware = () => {
-    setIsUpdating(true)
-    setUpdateProgress(0)
+    setIsUpdating(true);
+    setUpdateProgress(0);
 
-    // Simulate firmware update with progress
+    // Simulate firmware update
     const interval = setInterval(() => {
       setUpdateProgress((prev) => {
-        const newProgress = prev + 5
+        const newProgress = prev + 5;
         if (newProgress >= 100) {
-          clearInterval(interval)
-          setIsUpdating(false)
-          toast.success("Firmware updated successfully")
-          return 100
+          clearInterval(interval);
+          setIsUpdating(false);
+          toast.success("Firmware updated successfully (simulated)");
+          return 100;
         }
-        return newProgress
-      })
-    }, 500)
-  }
+        return newProgress;
+      });
+    }, 500);
+  };
+
+  const checkForUpdates = () => {
+    toast.success("Checking for firmware updates... (simulated)");
+    // In real implementation: API call to check updates
+  };
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -96,13 +139,18 @@ export function TR069DeviceFirmware({ deviceId }: TR069DeviceFirmwareProps) {
             </div>
 
             <div>
-              <div className="text-sm text-muted-foreground">Release Date</div>
-              <div>{currentFirmware.releaseDate}</div>
+              <div className="text-sm text-muted-foreground">Hardware Version</div>
+              <div>{deviceInfo.hardwareVersion || "N/A"}</div>
+            </div>
+
+            <div>
+              <div className="text-sm text-muted-foreground">Additional Software</div>
+              <div>{deviceInfo.additionalSoftwareVersion || "N/A"}</div>
             </div>
           </div>
         </CardContainer>
 
-        <CardContainer title="Available Update" gradientColor="#22c55e">
+        <CardContainer title="Firmware Update" gradientColor="#22c55e">
           {isUpdating ? (
             <div className="space-y-4">
               <div className="text-center">
@@ -119,78 +167,104 @@ export function TR069DeviceFirmware({ deviceId }: TR069DeviceFirmwareProps) {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <div>
-                  <div className="text-sm text-muted-foreground">New Version</div>
-                  <div className="text-xl font-medium">{availableFirmware.version}</div>
+              {availableFirmware ? (
+                <>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <div className="text-sm text-muted-foreground">New Version Available</div>
+                      <div className="text-xl font-medium">{availableFirmware.version}</div>
+                    </div>
+                    <Badge variant="outline" className="text-blue-500 bg-blue-50 dark:bg-blue-900/20">
+                      <Download className="h-3 w-3 mr-1" />
+                      Available
+                    </Badge>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-sm text-muted-foreground">Release Date</div>
+                      <div>{availableFirmware.releaseDate}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-muted-foreground">Size</div>
+                      <div>{availableFirmware.size}</div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-sm text-muted-foreground mb-2">Release Notes</div>
+                    <ul className="list-disc pl-5 space-y-1 text-sm">
+                      {availableFirmware.releaseNotes.map((note, index) => (
+                        <li key={index}>{note}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button onClick={updateFirmware}>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Update Firmware
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-6">
+                  <div className="text-lg font-medium mb-2">No Updates Available</div>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Your device is running the latest firmware version.
+                  </p>
+                  <Button variant="outline" onClick={checkForUpdates}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Check for Updates
+                  </Button>
                 </div>
-                <Badge variant="outline" className="text-blue-500 bg-blue-50 dark:bg-blue-900/20">
-                  <Download className="h-3 w-3 mr-1" />
-                  Available
-                </Badge>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-sm text-muted-foreground">Release Date</div>
-                  <div>{availableFirmware.releaseDate}</div>
-                </div>
-
-                <div>
-                  <div className="text-sm text-muted-foreground">Size</div>
-                  <div>{availableFirmware.size}</div>
-                </div>
-              </div>
-
-              <div>
-                <div className="text-sm text-muted-foreground mb-2">Release Notes</div>
-                <ul className="list-disc pl-5 space-y-1 text-sm">
-                  {availableFirmware.releaseNotes.map((note, index) => (
-                    <li key={index}>{note}</li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="flex justify-end">
-                <Button onClick={updateFirmware}>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Update Firmware
-                </Button>
-              </div>
+              )}
             </div>
           )}
         </CardContainer>
       </div>
 
-      <CardContainer title="Firmware History" gradientColor="#3b82f6">
+      <CardContainer title="Firmware Information" gradientColor="#3b82f6">
         <div className="space-y-4">
-          {firmwareHistory.map((firmware, index) => (
-            <div key={index} className="flex items-center justify-between p-3 rounded-md border">
-              <div className="flex items-center gap-3">
-                {firmware.status === "success" ? (
-                  <div className="rounded-full bg-green-100 p-1.5 dark:bg-green-900/20">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                  </div>
-                ) : (
-                  <div className="rounded-full bg-red-100 p-1.5 dark:bg-red-900/20">
-                    <AlertTriangle className="h-4 w-4 text-red-500" />
-                  </div>
-                )}
-                <div>
-                  <div className="font-medium">{firmware.version}</div>
-                  <div className="flex items-center text-xs text-muted-foreground">
-                    <Clock className="h-3 w-3 mr-1" />
-                    {firmware.date}
-                  </div>
+          <div className="p-3 rounded-md border">
+            <div className="flex items-center gap-3">
+              <div className="rounded-full bg-blue-100 p-1.5 dark:bg-blue-900/20">
+                <Clock className="h-4 w-4 text-blue-500" />
+              </div>
+              <div>
+                <div className="font-medium">Model</div>
+                <div className="text-sm text-muted-foreground">{deviceInfo.modelName}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-3 rounded-md border">
+            <div className="flex items-center gap-3">
+              <div className="rounded-full bg-purple-100 p-1.5 dark:bg-purple-900/20">
+                <CheckCircle className="h-4 w-4 text-purple-500" />
+              </div>
+              <div>
+                <div className="font-medium">Description</div>
+                <div className="text-sm text-muted-foreground">{deviceInfo.description}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-3 rounded-md border">
+            <div className="flex items-center gap-3">
+              <div className="rounded-full bg-amber-100 p-1.5 dark:bg-amber-900/20">
+                <Download className="h-4 w-4 text-amber-500" />
+              </div>
+              <div>
+                <div className="font-medium">First Use Date</div>
+                <div className="text-sm text-muted-foreground">
+                  {deviceInfo.firstUseDate ? new Date(deviceInfo.firstUseDate).toLocaleDateString() : "N/A"}
                 </div>
               </div>
-              <Badge variant={firmware.status === "success" ? "success" : "destructive"} className="capitalize">
-                {firmware.status}
-              </Badge>
             </div>
-          ))}
+          </div>
         </div>
       </CardContainer>
     </div>
-  )
+  );
 }

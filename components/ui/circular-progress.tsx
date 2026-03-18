@@ -82,7 +82,7 @@ export function CircularProgress({
         />
       </svg>
       <div className="absolute flex flex-col items-center justify-center">
-        <span className="text-2xl font-bold">{valueLabel || `${value}%`}</span>
+        <span className="text-2xl font-bold">{valueLabel || `${value}`}</span>
         {label && <span className="text-xs text-muted-foreground mt-1">{label}</span>}
       </div>
     </div>

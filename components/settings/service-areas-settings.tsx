@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Plus, Pencil, Trash2, Save, X } from "lucide-react"
+import { Plus, Pencil, Trash2, Save, X, RefreshCw } from "lucide-react"
 import { toast } from "react-hot-toast"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -37,7 +37,7 @@ export type PackagePrice = {
   packageDuration: string | null
   price: number
   packageName: string
-  refrenceId: string
+  referenceId: string
   isTrial: boolean
   packagePlanDetails: {
     planName: string
@@ -59,6 +59,7 @@ export function ServiceAreasSettings() {
   const [planOptions, setPlanOptions] = useState<Option[]>([])
   const [isAdding, setIsAdding] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [isResyncing, setIsResyncing] = useState(false)
 
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
@@ -196,6 +197,20 @@ export function ServiceAreasSettings() {
     setEditingId(null)
   }
 
+  const handleResync = async () => {
+    try {
+      setIsResyncing(true)
+      const res = await apiRequest<{ message: string }>("/package-price/resync", { method: "POST" })
+      toast.success(res?.message || "Package prices resynced successfully from TSHUL")
+      await fetchPrices()
+    } catch (err: any) {
+      console.error("Resync failed:", err)
+      toast.error(err?.message || "Failed to resync package prices")
+    } finally {
+      setIsResyncing(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {(isAdding || editingId !== null) && (
@@ -269,9 +284,19 @@ export function ServiceAreasSettings() {
       )}
 
       {!isAdding && editingId === null && (
-        <Button onClick={() => { resetForm(); setIsAdding(true) }}>
-          <Plus className="mr-2 h-4 w-4" /> Add Package Price
-        </Button>
+        <div className="flex justify-between items-center mb-4">
+          <Button onClick={() => { resetForm(); setIsAdding(true) }}>
+            <Plus className="mr-2 h-4 w-4" /> Add Package Price
+          </Button>
+          <Button
+            onClick={handleResync}
+            className="bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 text-white"
+            disabled={isResyncing}
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${isResyncing ? 'animate-spin' : ''}`} />
+            {isResyncing ? "Resyncing..." : "Resync with TSHUL"}
+          </Button>
+        </div>
       )}
 
       <div className="rounded-md border overflow-hidden">
@@ -306,7 +331,7 @@ export function ServiceAreasSettings() {
                   <TableCell>Rs. {pkg.price}</TableCell>
                   <TableCell>{pkg.isTrial ? "Yes" : "No"}</TableCell>
                   <TableCell>{pkg.oneTimeCharges.map(c => c.name).join(", ") || "—"}</TableCell>
-                  <TableCell>{pkg.refrenceId || "—"}</TableCell>
+                  <TableCell>{pkg.referenceId || "—"}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex space-x-1 justify-end">
                       <Button variant="ghost" size="icon" onClick={() => handleEditClick(pkg.id)}>

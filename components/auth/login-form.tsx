@@ -25,7 +25,7 @@ const getDynamicApiUrl = (endpoint: string) => {
   } else if (hostname.includes("kisan.net.np")) {
     base = "https://api.radius.kisan.net.np"
   }
-  
+
   return `${base}${endpoint}`
 }
 
@@ -76,10 +76,10 @@ export function LoginForm() {
         credentials: "include",
         body: JSON.stringify({ credential: credentialResponse.credential }),
       })
-      
+
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Google login failed")
-      
+
       toast.dismiss(toastId)
       handleAuthSuccess(data)
     } catch (err: any) {
@@ -92,7 +92,7 @@ export function LoginForm() {
       console.error("Google Client ID is missing.");
       return;
     }
-    
+
     const script = document.createElement("script")
     script.src = "https://accounts.google.com/gsi/client"
     script.async = true
@@ -119,6 +119,37 @@ export function LoginForm() {
     }
   }, [isDarkMode, googleClientId])
 
+
+
+  const handleAdminLogin = async () => {
+    setError(null)
+    setIsLoading(true)
+    const toastId = toast.loading("Signing in as Admin...")
+
+    try {
+      const res = await fetch(getDynamicApiUrl("/auth/login"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          email: "karnkalyan@gmail.com",
+          password: "kalyan_vickey",
+          rememberMe: true,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Admin login failed")
+
+      toast.dismiss(toastId)
+      handleAuthSuccess(data)
+    } catch (err: any) {
+      handleAuthError(err, toastId)
+    }
+  }
+
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
@@ -133,10 +164,10 @@ export function LoginForm() {
         credentials: "include",
         body: JSON.stringify({ ...formData, rememberMe }),
       })
-      
+
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Login failed")
-      
+
       toast.dismiss(toastId)
       handleAuthSuccess(data)
     } catch (err: any) {
@@ -166,7 +197,7 @@ export function LoginForm() {
             <p className="text-sm">{error}</p>
           </div>
         )}
-         
+
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-2">
             <Label htmlFor="email" className="font-normal">Email</Label>
@@ -196,6 +227,22 @@ export function LoginForm() {
 
           <Button type="submit" className="w-full rounded-lg bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white" disabled={isLoading}>
             {isLoading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Signing in...</>) : ("Sign in")}
+          </Button>
+
+
+          <Button
+            type="button" // IMPORTANT: prevent default form submit
+            className="w-full rounded-lg bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white"
+            onClick={handleAdminLogin}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Signing in...
+              </>
+            ) : (
+              "Admin Login"
+            )}
           </Button>
 
           <div className="mt-6">
