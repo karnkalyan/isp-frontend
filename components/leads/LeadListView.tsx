@@ -2132,3 +2132,5 @@ export function ActiveLeads({
         </div>
     )
 }
+// At the bottom of the file, after the ActiveLeads component
+export { ActiveLeads as LeadListView }
