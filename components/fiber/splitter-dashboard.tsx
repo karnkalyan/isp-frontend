@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PageHeader } from "@/components/ui/page-header"
 import { Button } from "@/components/ui/button"
 import { Plus, RefreshCw, Download, Upload } from "lucide-react"
-// import { SplitterList } from "@/components/fiber/splitter-list"
+import { SplitterList } from "@/components/fiber/splitter-list"
 // import { SplitterStatistics } from "@/components/fiber/splitter-statistics"
 import { SplitterForm } from "@/components/fiber/splitter-form"
 import { toast } from "react-hot-toast"
@@ -151,9 +151,9 @@ export function SplitterDashboard() {
               />
             </TabsContent>
 
-            <TabsContent value="statistics" className="mt-6">
+            {/* <TabsContent value="statistics" className="mt-6">
               <SplitterStatistics />
-            </TabsContent>
+            </TabsContent> */}
           </Tabs>
         </>
       )}

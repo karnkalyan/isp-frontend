@@ -48,41 +48,54 @@ import { Slider } from "@/components/ui/slider"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 
-import { MapContainer, TileLayer, Marker, Popup, Circle, useMapEvents, useMap } from "react-leaflet"
+// Dynamically import Leaflet components
 import "leaflet/dist/leaflet.css"
-import L from "leaflet"
 
-// ==================== Fix Leaflet Icon (client-side only) ====================
-if (typeof window !== "undefined") {
+const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
+const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
+const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
+const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false })
+const Circle = dynamic(() => import('react-leaflet').then(mod => mod.Circle), { ssr: false })
+const useMapEvents = dynamic(() => import('react-leaflet').then(mod => mod.useMapEvents), { ssr: false })
+const useMap = dynamic(() => import('react-leaflet').then(mod => mod.useMap), { ssr: false })
+
+// Custom icon factory function (only runs on client)
+const getCustomIcon = () => {
+  if (typeof window === 'undefined') return null
+  
+  const L = require('leaflet')
+  
   delete (L.Icon.Default.prototype as any)._getIconUrl
   L.Icon.Default.mergeOptions({
     iconRetinaUrl: "/leaflet/images/marker-icon-2x.png",
     iconUrl: "/leaflet/images/marker-icon.png",
     shadowUrl: "/leaflet/images/marker-shadow.png",
   })
+  
+  return new L.Icon({
+    iconUrl: "/leaflet/images/marker-icon.png",
+    iconRetinaUrl: "/leaflet/images/marker-icon-2x.png",
+    shadowUrl: "/leaflet/images/marker-shadow.png",
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41],
+  })
 }
-
-// Custom marker icon
-const customIcon = new L.Icon({
-  iconUrl: "/leaflet/images/marker-icon.png",
-  iconRetinaUrl: "/leaflet/images/marker-icon-2x.png",
-  shadowUrl: "/leaflet/images/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-})
 
 // ==================== Map Helper Components ====================
 const MapClickHandler = ({ onLocationSelect, disabled }: { onLocationSelect: (lat: number, lng: number) => void; disabled?: boolean }) => {
-  const map = useMapEvents({
-    click: (e) => {
-      if (!disabled) {
-        onLocationSelect(e.latlng.lat, e.latlng.lng)
-      }
-    },
-  })
-  return null
+  const MapEvents = () => {
+    useMapEvents({
+      click: (e) => {
+        if (!disabled) {
+          onLocationSelect(e.latlng.lat, e.latlng.lng)
+        }
+      },
+    })
+    return null
+  }
+  return <MapEvents />
 }
 
 const MapCenterUpdater = ({ center }: { center: [number, number] }) => {
@@ -112,6 +125,11 @@ const LocationMarker = ({
 }) => {
   const [markerPosition, setMarkerPosition] = useState<[number, number] | null>(position)
   const [isDragging, setIsDragging] = useState(false)
+  const [customIcon, setCustomIcon] = useState<any>(null)
+
+  useEffect(() => {
+    setCustomIcon(getCustomIcon())
+  }, [])
 
   const eventHandlers = useMemo(
     () => ({
@@ -138,7 +156,7 @@ const LocationMarker = ({
     }
   }, [position])
 
-  if (!markerPosition) return null
+  if (!markerPosition || !customIcon) return null
 
   return (
     <Marker position={markerPosition} draggable={draggable} eventHandlers={eventHandlers} icon={customIcon}>
@@ -188,30 +206,40 @@ const LocationMarker = ({
 }
 
 const SplitterMarker = ({ splitter }: { splitter: Splitter }) => {
+  const [isClient, setIsClient] = useState(false)
+  const [splitterIcon, setSplitterIcon] = useState<any>(null)
+  
   const lat = splitter.location?.latitude
   const lng = splitter.location?.longitude
-  if (!lat || !lng) return null
 
-  const getSplitterIcon = (isMaster: boolean) => {
-    return new L.DivIcon({
-      html: `
-        <div class="relative">
-          <div class="w-6 h-6 rounded-full ${isMaster ? "bg-purple-500" : "bg-blue-500"
+  useEffect(() => {
+    setIsClient(true)
+    
+    if (typeof window !== 'undefined') {
+      const L = require('leaflet')
+      const icon = new L.DivIcon({
+        html: `
+          <div class="relative">
+            <div class="w-6 h-6 rounded-full ${splitter.isMaster ? "bg-purple-500" : "bg-blue-500"
         } border-2 border-white shadow-lg flex items-center justify-center">
-            <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
-            </svg>
+              <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
+              </svg>
+            </div>
           </div>
-        </div>
-      `,
-      className: "splitter-marker",
-      iconSize: [24, 24],
-      iconAnchor: [12, 12],
-    })
-  }
+        `,
+        className: "splitter-marker",
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+      })
+      setSplitterIcon(icon)
+    }
+  }, [splitter.isMaster])
+
+  if (!lat || !lng || !isClient || !splitterIcon) return null
 
   return (
-    <Marker position={[lat, lng]} icon={getSplitterIcon(splitter.isMaster || false)}>
+    <Marker position={[lat, lng]} icon={splitterIcon}>
       <Popup>
         <div className="p-1">
           <strong>{splitter.name}</strong>
@@ -1024,6 +1052,7 @@ import { TR069DeviceWanConnections } from "@/components/tr069/device-wan-connect
 // ==================== Main Component ====================
 export function AddCustomerForm() {
   const router = useRouter()
+  const [isMounted, setIsMounted] = useState(false)
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isProvisioning, setIsProvisioning] = useState(false)
@@ -1161,6 +1190,11 @@ export function AddCustomerForm() {
   const [autoFindError, setAutoFindError] = useState<string | null>(null)
   const [selectedDiscoveredOnt, setSelectedDiscoveredOnt] = useState<any | null>(null)
   const [matchedDeviceForOnt, setMatchedDeviceForOnt] = useState<CustomerDevice | null>(null)
+
+  // Set mounted state
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   // ========== Helper Functions for Splitter Hierarchy ==========
   const findUltimateOltForSplitter = useCallback((splitterId: string): OLT | null => {
@@ -1735,6 +1769,7 @@ export function AddCustomerForm() {
       setIsAutoFinding(false);
     }
   }, [provisionDetails.oltId, provisionDetails.useSplitter, provisionDetails.splitterId, provisionDetails.oltPort, splitters, findUltimateOltForSplitter, getSplitterPath]);
+  
   // Helper to convert a serial (e.g., "ALCLB2C804B0") to hex format ("414C434CB2C804B0")
   const convertToPonHex = useCallback((serial: string): string => {
     if (!serial) return ""
@@ -2823,8 +2858,8 @@ export function AddCustomerForm() {
 
                   <Separator />
 
-                  {/* Map Section (full original code) */}
-                  {typeof window !== "undefined" && (
+                  {/* Map Section - Only render on client */}
+                  {isMounted && (
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <div>
@@ -3669,7 +3704,6 @@ export function AddCustomerForm() {
                       </div>
 
                       {/* Autofind ONT Section */}
-                      {/* Autofind ONT Section – visible whenever OLT is selected */}
                       {provisionDetails.oltId && (
                         <div className="space-y-4 border rounded-lg p-4 bg-muted/20">
                           <div className="flex items-center justify-between">
@@ -3712,7 +3746,6 @@ export function AddCustomerForm() {
                             </div>
                           )}
 
-                          {/* Existing autofind result displays (autoFindError, discoveredOnts, match) remain unchanged */}
                           {autoFindError && (
                             <Alert variant="destructive">
                               <AlertTriangle className="h-4 w-4" />

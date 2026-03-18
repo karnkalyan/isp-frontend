@@ -1,9 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { renderToString } from "react-dom/server"
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet"
-import L from "leaflet"
+import dynamic from 'next/dynamic'
 import "leaflet/dist/leaflet.css"
 import {
     Upload, Maximize2, Minimize2, Trash2, Search, Eye, EyeOff,
@@ -20,16 +18,34 @@ import { cn } from "@/lib/utils"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CardContainer } from "@/components/ui/card-container"
 
-// Fix for Leaflet default icons in Next.js
-delete (L.Icon.Default.prototype as any)._getIconUrl
-L.Icon.Default.mergeOptions({
-    iconRetinaUrl: '/leaflet/images/marker-icon-2x.png',
-    iconUrl: '/leaflet/images/marker-icon.png',
-    shadowUrl: '/leaflet/images/marker-shadow.png',
-})
+// Dynamically import Leaflet components
+const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
+const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
+const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
+const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false })
+const Polyline = dynamic(() => import('react-leaflet').then(mod => mod.Polyline), { ssr: false })
+const useMap = dynamic(() => import('react-leaflet').then(mod => mod.useMap), { ssr: false })
+
+// Fix for Leaflet default icons - moved inside client-side check
+const fixLeafletIcons = () => {
+    if (typeof window === 'undefined') return
+    
+    const L = require('leaflet')
+    delete (L.Icon.Default.prototype as any)._getIconUrl
+    L.Icon.Default.mergeOptions({
+        iconRetinaUrl: '/leaflet/images/marker-icon-2x.png',
+        iconUrl: '/leaflet/images/marker-icon.png',
+        shadowUrl: '/leaflet/images/marker-shadow.png',
+    })
+}
 
 // --- 1. ICON ENGINE ---
 const createIcon = (label: string, color: string) => {
+    if (typeof window === 'undefined') return null
+    
+    const L = require('leaflet')
+    const { renderToString } = require('react-dom/server')
+    
     const html = renderToString(
         <div className={cn(
             "flex items-center justify-center font-bold text-white shadow-lg border-2 border-white rounded-full w-8 h-8 text-sm",
@@ -39,12 +55,6 @@ const createIcon = (label: string, color: string) => {
         </div>
     )
     return L.divIcon({ html, className: "bg-transparent", iconSize: [32, 32], iconAnchor: [16, 16] })
-}
-
-const ICONS = {
-    OLT: createIcon("OLT", "green"),
-    SPLITTER: createIcon("FAT", "purple"),
-    POLE: createIcon("P", "blue")
 }
 
 // --- 2. UNIVERSAL PARSER (DXF, QGS, KMZ, KML) ---
@@ -108,6 +118,7 @@ export default function UltimateGISMap() {
     const [search, setSearch] = useState("")
     const [activeTab, setActiveTab] = useState("files")
     const [isClient, setIsClient] = useState(false)
+    const [icons, setIcons] = useState<any>(null)
 
     // Core State
     const [categories, setCategories] = useState([{ id: '1', name: 'ISP Infrastructure', isExpanded: true }])
@@ -125,9 +136,17 @@ export default function UltimateGISMap() {
         misc: true
     })
 
-    // Ensure component is mounted on client
+    // Initialize icons on client
     useEffect(() => {
         setIsClient(true)
+        fixLeafletIcons()
+        
+        // Create icons
+        setIcons({
+            OLT: createIcon("OLT", "green"),
+            SPLITTER: createIcon("FAT", "purple"),
+            POLE: createIcon("P", "blue")
+        })
     }, [])
 
     // UTIL: find first geo position from parsed data
@@ -257,7 +276,7 @@ export default function UltimateGISMap() {
             isFullScreen && "fixed inset-0 z-[9999]"
         )}>
             {/* Map Container - Only render on client */}
-            {isClient && (
+            {isClient && icons && (
                 <div className="absolute inset-0 z-0">
                     <MapContainer
                         center={focusPosition || [27.7172, 85.3240]}
@@ -289,14 +308,14 @@ export default function UltimateGISMap() {
                             f.data.map((feat: any, i: number) => {
                                 const tag = (feat.name || "").toLowerCase()
                                 if (feat.type === 'Point') {
-                                    let icon = ICONS.POLE;
+                                    let icon = icons.POLE;
                                     let show = layers.pole
                                     if (tag.includes('olt')) {
-                                        icon = ICONS.OLT;
+                                        icon = icons.OLT;
                                         show = layers.olt
                                     }
                                     else if (tag.includes('splitter') || tag.includes('fat')) {
-                                        icon = ICONS.SPLITTER;
+                                        icon = icons.SPLITTER;
                                         show = layers.splitter
                                     }
                                     else if (!tag.includes('pole')) {
