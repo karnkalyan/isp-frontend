@@ -41,29 +41,18 @@ import { Slider } from "@/components/ui/slider"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { useRouter } from "next/navigation"
 
-// Add Leaflet imports
-import { MapContainer, TileLayer, Marker, Popup, Circle, useMapEvents, useMap } from "react-leaflet"
+// Dynamic imports for Leaflet (to avoid SSR issues)
+import dynamic from 'next/dynamic'
 import "leaflet/dist/leaflet.css"
-import L from "leaflet"
 
-// Fix Leaflet marker icons
-delete (L.Icon.Default.prototype as any)._getIconUrl
-L.Icon.Default.mergeOptions({
-    iconRetinaUrl: '/leaflet/images/marker-icon-2x.png',
-    iconUrl: '/leaflet/images/marker-icon.png',
-    shadowUrl: '/leaflet/images/marker-shadow.png',
-})
-
-// Custom marker icon
-const customIcon = new L.Icon({
-    iconUrl: '/leaflet/images/marker-icon.png',
-    iconRetinaUrl: '/leaflet/images/marker-icon-2x.png',
-    shadowUrl: '/leaflet/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41]
-})
+// Dynamically import Leaflet components
+const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
+const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
+const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
+const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false })
+const Circle = dynamic(() => import('react-leaflet').then(mod => mod.Circle), { ssr: false })
+const useMapEvents = dynamic(() => import('react-leaflet').then(mod => mod.useMapEvents), { ssr: false })
+const useMap = dynamic(() => import('react-leaflet').then(mod => mod.useMap), { ssr: false })
 
 // Interface for geocoding result
 interface GeocodingResult {
@@ -81,6 +70,13 @@ interface GeocodingResult {
     name: string
     display_name: string
     boundingbox: [string, string, string, string]
+    address?: {
+        road?: string
+        county?: string
+        state_district?: string
+        state?: string
+        country?: string
+    }
 }
 
 type LeadStatus = 'new' | 'contacted' | 'qualified' | 'unqualified' | 'converted'
@@ -249,6 +245,7 @@ interface Splitter {
     updatedAt: string
     totalCustomers?: number
     slaveCount?: number
+    distance?: number
 }
 
 // Source options
@@ -319,17 +316,70 @@ const OUTCOME_OPTIONS = [
     { value: "converted", label: "Converted to Customer" }
 ]
 
-// Add Map Click Handler Component
-const MapClickHandler = ({ onLocationSelect }: { onLocationSelect: (lat: number, lng: number) => void }) => {
-    useMapEvents({
-        click: (e) => {
-            onLocationSelect(e.latlng.lat, e.latlng.lng)
-        },
-    })
-    return null
+// Helper function to format distance
+const formatDistance = (distance: any): string => {
+    try {
+        const distNum = Number(distance);
+        if (isNaN(distNum) || !isFinite(distNum)) {
+            return "N/A";
+        }
+        if (distNum < 1) {
+            const meters = distNum * 1000;
+            if (meters < 100) {
+                return `${meters.toFixed(0)} m`;
+            } else {
+                return `${meters.toFixed(0)} m`;
+            }
+        } else if (distNum < 10) {
+            return `${distNum.toFixed(2)} km`;
+        } else {
+            return `${distNum.toFixed(1)} km`;
+        }
+    } catch (error) {
+        return "N/A";
+    }
 }
 
-// Add Location Marker Component with enhanced popup
+// Custom icon factory function (only runs on client)
+const getCustomIcon = () => {
+    if (typeof window === 'undefined') return null
+    
+    // Dynamically import Leaflet only on client side
+    const L = require('leaflet')
+    
+    // Fix Leaflet marker icons
+    delete (L.Icon.Default.prototype as any)._getIconUrl
+    L.Icon.Default.mergeOptions({
+        iconRetinaUrl: '/leaflet/images/marker-icon-2x.png',
+        iconUrl: '/leaflet/images/marker-icon.png',
+        shadowUrl: '/leaflet/images/marker-shadow.png',
+    })
+    
+    return new L.Icon({
+        iconUrl: '/leaflet/images/marker-icon.png',
+        iconRetinaUrl: '/leaflet/images/marker-icon-2x.png',
+        shadowUrl: '/leaflet/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+    })
+}
+
+// Map Click Handler Component
+const MapClickHandler = ({ onLocationSelect }: { onLocationSelect: (lat: number, lng: number) => void }) => {
+    const MapEvents = () => {
+        useMapEvents({
+            click: (e) => {
+                onLocationSelect(e.latlng.lat, e.latlng.lng)
+            },
+        })
+        return null
+    }
+    return <MapEvents />
+}
+
+// Location Marker Component with enhanced popup
 const LocationMarker = ({
     position,
     draggable = true,
@@ -337,7 +387,6 @@ const LocationMarker = ({
     address = "",
     serviceAvailable = null,
     nearestSplitter = null,
-
 }: {
     position: [number, number],
     draggable?: boolean,
@@ -348,6 +397,12 @@ const LocationMarker = ({
 }) => {
     const [markerPosition, setMarkerPosition] = useState<[number, number] | null>(position)
     const [isDragging, setIsDragging] = useState(false)
+    const [customIcon, setCustomIcon] = useState<any>(null)
+
+    // Initialize icon on client side only
+    useEffect(() => {
+        setCustomIcon(getCustomIcon())
+    }, [])
 
     const eventHandlers = useMemo(() => ({
         dragstart: () => {
@@ -371,7 +426,7 @@ const LocationMarker = ({
         }
     }, [position])
 
-    if (!markerPosition) return null
+    if (!markerPosition || !customIcon) return null
 
     return (
         <Marker
@@ -433,7 +488,7 @@ const LocationMarker = ({
     )
 }
 
-// Add Map Center Updater Component
+// Map Center Updater Component
 const MapCenterUpdater = ({ center }: { center: [number, number] }) => {
     const map = useMap()
 
@@ -446,35 +501,45 @@ const MapCenterUpdater = ({ center }: { center: [number, number] }) => {
     return null
 }
 
-// Add Splitter Marker Component
+// Splitter Marker Component
 const SplitterMarker = ({ splitter }: { splitter: Splitter }) => {
+    const [isClient, setIsClient] = useState(false)
+    const [splitterIcon, setSplitterIcon] = useState<any>(null)
+    
+    useEffect(() => {
+        setIsClient(true)
+        
+        // Create splitter icon on client side
+        if (typeof window !== 'undefined') {
+            const L = require('leaflet')
+            const icon = new L.DivIcon({
+                html: `
+                    <div class="relative">
+                        <div class="w-6 h-6 rounded-full ${splitter.isMaster ? 'bg-purple-500' : 'bg-blue-500'} border-2 border-white shadow-lg flex items-center justify-center">
+                            <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                    </div>
+                `,
+                className: 'splitter-marker',
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            })
+            setSplitterIcon(icon)
+        }
+    }, [splitter.isMaster])
+    
     const position: [number, number] = [splitter.location.latitude || 0, splitter.location.longitude || 0]
 
-    if (!splitter.location.latitude || !splitter.location.longitude) {
+    if (!splitter.location.latitude || !splitter.location.longitude || !isClient || !splitterIcon) {
         return null
-    }
-
-    const getSplitterIcon = (isMaster: boolean) => {
-        return new L.DivIcon({
-            html: `
-                <div class="relative">
-                    <div class="w-6 h-6 rounded-full ${isMaster ? 'bg-purple-500' : 'bg-blue-500'} border-2 border-white shadow-lg flex items-center justify-center">
-                        <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
-                        </svg>
-                    </div>
-                </div>
-            `,
-            className: 'splitter-marker',
-            iconSize: [24, 24],
-            iconAnchor: [12, 12]
-        })
     }
 
     return (
         <Marker
             position={position}
-            icon={getSplitterIcon(splitter.isMaster)}
+            icon={splitterIcon}
         >
             <Popup>
                 <div className="p-1">
@@ -495,30 +560,6 @@ const SplitterMarker = ({ splitter }: { splitter: Splitter }) => {
     )
 }
 
-// Helper function to format distance
-const formatDistance = (distance: any): string => {
-    try {
-        const distNum = Number(distance);
-        if (isNaN(distNum) || !isFinite(distNum)) {
-            return "N/A";
-        }
-        if (distNum < 1) {
-            const meters = distNum * 1000;
-            if (meters < 100) {
-                return `${meters.toFixed(0)} m`;
-            } else {
-                return `${meters.toFixed(0)} m`;
-            }
-        } else if (distNum < 10) {
-            return `${distNum.toFixed(2)} km`;
-        } else {
-            return `${distNum.toFixed(1)} km`;
-        }
-    } catch (error) {
-        return "N/A";
-    }
-}
-
 interface CreateLeadFormProps {
     leadId?: string
 }
@@ -527,6 +568,7 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
     const router = useRouter()
     const [loading, setLoading] = useState(false)
     const [isEditing, setIsEditing] = useState(false)
+    const [isMounted, setIsMounted] = useState(false)
     const [users, setUsers] = useState<User[]>([])
     const [packages, setPackages] = useState<PackagePlan[]>([])
     const [memberships, setMemberships] = useState<Membership[]>([])
@@ -589,6 +631,11 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
     })
 
     const { confirm, ConfirmDialog } = useConfirmToast()
+
+    // Set mounted state
+    useEffect(() => {
+        setIsMounted(true)
+    }, [])
 
     // Prepare options from data using useMemo for performance
     const userOptions: Option[] = useMemo(() =>
@@ -850,7 +897,7 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
         } catch (error: any) {
             console.error("Failed to fetch lead:", error)
             toast.error(error.message || "Failed to load lead")
-            router.push('/leads/create')
+            router.push('/leads')
         } finally {
             setLoading(false)
         }
@@ -935,6 +982,7 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
             setReverseGeocodingLoading(false)
         }
     }
+    
     // Handle lead form location selection
     const handleLeadLocationSelect = async (lat: number, lng: number) => {
         setFormData(prev => ({
@@ -981,7 +1029,6 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
         toast.success(`Marker moved to: ${lat.toFixed(6)}, ${lng.toFixed(6)}`)
     }
 
-
     // Update lead map when lat/lon changes in form
     useEffect(() => {
         if (formData.latitude && formData.longitude) {
@@ -995,7 +1042,6 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                 const serviceAvailable = nearest.some(splitter => splitter.distance <= radius)
                 setLeadServiceAvailable(serviceAvailable)
                 reverseGeocode(lat, lon)
-
             }
         }
     }, [formData.latitude, formData.longitude, leadServiceRadius])
@@ -1817,64 +1863,67 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                                     </div>
                                 </div>
 
-                                <div className="h-[350px] rounded-lg overflow-hidden border relative">
-                                    <MapContainer
-                                        center={leadMapPosition}
-                                        zoom={15}
-                                        style={{ height: "100%", width: "100%" }}
-                                    >
-                                        <MapCenterUpdater center={leadMapPosition} />
-                                        <TileLayer
-                                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                            attribution='Simulcast Technologies Pvt Ltd'
-                                        />
-
-                                        {/* Click handler for map */}
-                                        <MapClickHandler onLocationSelect={handleLeadLocationSelect} />
-
-                                        {/* Draggable marker for selected location */}
-                                        {formData.latitude && formData.longitude && (
-                                            <LocationMarker
-                                                position={leadMapPosition}
-                                                draggable={true}
-                                                onDragEnd={handleLeadMarkerDragEnd}
-                                                address={formData.fullAddress || formData.address}
-                                                serviceAvailable={leadServiceAvailable}
-                                                nearestSplitter={leadNearestSplitters[0] ? {
-                                                    distance: leadNearestSplitters[0].distance,
-                                                    name: leadNearestSplitters[0].name
-                                                } : null}
+                                {/* Map Container - Only render on client */}
+                                {isMounted && (
+                                    <div className="h-[350px] rounded-lg overflow-hidden border relative">
+                                        <MapContainer
+                                            center={leadMapPosition}
+                                            zoom={15}
+                                            style={{ height: "100%", width: "100%" }}
+                                        >
+                                            <MapCenterUpdater center={leadMapPosition} />
+                                            <TileLayer
+                                                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                                attribution='Simulcast Technologies Pvt Ltd'
                                             />
-                                        )}
 
-                                        {/* Show splitters on map */}
-                                        {splitters
-                                            .filter(splitter => splitter.location.latitude && splitter.location.longitude)
-                                            .map((splitter) => (
-                                                <SplitterMarker key={splitter.id} splitter={splitter} />
-                                            ))}
+                                            {/* Click handler for map */}
+                                            <MapClickHandler onLocationSelect={handleLeadLocationSelect} />
 
-                                        {/* Service area circle */}
-                                        {formData.latitude && formData.longitude && (
-                                            <Circle
-                                                center={leadMapPosition}
-                                                radius={leadServiceRadius * 1000}
-                                                pathOptions={{
-                                                    fillColor: leadServiceAvailable ? 'green' : 'red',
-                                                    color: leadServiceAvailable ? 'darkgreen' : 'darkred',
-                                                    fillOpacity: 0.2,
-                                                    weight: 2
-                                                }}
-                                            />
-                                        )}
-                                    </MapContainer>
+                                            {/* Draggable marker for selected location */}
+                                            {formData.latitude && formData.longitude && (
+                                                <LocationMarker
+                                                    position={leadMapPosition}
+                                                    draggable={true}
+                                                    onDragEnd={handleLeadMarkerDragEnd}
+                                                    address={formData.fullAddress || formData.address}
+                                                    serviceAvailable={leadServiceAvailable}
+                                                    nearestSplitter={leadNearestSplitters[0] ? {
+                                                        distance: leadNearestSplitters[0].distance,
+                                                        name: leadNearestSplitters[0].name
+                                                    } : null}
+                                                />
+                                            )}
 
-                                    <style jsx>{`
-                                        :global(.leaflet-control-attribution) {
-                                            display: none !important;
-                                        }
-                                    `}</style>
-                                </div>
+                                            {/* Show splitters on map */}
+                                            {splitters
+                                                .filter(splitter => splitter.location.latitude && splitter.location.longitude)
+                                                .map((splitter) => (
+                                                    <SplitterMarker key={splitter.id} splitter={splitter} />
+                                                ))}
+
+                                            {/* Service area circle */}
+                                            {formData.latitude && formData.longitude && (
+                                                <Circle
+                                                    center={leadMapPosition}
+                                                    radius={leadServiceRadius * 1000}
+                                                    pathOptions={{
+                                                        fillColor: leadServiceAvailable ? 'green' : 'red',
+                                                        color: leadServiceAvailable ? 'darkgreen' : 'darkred',
+                                                        fillOpacity: 0.2,
+                                                        weight: 2
+                                                    }}
+                                                />
+                                            )}
+                                        </MapContainer>
+
+                                        <style jsx>{`
+                                            :global(.leaflet-control-attribution) {
+                                                display: none !important;
+                                            }
+                                        `}</style>
+                                    </div>
+                                )}
 
                                 {/* Map Instructions */}
                                 <p className="text-sm text-blue-800">
