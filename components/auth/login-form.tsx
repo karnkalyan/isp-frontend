@@ -18,12 +18,15 @@ import { useTheme } from "next-themes"
  */
 const getDynamicApiUrl = (endpoint: string) => {
   const hostname = typeof window !== "undefined" ? window.location.hostname : ""
-  let base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://api.radius.kisan.net.np"
+  let base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://api.cms.arrownet.com.np"
 
   if (hostname.includes("namaste.net.np")) {
     base = "https://api.radius.namaste.net.np"
   } else if (hostname.includes("kisan.net.np")) {
     base = "https://api.radius.kisan.net.np"
+  }
+  else if (hostname.includes("arrownet.com.np")) {
+    base = "https://api.cms.arrownet.com.np"
   }
 
   return `${base}${endpoint}`
