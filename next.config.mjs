@@ -15,6 +15,7 @@ const nextConfig = {
       allowedOrigins: [
         "radius.kisan.net.np",
         "radius.namaste.net.np",
+        "api.cms.arrownet.com.np", // Added API domain
         "localhost:4000",
         "cms.arrownet.simulcast.com.np" // It is good practice to keep localhost explicitly
       ],
