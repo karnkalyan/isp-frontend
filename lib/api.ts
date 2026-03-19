@@ -17,6 +17,10 @@ function getDynamicBaseUrl(): string {
     return "https://api.radius.namaste.net.np";
   }
 
+  if (hostname.includes("arrownet.com.np")) {
+    return "https://api.cms.arrownet.com.np";
+  }
+
   if (hostname.includes("kisan.net.np")) {
     return "https://api.radius.kisan.net.np";
   }
