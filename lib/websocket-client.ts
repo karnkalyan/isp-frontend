@@ -109,20 +109,29 @@ class WebSocketClient {
             });
         }
     }
-
     private getWebSocketUrl(): string {
         if (typeof window === 'undefined') return '';
-        const host = window.location.hostname;
-        const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
 
-        // For local development
+        const host = window.location.hostname;
+
+        // 1. Local Development Check
         if (host === 'localhost' || host === '127.0.0.1') {
             return 'ws://localhost:3200/ws';
         }
 
-        // For production
-        const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || window.location.origin;
-        return apiBase.replace(/^http/, 'ws') + '/ws';
+        // 2. Production Check (cms.arrownet.com.np)
+        // Always use wss:// for production because you are on HTTPS
+        if (host.includes('arrownet.com.np')) {
+            return 'wss://api.cms.arrownet.com.np/ws';
+        }
+
+        // 3. Fallback to Env variable
+        const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+        if (apiBase) {
+            return apiBase.replace(/^http/, 'ws') + '/ws';
+        }
+
+        return 'ws://localhost:3200/ws';
     }
 
     async connect(): Promise<void> {
