@@ -38,20 +38,30 @@ export function UserManagement() {
   const [roleOptions, setRoleOptions] = useState<{ value: string; label: string }[]>([])
 
   // ← NEW: fetch and map your JSON array
-  const fetchDepartments = async () => {
-    try {
-      const raw = await apiRequest("/department")
-      if (!Array.isArray(raw)) {
-        throw new Error("Expected array of departments")
-      }
-      const opts = raw.map((d: any) => ({ value: String(d.id), label: d.name }))
-      setDepartmentOptions(opts)
-    } catch (err: any) {
-      console.error("dept fetch failed:", err)
-      toast.error("Failed to load departments")
-      setDepartmentOptions([])
+const fetchDepartments = async () => {
+  try {
+    const raw = await apiRequest("/department")
+
+    // FIX: access correct field
+    const departments = raw?.data
+
+    if (!Array.isArray(departments)) {
+      throw new Error("Invalid department response")
     }
+
+    const opts = departments.map((d: any) => ({
+      value: String(d.id),
+      label: d.name
+    }))
+
+    setDepartmentOptions(opts)
+
+  } catch (err: any) {
+    console.error("dept fetch failed:", err)
+    toast.error("Failed to load departments")
+    setDepartmentOptions([])
   }
+}
 
   useEffect(() => {
     fetchDepartments()
