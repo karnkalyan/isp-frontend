@@ -14,7 +14,7 @@ const IGNORED_PREFIXES = [
 
 // This secret must be stored securely as an environment variable
 // and must be the SAME secret as your backend's ACCESS_SECRET.
-const ACCESS_SECRET = process.env.ACCESS_SECRET;
+const ACCESS_SECRET = process.env.NEXT_PUBLIC_ACCESS_SECRET;
 
 // Apply to every request
 export const config = {
