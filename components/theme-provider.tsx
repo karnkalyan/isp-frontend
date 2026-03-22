@@ -1,82 +1,95 @@
-"use client"
+"use client";
 
-import { ThemeProvider as NextThemesProvider } from "next-themes"
-import type { ThemeProviderProps } from "next-themes"
-import { useEffect } from "react"
+import { ThemeProvider as NextThemesProvider } from "next-themes";
+import type { ThemeProviderProps } from "next-themes";
+import { useEffect } from "react";
 
 export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
-  // Apply theme immediately on mount
   useEffect(() => {
-    // Add a class to indicate JS is loaded
-    document.documentElement.classList.add("js-loaded")
-    document.documentElement.classList.remove("no-js")
+    if (typeof window === "undefined" || typeof document === "undefined") return;
 
-    // Check for stored theme or system preference immediately
-    const storedTheme = localStorage.getItem("theme")
-    const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+    const root = document.documentElement;
 
-    // Apply dark mode immediately if needed
-    if (storedTheme === "dark" || (!storedTheme && systemPrefersDark)) {
-      document.documentElement.classList.add("dark")
-      document.documentElement.style.setProperty("--theme-bg", "#0b1120")
-      document.documentElement.style.setProperty("--theme-text", "#f9fafb")
-      document.documentElement.style.setProperty("--theme-card", "#1e293b")
-      document.documentElement.style.setProperty("--theme-card-foreground", "#f9fafb")
-      document.documentElement.style.setProperty("--theme-border", "#334155")
-      document.documentElement.style.setProperty("--theme-muted", "#334155")
-      document.documentElement.style.setProperty("--theme-muted-foreground", "#94a3b8")
-      document.body.style.backgroundColor = "#0b1120"
-      document.body.style.color = "#f9fafb"
-    }
-
-    // Apply theme immediately
     const applyTheme = () => {
-      const isDark = document.documentElement.classList.contains("dark")
+      const isDark = root.classList.contains("dark");
 
-      // Apply theme-specific CSS variables directly for immediate visual feedback
+      root.classList.add("js-loaded");
+      root.classList.remove("no-js");
+
       if (isDark) {
-        document.documentElement.style.setProperty("--theme-bg", "#0b1120")
-        document.documentElement.style.setProperty("--theme-text", "#f9fafb")
-        document.documentElement.style.setProperty("--theme-card", "#1e293b")
-        document.documentElement.style.setProperty("--theme-card-foreground", "#f9fafb")
-        document.documentElement.style.setProperty("--theme-border", "#334155")
-        document.documentElement.style.setProperty("--theme-muted", "#334155")
-        document.documentElement.style.setProperty("--theme-muted-foreground", "#94a3b8")
-        document.body.style.backgroundColor = "#0b1120"
-        document.body.style.color = "#f9fafb"
+        root.style.colorScheme = "dark";
+        root.style.setProperty("--theme-bg", "#0b1120");
+        root.style.setProperty("--theme-text", "#f9fafb");
+        root.style.setProperty("--theme-card", "#1e293b");
+        root.style.setProperty("--theme-card-foreground", "#f9fafb");
+        root.style.setProperty("--theme-border", "#334155");
+        root.style.setProperty("--theme-muted", "#334155");
+        root.style.setProperty("--theme-muted-foreground", "#94a3b8");
+        document.body.style.backgroundColor = "#0b1120";
+        document.body.style.color = "#f9fafb";
       } else {
-        document.documentElement.style.setProperty("--theme-bg", "#f9fafb")
-        document.documentElement.style.setProperty("--theme-text", "#111827")
-        document.documentElement.style.setProperty("--theme-card", "#ffffff")
-        document.documentElement.style.setProperty("--theme-card-foreground", "#111827")
-        document.documentElement.style.setProperty("--theme-border", "#e2e8f0")
-        document.documentElement.style.setProperty("--theme-muted", "#f1f5f9")
-        document.documentElement.style.setProperty("--theme-muted-foreground", "#64748b")
-        document.body.style.backgroundColor = "#f9fafb"
-        document.body.style.color = "#111827"
+        root.style.colorScheme = "light";
+        root.style.setProperty("--theme-bg", "#f9fafb");
+        root.style.setProperty("--theme-text", "#111827");
+        root.style.setProperty("--theme-card", "#ffffff");
+        root.style.setProperty("--theme-card-foreground", "#111827");
+        root.style.setProperty("--theme-border", "#e2e8f0");
+        root.style.setProperty("--theme-muted", "#f1f5f9");
+        root.style.setProperty("--theme-muted-foreground", "#64748b");
+        document.body.style.backgroundColor = "#f9fafb";
+        document.body.style.color = "#111827";
       }
-    }
+    };
 
-    // Apply theme immediately
-    applyTheme()
+    const syncInitialTheme = () => {
+      try {
+        const storedTheme = localStorage.getItem("theme");
 
-    // Listen for theme changes
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (
-          mutation.type === "attributes" &&
-          mutation.attributeName === "class" &&
-          mutation.target === document.documentElement
-        ) {
-          applyTheme()
+        if (!storedTheme) {
+          const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          if (prefersDark) {
+            root.classList.add("dark");
+            localStorage.setItem("theme", "dark");
+          } else {
+            root.classList.remove("dark");
+            localStorage.setItem("theme", "light");
+          }
         }
-      })
-    })
 
-    observer.observe(document.documentElement, { attributes: true })
+        applyTheme();
+      } catch (error) {
+        console.error("Theme initialization failed:", error);
+      }
+    };
 
-    return () => observer.disconnect()
-  }, [])
+    syncInitialTheme();
 
-  return <NextThemesProvider {...props}>{children}</NextThemesProvider>
+    const observer = new MutationObserver(() => {
+      applyTheme();
+    });
+
+    observer.observe(root, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+
+    const onStorageChange = (event: StorageEvent) => {
+      if (event.key === "theme") {
+        applyTheme();
+      }
+    };
+
+    window.addEventListener("storage", onStorageChange);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("storage", onStorageChange);
+    };
+  }, []);
+
+  return (
+    <NextThemesProvider {...props}>
+      {children}
+    </NextThemesProvider>
+  );
 }
