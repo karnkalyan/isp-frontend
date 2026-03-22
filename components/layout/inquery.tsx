@@ -209,7 +209,7 @@ export function InquiryDialog({ open, onOpenChange }: InquiryDialogProps) {
         setLoading(true)
       }
       
-      const data = await apiRequest<InquiryResponse>("/yeaster/extensionQuery", {
+      const data = await apiRequest<InquiryResponse>("/services/yeastar/extensions", {
         method: "GET",
       })
       
@@ -270,7 +270,7 @@ export function InquiryDialog({ open, onOpenChange }: InquiryDialogProps) {
   const fetchExtensionList = async () => {
     try {
       setFetchingExtensions(true)
-      const data = await apiRequest<ExtensionListResponse>("/yeaster/extensionList", {
+      const data = await apiRequest<ExtensionListResponse>("/services/yeastar/extensions", {
         method: "GET",
       })
       if (data.success && data.data.extlist) {

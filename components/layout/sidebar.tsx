@@ -223,7 +223,7 @@ const menuCategories: MenuCategory[] = [
         icon: Cpu,
         submenu: [
           { title: "Dashboard", href: "/tr069" },
-          { title: "Device Management", href: "/tr069/devices" },
+          // { title: "Device Management", href: "/tr069/devices" },
           // { title: "Device Details", href: "/tr069/device" },
           // { title: "Virtual Hosts", href: "/tr069/virtual-hosts" },
           // { title: "Provisioning", href: "/tr069/provisioning" },
@@ -716,7 +716,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
   const ispData = async () => {
     try {
       const response = await apiRequest("/isp/active");
-      console.log("API Response:", response); // Debug log
+      // console.log("API Response:", response); // Debug log
 
       // Check different possible response structures
       if (response && response.companyName) {

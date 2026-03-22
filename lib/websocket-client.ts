@@ -149,7 +149,7 @@ class WebSocketClient {
         const wsUrl = this.getWebSocketUrl();
 
         this.connectionPromise = new Promise<void>((resolve, reject) => {
-            this.log('Connecting to:', wsUrl);
+            // this.log('Connecting to:', wsUrl);
 
             try {
                 this.ws = new WebSocket(wsUrl);
@@ -169,7 +169,7 @@ class WebSocketClient {
                     this.state.isConnected = true;
                     this.reconnectAttempts = 0;
                     this.startHeartbeat();
-                    this.log('WebSocket connection established');
+                    // this.log('WebSocket connection established');
 
                     // NO need to send authentication - cookies are sent automatically
                     resolve();
@@ -215,7 +215,7 @@ class WebSocketClient {
     private handleMessage(event: MessageEvent) {
         try {
             const message: WebSocketMessage = JSON.parse(event.data);
-            this.log('Received:', message.type);
+            // this.log('Received:', message.type);
 
             switch (message.type) {
                 case 'connected':
@@ -254,7 +254,7 @@ class WebSocketClient {
     }
 
     private handleConnectedEvent(data: any) {
-        this.log('Connected event:', data);
+        // this.log('Connected event:', data);
 
         // If we have user data in the connected event, treat it as authenticated
         if (data.userId && data.permissions) {
@@ -271,7 +271,7 @@ class WebSocketClient {
 
             // Emit authenticated event
             this.emit('authenticated', this.state);
-            this.log('✅ Authenticated via connected event');
+            // this.log('✅ Authenticated via connected event');
         }
 
         // Always emit connected event
@@ -372,7 +372,7 @@ class WebSocketClient {
         const validChannels = list.filter(ch => ch && typeof ch === 'string' && ch.trim().length > 0);
 
         if (validChannels.length === 0) {
-            console.warn('[WebSocket] No valid channels to subscribe to:', channels);
+            // console.warn('[WebSocket] No valid channels to subscribe to:', channels);
             return;
         }
 

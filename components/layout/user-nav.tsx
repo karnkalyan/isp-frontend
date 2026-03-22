@@ -104,7 +104,7 @@ export function UserNav() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuGroup>
+        {/* <DropdownMenuGroup>
           <DropdownMenuItem onClick={() => router.push("/dashboard/profile")} className="cursor-pointer">
             <User className="mr-2 h-4 w-4" aria-hidden="true" />
             <span>Profile</span>
@@ -113,7 +113,7 @@ export function UserNav() {
             <Settings className="mr-2 h-4 w-4" aria-hidden="true" />
             <span>Settings</span>
           </DropdownMenuItem>
-        </DropdownMenuGroup>
+        </DropdownMenuGroup> */}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-500 focus:text-red-500">
           <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />

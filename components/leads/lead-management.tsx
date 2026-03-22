@@ -86,6 +86,7 @@ import { Slider } from "@/components/ui/slider"
 // Dynamically import Leaflet components to avoid SSR issues
 import dynamic from 'next/dynamic'
 import "leaflet/dist/leaflet.css"
+import { useMapEvents, useMap } from 'react-leaflet'
 
 // Dynamically import map components
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
@@ -93,8 +94,6 @@ const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLaye
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false })
 const Circle = dynamic(() => import('react-leaflet').then(mod => mod.Circle), { ssr: false })
-const useMapEvents = dynamic(() => import('react-leaflet').then(mod => mod.useMapEvents), { ssr: false })
-const useMap = dynamic(() => import('react-leaflet').then(mod => mod.useMap), { ssr: false })
 
 type LeadStatus = 'new' | 'contacted' | 'qualified' | 'unqualified' | 'converted'
 type FollowUpType = 'CALL' | 'EMAIL' | 'MEETING' | 'VISIT' | 'OTHER'
@@ -473,7 +472,7 @@ const MapCenterUpdater = ({ center }: { center: [number, number] }) => {
   const map = useMap()
 
   useEffect(() => {
-    if (center && center[0] && center[1]) {
+    if (center && center[0] && center[1] && map && typeof map.getZoom === 'function') {
       map.setView(center, map.getZoom())
     }
   }, [center, map])

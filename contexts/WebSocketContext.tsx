@@ -114,12 +114,12 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 
         // Listen for WebSocket events
         const unsubConnected = webSocketClient.on('connected', (data) => {
-            console.log('WebSocket connected:', data);
+            // console.log('WebSocket connected:', data);
             updateStatus();
         });
 
         const unsubAuthenticated = webSocketClient.on('authenticated', (data) => {
-            console.log('WebSocket authenticated:', data);
+            // console.log('WebSocket authenticated:', data);
             updateStatus();
         });
 
