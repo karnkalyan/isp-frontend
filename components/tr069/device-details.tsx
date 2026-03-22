@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import { CardContainer } from "@/components/ui/card-container";
 import { Copy, ArrowUp, ArrowDown, AlertCircle, ExternalLink } from "lucide-react";

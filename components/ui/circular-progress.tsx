@@ -1,7 +1,6 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 
 interface CircularProgressProps {
@@ -23,80 +22,41 @@ export function CircularProgress({
   color,
   className,
 }: CircularProgressProps) {
-  const { resolvedTheme } = useTheme();
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [mounted, setMounted] = useState(false);
 
-  // Initial theme detection — runs only in browser
   useEffect(() => {
-    setMounted(true);
-
     try {
+      const root = document.documentElement;
       const savedTheme = localStorage.getItem("theme");
-      const prefersDark =
-        typeof window !== "undefined" &&
-        window.matchMedia &&
-        window.matchMedia("(prefers-color-scheme: dark)").matches;
-      const initialDarkMode =
-        savedTheme === "dark" ||
-        (!savedTheme && prefersDark) ||
-        document.documentElement.classList.contains("dark");
-      setIsDarkMode(initialDarkMode);
+      const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ?? false;
+      setIsDarkMode(savedTheme === "dark" || (!savedTheme && prefersDark) || root.classList.contains("dark"));
     } catch {
-      // Fallback — check class only
-      try {
-        setIsDarkMode(document.documentElement.classList.contains("dark"));
-      } catch {
-        setIsDarkMode(false);
-      }
+      setIsDarkMode(false);
     }
   }, []);
 
-  // Sync with next-themes resolvedTheme after mount
-  useEffect(() => {
-    if (mounted && resolvedTheme) {
-      setIsDarkMode(resolvedTheme === "dark");
-    }
-  }, [resolvedTheme, mounted]);
-
-  // Calculate the radius and circumference
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
-  const strokeDashoffset = circumference - (value / 100) * circumference;
+  const strokeDashoffset = circumference - (Math.max(0, Math.min(100, value)) / 100) * circumference;
 
-  // Determine color based on value
   const getColor = () => {
     if (color) return color;
-    if (value < 30) return "#22c55e"; // green
-    if (value < 70) return "#f59e0b"; // amber
-    return "#ef4444"; // red
+    if (value < 30) return "#22c55e";
+    if (value < 70) return "#f59e0b";
+    return "#ef4444";
   };
 
   return (
-    <div
-      className={cn(
-        "relative flex flex-col items-center justify-center",
-        className
-      )}
-    >
-      <svg
-        width={size}
-        height={size}
-        viewBox={`0 0 ${size} ${size}`}
-        className="transform -rotate-90"
-      >
-        {/* Background circle */}
+    <div className={cn("relative flex flex-col items-center justify-center", className)}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="transform -rotate-90">
         <circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke={
-            isDarkMode ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)"
-          }
+          stroke={isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}
           strokeWidth={strokeWidth}
         />
-        {/* Progress circle */}
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -109,13 +69,10 @@ export function CircularProgress({
           strokeLinecap="round"
         />
       </svg>
+
       <div className="absolute flex flex-col items-center justify-center">
-        <span className="text-2xl font-bold">
-          {valueLabel || `${value}`}
-        </span>
-        {label && (
-          <span className="text-xs text-muted-foreground mt-1">{label}</span>
-        )}
+        <span className="text-2xl font-bold">{valueLabel || `${value}`}</span>
+        {label && <span className="mt-1 text-xs text-muted-foreground">{label}</span>}
       </div>
     </div>
   );
