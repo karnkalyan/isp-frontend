@@ -5,11 +5,33 @@ import React, {
   useContext,
   useEffect,
   useState,
-  ReactNode,
   useCallback,
   useRef,
+  type ReactNode,
 } from "react";
-import { getWebSocketClient } from "@/lib/websocket-client";
+
+// Lazy import to avoid any top-level execution of websocket-client on server
+let _getWebSocketClient: typeof import("@/lib/websocket-client").getWebSocketClient | null = null;
+
+function safeGetWebSocketClient() {
+  if (typeof window === "undefined") return null;
+
+  if (!_getWebSocketClient) {
+    // Dynamic require only in browser
+    try {
+      const mod = require("@/lib/websocket-client");
+      _getWebSocketClient = mod.getWebSocketClient;
+    } catch {
+      return null;
+    }
+  }
+
+  try {
+    return _getWebSocketClient!();
+  } catch {
+    return null;
+  }
+}
 
 interface WebSocketContextType {
   isConnected: boolean;
@@ -31,11 +53,33 @@ interface WebSocketContextType {
   permissions: string[];
 }
 
-const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
+const defaultContext: WebSocketContextType = {
+  isConnected: false,
+  isAuthenticated: false,
+  connectionStatus: "disconnected",
+  state: {},
+  subscribe: () => {},
+  unsubscribe: () => {},
+  sendCommand: () => {},
+  on: () => () => {},
+  off: () => {},
+  connect: async () => {},
+  disconnect: () => {},
+  reset: () => {},
+  isConnecting: false,
+  reconnectAttempts: 0,
+  subscriptions: [],
+  hasPermission: () => false,
+  permissions: [],
+};
+
+const WebSocketContext = createContext<WebSocketContextType>(defaultContext);
 
 export const useWebSocket = () => {
   const context = useContext(WebSocketContext);
-  if (!context) throw new Error("useWebSocket must be used within WebSocketProvider");
+  if (!context) {
+    throw new Error("useWebSocket must be used within WebSocketProvider");
+  }
   return context;
 };
 
@@ -48,7 +92,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
   children,
   autoConnect = true,
 }) => {
-  const clientRef = useRef<ReturnType<typeof getWebSocketClient> | null>(null);
+  const clientRef = useRef<any>(null);
 
   const [isConnected, setIsConnected] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -63,7 +107,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     if (typeof window === "undefined") return null;
 
     if (!clientRef.current) {
-      clientRef.current = getWebSocketClient();
+      clientRef.current = safeGetWebSocketClient();
     }
 
     return clientRef.current;
@@ -73,29 +117,44 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     const client = getClient();
     if (!client) return;
 
-    setIsConnected(client.isConnected());
-    setIsAuthenticated(client.isAuthenticated());
-    setConnectionStatus(client.getConnectionStatus());
-    setState(client.getState());
-    setSubscriptions(client.getSubscriptions());
-    setPermissions(client.getPermissions());
+    try {
+      setIsConnected(client.isConnected());
+      setIsAuthenticated(client.isAuthenticated());
+      setConnectionStatus(client.getConnectionStatus());
+      setState(client.getState());
+      setSubscriptions(client.getSubscriptions());
+      setPermissions(client.getPermissions());
+    } catch (error) {
+      // Client might be in an invalid state
+      console.warn("[WebSocket] Failed to update status:", error);
+    }
   }, [getClient]);
 
   const connect = useCallback(async () => {
+    if (typeof window === "undefined") return;
+
     const client = getClient();
     if (!client) return;
 
     try {
+      setIsConnecting(true);
       await client.connect();
       updateStatus();
     } catch (error: any) {
-      console.error("Failed to connect WebSocket:", error?.message || error);
+      console.error(
+        "Failed to connect WebSocket:",
+        error?.message || error
+      );
       updateStatus();
       throw error;
+    } finally {
+      setIsConnecting(false);
     }
   }, [getClient, updateStatus]);
 
   const disconnect = useCallback(() => {
+    if (typeof window === "undefined") return;
+
     const client = getClient();
     if (!client) return;
 
@@ -104,10 +163,14 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
   }, [getClient, updateStatus]);
 
   const reset = useCallback(() => {
+    if (typeof window === "undefined") return;
+
     const client = getClient();
     if (!client) return;
 
     client.disconnect();
+    clientRef.current = null;
+
     setTimeout(() => {
       connect().catch(() => {});
     }, 1000);
@@ -115,6 +178,8 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 
   const subscribe = useCallback(
     (channels: string | string[]) => {
+      if (typeof window === "undefined") return;
+
       const client = getClient();
       if (!client) return;
 
@@ -126,6 +191,8 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 
   const unsubscribe = useCallback(
     (channels: string | string[]) => {
+      if (typeof window === "undefined") return;
+
       const client = getClient();
       if (!client) return;
 
@@ -137,6 +204,8 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 
   const sendCommand = useCallback(
     (command: string, data?: any) => {
+      if (typeof window === "undefined") return;
+
       const client = getClient();
       if (!client) return;
 
@@ -147,6 +216,8 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 
   const hasPermission = useCallback(
     (permission: string) => {
+      if (typeof window === "undefined") return false;
+
       const client = getClient();
       if (!client) return false;
 
@@ -157,66 +228,100 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 
   const on = useCallback(
     (event: string, handler: (data: any) => void) => {
+      if (typeof window === "undefined") return () => {};
+
       const client = getClient();
       if (!client) return () => {};
 
-      return client.on(event as any, handler);
+      try {
+        return client.on(event as any, handler);
+      } catch {
+        return () => {};
+      }
     },
     [getClient]
   );
 
   const off = useCallback(
     (event: string, handler?: (data: any) => void) => {
+      if (typeof window === "undefined") return;
+
       const client = getClient();
       if (!client) return;
 
-      client.off(event as any, handler);
+      try {
+        client.off(event as any, handler);
+      } catch {
+        // ignore
+      }
     },
     [getClient]
   );
 
+  // Main initialization effect — only runs in browser
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const client = getClient();
     if (!client) return;
 
-    const checkConnecting = () => {
-      setIsConnecting(client.getConnectionStatus() === "connecting");
-    };
+    const cleanups: Array<() => void> = [];
 
-    const unsubConnected = client.on("connected", () => {
-      updateStatus();
-    });
+    try {
+      const unsubConnected = client.on("connected", () => {
+        updateStatus();
+      });
+      cleanups.push(unsubConnected);
 
-    const unsubAuthenticated = client.on("authenticated", () => {
-      updateStatus();
-    });
+      const unsubAuthenticated = client.on("authenticated", () => {
+        updateStatus();
+      });
+      cleanups.push(unsubAuthenticated);
 
-    const unsubDisconnected = client.on("disconnected", () => {
-      updateStatus();
-    });
+      const unsubDisconnected = client.on("disconnected", () => {
+        updateStatus();
+      });
+      cleanups.push(unsubDisconnected);
 
-    const unsubError = client.on("error", () => {
-      updateStatus();
-    });
+      const unsubError = client.on("error", () => {
+        updateStatus();
+      });
+      cleanups.push(unsubError);
+    } catch (error) {
+      console.warn("[WebSocket] Failed to attach event listeners:", error);
+    }
 
-    const interval = setInterval(checkConnecting, 1000);
+    // Periodic status check
+    const interval = setInterval(() => {
+      try {
+        const client = getClient();
+        if (client) {
+          setIsConnecting(client.getConnectionStatus() === "connecting");
+        }
+      } catch {
+        // ignore
+      }
+    }, 1000);
 
     updateStatus();
-    checkConnecting();
 
     if (autoConnect) {
       client.connect().catch((error: any) => {
-        console.error("Failed to auto-connect WebSocket:", error?.message || error);
+        console.error(
+          "Failed to auto-connect WebSocket:",
+          error?.message || error
+        );
       });
     }
 
     return () => {
-      unsubConnected();
-      unsubAuthenticated();
-      unsubDisconnected();
-      unsubError();
+      cleanups.forEach((unsub) => {
+        try {
+          unsub();
+        } catch {
+          // ignore cleanup errors
+        }
+      });
       clearInterval(interval);
     };
   }, [autoConnect, getClient, updateStatus]);

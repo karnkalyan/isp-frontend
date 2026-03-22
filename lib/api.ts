@@ -1,3 +1,4 @@
+// lib/api.ts
 import toast from "react-hot-toast";
 
 /**
@@ -21,7 +22,7 @@ function getDynamicBaseUrl(): string {
     return "https://api.radius.kisan.net.np";
   }
 
-    if (hostname.includes("cms.arrownet.com.np")) {
+  if (hostname.includes("cms.arrownet.com.np")) {
     return "https://api.cms.arrownet.com.np";
   }
 
@@ -41,13 +42,21 @@ function getDynamicBaseUrl(): string {
  * Get WebSocket URL based on current domain
  */
 export function getWebSocketUrl(): string {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
   const baseUrl = getDynamicBaseUrl();
-  const url = new URL(baseUrl);
-  // Change the protocol to ws or wss
-  url.protocol = url.protocol.replace('http', 'ws');
-  // Change the path to /ws
-  url.pathname = '/ws';
-  return url.toString();
+  try {
+    const url = new URL(baseUrl);
+    // Change the protocol to ws or wss
+    url.protocol = url.protocol.replace("http", "ws");
+    // Change the path to /ws
+    url.pathname = "/ws";
+    return url.toString();
+  } catch {
+    return "ws://localhost:3200/ws";
+  }
 }
 
 function isClient() {
@@ -97,7 +106,7 @@ export async function apiRequest<T = any>(
   }
 
   // 401 refresh flow
-  if (response.status === 401 && !endpoint.includes('/auth/refresh')) {
+  if (response.status === 401 && !endpoint.includes("/auth/refresh")) {
     try {
       const refreshRes = await fetch(`${BASE_URL}/auth/refresh`, {
         method: "POST",
@@ -110,7 +119,8 @@ export async function apiRequest<T = any>(
         response = await fetch(url, options);
       } else {
         const payload = await parseResponsePayload(refreshRes);
-        const payloadStr = typeof payload === "string" ? payload : JSON.stringify(payload);
+        const payloadStr =
+          typeof payload === "string" ? payload : JSON.stringify(payload);
         if (isClient()) {
           toast.error("Session expired. Please login again.");
           window.location.href = "/login";
@@ -141,7 +151,8 @@ export async function apiRequest<T = any>(
   }
 
   // Success parsing
-  if (response.status === 204 || response.status === 205) return (null as unknown) as T;
+  if (response.status === 204 || response.status === 205)
+    return null as unknown as T;
 
   const contentType = response.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {

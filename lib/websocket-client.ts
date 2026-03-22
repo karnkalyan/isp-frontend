@@ -1,3 +1,4 @@
+// lib/websocket-client.ts
 import { toast } from "react-hot-toast";
 
 export type WebSocketEvent =
@@ -75,7 +76,7 @@ class WebSocketClient {
     this.heartbeatInterval = config.heartbeatInterval ?? 30000;
     this.autoConnect = config.autoConnect ?? true;
     this.autoReconnect = config.autoReconnect ?? true;
-    this.debug = config.debug ?? process.env.NODE_ENV === "development";
+    this.debug = config.debug ?? false;
 
     // Do not touch window/document during construction unless we are definitely in the browser.
     if (this.autoConnect && typeof window !== "undefined") {
@@ -100,7 +101,10 @@ class WebSocketClient {
 
     if (!this.state.isConnected && !this.isConnecting) {
       this.connect().catch((error: any) => {
-        this.warnSafe("[WebSocket] Initial connection failed:", error?.message || error);
+        this.warnSafe(
+          "[WebSocket] Initial connection failed:",
+          error?.message || error
+        );
       });
     }
 
@@ -108,9 +112,15 @@ class WebSocketClient {
       this.visibilityHandlerAttached = true;
 
       document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "visible" && !this.state.isConnected) {
+        if (
+          document.visibilityState === "visible" &&
+          !this.state.isConnected
+        ) {
           this.connect().catch((error) => {
-            this.warnSafe("[WebSocket] Reconnect on visibility failed:", error);
+            this.warnSafe(
+              "[WebSocket] Reconnect on visibility failed:",
+              error
+            );
           });
         }
       });
@@ -144,7 +154,7 @@ class WebSocketClient {
 
   async connect(): Promise<void> {
     if (!this.isBrowser()) {
-      throw new Error("WebSocketClient cannot connect on the server");
+      return Promise.resolve();
     }
 
     if (this.isConnecting && this.connectionPromise) {
@@ -160,7 +170,7 @@ class WebSocketClient {
 
     if (!wsUrl) {
       this.isConnecting = false;
-      throw new Error("WebSocket URL could not be determined");
+      return Promise.resolve();
     }
 
     this.connectionPromise = new Promise<void>((resolve, reject) => {
@@ -191,7 +201,8 @@ class WebSocketClient {
         this.ws.onerror = (error) => {
           clearTimeout(timeout);
           this.isConnecting = false;
-          const errorMsg = "WebSocket connection failed. Please check if the server is running.";
+          const errorMsg =
+            "WebSocket connection failed. Please check if the server is running.";
           this.error(errorMsg, error);
           this.emit("error", { message: errorMsg, error });
           reject(new Error(errorMsg));
@@ -282,7 +293,7 @@ class WebSocketClient {
   private handleAuthenticatedEvent(data: any) {
     this.state.isAuthenticated = true;
     this.emit("authenticated", this.state);
-    this.log("✅ Authenticated via dedicated event", data);
+    this.log("Authenticated via dedicated event", data);
   }
 
   private handleClose(event: CloseEvent) {
@@ -340,7 +351,8 @@ class WebSocketClient {
   private scheduleReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       this.error("Max reconnection attempts reached");
-      if (this.isBrowser()) toast.error("Failed to reconnect. Please refresh the page.");
+      if (this.isBrowser())
+        toast.error("Failed to reconnect. Please refresh the page.");
       return;
     }
 
@@ -350,7 +362,9 @@ class WebSocketClient {
       30000
     );
 
-    this.log(`Reconnecting in ${delay / 1000}s (attempt ${this.reconnectAttempts})`);
+    this.log(
+      `Reconnecting in ${delay / 1000}s (attempt ${this.reconnectAttempts})`
+    );
 
     setTimeout(() => {
       this.connect().catch((error) => {
@@ -402,7 +416,10 @@ class WebSocketClient {
     );
 
     if (validChannels.length === 0) {
-      console.warn("[WebSocket] No valid channels to unsubscribe from:", channels);
+      console.warn(
+        "[WebSocket] No valid channels to unsubscribe from:",
+        channels
+      );
       return;
     }
 
@@ -495,15 +512,19 @@ class WebSocketClient {
   }
 }
 
-let webSocketClient: WebSocketClient | null = null;
+// ===== SAFE SINGLETON PATTERN =====
+// Never instantiate at module level. Only create when called from browser context.
 
-export function getWebSocketClient(): WebSocketClient {
+let _webSocketClient: WebSocketClient | null = null;
+
+export function getWebSocketClient(): WebSocketClient | null {
+  // Return null on server - never throw
   if (typeof window === "undefined") {
-    throw new Error("WebSocketClient cannot be used on the server");
+    return null;
   }
 
-  if (!webSocketClient) {
-    webSocketClient = new WebSocketClient({
+  if (!_webSocketClient) {
+    _webSocketClient = new WebSocketClient({
       debug: process.env.NODE_ENV === "development",
       autoReconnect: true,
       maxReconnectAttempts: 5,
@@ -511,12 +532,12 @@ export function getWebSocketClient(): WebSocketClient {
     });
   }
 
-  return webSocketClient;
+  return _webSocketClient;
 }
 
 export function resetWebSocketClient() {
-  if (webSocketClient) {
-    webSocketClient.disconnect();
-    webSocketClient = null;
+  if (_webSocketClient) {
+    _webSocketClient.disconnect();
+    _webSocketClient = null;
   }
 }

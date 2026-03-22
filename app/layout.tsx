@@ -1,6 +1,6 @@
+// app/layout.tsx
 import type React from "react";
 import type { Metadata } from "next";
-import Script from "next/script";
 import "@/app/globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "react-hot-toast";
@@ -17,14 +17,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <Script
-          id="theme-init"
-          strategy="beforeInteractive"
+        {/* 
+          Use a regular <script> tag via dangerouslySetInnerHTML instead of next/script.
+          next/script with beforeInteractive inside <head> in the app router
+          can cause SSR issues. A raw inline script is safe because it only
+          runs in the browser when the HTML is parsed.
+        */}
+        <script
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
                 try {
-                  let theme = localStorage.getItem('theme');
+                  var theme = localStorage.getItem('theme');
                   if (!theme) {
                     theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
                     localStorage.setItem('theme', theme);
@@ -59,7 +63,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             `,
           }}
         />
-
         <link
           rel="stylesheet"
           href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
