@@ -3,16 +3,23 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: "https://api.cms.arrownet.com.np"
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: "497249566156-jed3q4fsm8ndrip7sdopqtk9gp5rh0eh.apps.googleusercontent.com"
+
     container_name: kisan-isp-frontend
     restart: always
+
     ports:
       - "3000:3000"
+
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_BASE_URL: "https://api.cms.arrownet.com.np"
-      NEXT_PUBLIC_GOOGLE_CLIENT_ID: "497249566156-jed3q4fsm8ndrip7sdopqtk9gp5rh0eh.apps.googleusercontent.com"
-      NEXT_PUBLIC_ACCESS_SECRET: "IspMainAdminPanel123@!23"
-      NEXT_PUBLIC_REFRESH_SECRET: "ispMainAdminPanelRefresh123"
+
+      # ✅ SERVER ONLY (safe)
+      ACCESS_SECRET: "IspMainAdminPanel123@!23"
+      REFRESH_SECRET: "ispMainAdminPanelRefresh123"
+
     logging:
       driver: "json-file"
       options:
