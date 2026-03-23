@@ -5009,6 +5009,36 @@ export function OLTDetailed() {
                                 </p>
                               </div>
                             </div>
+
+                            {/* Pagination */}
+                            {ontPagination.totalPages > 1 && (
+                              <div className="flex items-center justify-between mt-6">
+                                <div className="text-sm text-gray-500">
+                                  Showing {(ontPagination.page - 1) * ontPagination.limit + 1} to {Math.min(ontPagination.page * ontPagination.limit, ontPagination.total)} of {ontPagination.total} ONTs
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => fetchONTs(selectedOLT.id, ontPagination.page - 1, ontSearch, ontStatusFilter)}
+                                    disabled={!ontPagination.hasPreviousPage}
+                                  >
+                                    <ChevronLeft className="h-4 w-4" />
+                                  </Button>
+                                  <span className="text-sm">
+                                    Page {ontPagination.page} of {ontPagination.totalPages}
+                                  </span>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => fetchONTs(selectedOLT.id, ontPagination.page + 1, ontSearch, ontStatusFilter)}
+                                    disabled={!ontPagination.hasNextPage}
+                                  >
+                                    <ChevronRight className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
                           </>
                         )}
                       </div>

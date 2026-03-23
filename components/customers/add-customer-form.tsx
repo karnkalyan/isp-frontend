@@ -48,16 +48,16 @@ import { Slider } from "@/components/ui/slider"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 
-// Dynamically import Leaflet components
-import "leaflet/dist/leaflet.css"
 
+import "leaflet/dist/leaflet.css"
+import { useMapEvents, useMap } from 'react-leaflet'
+
+// Dynamically import Leaflet components
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false })
 const Circle = dynamic(() => import('react-leaflet').then(mod => mod.Circle), { ssr: false })
-const useMapEvents = dynamic(() => import('react-leaflet').then(mod => mod.useMapEvents), { ssr: false })
-const useMap = dynamic(() => import('react-leaflet').then(mod => mod.useMap), { ssr: false })
 
 // Custom icon factory function (only runs on client)
 const getCustomIcon = () => {
