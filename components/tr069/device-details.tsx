@@ -142,7 +142,7 @@ export function TR069DeviceDetails({ deviceId }: TR069DeviceDetailsProps) {
   const cpuTemp = deviceInfo?.cpuTemp || "N/A";
 
   // Parse device logs
-  const deviceLogs = deviceInfo?.deviceLog || "";
+  const deviceLogs = typeof deviceInfo?.deviceLog === "string" ? deviceInfo.deviceLog : String(deviceInfo?.deviceLog ?? "");
   const logEntries = deviceLogs.split("\n").filter((log) => log.trim() !== "");
 
   // Get WAN access configuration (using dynamic search as well)
@@ -284,7 +284,7 @@ export function TR069DeviceDetails({ deviceId }: TR069DeviceDetailsProps) {
             <div>
               {deviceInfo.parameters?.Features ? (
                 <ul className="list-disc list-inside text-sm">
-                  {deviceInfo.parameters.Features.split(",").map((feature: string, index: number) => (
+                  {String(deviceInfo.parameters.Features).split(",").map((feature: string, index: number) => (
                     <li key={index}>{feature.trim()}</li>
                   ))}
                 </ul>
