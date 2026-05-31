@@ -15,6 +15,17 @@ import { useTheme } from "next-themes"
 import { useAuth } from "@/contexts/AuthContext"
 import { apiRequest } from "@/lib/api"
 
+function GoogleIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <path fill="#4285F4" d="M21.8 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.5a4.7 4.7 0 0 1-2 3.1v2.6h3.3c1.9-1.8 3-4.4 3-7.5Z" />
+      <path fill="#34A853" d="M12 22c2.7 0 5-0.9 6.7-2.4l-3.3-2.6c-.9.6-2.1 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3v2.7A10 10 0 0 0 12 22Z" />
+      <path fill="#FBBC05" d="M6.4 13.9a6 6 0 0 1 0-3.8V7.4H3a10 10 0 0 0 0 9.2l3.4-2.7Z" />
+      <path fill="#EA4335" d="M12 5.9c1.5 0 2.8.5 3.8 1.5l2.9-2.9A9.7 9.7 0 0 0 12 2a10 10 0 0 0-9 5.4l3.4 2.7C7.2 7.7 9.4 5.9 12 5.9Z" />
+    </svg>
+  )
+}
+
 export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -104,8 +115,8 @@ export function LoginForm() {
           theme: isDarkMode ? "filled_black" : "outline",
           size: "large",
           type: "standard",
-          shape: "rectangular",
-          width: "190",
+          shape: "pill",
+          width: "360",
         });
       }
     }
@@ -238,8 +249,18 @@ export function LoginForm() {
                 <span className="bg-card/60 px-4 py-1 rounded-full text-muted-foreground border border-border/30">Or continue with</span>
               </div>
             </div>
-            <div className="mt-6 flex justify-center">
-              <div ref={googleButtonRef}></div>
+            <div className="mt-6">
+              <div className="group relative h-12 overflow-hidden rounded-xl border border-border/60 bg-background/80 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md dark:bg-white/[0.06]">
+                <div className="pointer-events-none flex h-full items-center justify-center gap-3 px-4">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-black/5">
+                    <GoogleIcon className="h-4 w-4" />
+                  </span>
+                  <span className="text-sm font-semibold text-foreground">Sign in with Google</span>
+                </div>
+                <div className="absolute inset-0 opacity-0">
+                  <div ref={googleButtonRef} className="h-full w-full" />
+                </div>
+              </div>
             </div>
           </div>
         </form>
