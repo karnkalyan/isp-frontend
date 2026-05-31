@@ -32,7 +32,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { usePathname } from "next/navigation"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { apiRequest } from "@/lib/api"
+import { apiRequest, buildApiAssetUrl } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
 
 interface SidebarProps {
@@ -55,7 +55,31 @@ type MenuCategory = {
   items: MenuItem[]
 }
 
+type SidebarBranding = {
+  sidebarLogoExpandedLightUrl?: string | null
+  sidebarLogoExpandedDarkUrl?: string | null
+  sidebarLogoCollapsedLightUrl?: string | null
+  sidebarLogoCollapsedDarkUrl?: string | null
+}
 
+type ActiveIspResponse = {
+  companyName?: string
+  name?: string
+  logoUrl?: string | null
+  sidebarBranding?: SidebarBranding
+  data?: {
+    companyName?: string
+    name?: string
+    logoUrl?: string | null
+    sidebarBranding?: SidebarBranding
+  }
+  isp?: {
+    companyName?: string
+    name?: string
+    logoUrl?: string | null
+    sidebarBranding?: SidebarBranding
+  }
+}
 
 
 // Organize menu items into categories
@@ -373,6 +397,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
   const sidebarRef = useRef<HTMLDivElement>(null)
   const [showTooltip, setShowTooltip] = useState(true)
   const [brand, setBrand] = useState<string>("ISP Manager")
+  const [sidebarBranding, setSidebarBranding] = useState<SidebarBranding>({})
   const { user, hasPermission } = useAuth()
 
   const filteredMenuCategories = useMemo(() => {
@@ -449,19 +474,13 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
 
   const ispData = async () => {
     try {
-      const response = await apiRequest("/isp/active");
-      // console.log("API Response:", response); // Debug log
-
-      // Check different possible response structures
-      if (response && response.companyName) {
-        setBrand(response.companyName);
-      } else if (response && response.data && response.data.companyName) {
-        setBrand(response.data.companyName);
-      } else if (response && response.isp && response.isp.companyName) {
-        setBrand(response.isp.companyName);
-      } else if (response && response.name) {
-        setBrand(response.name);
+      const response = await apiRequest<ActiveIspResponse>("/isp/active");
+      const isp = response?.data || response?.isp || response;
+      const companyName = isp?.companyName || isp?.name;
+      if (companyName) {
+        setBrand(companyName);
       }
+      setSidebarBranding(isp?.sidebarBranding || {});
     } catch (error) {
       console.error("Error fetching ISP data:", error);
     }
@@ -469,6 +488,16 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
 
   useEffect(() => {
     ispData()
+  }, [])
+
+  useEffect(() => {
+    const handleBrandingUpdate = (event: Event) => {
+      const branding = (event as CustomEvent<SidebarBranding>).detail
+      if (branding) setSidebarBranding(branding)
+    }
+
+    window.addEventListener("isp-sidebar-branding-updated", handleBrandingUpdate)
+    return () => window.removeEventListener("isp-sidebar-branding-updated", handleBrandingUpdate)
   }, [])
 
 
@@ -491,6 +520,17 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
 
 
   const brandInitials = useMemo(() => getBrandInitials(brand), [brand]);
+  const activeLogoUrl = useMemo(() => {
+    const logoPath = open
+      ? isDarkMode
+        ? sidebarBranding.sidebarLogoExpandedDarkUrl
+        : sidebarBranding.sidebarLogoExpandedLightUrl
+      : isDarkMode
+        ? sidebarBranding.sidebarLogoCollapsedDarkUrl
+        : sidebarBranding.sidebarLogoCollapsedLightUrl;
+
+    return buildApiAssetUrl(logoPath);
+  }, [isDarkMode, open, sidebarBranding]);
 
 
   // Add keyboard shortcut (Cmd/Ctrl + B)
@@ -625,8 +665,20 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
               borderBottom: isDarkMode ? "1px solid rgba(255, 255, 255, 0.05)" : "1px solid rgba(255, 255, 255, 0.3)",
             }}
           >
-            {open && <span className="text-xl font-bold gradient-text">{brand}</span>}
-            {!open && <span className="text-xl font-bold gradient-text">{brandInitials}</span>}
+            {activeLogoUrl ? (
+              <img
+                src={activeLogoUrl}
+                alt={brand}
+                className={cn(
+                  "block object-contain",
+                  open ? "h-9 max-w-[168px]" : "h-9 w-9"
+                )}
+              />
+            ) : open ? (
+              <span className="truncate text-xl font-bold gradient-text">{brand}</span>
+            ) : (
+              <span className="text-xl font-bold gradient-text">{brandInitials}</span>
+            )}
             {open && (
               <Button
                 variant="ghost"

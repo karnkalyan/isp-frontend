@@ -50,6 +50,22 @@ export function getWebSocketUrl(): string {
   }
 }
 
+export function buildApiAssetUrl(assetPath?: string | null): string {
+  if (!assetPath) return "";
+  if (/^https?:\/\//i.test(assetPath) || assetPath.startsWith("data:") || assetPath.startsWith("blob:")) {
+    return assetPath;
+  }
+
+  const cleanPath = assetPath.startsWith("/") ? assetPath : `/${assetPath}`;
+  const baseUrl = getDynamicBaseUrl().replace(/\/+$/, "");
+
+  if (cleanPath.startsWith("/uploads/")) {
+    return `${baseUrl}${cleanPath}`;
+  }
+
+  return cleanPath;
+}
+
 function isClient() {
   return typeof window !== "undefined" && typeof document !== "undefined";
 }

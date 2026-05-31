@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { CardContainer } from "@/components/ui/card-container"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,14 +9,59 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "react-hot-toast"
-import { Save, Loader2 } from "lucide-react"
-import { apiRequest } from "@/lib/api"
+import { Save, Loader2, Upload } from "lucide-react"
+import { apiRequest, buildApiAssetUrl } from "@/lib/api"
 
 type DiscountEntry = {
   enabled: boolean
   isPercent: boolean
   value: number // if isPercent -> 0-100, else NPR flat amount
 }
+
+type BrandingKey =
+  | "expandedLightLogo"
+  | "expandedDarkLogo"
+  | "collapsedLightLogo"
+  | "collapsedDarkLogo"
+
+type SidebarBranding = {
+  sidebarLogoExpandedLightUrl?: string | null
+  sidebarLogoExpandedDarkUrl?: string | null
+  sidebarLogoCollapsedLightUrl?: string | null
+  sidebarLogoCollapsedDarkUrl?: string | null
+}
+
+const BRANDING_FIELDS: Array<{
+  key: BrandingKey
+  settingKey: keyof SidebarBranding
+  label: string
+  helper: string
+}> = [
+  {
+    key: "expandedLightLogo",
+    settingKey: "sidebarLogoExpandedLightUrl",
+    label: "Expanded Light Logo",
+    helper: "Logo plus text for light mode sidebar",
+  },
+  {
+    key: "expandedDarkLogo",
+    settingKey: "sidebarLogoExpandedDarkUrl",
+    label: "Expanded Dark Logo",
+    helper: "Logo plus text for dark mode sidebar",
+  },
+  {
+    key: "collapsedLightLogo",
+    settingKey: "sidebarLogoCollapsedLightUrl",
+    label: "Collapsed Light Logo",
+    helper: "Small icon for light mode sidebar",
+  },
+  {
+    key: "collapsedDarkLogo",
+    settingKey: "sidebarLogoCollapsedDarkUrl",
+    label: "Collapsed Dark Logo",
+    helper: "Small icon for dark mode sidebar",
+  },
+]
 
 export function SystemSettings() {
   const [settings, setSettings] = useState({
@@ -98,6 +143,11 @@ export function SystemSettings() {
   }
 
   const [saving, setSaving] = useState(false)
+  const [brandingSaving, setBrandingSaving] = useState(false)
+  const [branding, setBranding] = useState<SidebarBranding>({})
+  const [brandingFiles, setBrandingFiles] = useState<Partial<Record<BrandingKey, File>>>({})
+  const [brandingPreviews, setBrandingPreviews] = useState<Partial<Record<BrandingKey, string>>>({})
+  const brandingPreviewsRef = useRef(brandingPreviews)
 
   // Load settings from backend on mount
   useEffect(() => {
@@ -139,6 +189,84 @@ export function SystemSettings() {
     loadSettings()
   }, [])
 
+  useEffect(() => {
+    const loadBranding = async () => {
+      try {
+        const response = await apiRequest<{ data?: { sidebarBranding?: SidebarBranding } } | any>("/isp/active")
+        const activeIsp = response?.data || response?.isp || response
+        setBranding(activeIsp?.sidebarBranding || {})
+      } catch (e) {
+        // Sidebar branding is optional; keep the text fallback when unavailable.
+      }
+    }
+    loadBranding()
+  }, [])
+
+  const handleBrandingFileChange = (key: BrandingKey, file: File | null) => {
+    setBrandingFiles((prev) => {
+      const next = { ...prev }
+      if (file) next[key] = file
+      else delete next[key]
+      return next
+    })
+
+    setBrandingPreviews((prev) => {
+      const previous = prev[key]
+      if (previous?.startsWith("blob:")) URL.revokeObjectURL(previous)
+
+      const next = { ...prev }
+      if (file) next[key] = URL.createObjectURL(file)
+      else delete next[key]
+      return next
+    })
+  }
+
+  useEffect(() => {
+    brandingPreviewsRef.current = brandingPreviews
+  }, [brandingPreviews])
+
+  useEffect(() => {
+    return () => {
+      Object.values(brandingPreviewsRef.current).forEach((preview) => {
+        if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview)
+      })
+    }
+  }, [])
+
+  const saveBranding = async () => {
+    if (Object.keys(brandingFiles).length === 0) {
+      toast.error("Select at least one logo to upload")
+      return
+    }
+
+    setBrandingSaving(true)
+    try {
+      const formData = new FormData()
+      Object.entries(brandingFiles).forEach(([key, file]) => {
+        if (file) formData.append(key, file)
+      })
+
+      const response = await apiRequest<{ data?: SidebarBranding }>("/isp/active/branding", {
+        method: "PUT",
+        body: formData,
+      })
+
+      Object.values(brandingPreviews).forEach((preview) => {
+        if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview)
+      })
+      const nextBranding = response?.data || {}
+      setBranding(nextBranding)
+      setBrandingFiles({})
+      setBrandingPreviews({})
+      window.dispatchEvent(new CustomEvent("isp-sidebar-branding-updated", { detail: nextBranding }))
+      toast.success("Sidebar logos updated successfully")
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update sidebar logos")
+    } finally {
+      setBrandingSaving(false)
+    }
+  }
+
   const saveSettings = async () => {
     if (!validate()) return
     setSaving(true)
@@ -176,6 +304,55 @@ export function SystemSettings() {
       </div>
 
       <div className="grid gap-6">
+        <CardContainer title="Sidebar Branding" description="Upload ISP logos for expanded and collapsed sidebar states">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {BRANDING_FIELDS.map((field) => {
+                const preview = brandingPreviews[field.key] || buildApiAssetUrl(branding[field.settingKey])
+                const isCollapsedLogo = field.key.includes("collapsed")
+
+                return (
+                  <div key={field.key} className="space-y-3 rounded-lg border bg-background/60 p-4">
+                    <div>
+                      <Label htmlFor={field.key}>{field.label}</Label>
+                      <p className="text-xs text-muted-foreground">{field.helper}</p>
+                    </div>
+                    <div
+                      className={`flex h-24 items-center justify-center rounded-md border border-dashed bg-muted/30 ${
+                        isCollapsedLogo ? "px-8" : "px-4"
+                      }`}
+                    >
+                      {preview ? (
+                        <img
+                          src={preview}
+                          alt={field.label}
+                          className={`object-contain ${isCollapsedLogo ? "h-12 w-12" : "h-14 max-w-full"}`}
+                        />
+                      ) : (
+                        <span className="text-sm text-muted-foreground">No logo uploaded</span>
+                      )}
+                    </div>
+                    <div>
+                      <Input
+                        id={field.key}
+                        type="file"
+                        accept="image/*"
+                        onChange={(event) => handleBrandingFileChange(field.key, event.target.files?.[0] || null)}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={saveBranding} disabled={brandingSaving} className="gap-2">
+                {brandingSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                {brandingSaving ? "Uploading..." : "Upload Sidebar Logos"}
+              </Button>
+            </div>
+          </div>
+        </CardContainer>
+
         <CardContainer title="Company Information" description="Basic company details">
           <div className="grid gap-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
