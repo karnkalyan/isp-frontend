@@ -47,6 +47,7 @@ type Device = {
   id: number
   device: string
   ipAddress: string
+  username: string
   status: string
   signal: string
   lastContact: string
@@ -157,12 +158,13 @@ export function TR069DeviceList() {
     try {
       setIsSyncing(true)
       toast.loading("Syncing with GenieACS...", { id: "sync" })
-      const response = await apiRequest<{ success: boolean; message: string; count?: number; stats?: { total: number } }>("/tr069-devices/sync", {
+      const response = await apiRequest<{ success: boolean; message: string; count?: number; stats?: { total: number; removed?: number } }>("/tr069-devices/sync", {
         method: 'POST'
       })
       if (response.success) {
-        toast.success(`Synced ${response.stats?.total ?? 0} devices successfully`, { id: "sync" })
-        fetchDevices()
+        const removed = response.stats?.removed ? `, removed ${response.stats.removed} stale` : ""
+        toast.success(`Synced ${response.stats?.total ?? 0} devices${removed}`, { id: "sync" })
+        await fetchDevices()
       } else {
         toast.error(response.message || "Sync failed", { id: "sync" })
       }
@@ -274,6 +276,7 @@ export function TR069DeviceList() {
     if (searchQuery && !d.device.toLowerCase().includes(searchQuery.toLowerCase()) && 
         !d.SerialNumber.toLowerCase().includes(searchQuery.toLowerCase()) && 
         !d.ipAddress.includes(searchQuery) && 
+        !(d.username || "").toLowerCase().includes(searchQuery.toLowerCase()) &&
         !d.ProductClass.toLowerCase().includes(searchQuery.toLowerCase()) &&
         !d.lead?.firstName.toLowerCase().includes(searchQuery.toLowerCase()) &&
         !d.lead?.lastName.toLowerCase().includes(searchQuery.toLowerCase())
@@ -397,6 +400,7 @@ export function TR069DeviceList() {
                   <TableRow className="hover:bg-transparent border-slate-200">
                     <TableHead className="font-semibold text-slate-700">Device Info</TableHead>
                     <TableHead className="font-semibold text-slate-700">Assigned User (Lead)</TableHead>
+                    <TableHead className="font-semibold text-slate-700">Username</TableHead>
                     <TableHead className="font-semibold text-slate-700">IP & Status</TableHead>
                     <TableHead className="font-semibold text-slate-700">Signal Strength</TableHead>
                     <TableHead className="font-semibold text-slate-700">Last Active</TableHead>
@@ -406,7 +410,7 @@ export function TR069DeviceList() {
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="h-64 text-center">
+                      <TableCell colSpan={7} className="h-64 text-center">
                         <div className="flex flex-col items-center justify-center gap-3">
                           <div className="relative">
                             <div className="h-12 w-12 rounded-full border-4 border-slate-100 border-t-indigo-600 animate-spin" />
@@ -418,7 +422,7 @@ export function TR069DeviceList() {
                     </TableRow>
                   ) : paginatedDevices.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="h-64 text-center">
+                      <TableCell colSpan={7} className="h-64 text-center">
                         <div className="flex flex-col items-center justify-center gap-2">
                           <div className="h-12 w-12 rounded-full bg-slate-50 flex items-center justify-center">
                             <Search className="h-6 w-6 text-slate-300" />
@@ -460,6 +464,11 @@ export function TR069DeviceList() {
                                 </div>
                               </div>
                             </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="font-mono text-xs text-slate-700">
+                              {device.username && device.username !== "N/A" ? device.username : "N/A"}
+                            </span>
                           </TableCell>
                           <TableCell>
                             {device.lead ? (
