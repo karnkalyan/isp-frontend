@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from "react-hot-toast" // Re-added toast import
 import { Upload } from "lucide-react"
 // import bcrypt from "bcryptjs" // REMOVED: Hashing should happen on backend
@@ -21,12 +22,13 @@ interface EditUserFormProps {
   user: User
   roles: Option[]
   departments: Option[]
+  branches: Option[]
   onComplete: () => void
-  onCancel: () => () => void; // Fixed type: onCancel should be a function that returns nothing, not another function
+  onCancel: () => void;
   buildAvatarUrl: (avatarPath?: string | null) => string
 }
 
-export function EditUserForm({ user, roles, departments, onComplete, onCancel, buildAvatarUrl }: EditUserFormProps) {
+export function EditUserForm({ user, roles, departments, branches, onComplete, onCancel, buildAvatarUrl }: EditUserFormProps) {
   const router = useRouter()
   const [formData, setFormData] = useState({
     name: user.name,
@@ -35,7 +37,9 @@ export function EditUserForm({ user, roles, departments, onComplete, onCancel, b
     role: String(user.role), // Keep as 'role' for frontend state
     status: user.status,
     department: user.department ? String(user.department) : "",
+    branchId: user.branchId ? String(user.branchId) : "",
   })
+  const [branchIds, setBranchIds] = useState<string[]>((user.branchIds || []).map(String))
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(
     user.avatar ? buildAvatarUrl(user.avatar) : null
@@ -56,7 +60,17 @@ export function EditUserForm({ user, roles, departments, onComplete, onCancel, b
 
   const handleSelectChange = (name: keyof typeof formData, value: string) => {
     setFormData(prev => ({ ...prev, [name]: value }))
+    if (name === "branchId") {
+      setBranchIds(prev => prev.filter(id => id !== value))
+    }
     if (errors[name as string]) setErrors(prev => ({ ...prev, [name as string]: "" }))
+  }
+
+  const toggleAdditionalBranch = (branchId: string, checked: boolean) => {
+    setBranchIds(prev => {
+      if (checked) return Array.from(new Set([...prev, branchId]))
+      return prev.filter(id => id !== branchId)
+    })
   }
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -94,6 +108,8 @@ export function EditUserForm({ user, roles, departments, onComplete, onCancel, b
     data.append("roleId", formData.role)
     data.append("status", formData.status || "")
     data.append("departmentId", formData.department || "")
+    if (formData.branchId) data.append("branchId", formData.branchId)
+    data.append("branchIds", JSON.stringify(branchIds.filter(id => id !== formData.branchId)))
     if (logoFile) data.append("profilePicture", logoFile)
   
     try {
@@ -201,6 +217,45 @@ export function EditUserForm({ user, roles, departments, onComplete, onCancel, b
               <SelectItem value="pending">Pending</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Primary Branch</Label>
+          <Select
+            value={formData.branchId}
+            onValueChange={(value) => handleSelectChange("branchId", value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select primary branch" />
+            </SelectTrigger>
+            <SelectContent>
+              {branches.map((branch) => (
+                <SelectItem key={branch.value} value={branch.value}>
+                  {branch.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <Label>Additional Branch Access</Label>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-md border p-4">
+          {branches.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No branches available</p>
+          ) : (
+            branches.map((branch) => (
+              <label key={branch.value} className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={branchIds.includes(branch.value)}
+                  disabled={branch.value === formData.branchId}
+                  onCheckedChange={(checked) => toggleAdditionalBranch(branch.value, checked === true)}
+                />
+                <span>{branch.label}</span>
+              </label>
+            ))
+          )}
         </div>
       </div>
 

@@ -1029,7 +1029,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
                             {open && isOpen && (
                               <div className="pl-10 pr-2">
                                 <div className="mt-1 space-y-1">
-                                  {item.submenu.map((subitem) => {
+                                  {item.submenu?.map((subitem) => {
                                     const isSubActive = pathname === subitem.href
                                     return (
                                       <a

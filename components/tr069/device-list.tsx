@@ -399,8 +399,8 @@ export function TR069DeviceList() {
                 <TableHeader className="bg-slate-50/50">
                   <TableRow className="hover:bg-transparent border-slate-200">
                     <TableHead className="font-semibold text-slate-700">Device Info</TableHead>
-                    <TableHead className="font-semibold text-slate-700">Assigned User (Lead)</TableHead>
                     <TableHead className="font-semibold text-slate-700">Username</TableHead>
+                    <TableHead className="font-semibold text-slate-700">Assigned User (Lead)</TableHead>
                     <TableHead className="font-semibold text-slate-700">IP & Status</TableHead>
                     <TableHead className="font-semibold text-slate-700">Signal Strength</TableHead>
                     <TableHead className="font-semibold text-slate-700">Last Active</TableHead>

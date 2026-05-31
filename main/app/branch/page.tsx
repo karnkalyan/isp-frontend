@@ -21,6 +21,11 @@ export default function BranchesPage() {
                             label: "Customer",
                             href: "/customers/list",
                             icon: BarChart3
+                        },
+                        {
+                            label: "User Access",
+                            href: "/admin/users",
+                            icon: Users
                         }
                     ]}
                 />
