@@ -112,7 +112,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
   const [savingWifi, setSavingWifi] = useState(false)
   const [creatingTicket, setCreatingTicket] = useState(false)
 
-  const serial = profile?.primaryDeviceSerial || profile?.deviceSerials?.[0] || ""
+  const serial = profile?.primaryDeviceSerial || ""
   const ssids = deviceData.wlanInfo?.data?.ssidList || []
   const selectedSsid = ssids.find((ssid: any) => ssid.instance === selectedSsidInstance) || ssids[0]
   const activeTickets = (profile?.tickets || []).filter((ticket) => !["CLOSED", "RESOLVED"].includes(String(ticket.status || "").toUpperCase()))
