@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { Suspense, useState, useEffect, useCallback } from "react"
 import { useSearchParams } from "next/navigation"
 import { CardContainer } from "@/components/ui/card-container"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
@@ -78,7 +78,7 @@ interface Ticket {
   resolution?: string
 }
 
-export default function TicketsPage() {
+function TicketsContent() {
   const searchParams = useSearchParams()
   const { branches, selectedBranchId } = useBranch()
   const { hasPermission } = useAuth()
@@ -599,5 +599,13 @@ export default function TicketsPage() {
       </div>
       </div>
     </DashboardLayout>
+  )
+}
+
+export default function TicketsPage() {
+  return (
+    <Suspense fallback={<div className="p-6">Loading tickets...</div>}>
+      <TicketsContent />
+    </Suspense>
   )
 }
