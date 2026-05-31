@@ -119,8 +119,9 @@ const menuCategories: MenuCategory[] = [
         submenu: [
           { title: "All Customers", href: "/customers/all", permission: "customer_read" },
           { title: "New Customer", href: "/customers/new", permission: "customer_create" },
-          { title: "Customer Portal", href: "/customer/portal", permission: "customer_read" },
           { title: "Customer Dashboard", href: "/customer/dashboard", permission: "customer_read" },
+          { title: "Router", href: "/customer/router", permission: "customer_read" },
+          { title: "Contact Details", href: "/customer/contact", permission: "customer_read" },
         ],
       },
       {
@@ -433,7 +434,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
 
         if (item.submenu) {
           const filteredSubmenu = item.submenu.filter(sub => {
-            const isCustomerView = sub.title === "Customer Portal" || sub.title === "Customer Dashboard"
+            const isCustomerView = sub.href.startsWith("/customer/")
             if (isCustomerView && !isCustomer) return false;
             if (!isCustomerView && isCustomer) return false;
             return canAccess(sub.permission)

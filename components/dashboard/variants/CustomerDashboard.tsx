@@ -16,8 +16,11 @@ import { Textarea } from "@/components/ui/textarea"
 
 type CustomerProfile = {
   id: number
+  idNumber?: string | null
+  panNo?: string | null
   customerUniqueId?: string | null
   status?: string | null
+  createdAt?: string | null
   primaryDeviceSerial?: string | null
   deviceSerials?: string[]
   lead?: {
@@ -26,12 +29,16 @@ type CustomerProfile = {
     lastName?: string | null
     email?: string | null
     phoneNumber?: string | null
+    secondaryContactNumber?: string | null
+    gender?: string | null
     address?: string | null
     street?: string | null
     district?: string | null
     province?: string | null
   }
+  isp?: { id: number; companyName: string } | null
   branch?: { id: number; name: string } | null
+  subBranch?: { id: number; name: string } | null
   subscribedPkg?: {
     packageName?: string | null
     price?: number | null
@@ -75,6 +82,10 @@ type DeviceData = {
   connectedInfo?: any
 }
 
+type CustomerDashboardProps = {
+  initialTab?: "overview" | "router" | "contact" | "wifi" | "billing" | "support"
+}
+
 function formatDate(value?: string | null) {
   if (!value) return "N/A"
   const date = new Date(value)
@@ -90,7 +101,7 @@ function getSsidIndex(instance?: string) {
   return match ? Number(match[1]) : 1
 }
 
-export function CustomerDashboard() {
+export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboardProps) {
   const { user } = useAuth()
   const [profile, setProfile] = useState<CustomerProfile | null>(null)
   const [deviceData, setDeviceData] = useState<DeviceData>({})
@@ -289,9 +300,11 @@ export function CustomerDashboard() {
         </CardContainer>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-4">
+      <Tabs defaultValue={initialTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="router">Router</TabsTrigger>
+          <TabsTrigger value="contact">Contact</TabsTrigger>
           <TabsTrigger value="wifi">WiFi</TabsTrigger>
           <TabsTrigger value="billing">Billing</TabsTrigger>
           <TabsTrigger value="support">Support</TabsTrigger>
@@ -337,6 +350,114 @@ export function CustomerDashboard() {
               ) : (
                 <p className="text-sm text-muted-foreground">No connected devices reported by the ONT.</p>
               )}
+            </CardContainer>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="router" className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <CardContainer title="Current ONT / TR069">
+              <InfoGrid
+                rows={[
+                  ["Serial Number", serial || "N/A"],
+                  ["Status", deviceInfo?.status || profile.tr069Devices?.[0]?.status || "N/A"],
+                  ["Manufacturer", deviceInfo?.manufacturer || profile.tr069Devices?.[0]?.manufacturer || "N/A"],
+                  ["Product Class", deviceInfo?.productClass || profile.tr069Devices?.[0]?.productClass || "N/A"],
+                  ["Model", deviceInfo?.deviceInfo?.modelName || profile.tr069Devices?.[0]?.modelName || "N/A"],
+                  ["Firmware", deviceInfo?.deviceInfo?.softwareVersion || deviceInfo?.deviceInfo?.firmwareVersion || "N/A"],
+                  ["RX Power", deviceInfo?.deviceInfo?.rxPower || "N/A"],
+                  ["Last Contact", formatDate(deviceInfo?.lastContact || profile.tr069Devices?.[0]?.lastContact)],
+                ]}
+              />
+            </CardContainer>
+
+            <CardContainer title="WAN & PPPoE">
+              <InfoGrid
+                rows={[
+                  ["PPPoE Username", wanConnection?.username || profile.connectionUsers?.[0]?.username || "N/A"],
+                  ["WAN IP", wanConnection?.externalIPAddress || wanConnection?.ipAddress || profile.tr069Devices?.[0]?.ipAddress || "N/A"],
+                  ["Connection Type", wanConnection?.connectionType || wanConnection?.type || "N/A"],
+                  ["Service List", wanConnection?.serviceList || "N/A"],
+                  ["NAT Enabled", String(wanConnection?.natEnabled ?? "N/A")],
+                  ["Uptime", deviceInfo?.uptime || deviceInfo?.deviceInfo?.uptime || "N/A"],
+                ]}
+              />
+            </CardContainer>
+
+            <CardContainer title="WiFi Networks">
+              {ssids.length > 0 ? (
+                <div className="space-y-3">
+                  {ssids.map((ssid: any) => (
+                    <div key={ssid.instance} className="rounded-md border p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="font-medium">{ssid.ssid || "Unnamed SSID"}</div>
+                          <div className="text-xs text-muted-foreground">{ssid.beaconType || "Security N/A"} - Channel {ssid.channel || "N/A"}</div>
+                        </div>
+                        <Badge variant={ssid.enable ? "success" : "secondary"}>{ssid.status || (ssid.enable ? "Enabled" : "Disabled")}</Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">{serial ? "No WiFi networks found." : "No linked ONT serial found."}</p>
+              )}
+            </CardContainer>
+
+            <CardContainer title="Connected Devices">
+              {deviceLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading router data...
+                </div>
+              ) : connectedDevices.length > 0 ? (
+                <div className="space-y-2">
+                  {connectedDevices.map((client: any, index: number) => (
+                    <div key={`${client.macAddress}-${index}`} className="flex items-center justify-between rounded-md border p-3">
+                      <div>
+                        <div className="font-medium">{client.hostName || "Unknown device"}</div>
+                        <div className="text-xs text-muted-foreground">{client.macAddress || "N/A"} - {client.type || "Client"}</div>
+                      </div>
+                      <Badge variant={client.active ? "success" : "secondary"}>{client.ipAddress || "N/A"}</Badge>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No connected devices reported by the ONT.</p>
+              )}
+            </CardContainer>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="contact" className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <CardContainer title="Customer Contact Details">
+              <InfoGrid
+                rows={[
+                  ["Full Name", customerName],
+                  ["Email", profile.lead?.email || "N/A"],
+                  ["Primary Phone", profile.lead?.phoneNumber || "N/A"],
+                  ["Secondary Phone", profile.lead?.secondaryContactNumber || "N/A"],
+                  ["Gender", profile.lead?.gender || "N/A"],
+                  ["Customer ID", profile.customerUniqueId || "N/A"],
+                  ["ID Number", profile.idNumber || "N/A"],
+                  ["PAN Number", profile.panNo || "N/A"],
+                ]}
+              />
+            </CardContainer>
+
+            <CardContainer title="Address & Account">
+              <InfoGrid
+                rows={[
+                  ["Address", profile.lead?.address || "N/A"],
+                  ["Street", profile.lead?.street || "N/A"],
+                  ["District", profile.lead?.district || "N/A"],
+                  ["Province", profile.lead?.province || "N/A"],
+                  ["ISP", profile.isp?.companyName || "N/A"],
+                  ["Branch", profile.branch?.name || "N/A"],
+                  ["Sub Branch", profile.subBranch?.name || "N/A"],
+                  ["Joined", formatDate(profile.createdAt)],
+                ]}
+              />
             </CardContainer>
           </div>
         </TabsContent>
@@ -465,7 +586,7 @@ export function CustomerDashboard() {
                           <Ticket className="mt-1 h-4 w-4 shrink-0 text-primary" />
                           <div className="min-w-0 space-y-1">
                             <div className="font-medium">{ticketItem.title}</div>
-                          <div className="text-xs text-muted-foreground">#{ticketItem.ticketNumber} · {formatDate(ticketItem.createdAt)}</div>
+                          <div className="text-xs text-muted-foreground">#{ticketItem.ticketNumber} - {formatDate(ticketItem.createdAt)}</div>
                         </div>
                       </div>
                         <Badge variant="outline" className="shrink-0">{ticketItem.status}</Badge>
