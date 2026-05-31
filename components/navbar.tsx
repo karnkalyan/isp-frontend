@@ -12,6 +12,7 @@ import { SearchModal } from "@/components/layout/search-modal";
 import { MessagesDropdown } from "@/components/layout/messages-dropdown";
 import { NotificationsDropdown } from "@/components/layout/notifications-dropdown";
 import { InquiryDialog } from "@/components/layout/inquery";
+import { BranchSwitcher } from "@/components/layout/branch-switcher";
 
 interface NavbarProps {
   onMenuClick: () => void;
@@ -95,6 +96,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
             <Button variant="ghost" size="icon" onClick={onMenuClick} aria-label="Toggle menu">
               <Menu className="h-5 w-5" />
             </Button>
+            <BranchSwitcher className="hidden lg:flex" />
           </div>
 
           {/* Search */}

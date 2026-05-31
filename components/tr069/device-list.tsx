@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { CardContainer } from "@/components/ui/card-container"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -8,7 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   Search, Filter, MoreVertical, Router, ExternalLink, AlertCircle,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-  Power, PowerOff, Signal, SignalHigh, SignalMedium, SignalLow, X, RefreshCw
+  Power, PowerOff, Signal, SignalHigh, SignalMedium, SignalLow, X, RefreshCw,
+  User, UserPlus, UserMinus, Link2, Info, CheckCircle2
 } from "lucide-react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
@@ -39,8 +40,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { toast } from "react-hot-toast"
+import { CustomerLinkDialog } from "./customer-link-dialog"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 type Device = {
+  id: number
   device: string
   ipAddress: string
   status: string
@@ -51,6 +55,14 @@ type Device = {
   Manufacturer: string
   SerialNumber: string
   OUI: string
+  leadId: number | null
+  lead?: {
+    id: number
+    firstName: string
+    lastName: string
+    phoneNumber: string
+    status: string
+  }
 }
 
 type ApiResponse = {
@@ -64,6 +76,7 @@ type FilterOptions = {
   signalStatus: string[]
   manufacturer: string[]
   productClass: string[]
+  linked: string // "all" | "linked" | "unlinked"
 }
 
 type SignalInfo = {
@@ -79,6 +92,7 @@ export function TR069DeviceList() {
   const [searchQuery, setSearchQuery] = useState("")
   const [devices, setDevices] = useState<Device[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isSyncing, setIsSyncing] = useState(false)
   const [rebootInProgress, setRebootInProgress] = useState<string | null>(null)
 
   // Pagination state
@@ -90,76 +104,88 @@ export function TR069DeviceList() {
     status: [],
     signalStatus: [],
     manufacturer: [],
-    productClass: []
+    productClass: [],
+    linked: "all"
   })
 
-  // Reboot confirmation dialog state
+  // Dialog states
   const [rebootDialogOpen, setRebootDialogOpen] = useState(false)
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false)
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null)
 
   // Available filter options
-  const [availableFilters, setAvailableFilters] = useState<FilterOptions>({
+  const [availableFilters, setAvailableFilters] = useState<Omit<FilterOptions, 'linked'>>({
     status: [],
     signalStatus: [],
     manufacturer: [],
     productClass: []
   })
 
-  useEffect(() => {
-    const fetchDevices = async () => {
-      try {
-        setIsLoading(true)
-        const data = await apiRequest<ApiResponse>("/services/genieacs/devices")
-        if (data.success) {
-          setDevices(data.devices)
+  const fetchDevices = useCallback(async () => {
+    try {
+      setIsLoading(true)
+      const data = await apiRequest<ApiResponse>("/tr069-devices")
+      if (data.success) {
+        setDevices(data.devices)
 
-          // Extract available filter options from devices
-          const manufacturers = [...new Set(data.devices.map(d => d.Manufacturer).filter(Boolean))]
-          const productClasses = [...new Set(data.devices.map(d => d.ProductClass).filter(Boolean))]
-          const statuses = [...new Set(data.devices.map(d => d.status).filter(Boolean))]
-          const signalStatuses = ["Good", "Warning", "Critical", "N/A"]
+        // Extract available filter options
+        const manufacturers = Array.from(new Set(data.devices.map(d => d.Manufacturer).filter(Boolean)))
+        const productClasses = Array.from(new Set(data.devices.map(d => d.ProductClass).filter(Boolean)))
+        const statuses = Array.from(new Set(data.devices.map(d => d.status).filter(Boolean)))
+        const signalStatuses = ["Good", "Warning", "Critical", "N/A"]
 
-          setAvailableFilters({
-            status: statuses,
-            signalStatus: signalStatuses,
-            manufacturer: manufacturers,
-            productClass: productClasses
-          })
-        }
-      } catch (err) {
-        console.error("Failed to load devices:", err)
-        toast.error("Failed to load devices")
-      } finally {
-        setIsLoading(false)
+        setAvailableFilters({
+          status: statuses,
+          signalStatus: signalStatuses,
+          manufacturer: manufacturers,
+          productClass: productClasses
+        })
       }
+    } catch (err) {
+      console.error("Failed to load devices:", err)
+      toast.error("Failed to load devices from local database")
+    } finally {
+      setIsLoading(false)
     }
-
-    fetchDevices()
   }, [])
 
-  // Reboot device function
+  useEffect(() => {
+    fetchDevices()
+  }, [fetchDevices])
+
+  const syncDevices = async () => {
+    try {
+      setIsSyncing(true)
+      toast.loading("Syncing with GenieACS...", { id: "sync" })
+      const response = await apiRequest<{ success: boolean; message: string; count?: number; stats?: { total: number } }>("/tr069-devices/sync", {
+        method: 'POST'
+      })
+      if (response.success) {
+        toast.success(`Synced ${response.stats?.total ?? 0} devices successfully`, { id: "sync" })
+        fetchDevices()
+      } else {
+        toast.error(response.message || "Sync failed", { id: "sync" })
+      }
+    } catch (err) {
+      console.error("Sync error:", err)
+      toast.error("Failed to sync with GenieACS", { id: "sync" })
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
   const rebootDevice = async (serialNumber: string) => {
+    if (!selectedDevice) return
     try {
       setRebootInProgress(serialNumber)
-
       const response = await apiRequest<{ success: boolean; message: string }>(
         `/services/genieacs/devices/${serialNumber}/reboot`,
-        {
-          method: 'POST',
-        }
+        { method: 'POST' }
       )
 
       if (response.success) {
-        toast.success(`Reboot command sent successfully to ${selectedDevice?.device || 'device'}`)
-
-        // Update device status to show reboot in progress
-        setDevices(prevDevices =>
-          prevDevices.map(device =>
-            device.SerialNumber === serialNumber
-              ? { ...device, status: 'Rebooting...' }
-              : device
-          )
-        )
+        toast.success(`Reboot command sent successfully to ${selectedDevice.device}`)
+        setDevices(prev => prev.map(d => d.SerialNumber === serialNumber ? { ...d, status: 'Rebooting...' } : d))
       } else {
         toast.error(response.message || 'Failed to reboot device')
       }
@@ -173,534 +199,373 @@ export function TR069DeviceList() {
     }
   }
 
-  // Handle reboot confirmation
-  const confirmReboot = (device: Device) => {
-    setSelectedDevice(device)
-    setRebootDialogOpen(true)
+  const handleUnlink = async (device: Device) => {
+    if (!confirm(`Are you sure you want to unlink lead from device ${device.device || device.SerialNumber}?`)) return
+    try {
+      const response = await apiRequest<{ success: boolean; message: string }>(
+        `/tr069-devices/${device.SerialNumber}/unlink-lead`,
+        { method: 'POST' }
+      )
+      if (response.success) {
+        toast.success("Lead unlinked successfully")
+        fetchDevices()
+      } else {
+        toast.error(response.message || "Failed to unlink lead")
+      }
+    } catch (err) {
+      toast.error("Error unlinking lead")
+    }
   }
 
-  // Parse signal strength to numeric value
+  // Parse signal strength and helpers
   const parseSignalStrength = (signal: string): number | null => {
     if (signal === "N/A dBm" || !signal || signal === "N/A") return null
     const match = signal.match(/([+-]?\d+(?:\.\d+)?)/)
     return match ? parseFloat(match[1]) : null
   }
 
-  // Get signal status, color, and percentage for display
   const getSignalInfo = (signal: string): SignalInfo => {
     const signalValue = parseSignalStrength(signal)
-
     if (signalValue === null) {
-      return {
-        percent: 0,
-        color: "bg-gray-500",
-        textColor: "text-gray-500",
-        status: "N/A",
-        icon: null,
-        signalValue: null
-      }
+      return { percent: 0, color: "bg-gray-500", textColor: "text-gray-500", status: "N/A", icon: null, signalValue: null }
     }
-
     const percentage = Math.min(100, Math.max(0, ((signalValue + 90) * (100 / 70))))
     const percent = Math.round(percentage)
-
-    // Critical: below -24 dBm or above -18 dBm
     if (signalValue < -24 || signalValue > -18) {
-      return {
-        percent,
-        color: "bg-red-500",
-        textColor: "text-red-500",
-        status: "Critical",
-        icon: AlertCircle,
-        signalValue
-      }
+      return { percent, color: "bg-red-500", textColor: "text-red-500", status: "Critical", icon: AlertCircle, signalValue }
+    } else if (signalValue < -22 || signalValue > -19) {
+      return { percent, color: "bg-amber-500", textColor: "text-amber-500", status: "Warning", icon: null, signalValue }
+    } else {
+      return { percent, color: "bg-green-500", textColor: "text-green-500", status: "Good", icon: null, signalValue }
     }
-    // Warning: between -24 to -22 dBm OR -19 to -18 dBm
-    else if (signalValue < -22 || signalValue > -19) {
-      return {
-        percent,
-        color: "bg-amber-500",
-        textColor: "text-amber-500",
-        status: "Warning",
-        icon: null,
-        signalValue
-      }
-    }
-    // Good: between -22 to -19 dBm
-    else {
-      return {
-        percent,
-        color: "bg-green-500",
-        textColor: "text-green-500",
-        status: "Good",
-        icon: null,
-        signalValue
-      }
-    }
-  }
-
-  // Get signal status from signal string
-  const getSignalStatus = (signal: string): string => {
-    const signalInfo = getSignalInfo(signal)
-    return signalInfo.status
-  }
-
-  // Format last contact time
-  const formatLastContact = (lastContact: string): string => {
-    const date = new Date(lastContact)
-    return date.toLocaleString('en-US', {
-      month: '2-digit',
-      day: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    }).replace(',', '')
-  }
-
-  // Format uptime display
-  const formatUptime = (uptime: string): string => {
-    if (uptime === "N/A") return "0d 0h 0m"
-    return uptime
   }
 
   const getStatusVariant = (status: string): "success" | "warning" | "destructive" | "secondary" => {
-    const statusLower = status.toLowerCase()
-    if (statusLower.includes("online")) return "success"
-    if (statusLower.includes("offline")) return "destructive"
-    if (statusLower.includes("reboot")) return "warning"
-    if (statusLower.includes("pending") || statusLower.includes("provisioning")) return "warning"
+    const s = status.toLowerCase()
+    if (s.includes("online")) return "success"
+    if (s.includes("offline")) return "destructive"
+    if (s.includes("reboot") || s.includes("pending") || s.includes("provisioning")) return "warning"
     return "secondary"
   }
 
-  const getSignalIcon = (signalStatus: string) => {
-    switch (signalStatus) {
-      case "Good":
-        return <SignalHigh className="h-4 w-4 text-green-500" />
-      case "Warning":
-        return <SignalMedium className="h-4 w-4 text-amber-500" />
-      case "Critical":
-        return <SignalLow className="h-4 w-4 text-red-500" />
-      default:
-        return <Signal className="h-4 w-4 text-gray-500" />
-    }
-  }
-
-  // Toggle filter
   const toggleFilter = (type: keyof FilterOptions, value: string) => {
     setFilters(prev => ({
       ...prev,
-      [type]: prev[type].includes(value)
-        ? prev[type].filter(v => v !== value)
-        : [...prev[type], value]
+      [type]: (type === 'linked') ? value : 
+              (prev[type as keyof Omit<FilterOptions, 'linked'>].includes(value)
+                ? (prev[type as keyof Omit<FilterOptions, 'linked'>] as string[]).filter(v => v !== value)
+                : [...(prev[type as keyof Omit<FilterOptions, 'linked'>] as string[]), value])
     }))
-    setCurrentPage(1) // Reset to first page when filter changes
-  }
-
-  // Clear all filters
-  const clearFilters = () => {
-    setFilters({
-      status: [],
-      signalStatus: [],
-      manufacturer: [],
-      productClass: []
-    })
     setCurrentPage(1)
   }
 
-  // Check if any filters are active
+  const clearFilters = () => {
+    setFilters({ status: [], signalStatus: [], manufacturer: [], productClass: [], linked: "all" })
+    setCurrentPage(1)
+  }
+
   const hasActiveFilters = () => {
-    return Object.values(filters).some(arr => arr.length > 0)
+    return filters.status.length > 0 || filters.signalStatus.length > 0 || 
+           filters.manufacturer.length > 0 || filters.productClass.length > 0 || 
+           filters.linked !== "all"
   }
 
-  // Apply filters to devices
-  const applyFilters = (devices: Device[]) => {
-    return devices.filter(device => {
-      // Status filter
-      if (filters.status.length > 0 && !filters.status.includes(device.status)) {
-        return false
-      }
+  const filteredDevices = devices.filter(d => {
+    if (searchQuery && !d.device.toLowerCase().includes(searchQuery.toLowerCase()) && 
+        !d.SerialNumber.toLowerCase().includes(searchQuery.toLowerCase()) && 
+        !d.ipAddress.includes(searchQuery) && 
+        !d.ProductClass.toLowerCase().includes(searchQuery.toLowerCase()) &&
+        !d.lead?.firstName.toLowerCase().includes(searchQuery.toLowerCase()) &&
+        !d.lead?.lastName.toLowerCase().includes(searchQuery.toLowerCase())
+    ) return false
 
-      // Signal status filter
-      if (filters.signalStatus.length > 0) {
-        const signalStatus = getSignalStatus(device.signal)
-        if (!filters.signalStatus.includes(signalStatus)) {
-          return false
-        }
-      }
+    if (filters.status.length > 0 && !filters.status.includes(d.status)) return false
+    if (filters.signalStatus.length > 0 && !filters.signalStatus.includes(getSignalInfo(d.signal).status)) return false
+    if (filters.manufacturer.length > 0 && !filters.manufacturer.includes(d.Manufacturer)) return false
+    if (filters.productClass.length > 0 && !filters.productClass.includes(d.ProductClass)) return false
+    
+    if (filters.linked === "linked" && !d.leadId) return false
+    if (filters.linked === "unlinked" && d.leadId) return false
 
-      // Manufacturer filter
-      if (filters.manufacturer.length > 0 && !filters.manufacturer.includes(device.Manufacturer)) {
-        return false
-      }
+    return true
+  })
 
-      // Product class filter
-      if (filters.productClass.length > 0 && !filters.productClass.includes(device.ProductClass)) {
-        return false
-      }
-
-      return true
-    })
-  }
-
-  // Apply search and filters to devices
-  const filterDevices = (devices: Device[]) => {
-    // First apply search
-    let filtered = devices.filter(
-      (device) =>
-        device.device.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        device.SerialNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (device.ipAddress !== "N/A" && device.ipAddress.includes(searchQuery)) ||
-        device.ProductClass.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-
-    // Then apply filters
-    filtered = applyFilters(filtered)
-
-    return filtered
-  }
-
-  const filteredDevices = filterDevices(devices)
-
-  // Pagination calculations
   const totalPages = Math.ceil(filteredDevices.length / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  const paginatedDevices = filteredDevices.slice(startIndex, endIndex)
-
-  // Handle page changes
-  const goToPage = (page: number) => {
-    setCurrentPage(Math.max(1, Math.min(page, totalPages)))
-  }
+  const paginatedDevices = filteredDevices.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 
   return (
-    <>
+    <TooltipProvider>
       <CardContainer
-        title="Device Status"
-        description="View and manage all customer premises equipment"
-        gradientColor="#6366f1"
+        title="Network Devices (TR069)"
+        description="Monitor and manage customer premises equipment synced from GenieACS"
+        gradientColor="#4f46e5"
       >
-        <div className="flex flex-col gap-4">
-          {/* Search and Filter Bar */}
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-            <div className="flex gap-2 flex-1">
-              <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <div className="flex flex-col gap-5">
+          {/* Header Actions */}
+          <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4">
+            <div className="flex flex-1 gap-2">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search devices by name, serial, IP or model..."
-                  className="pl-8"
+                  placeholder="Search by device, SN, IP or lead..."
+                  className="pl-9 h-10 border-slate-200 focus-visible:ring-indigo-500"
                   value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value)
-                    setCurrentPage(1)
-                  }}
+                  onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
                 />
               </div>
 
-              {/* Filter Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon" className="relative">
-                    <Filter className="h-4 w-4" />
-                    {hasActiveFilters() && (
-                      <span className="absolute -top-1 -right-1 h-3 w-3 bg-primary rounded-full" />
-                    )}
+                  <Button variant="outline" className="h-10 px-3 gap-2 border-slate-200">
+                    <Filter className="h-4 w-4 text-slate-500" />
+                    <span className="hidden sm:inline">Filters</span>
+                    {hasActiveFilters() && <Badge variant="default" className="ml-1 h-5 px-1.5 min-w-[20px] bg-indigo-600">!</Badge>}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>Filter Devices</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-
-                  {/* Status Filters */}
-                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                    Status
+                <DropdownMenuContent align="end" className="w-64 p-2">
+                  <DropdownMenuLabel className="flex justify-between items-center">
+                    Filter Options
+                    {hasActiveFilters() && (
+                      <Button variant="ghost" size="sm" onClick={clearFilters} className="h-7 px-2 text-xs text-indigo-600 hover:text-indigo-700">
+                        Reset
+                      </Button>
+                    )}
                   </DropdownMenuLabel>
-                  {availableFilters.status.map(status => (
-                    <DropdownMenuCheckboxItem
-                      key={status}
-                      checked={filters.status.includes(status)}
-                      onCheckedChange={() => toggleFilter('status', status)}
-                    >
-                      <div className="flex items-center gap-2">
-                        {status.toLowerCase().includes('online') ? (
-                          <Power className="h-3.5 w-3.5 text-green-500" />
-                        ) : (
-                          <PowerOff className="h-3.5 w-3.5 text-red-500" />
-                        )}
-                        <span>{status}</span>
-                      </div>
-                    </DropdownMenuCheckboxItem>
-                  ))}
-
                   <DropdownMenuSeparator />
-
-                  {/* Signal Status Filters */}
-                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                    Signal Strength
-                  </DropdownMenuLabel>
-                  {availableFilters.signalStatus.map(status => (
-                    <DropdownMenuCheckboxItem
-                      key={status}
-                      checked={filters.signalStatus.includes(status)}
-                      onCheckedChange={() => toggleFilter('signalStatus', status)}
-                    >
-                      <div className="flex items-center gap-2">
-                        {getSignalIcon(status)}
-                        <span className={`
-                          ${status === 'Good' ? 'text-green-500' : ''}
-                          ${status === 'Warning' ? 'text-amber-500' : ''}
-                          ${status === 'Critical' ? 'text-red-500' : ''}
-                          ${status === 'N/A' ? 'text-gray-500' : ''}
-                        `}>
-                          {status}
-                        </span>
+                  
+                  <div className="p-1 space-y-4">
+                    <div>
+                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Linking Status</p>
+                      <div className="flex flex-wrap gap-1">
+                        {["all", "linked", "unlinked"].map(val => (
+                          <Badge 
+                            key={val} 
+                            variant={filters.linked === val ? "default" : "outline"}
+                            className={`cursor-pointer capitalize ${filters.linked === val ? "bg-indigo-600" : "text-slate-600"}`}
+                            onClick={() => toggleFilter('linked', val)}
+                          >
+                            {val}
+                          </Badge>
+                        ))}
                       </div>
-                    </DropdownMenuCheckboxItem>
-                  ))}
+                    </div>
 
-                  <DropdownMenuSeparator />
-
-                  {/* Manufacturer Filters */}
-                  {availableFilters.manufacturer.length > 0 && (
-                    <>
-                      <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                        Manufacturer
-                      </DropdownMenuLabel>
-                      {availableFilters.manufacturer.slice(0, 5).map(mfr => (
-                        <DropdownMenuCheckboxItem
-                          key={mfr}
-                          checked={filters.manufacturer.includes(mfr)}
-                          onCheckedChange={() => toggleFilter('manufacturer', mfr)}
-                        >
-                          {mfr}
-                        </DropdownMenuCheckboxItem>
-                      ))}
-                      {availableFilters.manufacturer.length > 5 && (
-                        <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                          +{availableFilters.manufacturer.length - 5} more
-                        </div>
-                      )}
-                      <DropdownMenuSeparator />
-                    </>
-                  )}
-
-                  {/* Clear Filters */}
-                  {hasActiveFilters() && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={clearFilters} className="text-destructive">
-                        <X className="h-4 w-4 mr-2" />
-                        Clear Filters
-                      </DropdownMenuItem>
-                    </>
-                  )}
+                    <div>
+                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Connection Status</p>
+                      <div className="grid grid-cols-2 gap-1">
+                        {availableFilters.status.map(s => (
+                          <div key={s} className="flex items-center gap-2 px-1">
+                            <DropdownMenuCheckboxItem
+                              checked={filters.status.includes(s)}
+                              onCheckedChange={() => toggleFilter('status', s)}
+                              className="text-xs p-1 h-8"
+                            >
+                              {s}
+                            </DropdownMenuCheckboxItem>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
 
-            <div className="flex items-center gap-4">
-              {/* Active Filters Display */}
-              {hasActiveFilters() && (
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="text-muted-foreground">Filters:</span>
-                  <div className="flex gap-1 flex-wrap">
-                    {filters.status.map(status => (
-                      <Badge key={status} variant="secondary" className="text-xs">
-                        {status}
-                        <button
-                          className="ml-1 hover:text-foreground"
-                          onClick={() => toggleFilter('status', status)}
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                    {filters.signalStatus.map(status => (
-                      <Badge key={status} variant="secondary" className="text-xs">
-                        {status}
-                        <button
-                          className="ml-1 hover:text-foreground"
-                          onClick={() => toggleFilter('signalStatus', status)}
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                    {filters.manufacturer.map(mfr => (
-                      <Badge key={mfr} variant="secondary" className="text-xs">
-                        {mfr}
-                        <button
-                          className="ml-1 hover:text-foreground"
-                          onClick={() => toggleFilter('manufacturer', mfr)}
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div className="text-sm text-muted-foreground whitespace-nowrap">
-                Total: {filteredDevices.length} devices
-                {filteredDevices.length !== devices.length && (
-                  <span className="text-xs ml-1">(filtered)</span>
-                )}
+            <div className="flex items-center gap-2">
+              <Button 
+                onClick={syncDevices} 
+                disabled={isSyncing}
+                variant="outline"
+                className="h-10 gap-2 border-indigo-200 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-50"
+              >
+                <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                {isSyncing ? "Syncing..." : "Sync from GenieACS"}
+              </Button>
+              <div className="h-8 w-[1px] bg-slate-200 mx-2 hidden lg:block" />
+              <div className="text-right">
+                <p className="text-xs font-medium text-slate-500">Total Devices</p>
+                <p className="text-sm font-bold text-slate-900">{filteredDevices.length} <span className="text-[10px] font-normal text-slate-400">of {devices.length}</span></p>
               </div>
             </div>
           </div>
 
-          {/* Devices Table */}
-          <div className="rounded-md border overflow-hidden">
+          {/* Device Table */}
+          <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm">
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Device</TableHead>
-                    <TableHead>IP Address</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Signal</TableHead>
-                    <TableHead>Last Contact</TableHead>
-                    <TableHead>Uptime</TableHead>
-                    <TableHead className="w-[50px]"></TableHead>
+                <TableHeader className="bg-slate-50/50">
+                  <TableRow className="hover:bg-transparent border-slate-200">
+                    <TableHead className="font-semibold text-slate-700">Device Info</TableHead>
+                    <TableHead className="font-semibold text-slate-700">Assigned User (Lead)</TableHead>
+                    <TableHead className="font-semibold text-slate-700">IP & Status</TableHead>
+                    <TableHead className="font-semibold text-slate-700">Signal Strength</TableHead>
+                    <TableHead className="font-semibold text-slate-700">Last Active</TableHead>
+                    <TableHead className="w-[60px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-10">
-                        <div className="flex justify-center">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                      <TableCell colSpan={6} className="h-64 text-center">
+                        <div className="flex flex-col items-center justify-center gap-3">
+                          <div className="relative">
+                            <div className="h-12 w-12 rounded-full border-4 border-slate-100 border-t-indigo-600 animate-spin" />
+                            <Router className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-5 w-5 text-indigo-200" />
+                          </div>
+                          <p className="text-sm text-slate-500 animate-pulse">Fetching devices...</p>
                         </div>
-                        <p className="text-muted-foreground mt-2">Loading devices...</p>
                       </TableCell>
                     </TableRow>
                   ) : paginatedDevices.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
-                        {devices.length === 0 ? "No devices found." : "No matching devices found."}
-                        {hasActiveFilters() && (
-                          <Button
-                            variant="link"
-                            className="ml-2"
-                            onClick={clearFilters}
-                          >
-                            Clear filters
-                          </Button>
-                        )}
+                      <TableCell colSpan={6} className="h-64 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <div className="h-12 w-12 rounded-full bg-slate-50 flex items-center justify-center">
+                            <Search className="h-6 w-6 text-slate-300" />
+                          </div>
+                          <p className="text-sm font-medium text-slate-900">No devices found</p>
+                          <p className="text-xs text-slate-500">Try adjusting your filters or search query</p>
+                          {hasActiveFilters() && (
+                            <Button variant="link" size="sm" onClick={clearFilters} className="text-indigo-600 mt-2">
+                              Clear all filters
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ) : (
                     paginatedDevices.map((device) => {
-                      const signalInfo = getSignalInfo(device.signal)
-                      const lastContactFormatted = formatLastContact(device.lastContact)
-                      const uptimeFormatted = formatUptime(device.uptime)
-                      const statusVariant = getStatusVariant(device.status)
-                      const SignalIcon = signalInfo.icon
+                      const signal = getSignalInfo(device.signal)
                       const isRebooting = rebootInProgress === device.SerialNumber
+                      const statusVariant = getStatusVariant(device.status)
 
                       return (
-                        <TableRow key={device.SerialNumber} className={isRebooting ? "opacity-50" : ""}>
+                        <TableRow key={device.id} className={`group hover:bg-slate-50/50 transition-colors ${isRebooting ? "opacity-50" : ""}`}>
                           <TableCell>
-                            <div className="flex items-center gap-3">
-                              <div className="rounded-md bg-slate-100 dark:bg-slate-800 p-1.5">
+                            <div className="flex items-center gap-4">
+                              <div className="h-10 w-10 rounded-lg bg-slate-100 flex items-center justify-center group-hover:bg-white border border-transparent group-hover:border-slate-200 transition-all shadow-sm">
                                 <Router className="h-5 w-5 text-slate-500" />
                               </div>
-                              <div>
+                              <div className="space-y-0.5">
                                 <Link
                                   href={`/tr069/device/${device.SerialNumber}`}
-                                  className="font-medium hover:underline"
+                                  className="font-semibold text-slate-900 hover:underline hover:text-indigo-600 block"
                                 >
                                   {device.device}
                                 </Link>
-                                <div className="text-xs text-muted-foreground">
-                                  {device.ProductClass}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  SN: {device.SerialNumber}
+                                <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                                  <span className="font-mono">SN: {device.SerialNumber}</span>
+                                  <span className="h-1 w-1 rounded-full bg-slate-200" />
+                                  <span>{device.ProductClass}</span>
                                 </div>
                               </div>
                             </div>
                           </TableCell>
                           <TableCell>
-                            {device.ipAddress === "N/A" ? (
-                              <span className="text-muted-foreground">N/A</span>
+                            {device.lead ? (
+                              <div className="flex items-center gap-3">
+                                <div className="h-8 w-8 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center">
+                                  <User className="h-4 w-4 text-indigo-600" />
+                                </div>
+                                <div className="space-y-0.5">
+                                  <Link 
+                                    href={`/leads/${device.leadId}`}
+                                    className="text-sm font-medium text-slate-900 hover:underline"
+                                  >
+                                    {device.lead.firstName} {device.lead.lastName}
+                                  </Link>
+                                  <p className="text-[10px] font-mono text-slate-400 uppercase">{device.lead.status}</p>
+                                </div>
+                              </div>
                             ) : (
-                              <a
-                                href={`https://${device.ipAddress}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1 text-primary hover:underline group"
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-8 px-2 text-indigo-600 bg-indigo-50/30 hover:bg-indigo-50 border border-dashed border-indigo-200 rounded-lg text-xs"
+                                onClick={() => { setSelectedDevice(device); setLinkDialogOpen(true); }}
                               >
-                                {device.ipAddress}
-                                <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                              </a>
+                                <UserPlus className="h-3.5 w-3.5 mr-1.5" />
+                                Link Lead
+                              </Button>
                             )}
                           </TableCell>
                           <TableCell>
-                            <Badge
-                              variant={statusVariant}
-                              className="capitalize"
-                            >
-                              {isRebooting ? 'Rebooting...' : device.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <div className="relative">
-                                <Progress
-                                  value={signalInfo.percent}
-                                  className="w-16 h-2"
-                                  indicatorClassName={signalInfo.color}
-                                />
-                                {SignalIcon && (
-                                  <AlertCircle className="absolute -top-1 -right-1 h-3 w-3 text-red-500" />
-                                )}
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <span className={`text-xs ${signalInfo.textColor} font-medium`}>
-                                  {device.signal === "N/A dBm" ? "N/A" : device.signal.replace(' dBm', '')}
-                                </span>
-                                {signalInfo.status !== "N/A" && signalInfo.status !== "Good" && (
-                                  <span className={`text-[10px] ${signalInfo.textColor}`}>
-                                    ({signalInfo.status})
-                                  </span>
-                                )}
-                              </div>
+                            <div className="space-y-1.5">
+                              {device.ipAddress !== "N/A" ? (
+                                <a
+                                  href={`http://${device.ipAddress}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-sm font-mono text-slate-600 hover:text-indigo-600 flex items-center gap-1 group/ip"
+                                >
+                                  {device.ipAddress}
+                                  <ExternalLink className="h-3 w-3 opacity-0 group-hover/ip:opacity-100 transition-opacity" />
+                                </a>
+                              ) : (
+                                <span className="text-xs text-slate-400 italic">No IP info</span>
+                              )}
+                              <Badge variant={statusVariant} className="h-5 px-1.5 text-[10px] font-bold uppercase tracking-wider">
+                                {isRebooting ? "Rebooting..." : device.status}
+                              </Badge>
                             </div>
                           </TableCell>
-                          <TableCell>{lastContactFormatted}</TableCell>
-                          <TableCell>{uptimeFormatted}</TableCell>
+                          <TableCell>
+                            <div className="w-32 space-y-1.5">
+                              <div className="flex justify-between items-center text-[10px]">
+                                <span className={`font-bold ${signal.textColor}`}>{device.signal.replace(' dBm', ' dB')}</span>
+                                <span className="text-slate-400 capitalize">{signal.status}</span>
+                              </div>
+                              <Progress value={signal.percent} className="h-1.5" indicatorClassName={signal.color} />
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="space-y-0.5">
+                              <p className="text-xs text-slate-700 font-medium">
+                                {new Date(device.lastContact).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                              <Tooltip>
+                                <TooltipTrigger className="text-[10px] text-slate-400 flex items-center gap-1">
+                                  <Link2 className="h-3 w-3" /> Uptime: {device.uptime}
+                                </TooltipTrigger>
+                                <TooltipContent>Total system uptime from device</TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </TableCell>
                           <TableCell>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  disabled={isRebooting}
-                                >
-                                  {isRebooting ? (
-                                    <RefreshCw className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <MoreVertical className="h-4 w-4" />
-                                  )}
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-900">
+                                  <MoreVertical className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem>
-                                  <Link href={`/tr069/device/${device.SerialNumber}`} className="w-full">
-                                    View Details
+                              <DropdownMenuContent align="end" className="w-48">
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/tr069/device/${device.SerialNumber}`} className="cursor-pointer">
+                                    <Info className="h-4 w-4 mr-2" /> Device Details
                                   </Link>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => confirmReboot(device)}
+                                {device.leadId ? (
+                                  <DropdownMenuItem 
+                                    className="text-amber-600 focus:text-amber-600"
+                                    onClick={() => handleUnlink(device)}
+                                  >
+                                    <UserMinus className="h-4 w-4 mr-2" /> Unlink Lead
+                                  </DropdownMenuItem>
+                                ) : (
+                                  <DropdownMenuItem onClick={() => { setSelectedDevice(device); setLinkDialogOpen(true); }}>
+                                    <UserPlus className="h-4 w-4 mr-2" /> Link Lead
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem 
+                                  onClick={() => { setSelectedDevice(device); setRebootDialogOpen(true); }}
                                   disabled={isRebooting || device.status.toLowerCase().includes('offline')}
-                                  className={device.status.toLowerCase().includes('offline') ? 'text-muted-foreground' : 'text-destructive'}
+                                  className="text-destructive focus:text-destructive"
                                 >
-                                  <RefreshCw className="h-4 w-4 mr-2" />
-                                  Reboot Device
+                                  <RefreshCw className="h-4 w-4 mr-2" /> Reboot Device
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>Update Firmware</DropdownMenuItem>
                                 <DropdownMenuItem>Run Diagnostics</DropdownMenuItem>
+                                <DropdownMenuItem>Update Firmware</DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>
@@ -711,153 +576,72 @@ export function TR069DeviceList() {
                 </TableBody>
               </Table>
             </div>
-          </div>
 
-          {/* Pagination Controls */}
-          {!isLoading && filteredDevices.length > 0 && (
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mt-4">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground whitespace-nowrap">
-                  Showing {startIndex + 1} to {Math.min(endIndex, filteredDevices.length)} of {filteredDevices.length} devices
-                </span>
-
-                {/* Items per page selector */}
-                <Select
-                  value={itemsPerPage.toString()}
-                  onValueChange={(value) => {
-                    setItemsPerPage(parseInt(value))
-                    setCurrentPage(1)
-                  }}
-                >
-                  <SelectTrigger className="w-[70px] h-8">
-                    <SelectValue placeholder="10" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="20">20</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                    <SelectItem value="100">100</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => goToPage(1)}
-                  disabled={currentPage === 1}
-                >
-                  <ChevronsLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => goToPage(currentPage - 1)}
-                  disabled={currentPage === 1}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-
-                {/* Page numbers */}
-                <div className="flex items-center gap-1 mx-2">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNum: number
-                    if (totalPages <= 5) {
-                      pageNum = i + 1
-                    } else if (currentPage <= 3) {
-                      pageNum = i + 1
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNum = totalPages - 4 + i
-                    } else {
-                      pageNum = currentPage - 2 + i
-                    }
-
-                    return (
-                      <Button
-                        key={pageNum}
-                        variant={currentPage === pageNum ? "default" : "outline"}
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => goToPage(pageNum)}
-                      >
-                        {pageNum}
-                      </Button>
-                    )
-                  })}
+            {/* Pagination */}
+            {!isLoading && filteredDevices.length > 0 && (
+              <div className="p-4 bg-slate-50/30 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-slate-500 whitespace-nowrap">
+                    Showing {(currentPage-1)*itemsPerPage + 1} to {Math.min(currentPage*itemsPerPage, filteredDevices.length)} of {filteredDevices.length}
+                  </span>
+                  <Select value={itemsPerPage.toString()} onValueChange={(v) => { setItemsPerPage(parseInt(v)); setCurrentPage(1); }}>
+                    <SelectTrigger className="w-[70px] h-8 text-xs border-slate-200">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[10, 20, 50, 100].map(v => <SelectItem key={v} value={v.toString()} className="text-xs">{v}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
 
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => goToPage(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => goToPage(totalPages)}
-                  disabled={currentPage === totalPages}
-                >
-                  <ChevronsRight className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}><ChevronsLeft className="h-4 w-4" /></Button>
+                  <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1}><ChevronLeft className="h-4 w-4" /></Button>
+                  <div className="px-4 text-xs font-semibold text-slate-700">Page {currentPage} of {totalPages}</div>
+                  <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages}><ChevronRight className="h-4 w-4" /></Button>
+                  <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages}><ChevronsRight className="h-4 w-4" /></Button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </CardContainer>
 
-      {/* Reboot Confirmation Dialog */}
-      <Dialog open={rebootDialogOpen} onOpenChange={setRebootDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reboot Device</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to reboot {selectedDevice?.device}?
-              {selectedDevice?.status.toLowerCase().includes('online') ? (
-                <span className="block mt-2 text-amber-600 dark:text-amber-400">
-                  ⚠️ The device is currently online. Rebooting will cause temporary service interruption.
-                </span>
-              ) : (
-                <span className="block mt-2 text-muted-foreground">
-                  The device appears to be offline. The reboot command will be sent when the device reconnects.
-                </span>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setRebootDialogOpen(false)
-                setSelectedDevice(null)
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => selectedDevice && rebootDevice(selectedDevice.SerialNumber)}
-              disabled={rebootInProgress === selectedDevice?.SerialNumber}
-            >
-              {rebootInProgress === selectedDevice?.SerialNumber ? (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  Rebooting...
-                </>
-              ) : (
-                'Reboot Device'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+        {/* Dialogs */}
+        <Dialog open={rebootDialogOpen} onOpenChange={setRebootDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <RefreshCw className="h-5 w-5 text-destructive" />
+                Confirm Device Reboot
+              </DialogTitle>
+              <DialogDescription>
+                Are you sure you want to reboot <strong>{selectedDevice?.device || selectedDevice?.SerialNumber}</strong>? 
+                This will interrupt internet service for the user for several minutes.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" onClick={() => setRebootDialogOpen(false)}>Cancel</Button>
+              <Button 
+                variant="destructive" 
+                onClick={() => selectedDevice && rebootDevice(selectedDevice.SerialNumber)}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                Yes, Reboot Now
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {selectedDevice && (
+          <CustomerLinkDialog
+            open={linkDialogOpen}
+            onOpenChange={setLinkDialogOpen}
+            serialNumber={selectedDevice.SerialNumber}
+            deviceName={selectedDevice.device}
+            onLinked={fetchDevices}
+          />
+        )}
+      </CardContainer>
+    </TooltipProvider>
   )
 }

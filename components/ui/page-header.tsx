@@ -14,6 +14,9 @@ interface PageAction {
   label: string
   href?: string
   component?: React.ReactNode
+  onClick?: () => void
+  variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link"
+  icon?: React.ReactNode
 }
 
 interface PageHeaderProps {
@@ -106,11 +109,17 @@ export function PageHeader({
                   {action.component}
                 </React.Fragment>
               ) : action.href ? (
-                <Button asChild key={index}>
-                  <Link href={action.href}>{action.label}</Link>
+                <Button asChild key={index} variant={action.variant}>
+                  <Link href={action.href}>
+                    {action.icon}
+                    {action.label}
+                  </Link>
                 </Button>
               ) : (
-                <Button key={index}>{action.label}</Button>
+                <Button key={index} variant={action.variant} onClick={action.onClick}>
+                  {action.icon}
+                  {action.label}
+                </Button>
               )
             )}
           </div>

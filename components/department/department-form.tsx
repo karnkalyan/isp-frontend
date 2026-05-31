@@ -484,7 +484,7 @@ export default function DepartmentForm() {
 
         return (
             <Badge variant="secondary" className="bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400">
-                {department.branch.code}
+                {department.branch.name} ({department.branch.code})
             </Badge>
         )
     }

@@ -12,6 +12,8 @@ import { SearchModal } from "@/components/layout/search-modal";
 import { MessagesDropdown } from "@/components/layout/messages-dropdown";
 import { NotificationsDropdown } from "@/components/layout/notifications-dropdown";
 import { InquiryDialog } from "@/components/layout/inquery";
+import { BranchSwitcher } from "@/components/layout/branch-switcher";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface NavbarProps {
   onMenuClick: () => void;
@@ -25,6 +27,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [inquiryDialogOpen, setInquiryDialogOpen] = useState(false);
   const [activeCallsCount, setActiveCallsCount] = useState(0);
+  const { user } = useAuth();
 
   useEffect(() => {
     setMounted(true);
@@ -127,6 +130,10 @@ export function Navbar({ onMenuClick }: NavbarProps) {
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
+            {(!user?.role?.name || !(user.role.name.toLowerCase() === 'administrator' || user.role.name.toLowerCase().startsWith('global '))) && (
+              <BranchSwitcher className="hidden lg:flex" />
+            )}
+            
             {/* Inquiry Button */}
             <Button
               variant="ghost"

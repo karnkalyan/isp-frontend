@@ -45,49 +45,8 @@ export function ServiceOperations({ limit }: ServiceOperationsProps) {
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState("recent");
 
-    // Mock data for demonstration
-    const mockOperations: ServiceOperation[] = [
-        {
-            id: "1",
-            service: "NETTV",
-            operation: "Sync Subscribers",
-            status: "success",
-            timestamp: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
-            duration: 2300,
-        },
-        {
-            id: "2",
-            service: "RADIUS",
-            operation: "Create User",
-            status: "success",
-            timestamp: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
-            duration: 450,
-        },
-        {
-            id: "3",
-            service: "YEASTAR",
-            operation: "Get Active Calls",
-            status: "error",
-            timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-            duration: 1200,
-            details: "Connection timeout",
-        },
-        {
-            id: "4",
-            service: "TSHUL",
-            operation: "Create Invoice",
-            status: "success",
-            timestamp: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
-            duration: 1800,
-        },
-        {
-            id: "5",
-            service: "MIKROTIK",
-            operation: "Get System Resources",
-            status: "running",
-            timestamp: new Date().toISOString(),
-        },
-    ];
+    // Operations data (Empty until API is integrated for service logs)
+    const mockOperations: ServiceOperation[] = [];
 
     useEffect(() => {
         setOperations(limit ? mockOperations.slice(0, limit) : mockOperations);

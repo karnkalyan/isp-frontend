@@ -5,6 +5,8 @@ import "@/app/globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "react-hot-toast";
 import { WebSocketProvider } from "@/contexts/WebSocketContext";
+import { BranchProvider } from "@/contexts/BranchContext";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 export const metadata: Metadata = {
   title: "Radius Manager - ISP Dashboard",
@@ -77,31 +79,35 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           enableSystem
           disableTransitionOnChange
         >
-          <WebSocketProvider>
-            {children}
-            <Toaster
-              position="top-right"
-              toastOptions={{
-                style: {
-                  background: "var(--theme-card)",
-                  color: "var(--theme-card-foreground)",
-                  border: "1px solid var(--theme-border)",
-                },
-                success: {
-                  iconTheme: {
-                    primary: "#10b981",
-                    secondary: "white",
+          <AuthProvider>
+            <WebSocketProvider>
+              <BranchProvider>
+                {children}
+              </BranchProvider>
+              <Toaster
+                position="top-right"
+                toastOptions={{
+                  style: {
+                    background: "var(--theme-card)",
+                    color: "var(--theme-card-foreground)",
+                    border: "1px solid var(--theme-border)",
                   },
-                },
-                error: {
-                  iconTheme: {
-                    primary: "#ef4444",
-                    secondary: "white",
+                  success: {
+                    iconTheme: {
+                      primary: "#10b981",
+                      secondary: "white",
+                    },
                   },
-                },
-              }}
-            />
-          </WebSocketProvider>
+                  error: {
+                    iconTheme: {
+                      primary: "#ef4444",
+                      secondary: "white",
+                    },
+                  },
+                }}
+              />
+            </WebSocketProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

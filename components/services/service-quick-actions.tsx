@@ -21,7 +21,6 @@ import {
     Code,
     Key
 } from "lucide-react";
-import { ServicesAPI } from "@/lib/api/services";
 import { toast } from "react-hot-toast";
 
 interface QuickAction {

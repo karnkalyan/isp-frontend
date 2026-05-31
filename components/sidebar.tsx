@@ -1,6 +1,6 @@
 "use client"
 
-import { BarChart3, CreditCard, HelpCircle, LayoutDashboard, Settings, Users, Server } from "lucide-react"
+import { BarChart3, CreditCard, HelpCircle, LayoutDashboard, Settings, Users, Server, MessageSquare, ShieldCheck, Building2 } from "lucide-react"
 import {
   Sidebar as SidebarComponent,
   SidebarContent,
@@ -12,47 +12,85 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 import { usePathname } from "next/navigation"
+import { useAuth } from "@/contexts/AuthContext"
 
 const menuItems = [
   {
     title: "Dashboard",
     icon: LayoutDashboard,
     href: "/",
+    roles: ["Administrator", "Global Manager", "Branch Admin", "Staff", "Manager", "Customer", "Technical", "Field Support"]
   },
   {
     title: "Users",
     icon: Users,
     href: "/users",
+    roles: ["Administrator", "Global Manager"]
+  },
+  {
+    title: "Customers",
+    icon: Users,
+    href: "/customers/list",
+    roles: ["Administrator", "Global Manager", "Branch Admin", "Staff", "Technical", "Field Support"]
+  },
+  {
+    title: "Branches",
+    icon: Building2,
+    href: "/branch",
+    roles: ["Administrator", "Global Manager"]
   },
   {
     title: "Billing",
     icon: CreditCard,
     href: "/billing",
+    roles: ["Administrator", "Global Manager", "Branch Admin", "Staff", "Customer"]
+  },
+  {
+    title: "SMS Campaign",
+    icon: MessageSquare,
+    href: "/sms-campaign",
+    roles: ["Administrator", "Global Manager", "Branch Admin"]
   },
   {
     title: "Reports",
     icon: BarChart3,
     href: "/reports",
+    roles: ["Administrator", "Global Manager", "Branch Admin"]
   },
   {
     title: "Support",
     icon: HelpCircle,
     href: "/support",
-  },
-  {
-    title: "Settings",
-    icon: Settings,
-    href: "/settings",
+    roles: ["Administrator", "Global Manager", "Branch Admin", "Staff", "Manager", "Customer", "Technical", "Field Support"]
   },
   {
     title: "NAS Management",
     icon: Server,
     href: "/nas",
+    roles: ["Administrator", "Global Manager", "Branch Admin", "Technical"]
+  },
+  {
+    title: "Master Settings",
+    icon: ShieldCheck,
+    href: "/master-settings",
+    roles: ["Administrator"]
+  },
+  {
+    title: "Settings",
+    icon: Settings,
+    href: "/settings",
+    roles: ["Administrator", "Global Manager", "Branch Admin", "Customer"]
   },
 ]
 
 export function Sidebar() {
   const pathname = usePathname()
+  const { user } = useAuth()
+
+  const filteredItems = menuItems.filter(item => {
+    if (!user || !user.role) return false
+    return item.roles.includes(user.role.name)
+  })
 
   return (
     <SidebarComponent variant="floating" collapsible="icon">
@@ -65,7 +103,7 @@ export function Sidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
-          {menuItems.map((item) => {
+          {filteredItems.map((item) => {
             const isActive = pathname === item.href
 
             return (

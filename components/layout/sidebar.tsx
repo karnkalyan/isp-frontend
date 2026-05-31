@@ -1,51 +1,28 @@
 "use client"
 
 import type React from "react"
-import type { Metadata } from "next"
 
 import { useState, useEffect, useRef, useMemo } from "react"
 import {
-  BarChart3,
-  CreditCard,
   HelpCircle,
   Settings,
   Users,
   ChevronLeft,
   FileText,
   Phone,
-  Tv,
-  Wifi,
-  MonitorCheck,
-  FileCode,
   Package,
-  PenTool as Tool,
-  Map,
   ChevronDown,
   ChevronRight,
   ListChecks,
   Shield,
-  Globe,
   Activity,
   Cpu,
-  Cloud,
-  Headphones,
-  Video,
   MessageSquare,
   Server,
-  Share2,
-  Wrench,
   Plug,
-  Milestone,
-  Radar,
   Cable,
-  Workflow,
-  Hourglass,
-  Laptop,
-  FileSpreadsheet,
   Receipt,
   Coins,
-  Truck,
-  Sliders,
   Crown,
   UserPlus,
   Building,
@@ -56,6 +33,7 @@ import { Button } from "@/components/ui/button"
 import { usePathname } from "next/navigation"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { apiRequest } from "@/lib/api"
+import { useAuth } from "@/contexts/AuthContext"
 
 interface SidebarProps {
   open: boolean
@@ -66,9 +44,10 @@ type MenuItem = {
   title: string
   icon: React.ElementType
   href?: string
-  submenu?: { title: string; href: string }[]
+  submenu?: { title: string; href: string; permission?: string | string[] }[]
   highlight?: boolean
   exactMatch?: boolean
+  permission?: string | string[]
 }
 
 type MenuCategory = {
@@ -87,12 +66,11 @@ const menuCategories: MenuCategory[] = [
       {
         title: "Dashboard",
         icon: Activity,
-        href: "/",
+        permission: "dashboard_view",
         submenu: [
-          { title: "Overview", href: "/dashboard/overview" },
-          // { title: "Real-Time Stats", href: "/dashboard/real-time" },
-          // { title: "System Health", href: "/dashboard/system-health" },
-          // { title: "Quick Insights", href: "/dashboard/insights" },
+          { title: "Overview", href: "/dashboard/overview", permission: "dashboard_view" },
+          { title: "Real-Time Monitoring", href: "/dashboard/real-time", permission: "dashboard_view" },
+          { title: "Settings", href: "/dashboard/settings", permission: "settings_read" },
         ],
       },
     ],
@@ -101,55 +79,48 @@ const menuCategories: MenuCategory[] = [
     category: "Management",
     items: [
       {
-        title: "Administration",
+        title: "Administrative Management",
         icon: Shield,
+        permission: "users_read",
         submenu: [
-          { title: "User Management", href: "/admin/users" },
-          { title: "User Roles", href: "/admin/roles" },
-          // { title: "Permissions", href: "/admin/permissions" },
-          // { title: "API Keys & Webhooks", href: "/admin/api-keys" },
-          // { title: "Audit Logs", href: "/admin/audit-logs" },
+          { title: "Users", href: "/admin/users", permission: "users_read" },
+          { title: "Roles", href: "/admin/roles", permission: "roles_read" },
+          { title: "Audit Logs", href: "/admin/audit-log", permission: "audit_log_read" },
         ],
       },
       {
-        title: "Customers",
+        title: "Customer Management",
         icon: Users,
-        href: "/customers",
+        permission: "customer_read",
         submenu: [
-          { title: "All Customers", href: "/customers/all" },
-          { title: "Onboard New", href: "/customers/new" },
-          // { title: "Register ISP", href: "/register-isp" },
-          // { title: "Bulk Import/Export", href: "/customers/bulk" },
-          // { title: "Segments", href: "/customers/segments" },
-          // { title: "VIP List", href: "/customers/vip" },
-          // { title: "Check Package", href: "/customers/check-package" },
-          // { title: "Push to Services", href: "/customers/push-services" },
+          { title: "All Customers", href: "/customers/all", permission: "customer_read" },
+          { title: "New Customer", href: "/customers/new", permission: "customer_create" },
+          { title: "Customer Portal", href: "/customer/portal", permission: "customer_read" },
+          { title: "Customer Dashboard", href: "/customer/dashboard", permission: "customer_read" },
         ],
       },
       {
-        title: "Branch",
+        title: "Branch Management",
         icon: Building,
-        href: "/branch",
+        permission: "branches_read",
         submenu: [
-          { title: "Branch Management", href: "/branch" },
+          { title: "Branches", href: "/branch", permission: "branches_read" },
         ],
       },
-
       {
-        title: "Department",
+        title: "Department Management",
         icon: Building,
-        href: "/department",
+        permission: "departments_read",
         submenu: [
-          { title: "Department Management", href: "/department" },
+          { title: "Departments", href: "/department", permission: "departments_read" },
         ],
       },
-
       {
-        title: "Membership",
+        title: "Membership Management",
         icon: Crown,
-        href: "/membership",
+        permission: "membership_read",
         submenu: [
-          { title: "Manage Membership", href: "/membership" },
+          { title: "Membership", href: "/membership", permission: "membership_read" },
         ],
       },
     ],
@@ -158,85 +129,54 @@ const menuCategories: MenuCategory[] = [
     category: "Sales & Marketing",
     items: [
       {
-        title: "Leads",
+        title: "Lead Management (CRM)",
         icon: UserPlus,
-        href: "/leads",
+        permission: "lead_read",
         submenu: [
-          { title: "Create Lead", href: "/leads/create" },
-          { title: "Lead Management", href: "/leads" },
-          { title: "Qualified", href: "/leads/qualified" },
-          { title: "Unqualified", href: "/leads/unqualified" },
-          { title: "Converted", href: "/leads/converted" },
-          { title: "Follow-up Tracking", href: "/leads/follow-ups" },
-
-          { title: "Import Leads", href: "/leads/import" },
-          { title: "Lead Reports", href: "/leads/reports" },
-          // { title: "Conversion Tracking", href: "/leads/conversion" },
+          { title: "Create Lead", href: "/leads/create", permission: "lead_create" },
+          { title: "Lead Management", href: "/leads", permission: "lead_read" },
+          { title: "Qualified", href: "/leads/qualified", permission: "lead_read" },
+          { title: "Unqualified", href: "/leads/unqualified", permission: "lead_read" },
+          { title: "Converted", href: "/leads/converted", permission: "lead_read" },
+          { title: "Follow-up Tracking", href: "/leads/follow-ups", permission: "lead_read" },
+          { title: "Import Leads", href: "/leads/import", permission: "lead_create" },
+          { title: "Lead Reports", href: "/leads/reports", permission: "reports_read" },
         ],
       },
-
-
-
-
-
       {
-        title: "Existing ISP",
-        icon: Building,
-        href: "/existing-isp",
+        title: "Existing ISP Migration",
+        icon: RefreshCw,
+        permission: "existingisp_read",
         submenu: [
-          { title: "ISP Management", href: "/existing-isp" },
-          // { title: "Add ISP", href: "/existing-isp/add" },
-          // { title: "ISP Comparison", href: "/existing-isp/comparison" },
-          // { title: "Migration Tools", href: "/existing-isp/migration" },
+          { title: "Existing ISP Data", href: "/existing-isp", permission: "existingisp_read" },
         ],
+      },
+      {
+        title: "SMS Campaign",
+        icon: MessageSquare,
+        permission: "services_manage",
+        href: "/sms-campaign",
       },
     ],
   },
   {
     category: "Network Infrastructure",
     items: [
-      // {
-      //   title: "Networking",
-      //   icon: Globe,
-      //   submenu: [
-      //     { title: "Topology Map", href: "/networking/topology" },
-      //     { title: "Devices", href: "/networking/devices" },
-      //     { title: "VLANs/Subnets", href: "/networking/vlans" },
-      //     { title: "Routing Policies", href: "/networking/routing" },
-      //     { title: "Firewall Rules", href: "/networking/firewall" },
-      //   ],
-      // },
-      // {
-      //   title: "Peering & Transit",
-      //   icon: Share2,
-      //   submenu: [
-      //     { title: "Peering Partners", href: "/peering/partners" },
-      //     { title: "BGP Sessions", href: "/peering/bgp-sessions" },
-      //     { title: "Transit Providers", href: "/peering/transit" },
-      //     { title: "IX Management", href: "/peering/ix" },
-      //     { title: "AS Path Analysis", href: "/peering/as-path" },
-      //     { title: "Traffic Exchange", href: "/peering/traffic" },
-      //   ],
-      // },
       {
         title: "TR-069 ACS",
         icon: Cpu,
+        permission: "olt_read",
         submenu: [
-          { title: "Dashboard", href: "/tr069" },
-          // { title: "Device Management", href: "/tr069/devices" },
-          // { title: "Device Details", href: "/tr069/device" },
-          // { title: "Virtual Hosts", href: "/tr069/virtual-hosts" },
-          // { title: "Provisioning", href: "/tr069/provisioning" },
-          // { title: "Firmware Updates", href: "/tr069/firmware" },
-          // { title: "Configuration", href: "/tr069/config" },
+          { title: "TR-069 Management", href: "/tr069", permission: "olt_read" },
         ],
       },
       {
         title: "NAS Management",
         icon: Server,
+        permission: "nas_read",
         submenu: [
-          { title: "NAS List", href: "/nas" },
-          { title: "Add NAS", href: "/nas/new" }
+          { title: "NAS Servers", href: "/nas", permission: "nas_read" },
+          { title: "Add NAS", href: "/nas/new", permission: "nas_create" },
         ],
       },
     ],
@@ -247,27 +187,34 @@ const menuCategories: MenuCategory[] = [
       {
         title: "Fiber Management",
         icon: Cable,
+        permission: "olt_read",
         submenu: [
-          // { title: "FTTH/FTTB Networks", href: "/fiber/networks" },
-          { title: "OLT Management", href: "/fiber/olt" },
-          // { title: "ONT/ONU Inventory", href: "/fiber/ont" },
-          // { title: "Splitter Management", href: "/fiber/splitters" },
-          { title: "Fiber Mapping", href: "/fiber/map" },
-          // { title: "PON Diagnostics", href: "/fiber/diagnostics" },
+          { title: "Fiber Networks", href: "/fiber/networks", permission: "olt_read" },
+          { title: "Fiber Map", href: "/fiber/map", permission: "olt_read" },
+          { title: "OLT Management", href: "/fiber/olt", permission: "olt_read" },
         ],
       },
-      // {
-      //   title: "Wireless Networks",
-      //   icon: Radar,
-      //   submenu: [
-      //     { title: "WISP Infrastructure", href: "/wireless/infrastructure" },
-      //     { title: "Access Points", href: "/wireless/access-points" },
-      //     { title: "CPE Management", href: "/wireless/cpe" },
-      //     { title: "Frequency Planning", href: "/wireless/frequency" },
-      //     { title: "Signal Analysis", href: "/wireless/signal" },
-      //     { title: "Interference Mgmt", href: "/wireless/interference" },
-      //   ],
-      // },
+      {
+        title: "Inventory Management",
+        icon: Package,
+        permission: "inventory_read",
+        submenu: [
+          { title: "Add Inventory", href: "/inventory/add", permission: "inventory_manage" },
+          { title: "Bulk Inventory", href: "/inventory/bulk", permission: "bulk_inventory_read" },
+          { title: "Bulk Assignments", href: "/inventory", permission: "inventory_manage" },
+          { title: "Import Inventory", href: "/inventory/import", permission: "inventory_manage" },
+          { title: "Lifecycle Management", href: "/inventory/lifecycle", permission: "inventory_read" },
+        ],
+      },
+      {
+        title: "Drum Management",
+        icon: Cable,
+        permission: "drums_read",
+        submenu: [
+          { title: "Drums", href: "/drums", permission: "drums_read" },
+          { title: "Drum Assignments", href: "/drums/assignments", permission: "drums_read" },
+        ],
+      },
     ],
   },
   {
@@ -276,406 +223,118 @@ const menuCategories: MenuCategory[] = [
       {
         title: "3rd Party Services",
         icon: ListChecks,
+        permission: "services_read",
         submenu: [
-          { title: "Service List", href: "/services" },
+          { title: "Service Catalog", href: "/services", permission: "services_read" },
+          { title: "Service Settings", href: "/services/settings", permission: "services_manage" },
+          { title: "Add Service", href: "/services/add", permission: "services_manage" },
         ],
       },
-      // {
-      //   title: "Service List",
-      //   icon: RefreshCw,
-      //   submenu: [
-      //     { title: "eSewa", href: "/services/esewa" },
-      //     { title: "Khalti", href: "/services/khalti" },
-      //     { title: "IME Pay", href: "/services/imepay" },
-      //     { title: "TSHUL", href: "/services/tshul" },
-      //     { title: "RADIUS", href: "/services/radius" },
-      //     { title: "IPTV", href: "/services/iptv" },
-      //   ],
-      // },
-      // {
-      //   title: "WiFi",
-      //   icon: Wifi,
-      //   submenu: [
-      //     { title: "SSID Config", href: "/wifi/config" },
-      //     { title: "AP Management", href: "/wifi/ap" },
-      //     { title: "Usage Heatmap", href: "/wifi/heatmap" },
-      //     { title: "Guest Controls", href: "/wifi/guest" },
-      //   ],
-      // },
-      // {
-      //   title: "IPTV",
-      //   icon: Tv,
-      //   submenu: [
-      //     { title: "Channel Lineup", href: "/iptv/channels" },
-      //     { title: "EPG Scheduler", href: "/iptv/epg" },
-      //     { title: "Quality Metrics", href: "/iptv/quality" },
-      //     { title: "PPV Modules", href: "/iptv/ppv" },
-      //   ],
-      // },
-      // {
-      //   title: "OTT",
-      //   icon: Video,
-      //   submenu: [
-      //     { title: "Content Library", href: "/ott/library" },
-      //     { title: "Subscription Management", href: "/ott/subscriptions" },
-      //     { title: "Stream Analytics", href: "/ott/analytics" },
-      //     { title: "DRM Settings", href: "/ott/drm" },
-      //   ],
-      // },
-      // {
-      //   title: "Voice",
-      //   icon: Headphones,
-      //   submenu: [
-      //     { title: "Call Logs", href: "/voice/logs" },
-      //     { title: "SIP Accounts", href: "/voice/sip" },
-      //     { title: "QoS Monitoring", href: "/voice/qos" },
-      //     { title: "Recordings Manager", href: "/voice/recordings" },
-      //   ],
-      // },
-      // {
-      //   title: "IVR",
-      //   icon: Phone,
-      //   submenu: [
-      //     { title: "Menu Designer", href: "/ivr/designer" },
-      //     { title: "Call Flow Simulator", href: "/ivr/simulator" },
-      //     { title: "Recording Archive", href: "/ivr/recordings" },
-      //     { title: "Performance Stats", href: "/ivr/stats" },
-      //   ],
-      // },
-      // {
-      //   title: "CDN & Caching",
-      //   icon: Server,
-      //   submenu: [
-      //     { title: "Cache Servers", href: "/cdn/servers" },
-      //     { title: "Content Distribution", href: "/cdn/distribution" },
-      //     { title: "Cache Rules", href: "/cdn/rules" },
-      //     { title: "Performance Analytics", href: "/cdn/performance" },
-      //     { title: "Origin Servers", href: "/cdn/origin" },
-      //     { title: "Edge Locations", href: "/cdn/edge" },
-      //   ],
-      // },
     ],
   },
-  // {
-  //   category: "Finance",
-  //   items: [
-  //     {
-  //       title: "Finance",
-  //       icon: CreditCard,
-  //       href: "/finance",
-  //       submenu: [
-  //         { title: "Invoices & Statements", href: "/finance/invoices" },
-  //         { title: "Transactions Ledger", href: "/finance/transactions" },
-  //         { title: "Payment Gateways", href: "/finance/gateways" },
-  //         { title: "Refunds/Disputes", href: "/finance/refunds" },
-  //         { title: "Tax Reports", href: "/finance/tax" },
-  //       ],
-  //     },
-  //     {
-  //       title: "Billing",
-  //       icon: Receipt,
-  //       submenu: [
-  //         { title: "Billing Cycles", href: "/billing/cycles" },
-  //         { title: "Invoice Generation", href: "/billing/invoice-generation" },
-  //         { title: "Payment Processing", href: "/billing/payment-processing" },
-  //         { title: "Dunning Management", href: "/billing/dunning" },
-  //         { title: "Credit Management", href: "/billing/credit" },
-  //         { title: "Billing Reports", href: "/billing/reports" },
-  //       ],
-  //     },
-  //     {
-  //       title: "Revenue Management",
-  //       icon: Coins,
-  //       submenu: [
-  //         { title: "Revenue Dashboard", href: "/revenue/dashboard" },
-  //         { title: "Revenue Forecasting", href: "/revenue/forecasting" },
-  //         { title: "Revenue Analysis", href: "/revenue/analysis" },
-  //         { title: "Churn Impact", href: "/revenue/churn-impact" },
-  //         { title: "Revenue Optimization", href: "/revenue/optimization" },
-  //       ],
-  //     },
-  //   ],
-  // },
-  // {
-  //   category: "Sales & Support",
-  //   items: [
-  //     {
-  //       title: "Complaints",
-  //       icon: MessageSquare,
-  //       submenu: [
-  //         { title: "Open Tickets", href: "/complaints/open" },
-  //         { title: "Escalation Matrix", href: "/complaints/escalation" },
-  //         { title: "SLA Dashboards", href: "/complaints/sla" },
-  //         { title: "Resolution History", href: "/complaints/history" },
-  //       ],
-  //     },
-  //     {
-  //       title: "Support",
-  //       icon: HelpCircle,
-  //       href: "/support",
-  //     },
-  //     {
-  //       title: "SLA Management",
-  //       icon: Hourglass,
-  //       submenu: [
-  //         { title: "SLA Definitions", href: "/sla/definitions" },
-  //         { title: "SLA Monitoring", href: "/sla/monitoring" },
-  //         { title: "Compliance Reports", href: "/sla/compliance" },
-  //         { title: "Violation Alerts", href: "/sla/violations" },
-  //         { title: "Customer SLAs", href: "/sla/customer" },
-  //       ],
-  //     },
-  //     {
-  //       title: "Customer Portal",
-  //       icon: Laptop,
-  //       submenu: [
-  //         { title: "Portal Management", href: "/portal/management" },
-  //         { title: "Self-Service Tools", href: "/portal/self-service" },
-  //         { title: "Knowledge Base", href: "/portal/knowledge-base" },
-  //         { title: "Usage Monitoring", href: "/portal/usage" },
-  //         { title: "Bill Payment", href: "/portal/payment" },
-  //         { title: "Support Tickets", href: "/portal/tickets" },
-  //       ],
-  //     },
-  //   ],
-  // },
-  // {
-  //   category: "Analytics & Reporting",
-  //   items: [
-  //     {
-  //       title: "Reports",
-  //       icon: FileText,
-  //       href: "/reports",
-  //       submenu: [
-  //         { title: "Custom Builder", href: "/reports/builder" },
-  //         { title: "Scheduled Reports", href: "/reports/scheduled" },
-  //         { title: "Export CSV/PDF", href: "/reports/export" },
-  //         { title: "Templates", href: "/reports/templates" },
-  //       ],
-  //     },
-  //     {
-  //       title: "Analytics",
-  //       icon: BarChart3,
-  //       submenu: [
-  //         { title: "User Behavior", href: "/analytics/behavior" },
-  //         { title: "Traffic Sources", href: "/analytics/traffic" },
-  //         { title: "Churn Predictions", href: "/analytics/churn" },
-  //         { title: "Heatmaps", href: "/analytics/heatmaps" },
-  //       ],
-  //     },
-  //     {
-  //       title: "Network Analytics",
-  //       icon: Activity,
-  //       submenu: [
-  //         { title: "Traffic Analysis", href: "/network-analytics/traffic" },
-  //         { title: "Bandwidth Utilization", href: "/network-analytics/bandwidth" },
-  //         { title: "Congestion Points", href: "/network-analytics/congestion" },
-  //         { title: "Latency Monitoring", href: "/network-analytics/latency" },
-  //         { title: "Packet Loss Analysis", href: "/network-analytics/packet-loss" },
-  //         { title: "Network Forecasting", href: "/network-analytics/forecasting" },
-  //       ],
-  //     },
-  //     {
-  //       title: "Regulatory Reporting",
-  //       icon: FileSpreadsheet,
-  //       submenu: [
-  //         { title: "Compliance Reports", href: "/regulatory/compliance" },
-  //         { title: "Data Retention", href: "/regulatory/data-retention" },
-  //         { title: "Legal Intercept", href: "/regulatory/legal-intercept" },
-  //         { title: "Regulatory Filings", href: "/regulatory/filings" },
-  //         { title: "Audit Trails", href: "/regulatory/audit" },
-  //       ],
-  //     },
-  //   ],
-  // },
-  // {
-  //   category: "Infrastructure",
-  //   items: [
-  //     {
-  //       title: "Network Monitoring",
-  //       icon: MonitorCheck,
-  //       submenu: [
-  //         { title: "Live Dashboard", href: "/monitoring/live" },
-  //         { title: "Alert Rules", href: "/monitoring/alerts" },
-  //         { title: "Historical Uptime", href: "/monitoring/uptime" },
-  //         { title: "SNMP/ICMP Tools", href: "/monitoring/tools" },
-  //       ],
-  //     },
-  //     {
-  //       title: "TR-069",
-  //       icon: Cpu,
-  //       submenu: [
-  //         { title: "Device Profiles", href: "/tr069/profiles" },
-  //         { title: "Provisioning Templates", href: "/tr069/templates" },
-  //         { title: "Session Logs", href: "/tr069/logs" },
-  //         { title: "Firmware Management", href: "/tr069/firmware" },
-  //       ],
-  //     },
-  //     {
-  //       title: "SysLog Mgmt",
-  //       icon: FileCode,
-  //       submenu: [
-  //         { title: "Log Servers", href: "/syslog/servers" },
-  //         { title: "Live Viewer", href: "/syslog/viewer" },
-  //         { title: "Alert Rules", href: "/syslog/alerts" },
-  //         { title: "Archive & Export", href: "/syslog/archive" },
-  //       ],
-  //     },
-  //     {
-  //       title: "Server Info",
-  //       icon: Cloud,
-  //       submenu: [
-  //         { title: "Real-Time Metrics", href: "/server/metrics" },
-  //         { title: "Resource Usage", href: "/server/resources" },
-  //         { title: "Service Status", href: "/server/status" },
-  //         { title: "Maintenance Scheduler", href: "/server/maintenance" },
-  //       ],
-  //     },
-  //     {
-  //       title: "Capacity Planning",
-  //       icon: Sliders,
-  //       submenu: [
-  //         { title: "Bandwidth Planning", href: "/capacity/bandwidth" },
-  //         { title: "Growth Forecasting", href: "/capacity/forecasting" },
-  //         { title: "Upgrade Planning", href: "/capacity/upgrades" },
-  //         { title: "Capacity Reports", href: "/capacity/reports" },
-  //         { title: "Bottleneck Analysis", href: "/capacity/bottlenecks" },
-  //       ],
-  //     },
-  //   ],
-  // },
-  // {
-  //   category: "Advanced Networking",
-  //   items: [
-  //     {
-  //       title: "Traffic Management",
-  //       icon: Sliders,
-  //       submenu: [
-  //         { title: "Bandwidth Control", href: "/traffic/bandwidth" },
-  //         { title: "QoS Policies", href: "/traffic/qos" },
-  //         { title: "Traffic Shaping", href: "/traffic/shaping" },
-  //         { title: "Deep Packet Inspection", href: "/traffic/dpi" },
-  //         { title: "Traffic Graphs", href: "/traffic/graphs" },
-  //       ],
-  //     },
-  //     {
-  //       title: "Hotspot System",
-  //       icon: Milestone,
-  //       submenu: [
-  //         { title: "Hotspot Servers", href: "/hotspot/servers" },
-  //         { title: "User Profiles", href: "/hotspot/profiles" },
-  //         { title: "Walled Garden", href: "/hotspot/walled-garden" },
-  //         { title: "Voucher Generator", href: "/hotspot/vouchers" },
-  //         { title: "Captive Portal", href: "/hotspot/captive-portal" },
-  //       ],
-  //     },
-  //   ],
-  // },
-  // {
-  //   category: "Resources",
-  //   items: [
-  //     {
-  //       title: "Inventory",
-  //       icon: Package,
-  //       submenu: [
-  //         { title: "Hardware Catalog", href: "/inventory/catalog" },
-  //         { title: "Stock Levels", href: "/inventory/stock" },
-  //         { title: "Stock Management", href: "/inventory/stock-management" },
-  //         { title: "Inventory Tracking", href: "/inventory/tracking" },
-  //         { title: "Supplier Management", href: "/inventory/suppliers" },
-  //         { title: "Reorder Points", href: "/inventory/reorder" },
-  //         { title: "Asset Assignment", href: "/inventory/assets" },
-  //         { title: "Purchase Orders", href: "/inventory/orders" },
-  //       ],
-  //     },
-  //     {
-  //       title: "Location Mgmt",
-  //       icon: Map,
-  //       submenu: [
-  //         { title: "Site Directory", href: "/locations/directory" },
-  //         { title: "Geofencing Rules", href: "/locations/geofencing" },
-  //         { title: "Map Dashboard", href: "/locations/map" },
-  //         { title: "GPS Sync Logs", href: "/locations/gps" },
-  //       ],
-  //     },
-  //     {
-  //       title: "Tools",
-  //       icon: Tool,
-  //       submenu: [
-  //         { title: "Diagnostics Suite", href: "/tools/diagnostics" },
-  //         { title: "API Explorer", href: "/tools/api" },
-  //         { title: "CLI/SSH Access", href: "/tools/cli" },
-  //         { title: "Debug Console", href: "/tools/debug" },
-  //       ],
-  //     },
-  //     {
-  //       title: "Maintenance",
-  //       icon: Wrench,
-  //       submenu: [
-  //         { title: "Scheduled Tasks", href: "/maintenance/scheduled" },
-  //         { title: "Maintenance Windows", href: "/maintenance/windows" },
-  //         { title: "Change Management", href: "/maintenance/change" },
-  //         { title: "Backup Schedules", href: "/maintenance/backup" },
-  //       ],
-  //     },
-  //     {
-  //       title: "Field Operations",
-  //       icon: Truck,
-  //       submenu: [
-  //         { title: "Technician Dispatch", href: "/field/dispatch" },
-  //         { title: "Installation Jobs", href: "/field/installations" },
-  //         { title: "Service Calls", href: "/field/service-calls" },
-  //         { title: "Field Equipment", href: "/field/equipment" },
-  //         { title: "Mobile Apps", href: "/field/mobile-apps" },
-  //       ],
-  //     },
-  //   ],
-  // },
+  {
+    category: "Finance",
+    items: [
+      {
+        title: "Billing",
+        icon: Receipt,
+        permission: "billing_read",
+        submenu: [
+          { title: "Invoices", href: "/finance/invoices", permission: "billing_read" },
+          { title: "Invoice Ranges", href: "/finance/invoice-ranges", permission: "billing_update" },
+          { title: "Recharge", href: "/finance/recharge", permission: "billing_read_self" },
+          { title: "Renewal", href: "/finance/renew", permission: "billing_read_self" },
+        ],
+      },
+      {
+        title: "Tariff Management",
+        icon: Coins,
+        permission: "package_plans_read",
+        submenu: [
+          { title: "Tariff Catalog", href: "/tariffs/catalog", permission: "package_plans_read" },
+        ],
+      },
+    ],
+  },
+  {
+    category: "Operations",
+    items: [
+      {
+        title: "Task Management",
+        icon: ListChecks,
+        permission: "tasks_read_self",
+        submenu: [
+          { title: "Tasks", href: "/tasks", permission: "tasks_read_self" },
+        ],
+      },
+    ],
+  },
+  {
+    category: "Support",
+    items: [
+      {
+        title: "Support Tickets",
+        icon: HelpCircle,
+        permission: "tickets_read_self",
+        submenu: [
+          { title: "Tickets", href: "/tickets", permission: "tickets_read_self" },
+          { title: "Create Ticket", href: "/tickets/create", permission: "tickets_create" },
+        ],
+      },
+    ],
+  },
   {
     category: "System",
     items: [
       {
         title: "Settings",
         icon: Settings,
+        permission: "settings_read",
         submenu: [
-          { title: "System Settings & Packages", href: "/dashboard/settings" },
-          // { title: "Security & SSO", href: "/settings/security" },
-          // { title: "Notifications", href: "/settings/notifications" },
-          // { title: "Localization", href: "/settings/localization" },
+          { title: "Master Settings", href: "/master-settings", permission: "settings_read" },
         ],
       },
-      // {
-      //   title: "Master Settings",
-      //   icon: Sliders,
-      //   href: "/master-settings",
-      //   // highlight: true,
-      //   submenu: [
-      //     { title: "Service Settings", href: "/master-settings" },
-      //     { title: "System Configuration", href: "/master-settings/system" },
-      //     { title: "Integration Settings", href: "/master-settings/integrations" },
-      //   ],
-      // },
-      // {
-      //   title: "Integration",
-      //   icon: Plug,
-      //   submenu: [
-      //     { title: "API Management", href: "/integration/api" },
-      //     { title: "Webhooks", href: "/integration/webhooks" },
-      //     { title: "Third-Party Services", href: "/integration/third-party" },
-      //     { title: "Data Exchange", href: "/integration/data-exchange" },
-      //   ],
-      // },
-      // {
-      //   title: "Automation",
-      //   icon: Workflow,
-      //   submenu: [
-      //     { title: "Workflow Builder", href: "/automation/workflows" },
-      //     { title: "Scheduled Tasks", href: "/automation/scheduled" },
-      //     { title: "Event Triggers", href: "/automation/triggers" },
-      //     { title: "Automation Logs", href: "/automation/logs" },
-      //     { title: "Templates", href: "/automation/templates" },
-      //   ],
-      // },
+      {
+        title: "Reports",
+        icon: FileText,
+        permission: "reports_read",
+        submenu: [
+          { title: "Reports", href: "/reports", permission: "reports_read" },
+        ],
+      },
+      {
+        title: "Audit Logs",
+        icon: Shield,
+        permission: "audit_log_read",
+        href: "/admin/audit-log",
+      },
+      {
+        title: "Communications",
+        icon: MessageSquare,
+        permission: "dashboard_view",
+        submenu: [
+          { title: "Messaging", href: "/messages", permission: "dashboard_view" },
+          { title: "Notifications", href: "/notifications", permission: "dashboard_view" },
+          { title: "Notices", href: "/notices", permission: "dashboard_view" },
+        ],
+      },
+      {
+        title: "VoIP Integration",
+        icon: Phone,
+        permission: "yeaster_read",
+        submenu: [
+          { title: "Yeastar PBX", href: "/yeaster", permission: "yeaster_read" },
+          { title: "Asterisk PBX", href: "/asterisk", permission: "asterisk_read" },
+        ],
+      },
+      {
+        title: "ISP Registration",
+        icon: Plug,
+        permission: "isp_read",
+        submenu: [
+          { title: "Register ISP", href: "/register-isp", permission: "isp_read" },
+        ],
+      },
     ],
   },
 ]
@@ -683,6 +342,26 @@ const menuCategories: MenuCategory[] = [
 
 
 
+
+
+// Helper to get different icon colors for different modules
+const getIconColorClass = (title: string): string => {
+  const t = title.toLowerCase()
+  if (t.includes("dashboard")) return "sidebar-icon-dashboard" // Blue
+  if (t.includes("customer") || t.includes("user") || t.includes("role") || t.includes("branch") || t.includes("membership") || t.includes("department")) return "sidebar-icon-management" // Purple
+  if (t.includes("lead") || t.includes("crm") || t.includes("existing isp") || t.includes("sms campaign")) return "sidebar-icon-marketing" // Teal
+  if (t.includes("service") || t.includes("tariff") || t.includes("3rd party")) return "sidebar-icon-services" // Green
+  if (t.includes("finance") || t.includes("billing") || t.includes("invoice") || t.includes("recharge")) return "sidebar-icon-finance" // Orange
+  if (t.includes("ticket") || t.includes("support")) return "sidebar-icon-support" // Red
+  if (t.includes("report") || t.includes("analytics")) return "sidebar-icon-analytics" // Cyan
+  if (t.includes("network") || t.includes("fiber") || t.includes("olt") || t.includes("nas") || t.includes("tr-069") || t.includes("topology")) return "sidebar-icon-infrastructure" // Indigo
+  if (t.includes("inventory") || t.includes("drum") || t.includes("stock")) return "sidebar-icon-resources" // Pink
+  if (t.includes("voip") || t.includes("yeastar") || t.includes("asterisk") || t.includes("pbx")) return "sidebar-icon-voip" // Rose
+  if (t.includes("communication") || t.includes("message") || t.includes("notification") || t.includes("notice")) return "sidebar-icon-communication" // Violet
+  if (t.includes("task")) return "sidebar-icon-operations" // Amber
+  if (t.includes("registration") || t.includes("onboarding")) return "sidebar-icon-registration" // Lime
+  return "sidebar-icon-system" // Slate
+}
 
 export function Sidebar({ open, setOpen }: SidebarProps) {
   const pathname = usePathname()
@@ -694,6 +373,61 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
   const sidebarRef = useRef<HTMLDivElement>(null)
   const [showTooltip, setShowTooltip] = useState(true)
   const [brand, setBrand] = useState<string>("ISP Manager")
+  const { user, hasPermission } = useAuth()
+
+  const filteredMenuCategories = useMemo(() => {
+    const canAccess = (permission?: string | string[]) => {
+      if (!permission) return true
+      return Array.isArray(permission)
+        ? permission.some(item => hasPermission(item))
+        : hasPermission(permission)
+    }
+
+    const roleName = typeof user?.role === 'string' ? user.role : (user?.role?.name || '');
+    const roleClean = roleName.toLowerCase();
+    const isGlobal = roleClean === 'administrator' ||
+      roleClean === 'admin' ||
+      roleClean === 'isp_admin' ||
+      roleClean === 'isp admin' ||
+      roleClean === 'super admin' ||
+      roleClean.startsWith('global');
+
+    const isCustomer = roleClean === 'customer';
+
+    const canSeeInventory = isGlobal ||
+      roleClean.includes('branch admin') ||
+      roleClean.includes('tech') ||
+      roleClean.includes('support') ||
+      roleClean.includes('field');
+
+    return menuCategories.map(category => ({
+      ...category,
+      items: category.items.map(item => {
+        if (item.title === "Inventory Management" && !canSeeInventory) return null
+        if (item.title === "ISP Registration" && !isGlobal) return null
+
+        if (item.submenu) {
+          const filteredSubmenu = item.submenu.filter(sub => {
+            const isCustomerView = sub.title === "Customer Portal" || sub.title === "Customer Dashboard"
+            if (isCustomerView && !isCustomer) return false;
+            if (!isCustomerView && isCustomer) return false;
+            return canAccess(sub.permission)
+          })
+          const hasParentAccess = canAccess(item.permission)
+          const hasSubmenuAccess = filteredSubmenu.length > 0
+
+          if (!hasParentAccess && !hasSubmenuAccess) return null
+          if (filteredSubmenu.length === 0 && !item.href) return null
+
+          return { ...item, submenu: filteredSubmenu }
+        }
+
+        if (!canAccess(item.permission)) return null
+        return item
+      }).filter((item): item is MenuItem => item !== null)
+    })).filter(category => category.items.length > 0)
+  }, [user, hasPermission])
+
   // Check for dark mode
   useEffect(() => {
     // Initial check
@@ -776,8 +510,8 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
   useEffect(() => {
     let foundMenuItem: MenuItem | undefined
 
-    if (menuCategories) {
-      menuCategories.forEach((category) => {
+    if (filteredMenuCategories) {
+      filteredMenuCategories.forEach((category) => {
         const item = category.items.find(
           (item) => item.submenu?.some((subitem) => pathname === subitem.href) || pathname === item.href,
         )
@@ -788,7 +522,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
         setOpenMenus((prev) => (prev.includes(foundMenuItem!.title) ? prev : [...prev, foundMenuItem!.title]))
       }
     }
-  }, [pathname])
+  }, [pathname, filteredMenuCategories])
 
   // Close submenu when clicking outside
   useEffect(() => {
@@ -885,7 +619,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
           <div
             className={cn(
               "flex h-14 items-center border-b border-border/40 px-4",
-              open ? "justify-center" : "md:justify-center",
+              open ? "justify-start" : "md:justify-center",
             )}
             style={{
               borderBottom: isDarkMode ? "1px solid rgba(255, 255, 255, 0.05)" : "1px solid rgba(255, 255, 255, 0.3)",
@@ -909,8 +643,8 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
           {/* Sidebar content */}
           <div className={cn("flex-1 overflow-auto py-4 scrollbar-thin hover:overflow-auto", open ? "px-2" : "px-0")}>
             <nav className="grid gap-1" aria-label="Main navigation">
-              {menuCategories &&
-                menuCategories.map((category, categoryIndex) => (
+              {filteredMenuCategories &&
+                filteredMenuCategories.map((category, categoryIndex) => (
                   <div key={category.category} className="mb-4">
                     {/* Category header - only show when sidebar is open */}
                     {open && (
@@ -953,24 +687,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
                                     <div
                                       className={cn(
                                         "sidebar-icon",
-                                        `sidebar-icon-${category.category.toLowerCase().includes("management")
-                                          ? "management"
-                                          : category.category.toLowerCase().includes("services")
-                                            ? "services"
-                                            : category.category.toLowerCase().includes("finance")
-                                              ? "finance"
-                                              : category.category.toLowerCase().includes("support")
-                                                ? "support"
-                                                : category.category.toLowerCase().includes("analytics")
-                                                  ? "analytics"
-                                                  : category.category.toLowerCase().includes("infrastructure")
-                                                    ? "infrastructure"
-                                                    : category.category.toLowerCase().includes("resources")
-                                                      ? "resources"
-                                                      : category.category.toLowerCase().includes("system")
-                                                        ? "system"
-                                                        : "dashboard"
-                                        }`,
+                                        getIconColorClass(item.title),
                                         isActive && "sidebar-icon-active",
                                       )}
                                     >
@@ -991,41 +708,24 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
                                 <button
                                   onClick={() => toggleMenu(item.title)}
                                   className={cn(
-                                    "flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                                    "flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm font-medium transition-colors",
                                     isActive
                                       ? "bg-primary/10 text-primary"
                                       : "text-adaptive hover:bg-muted hover:text-foreground",
                                     highlightStyle,
                                   )}
                                 >
-                                  <div className="flex items-center gap-3">
+                                  <div className="flex min-w-0 items-center gap-3 text-left">
                                     <div
                                       className={cn(
                                         "sidebar-icon",
-                                        `sidebar-icon-${category.category.toLowerCase().includes("management")
-                                          ? "management"
-                                          : category.category.toLowerCase().includes("services")
-                                            ? "services"
-                                            : category.category.toLowerCase().includes("finance")
-                                              ? "finance"
-                                              : category.category.toLowerCase().includes("support")
-                                                ? "support"
-                                                : category.category.toLowerCase().includes("analytics")
-                                                  ? "analytics"
-                                                  : category.category.toLowerCase().includes("infrastructure")
-                                                    ? "infrastructure"
-                                                    : category.category.toLowerCase().includes("resources")
-                                                      ? "resources"
-                                                      : category.category.toLowerCase().includes("system")
-                                                        ? "system"
-                                                        : "dashboard"
-                                        }`,
+                                        getIconColorClass(item.title),
                                         isActive && "sidebar-icon-active",
                                       )}
                                     >
                                       <item.icon aria-hidden="true" />
                                     </div>
-                                    <span>{item.title}</span>
+                                    <span className="truncate text-left">{item.title}</span>
                                   </div>
                                   {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                                 </button>
@@ -1034,14 +734,14 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
                             {open && isOpen && (
                               <div className="pl-10 pr-2">
                                 <div className="mt-1 space-y-1">
-                                  {item.submenu.map((subitem) => {
+                                  {item.submenu?.map((subitem) => {
                                     const isSubActive = pathname === subitem.href
                                     return (
                                       <a
                                         key={subitem.title}
                                         href={subitem.href}
                                         className={cn(
-                                          "flex items-center rounded-md px-3 py-1.5 text-sm transition-colors submenu-item",
+                                          "flex items-center justify-start rounded-md px-3 py-1.5 text-left text-sm transition-colors submenu-item",
                                           isSubActive
                                             ? "bg-primary/10 text-primary"
                                             : "text-adaptive hover:bg-muted hover:text-foreground",
@@ -1077,24 +777,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
                             <div
                               className={cn(
                                 "sidebar-icon",
-                                `sidebar-icon-${category.category.toLowerCase().includes("management")
-                                  ? "management"
-                                  : category.category.toLowerCase().includes("services")
-                                    ? "services"
-                                    : category.category.toLowerCase().includes("finance")
-                                      ? "finance"
-                                      : category.category.toLowerCase().includes("support")
-                                        ? "support"
-                                        : category.category.toLowerCase().includes("analytics")
-                                          ? "analytics"
-                                          : category.category.toLowerCase().includes("infrastructure")
-                                            ? "infrastructure"
-                                            : category.category.toLowerCase().includes("resources")
-                                              ? "resources"
-                                              : category.category.toLowerCase().includes("system")
-                                                ? "system"
-                                                : "dashboard"
-                                }`,
+                                getIconColorClass(item.title),
                                 isActive && "sidebar-icon-active",
                               )}
                             >
@@ -1116,7 +799,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
                           key={item.title}
                           href={item.href}
                           className={cn(
-                            "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                            "flex items-center justify-start gap-3 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors",
                             isActive
                               ? "bg-primary/10 text-primary"
                               : "text-adaptive hover:bg-muted hover:text-foreground",
@@ -1127,30 +810,13 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
                           <div
                             className={cn(
                               "sidebar-icon",
-                              `sidebar-icon-${category.category.toLowerCase().includes("management")
-                                ? "management"
-                                : category.category.toLowerCase().includes("services")
-                                  ? "services"
-                                  : category.category.toLowerCase().includes("finance")
-                                    ? "finance"
-                                    : category.category.toLowerCase().includes("support")
-                                      ? "support"
-                                      : category.category.toLowerCase().includes("analytics")
-                                        ? "analytics"
-                                        : category.category.toLowerCase().includes("infrastructure")
-                                          ? "infrastructure"
-                                          : category.category.toLowerCase().includes("resources")
-                                            ? "resources"
-                                            : category.category.toLowerCase().includes("system")
-                                              ? "system"
-                                              : "dashboard"
-                              }`,
+                              getIconColorClass(item.title),
                               isActive && "sidebar-icon-active",
                             )}
                           >
                             <item.icon aria-hidden="true" />
                           </div>
-                          <span>{item.title}</span>
+                          <span className="truncate text-left">{item.title}</span>
                         </a>
                       )
                     })}
@@ -1207,9 +873,9 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
 
           {/* Submenu items */}
           <div className="py-1">
-            {menuCategories
+            {filteredMenuCategories
               .flatMap((category) => category.items)
-              .find((item) => item.title === hoveredMenu)
+              .find((item) => item && item.title === hoveredMenu)
               ?.submenu?.map((subitem) => {
                 const isSubActive = pathname === subitem.href
                 return (
@@ -1217,7 +883,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
                     key={subitem.title}
                     href={subitem.href}
                     className={cn(
-                      "flex items-center rounded-md px-3 py-1.5 text-sm transition-colors submenu-item",
+                      "flex items-center justify-start rounded-md px-3 py-1.5 text-left text-sm transition-colors submenu-item",
                       isSubActive ? "bg-primary/10 text-primary" : "text-adaptive hover:bg-muted hover:text-foreground",
                     )}
                     aria-current={isSubActive ? "page" : undefined}

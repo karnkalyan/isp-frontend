@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { CardContainer } from "@/components/ui/card-container"
 import { useTheme } from "next-themes"
+import { apiRequest } from "@/lib/api"
+import toast from "react-hot-toast"
 
 export default function ForgotPasswordForm() {
   const [isLoading, setIsLoading] = useState(false)
@@ -23,11 +25,17 @@ export default function ForgotPasswordForm() {
     e.preventDefault()
     setIsLoading(true)
 
-    // Simulate API request
-    setTimeout(() => {
+    try {
+      await apiRequest("/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      })
       setIsLoading(false)
       setIsSubmitted(true)
-    }, 1500)
+    } catch (err: any) {
+      setIsLoading(false)
+      toast.error(err.message || "Unable to send password reset email")
+    }
   }
 
   return (
@@ -41,7 +49,7 @@ export default function ForgotPasswordForm() {
         <>
           <div className="mb-6">
             <p className="text-sm text-muted-foreground">
-              Enter your email address and we'll send you a link to reset your password.
+              Enter your email address and we'll send a temporary password to your registered email.
             </p>
           </div>
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -76,7 +84,7 @@ export default function ForgotPasswordForm() {
                   Sending...
                 </>
               ) : (
-                "Send Reset Link"
+                "Send Temporary Password"
               )}
             </Button>
           </form>
@@ -88,7 +96,7 @@ export default function ForgotPasswordForm() {
           </div>
           <h3 className="text-lg font-medium mb-2">Check your email</h3>
           <p className="text-sm text-muted-foreground mb-6">
-            We've sent a password reset link to <span className="font-medium">{email}</span>
+            We've sent a temporary password to <span className="font-medium">{email}</span>
           </p>
           <p className="text-xs text-muted-foreground mb-6">
             If you don't see it, check your spam folder or request another link.

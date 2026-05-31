@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { jwtVerify } from "jose";
 
 const PUBLIC_ROUTES = ["/login", "/forgot-password"];
 const IGNORED_PREFIXES = [
@@ -11,10 +10,6 @@ const IGNORED_PREFIXES = [
   "/images/",
   "/uploads/",
 ];
-
-// This secret must be stored securely as an environment variable
-// and must be the SAME secret as your backend's ACCESS_SECRET.
-const ACCESS_SECRET = process.env.ACCESS_SECRET;
 
 // Apply to every request
 export const config = {
@@ -30,33 +25,16 @@ export async function middleware(request: NextRequest) {
   }
 
   // 2) Get token from cookies or authorization header
-  const token = request.cookies.get("access_token")?.value;
+  const accessToken = request.cookies.get("access_token")?.value;
+  const refreshToken = request.cookies.get("refresh_token")?.value;
 
   let isAuthenticated = false;
 
-  // 3) If a token exists, VERIFY it
-  if (token) {
-    if (!ACCESS_SECRET) {
-      console.error("Missing ACCESS_SECRET environment variable");
-      // In a real app, you might want to handle this more gracefully
-      // For now, we'll treat it as unauthenticated.
-      isAuthenticated = false;
-    } else {
-      try {
-        // Encode the secret for 'jose' library
-        const secret = new TextEncoder().encode(ACCESS_SECRET);
-
-        // Verify the token's signature and expiration
-        await jwtVerify(token, secret);
-        
-        // If jwtVerify does not throw an error, the token is valid.
-        isAuthenticated = true;
-      } catch (err:any) {
-        // Token is invalid (expired, tampered, etc.)
-        console.warn("JWT verification failed:", err.message);
-        isAuthenticated = false;
-      }
-    }
+  // 3) Just check if either token cookie exists.
+  // The backend will validate its authenticity via API calls.
+  // If the backend returns 401, the frontend api.ts interceptor handles logout.
+  if (accessToken || refreshToken) {
+    isAuthenticated = true;
   }
 
   const isPublicRoute = PUBLIC_ROUTES.some(
@@ -71,11 +49,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // 5) Redirect authenticated users away from public routes (e.g., /login)
-  if (isAuthenticated && isPublicRoute) {
-    return NextResponse.redirect(new URL("/dashboard/overview", request.url));
-  }
-
+  // 5) Allow public routes regardless of authentication status
+  // We avoid automatic redirects from /login to / in middleware to prevent infinite loops 
+  // when cookies exist but are invalid (expired). The AuthContext on the client handles 
+  // redirecting already-logged-in users if needed.
+  
   // 6) All checks pass, allow the request to proceed
   return NextResponse.next();
 }

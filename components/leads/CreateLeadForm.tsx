@@ -183,6 +183,8 @@ interface User {
     id: string
     name: string
     email: string
+    branchId?: number | string | null
+    userBranches?: any[]
     role?: {
         id: string
         name: string
@@ -572,6 +574,7 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
     const [packages, setPackages] = useState<PackagePlan[]>([])
     const [memberships, setMemberships] = useState<Membership[]>([])
     const [splitters, setSplitters] = useState<Splitter[]>([])
+    const [branches, setBranches] = useState<any[]>([])
     const [leadFollowUps, setLeadFollowUps] = useState<FollowUp[]>([])
     const [showFollowUpDialog, setShowFollowUpDialog] = useState(false)
     const [editingFollowUp, setEditingFollowUp] = useState<FollowUp | null>(null)
@@ -605,6 +608,8 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
         memberShipId: "",
         assignedUserId: "",
         interestedPackageId: "",
+        branchId: "",
+        subBranchId: "",
         address: "",
         street: "",
         district: "",
@@ -637,14 +642,41 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
     }, [])
 
     // Prepare options from data using useMemo for performance
-    const userOptions: Option[] = useMemo(() =>
-        users.map(user => ({
+    const userOptions: Option[] = useMemo(() => {
+        let filteredUsers = users;
+
+        const selectedBranchId = formData.branchId ? Number(formData.branchId) : null;
+        const selectedSubBranchId = formData.subBranchId ? Number(formData.subBranchId) : null;
+
+        if (selectedSubBranchId) {
+            // Filter by specific sub-branch
+            filteredUsers = users.filter(user => {
+                const userBranchId = user.branchId ? Number(user.branchId) : null;
+                const userAddBranchIds = user.userBranches?.map((ub: any) => Number(ub.branchId)) || [];
+                return userBranchId === selectedSubBranchId || userAddBranchIds.includes(selectedSubBranchId);
+            });
+        } else if (selectedBranchId) {
+            // Filter by parent branch and all of its sub-branches
+            const relatedBranchIds = branches
+                .filter(b => String(b.id) === String(selectedBranchId) || String(b.parentId) === String(selectedBranchId))
+                .map(b => Number(b.id));
+
+            filteredUsers = users.filter(user => {
+                const userBranchId = user.branchId ? Number(user.branchId) : null;
+                const userAddBranchIds = user.userBranches?.map((ub: any) => Number(ub.branchId)) || [];
+                
+                const matchesPrimary = userBranchId && relatedBranchIds.includes(userBranchId);
+                const matchesAdditional = userAddBranchIds.some((id: number) => relatedBranchIds.includes(id));
+                return matchesPrimary || matchesAdditional;
+            });
+        }
+
+        return filteredUsers.map(user => ({
             value: String(user.id),
             label: user.name,
             description: user.role?.name || "No role"
-        })),
-        [users]
-    )
+        }));
+    }, [users, formData.branchId, formData.subBranchId, branches])
 
     const membershipOptions: Option[] = useMemo(() =>
         memberships.map(membership => ({
@@ -663,12 +695,30 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
         [packages]
     )
 
+    const mainBranchOptions: Option[] = useMemo(() => {
+        return branches.map(branch => ({
+            value: String(branch.id),
+            label: `${branch.name} (${branch.code})`
+        }));
+    }, [branches])
+
+    const subBranchOptions: Option[] = useMemo(() =>
+        branches
+            .filter(branch => branch.parentId && String(branch.parentId) === String(formData.branchId))
+            .map(branch => ({
+                value: String(branch.id),
+                label: `${branch.name} (${branch.code})`
+            })),
+        [branches, formData.branchId]
+    )
+
     // Fetch data on component mount
     useEffect(() => {
         fetchUsers()
         fetchPackages()
         fetchMemberships()
         fetchSplitters()
+        fetchBranches()
         if (leadId) {
             setIsEditing(true)
             fetchLead()
@@ -718,9 +768,10 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
             longitude: lng.toString(),
             fullAddress: result.display_name || "",
             address: result.name || "",
-            district: result.address?.county || result.address?.state_district || "",
+            district: result.address?.district || result.address?.county || result.address?.state_district || "",
             province: result.address?.state || "",
-            street: result.address?.road || ""
+            street: result.address?.road || "",
+            branchId: prev.branchId // Preserve branchId
         }))
 
         // Set current location address from search result
@@ -796,6 +847,22 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
         }
     }
 
+    const fetchBranches = async () => {
+        try {
+            const data = await apiRequest("/branches")
+            const processedBranches = Array.isArray(data)
+                ? data.map((branch: any) => ({
+                    ...branch,
+                    id: String(branch.id)
+                }))
+                : []
+            setBranches(processedBranches)
+        } catch (error: any) {
+            console.error("Failed to fetch branches:", error)
+            toast.error("Failed to load branches")
+        }
+    }
+
     const fetchSplitters = async () => {
         try {
             const response = await apiRequest("/splitters")
@@ -836,6 +903,8 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
         }
     }
 
+
+
     const fetchLead = async () => {
         if (!leadId) return
 
@@ -864,6 +933,8 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                     memberShipId: lead.memberShipId ? String(lead.memberShipId) : "",
                     assignedUserId: lead.assignedUserId ? String(lead.assignedUserId) : "",
                     interestedPackageId: lead.interestedPackageId ? String(lead.interestedPackageId) : "",
+                    branchId: lead.branchId ? String(lead.branchId) : "",
+                    subBranchId: lead.subBranchId ? String(lead.subBranchId) : "",
                     address: lead.address || "",
                     street: lead.street || "",
                     district: lead.district || "",
@@ -947,7 +1018,7 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                 )
                 return {
                     ...splitter,
-                    distance: Number(distance)
+                    distance: typeof distance === 'number' ? distance : 0
                 }
             })
             .filter(splitter => splitter.distance <= maxDistanceKm)
@@ -1056,8 +1127,8 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
         }))
 
         if (field === 'latitude' || field === 'longitude') {
-            const lat = field === 'latitude' ? parseFloat(value) : parseFloat(prev.latitude || '')
-            const lon = field === 'longitude' ? parseFloat(value) : parseFloat(prev.longitude || '')
+            const lat = field === 'latitude' ? parseFloat(value) : parseFloat(formData.latitude || '')
+            const lon = field === 'longitude' ? parseFloat(value) : parseFloat(formData.longitude || '')
             if (!isNaN(lat) && !isNaN(lon)) {
                 setLeadMapPosition([lat, lon])
                 const radius = leadServiceRadius || 0.1
@@ -1277,6 +1348,8 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
             memberShipId: "",
             assignedUserId: "",
             interestedPackageId: "",
+            branchId: "",
+            subBranchId: "",
             address: "",
             street: "",
             district: "",
@@ -1687,7 +1760,37 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                         />
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="branchId">Branch</Label>
+                            <SearchableSelect
+                                key={`branch-select-${formData.branchId || 'empty'}`}
+                                options={mainBranchOptions}
+                                value={formData.branchId}
+                                onValueChange={(value) => {
+                                    updateFormField("branchId", value as string)
+                                    updateFormField("subBranchId", "")
+                                }}
+                                placeholder="Select branch"
+                                emptyMessage="No branches found"
+                                clearable
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="subBranchId">Sub-branch</Label>
+                            <SearchableSelect
+                                key={`subbranch-select-${formData.subBranchId || 'empty'}`}
+                                options={subBranchOptions}
+                                value={formData.subBranchId}
+                                onValueChange={(value) => updateFormField("subBranchId", value as string)}
+                                placeholder="Select sub-branch"
+                                emptyMessage={formData.branchId ? "No sub-branches found" : "Please select a branch first"}
+                                disabled={!formData.branchId}
+                                clearable
+                            />
+                        </div>
+
                         <div className="space-y-2">
                             <Label htmlFor="assignedUserId">Assign To</Label>
                             <SearchableSelect

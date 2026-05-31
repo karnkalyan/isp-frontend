@@ -5,37 +5,24 @@ import toast from "react-hot-toast";
  * Dynamically resolves the API base URL based on the current browser domain.
  * This allows one build to work on multiple domains.
  */
-function getDynamicBaseUrl(): string {
+export function getDynamicBaseUrl(): string {
   if (typeof window === "undefined") {
     // Server-side (Middleware/SSR) fallback
-    return process.env.NEXT_PUBLIC_API_BASE_URL || "https://api.radius.kisan.net.np";
+    return process.env.INTERNAL_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3200";
   }
 
   const hostname = window.location.hostname;
 
-  // Check which root domain the user is on
-  if (hostname.includes("namaste.net.np")) {
-    return "https://api.radius.namaste.net.np";
+  const configuredBase = process.env.NEXT_PUBLIC_API_BASE_URL;
+  if (configuredBase) return configuredBase;
+
+  // Same-origin production path: https://frontend-domain/api
+  if (hostname !== "localhost" && hostname !== "127.0.0.1" && !hostname.startsWith("192.168.")) {
+    return "/api";
   }
 
-  if (hostname.includes("kisan.net.np")) {
-    return "https://api.radius.kisan.net.np";
-  }
-
-  if (hostname.includes("cms.arrownet.com.np")) {
-    return "https://api.cms.arrownet.com.np";
-  }
-
-  if (hostname.includes("192.168.200.11")) {
-    return "http://192.168.200.11:3200";
-  }
-
-  if (hostname.includes("192.168.10.3")) {
-    return "http://192.168.10.3:3200";
-  }
-
-  // Local development fallback
-  return process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3200";
+  // Local development fallback: use the exact same hostname the user is visiting
+  return `http://${hostname}:3200`;
 }
 
 /**
@@ -47,6 +34,9 @@ export function getWebSocketUrl(): string {
   }
 
   const baseUrl = getDynamicBaseUrl();
+  if (baseUrl.startsWith("/")) {
+    return `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws`;
+  }
   try {
     const url = new URL(baseUrl);
     // Change the protocol to ws or wss
@@ -55,7 +45,8 @@ export function getWebSocketUrl(): string {
     url.pathname = "/ws";
     return url.toString();
   } catch {
-    return "ws://localhost:3200/ws";
+    const hostname = window.location.hostname;
+    return `ws://${hostname}:3200/ws`;
   }
 }
 
@@ -75,23 +66,34 @@ async function parseResponsePayload(res: Response) {
   }
 }
 
+// Global state for token refresh mutex
+let isRefreshing = false;
+let refreshPromise: Promise<boolean> | null = null;
+
 export async function apiRequest<T = any>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
   // Get the URL dynamically for every request
-  const BASE_URL = getDynamicBaseUrl();
-  const url = `${BASE_URL}${endpoint}`;
+  const BASE_URL = getDynamicBaseUrl().replace(/\/+$/, "");
+  const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  const url = `${BASE_URL}${cleanEndpoint}`;
 
   options.credentials = "include";
+
+  const selectedBranchId = isClient() ? localStorage.getItem("selected-branch-id") : null;
 
   if (!(options.body instanceof FormData)) {
     options.headers = {
       "Content-Type": "application/json",
+      ...(selectedBranchId ? { "x-selected-branch-id": selectedBranchId } : {}),
       ...(options.headers || {}),
     };
   } else {
-    const newHeaders = { ...(options.headers || {}) } as Record<string, any>;
+    const newHeaders = { 
+      ...(selectedBranchId ? { "x-selected-branch-id": selectedBranchId } : {}),
+      ...(options.headers || {}) 
+    } as Record<string, any>;
     delete newHeaders["Content-Type"];
     options.headers = newHeaders;
   }
@@ -106,30 +108,41 @@ export async function apiRequest<T = any>(
   }
 
   // 401 refresh flow
-  if (response.status === 401 && !endpoint.includes("/auth/refresh")) {
-    try {
-      const refreshRes = await fetch(`${BASE_URL}/auth/refresh`, {
+  if (response.status === 401 && !endpoint.includes("/auth/refresh") && !endpoint.includes("/auth/login")) {
+    if (!isRefreshing) {
+      isRefreshing = true;
+      refreshPromise = fetch(`${BASE_URL}/auth/refresh`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-      });
-
-      if (refreshRes.ok) {
-        // Retry the original request
-        response = await fetch(url, options);
-      } else {
-        const payload = await parseResponsePayload(refreshRes);
-        const payloadStr =
-          typeof payload === "string" ? payload : JSON.stringify(payload);
-        if (isClient()) {
-          toast.error("Session expired. Please login again.");
-          window.location.href = "/login";
+      }).then(async (refreshRes) => {
+        if (!refreshRes.ok) {
+           if (isClient() && window.location.pathname !== "/login") {
+              toast.error("Session expired. Please login again.");
+              window.location.href = "/login";
+           }
+           return false;
         }
-        throw new Error(payloadStr || "Session expired");
-      }
-    } catch (err: any) {
-      const msg = err?.message || "Session refresh failed";
-      throw new Error(msg);
+        try {
+          // Simply succeed, cookies are updated automatically by backend response
+          await refreshRes.json();
+        } catch (e) {
+          console.error("Failed to parse refresh token response:", e);
+        }
+        return true;
+      }).catch(() => false)
+        .finally(() => {
+          isRefreshing = false;
+        });
+    }
+
+    const refreshSuccess = await refreshPromise;
+    
+    if (refreshSuccess) {
+      // Retry the original request
+      response = await fetch(url, options);
+    } else {
+      throw new Error("Session expired");
     }
   }
 

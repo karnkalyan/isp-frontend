@@ -35,11 +35,13 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
 
 type Role = {
   id: number
   name: string
   description: string
+  isActive: boolean
   totalUsers: number
   isSystem: boolean
   createdAt: string
@@ -68,6 +70,7 @@ export function RolesList({ selectedRoleId, onRoleSelect }: RolesListProps) {
   const [newRoleDescription, setNewRoleDescription] = useState("")
   const [editRoleName, setEditRoleName] = useState("")
   const [editRoleDescription, setEditRoleDescription] = useState("")
+  const [editRoleIsActive, setEditRoleIsActive] = useState(true)
 
   const fetchRoles = async () => {
     try {
@@ -133,6 +136,7 @@ export function RolesList({ selectedRoleId, onRoleSelect }: RolesListProps) {
     setSelectedRole(role)
     setEditRoleName(role.name)
     setEditRoleDescription(role.description)
+    setEditRoleIsActive(role.isActive)
     setIsEditDialogOpen(true)
   }
 
@@ -149,7 +153,9 @@ export function RolesList({ selectedRoleId, onRoleSelect }: RolesListProps) {
       const response = await apiRequest(`/roles/${selectedRole.id}`, {
         method: 'PUT',
         body: JSON.stringify({
-          name: editRoleName        }),
+          name: editRoleName,
+          isActive: editRoleIsActive
+        }),
       })
       
       toast.success(response.message || "Role updated successfully")
@@ -328,14 +334,23 @@ export function RolesList({ selectedRoleId, onRoleSelect }: RolesListProps) {
                             </div>
                           </div>
                         </div>
-                        {role.isSystem && (
-                          <Badge
-                            variant="outline"
-                            className={isDarkMode ? "border-slate-500 text-slate-300" : "border-gray-300 text-gray-700"}
-                          >
-                            System
-                          </Badge>
-                        )}
+                        <div className="flex gap-1.5 items-center">
+                          {role.isSystem && (
+                            <Badge
+                              variant="outline"
+                              className={isDarkMode ? "border-slate-500 text-slate-300" : "border-gray-300 text-gray-700"}
+                            >
+                              System
+                            </Badge>
+                          )}
+                          {!role.isActive && (
+                            <Badge
+                              variant="destructive"
+                            >
+                              Disabled
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                       {/* footer row */}
                       <div
@@ -444,6 +459,14 @@ export function RolesList({ selectedRoleId, onRoleSelect }: RolesListProps) {
                 placeholder="Enter role description"
                 rows={3}
               />
+            </div>
+            <div className="flex items-center space-x-2 pt-2">
+              <Checkbox
+                id="edit-role-active"
+                checked={editRoleIsActive}
+                onCheckedChange={(checked) => setEditRoleIsActive(!!checked)}
+              />
+              <Label htmlFor="edit-role-active" className="cursor-pointer text-sm">Active / Enabled</Label>
             </div>
           </div>
           <DialogFooter>

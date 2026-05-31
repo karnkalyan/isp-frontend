@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts"
 import { motion, AnimatePresence } from "framer-motion"
+import { Loader2 } from "lucide-react"
 
 const quarterlyData = [
   { month: "Jan", revenue: 45000, expenses: 32000 },
@@ -20,13 +21,27 @@ const yearlyData = [
 ]
 
 export function RevenueChart() {
+  const [billingData, setBillingData] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
-  const [activeTab, setActiveTab] = useState("quarterly")
-  const [isDarkMode, setIsDarkMode] = useState(true)
 
   useEffect(() => {
     setMounted(true)
     setIsDarkMode(document.documentElement.classList.contains("dark"))
+
+    async function fetchBillingStats() {
+      try {
+        const { apiRequest } = await import("@/lib/api")
+        const data = await apiRequest('/billing/stats')
+        setBillingData(data)
+      } catch (error) {
+        console.error("Failed to fetch billing stats:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchBillingStats()
 
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
@@ -40,38 +55,22 @@ export function RevenueChart() {
     return () => observer.disconnect()
   }, [])
 
-  if (!mounted) {
+  const [activeTab, setActiveTab] = useState("quarterly")
+  const [isDarkMode, setIsDarkMode] = useState(true)
+
+  if (!mounted || loading) {
     return (
-      <Card className="bg-[#0f172a] border-[#1e293b] rounded-xl overflow-hidden relative">
-        {/* Top-left corner gradient - increased size */}
-        <div
-          className="absolute -top-32 -left-32 w-64 h-64 rounded-full opacity-20"
-          style={{
-            background: `radial-gradient(circle, #EF4444 0%, transparent 70%)`,
-          }}
-        />
-
-        {/* Bottom-right corner gradient - increased size */}
-        <div
-          className="absolute -bottom-32 -right-32 w-64 h-64 rounded-full opacity-20"
-          style={{
-            background: `radial-gradient(circle, #EF4444 0%, transparent 70%)`,
-          }}
-        />
-
-        <CardHeader className="pb-2 border-b border-[#1e293b] relative z-10">
-          <CardTitle className="text-white">Revenue Overview</CardTitle>
-          <CardDescription className="text-slate-400">Financial performance</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[300px] flex items-center justify-center text-slate-400">Loading chart...</div>
-        </CardContent>
+      <Card className="bg-[#0f172a] border-[#1e293b] rounded-xl overflow-hidden relative min-h-[400px]">
+        <div className="absolute inset-0 flex items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
       </Card>
     )
   }
 
   const getChartData = () => {
-    return activeTab === "yearly" ? yearlyData : quarterlyData
+    // If we only have monthly data, we'll use it for both for now, or just show the actual data
+    return billingData.length > 0 ? billingData : quarterlyData
   }
 
   return (

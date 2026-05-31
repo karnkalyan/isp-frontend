@@ -4,6 +4,7 @@ import { BarChart3, CreditCard, LayoutDashboard, Settings, Users } from "lucide-
 import { cn } from "@/lib/utils"
 import { usePathname } from "next/navigation"
 import { motion } from "framer-motion"
+import { useAuth } from "@/contexts/AuthContext"
 
 const navItems = [
   {
@@ -15,31 +16,37 @@ const navItems = [
     title: "Users",
     icon: Users,
     href: "/admin/users",
+    permission: "users_read",
   },
   {
     title: "Billing",
     icon: CreditCard,
     href: "/billing",
+    permission: "billing_read",
   },
   {
     title: "Reports",
     icon: BarChart3,
     href: "/reports",
+    permission: "reports_read",
   },
   {
     title: "Settings",
     icon: Settings,
     href: "/settings",
+    permission: "settings_read",
   },
 ]
 
 export function MobileNav() {
   const pathname = usePathname()
+  const { hasPermission } = useAuth()
+  const visibleItems = navItems.filter(item => !item.permission || hasPermission(item.permission))
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border/40 bg-background/60 backdrop-blur-md supports-[backdrop-filter]:bg-background/40 transition-colors duration-300 md:hidden">
       <nav className="flex h-16">
-        {navItems.map((item) => {
+        {visibleItems.map((item) => {
           const isActive = pathname === item.href
           return (
             <a

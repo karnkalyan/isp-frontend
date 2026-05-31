@@ -86,6 +86,7 @@ export function ServiceAreasSettings() {
               ? p.packageDuration
               : "",
           isTrial: p.isTrial ?? false,
+          oneTimeCharges: Array.isArray(p.oneTimeCharges) ? p.oneTimeCharges : [],
         }))
       )
     } catch (err) {
@@ -330,7 +331,7 @@ export function ServiceAreasSettings() {
                   <TableCell>{pkg.packagePlanDetails.downSpeed} / {pkg.packagePlanDetails.upSpeed}</TableCell>
                   <TableCell>Rs. {pkg.price}</TableCell>
                   <TableCell>{pkg.isTrial ? "Yes" : "No"}</TableCell>
-                  <TableCell>{pkg.oneTimeCharges.map(c => c.name).join(", ") || "—"}</TableCell>
+                  <TableCell>{(pkg.oneTimeCharges || []).map(c => c.name).join(", ") || "—"}</TableCell>
                   <TableCell>{pkg.referenceId || "—"}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex space-x-1 justify-end">

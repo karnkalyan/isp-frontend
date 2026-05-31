@@ -17,6 +17,7 @@ import { toast } from "react-hot-toast"
 import { cn } from "@/lib/utils"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CardContainer } from "@/components/ui/card-container"
+import { apiRequest } from "@/lib/api"
 
 // Dynamically import Leaflet components
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
@@ -24,7 +25,6 @@ const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLaye
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false })
 const Polyline = dynamic(() => import('react-leaflet').then(mod => mod.Polyline), { ssr: false })
-const useMap = dynamic(() => import('react-leaflet').then(mod => mod.useMap), { ssr: false })
 
 // Fix for Leaflet default icons - moved inside client-side check
 const fixLeafletIcons = () => {
@@ -101,6 +101,7 @@ const parseFile = async (file: File): Promise<any[]> => {
 }
 
 function MapController({ focusPosition }: { focusPosition: [number, number] | null }) {
+    const { useMap } = require('react-leaflet')
     const map = useMap()
     useEffect(() => {
         setTimeout(() => {
@@ -125,6 +126,8 @@ export default function UltimateGISMap() {
     const [files, setFiles] = useState<any[]>([])
     const [focusPosition, setFocusPosition] = useState<[number, number] | null>([27.7172, 85.3240])
     const [targetCat, setTargetCat] = useState<string | null>(null)
+    const [selectedCat, setSelectedCat] = useState<string | null>(null)
+    const [newFolderName, setNewFolderName] = useState("")
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     // Master Layer Visibility
@@ -135,6 +138,59 @@ export default function UltimateGISMap() {
         fiber: true,
         misc: true
     })
+
+    const loadMapData = async () => {
+        try {
+            const data = await apiRequest<any[]>("/fiber-map/folders")
+            if (data) {
+                const loadedCategories = data.map(f => ({ id: f.id.toString(), name: f.name, isExpanded: true }))
+                setCategories(loadedCategories)
+                setSelectedCat(current => {
+                    if (current && loadedCategories.some(cat => cat.id === current)) return current
+                    return loadedCategories[0]?.id || null
+                })
+                const allFiles: any[] = []
+                data.forEach(f => {
+                    if (f.files) {
+                        f.files.forEach((file: any) => {
+                            allFiles.push({
+                                id: file.id.toString(),
+                                catId: f.id.toString(),
+                                name: file.name,
+                                data: file.data || [],
+                                isVisible: true
+                            })
+                        })
+                    }
+                })
+                setFiles(allFiles)
+            }
+        } catch (e) {
+            console.error("Failed to load map data")
+        }
+    }
+
+    const createFolder = async () => {
+        const name = newFolderName.trim()
+        if (!name) {
+            toast.error("Folder name is required")
+            return
+        }
+
+        try {
+            const res = await apiRequest<any>('/fiber-map/folders', {
+                method: 'POST',
+                body: JSON.stringify({ name })
+            })
+            const newCategory = { id: res.id.toString(), name: res.name || name, isExpanded: true }
+            setCategories(prev => [...prev, newCategory])
+            setSelectedCat(newCategory.id)
+            setNewFolderName("")
+            toast.success("Folder created")
+        } catch (err) {
+            toast.error("Failed to create folder")
+        }
+    }
 
     // Initialize icons on client
     useEffect(() => {
@@ -147,6 +203,8 @@ export default function UltimateGISMap() {
             SPLITTER: createIcon("FAT", "purple"),
             POLE: createIcon("P", "blue")
         })
+
+        loadMapData()
     }, [])
 
     // UTIL: find first geo position from parsed data
@@ -165,9 +223,22 @@ export default function UltimateGISMap() {
             return
         }
         try {
-            const data = await parseFile(file)
+            const data: any[] = await parseFile(file)
+            
+            // Upload to backend
+            const formData = new FormData()
+            formData.append('mapFile', file)
+            formData.append('folderId', targetCat)
+            formData.append('name', file.name)
+            formData.append('parsedData', JSON.stringify(data))
+
+            const res = await apiRequest<any>('/fiber-map/files', {
+                method: 'POST',
+                body: formData
+            })
+
             const newFile = {
-                id: Math.random().toString(36).slice(2),
+                id: res.id.toString(),
                 catId: targetCat,
                 name: file.name,
                 data,
@@ -190,7 +261,7 @@ export default function UltimateGISMap() {
             toast.success(`Loaded ${file.name}`)
         } catch (err) {
             console.error(err)
-            toast.error("Failed to parse file")
+            toast.error("Failed to parse and upload file")
         }
     }
 
@@ -209,10 +280,15 @@ export default function UltimateGISMap() {
         setFiles(prev => prev.map(f => f.id === fileId ? { ...f, isVisible: !f.isVisible } : f))
     }
 
-    const handleRemoveFile = (e: React.MouseEvent, fileId: string) => {
+    const handleRemoveFile = async (e: React.MouseEvent, fileId: string) => {
         e.stopPropagation()
-        setFiles(prev => prev.filter(f => f.id !== fileId))
-        toast.success("File removed")
+        try {
+            await apiRequest(`/fiber-map/files/${fileId}`, { method: 'DELETE' })
+            setFiles(prev => prev.filter(f => f.id !== fileId))
+            toast.success("File removed")
+        } catch {
+            toast.error("Failed to remove file")
+        }
     }
 
     // effect: if user toggles autoReplace ON, and multiple files exist, choose the last visible file as focus
@@ -409,12 +485,12 @@ export default function UltimateGISMap() {
                                     <Button
                                         size="sm"
                                         onClick={() => {
-                                            const catId = categories[0]?.id
+                                            const catId = selectedCat || categories[0]?.id
                                             if (catId) {
                                                 setTargetCat(catId)
                                                 fileInputRef.current?.click()
                                             } else {
-                                                toast.error("No folder available")
+                                                toast.error("Create or select a folder first")
                                             }
                                         }}
                                     >
@@ -427,19 +503,16 @@ export default function UltimateGISMap() {
                                     <Input
                                         placeholder="Create new folder..."
                                         className="flex-1"
-                                        onKeyDown={e => {
-                                            if (e.key === 'Enter' && e.currentTarget.value.trim()) {
-                                                setCategories(p => [...p, {
-                                                    id: Math.random().toString(36).slice(2),
-                                                    name: e.currentTarget.value.trim(),
-                                                    isExpanded: true
-                                                }])
-                                                e.currentTarget.value = ""
-                                                toast.success("Folder created")
+                                        value={newFolderName}
+                                        onChange={e => setNewFolderName(e.target.value)}
+                                        onKeyDown={async e => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault()
+                                                await createFolder()
                                             }
                                         }}
                                     />
-                                    <Button size="icon">
+                                    <Button size="icon" onClick={createFolder}>
                                         <Plus className="h-4 w-4" />
                                     </Button>
                                 </div>
@@ -447,11 +520,20 @@ export default function UltimateGISMap() {
                                 <ScrollArea className="h-[400px] pr-4">
                                     <div className="space-y-3">
                                         {categories.map(cat => (
-                                            <div key={cat.id} className="border rounded-lg overflow-hidden bg-card">
+                                            <div
+                                                key={cat.id}
+                                                className={cn(
+                                                    "border rounded-lg overflow-hidden bg-card",
+                                                    selectedCat === cat.id && "ring-2 ring-primary/50 border-primary/50"
+                                                )}
+                                            >
                                                 <div className="p-3 bg-muted/30 flex items-center justify-between">
                                                     <button
                                                         className="flex items-center gap-2 text-sm font-medium flex-1 hover:text-primary transition-colors"
-                                                        onClick={() => setCategories(p => p.map(c => c.id === cat.id ? { ...c, isExpanded: !c.isExpanded } : c))}
+                                                        onClick={() => {
+                                                            setSelectedCat(cat.id)
+                                                            setCategories(p => p.map(c => c.id === cat.id ? { ...c, isExpanded: !c.isExpanded } : c))
+                                                        }}
                                                     >
                                                         {cat.isExpanded ?
                                                             <FolderOpen className="h-4 w-4 text-primary" /> :

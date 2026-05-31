@@ -20,7 +20,12 @@ export default function BranchesPage() {
                         {
                             label: "Customer",
                             href: "/customers/list",
-                            icon: BarChart3
+                            icon: <BarChart3 className="mr-2 h-4 w-4" />
+                        },
+                        {
+                            label: "User Access",
+                            href: "/admin/users",
+                            icon: <Users className="mr-2 h-4 w-4" />
                         }
                     ]}
                 />

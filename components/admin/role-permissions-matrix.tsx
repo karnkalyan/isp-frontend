@@ -12,6 +12,7 @@ import { motion } from "framer-motion"
 import { apiRequest } from "@/lib/api"
 import { toast } from "react-hot-toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Label } from "@/components/ui/label"
 
 interface Permission {
   id: number
@@ -24,6 +25,189 @@ interface PermissionCategory {
   category: string
   permissions: Permission[]
 }
+
+interface ModuleConfig {
+  permissions: string[];
+  subModules?: Record<string, string[]>;
+}
+
+const modulePermissionMap: Record<string, ModuleConfig> = {
+  "Dashboard": {
+    permissions: [],
+    subModules: {
+      "Overview": ["dashboard_view"],
+      "Real-Time Monitoring": ["dashboard_view"],
+      "Settings": ["dashboard_view"]
+    }
+  },
+  "Customer Management": {
+    permissions: [],
+    subModules: {
+      "Customers": ["customer_read"],
+      "All Customers": ["customer_read"],
+      "New Customer": ["customer_create"],
+      "Customer Details": ["customer_read", "customer_update"],
+      "Customer Portal": ["customer_read"],
+      "Customer Dashboard": ["customer_read"]
+    }
+  },
+  "Lead Management (CRM)": {
+    permissions: [],
+    subModules: {
+      "Create Lead": ["lead_create"],
+      "Assigned Leads": ["lead_read"],
+      "Qualified Leads": ["lead_read"],
+      "Unqualified Leads": ["lead_read"],
+      "Converted Leads": ["lead_read"],
+      "Follow-ups": ["lead_read", "lead_update"],
+      "Import Leads": ["lead_create"],
+      "Lead Reports": ["lead_read"],
+      "Edit Lead": ["lead_update"],
+      "View Lead": ["lead_read"]
+    }
+  },
+  "Service Management": {
+    permissions: [],
+    subModules: {
+      "Add Service": ["services_manage"],
+      "Service Settings": ["services_manage"],
+      "Service Details": ["services_read"]
+    }
+  },
+  "Tariff Management": {
+    permissions: [],
+    subModules: {
+      "Tariff Catalog": ["package_plans_read", "package_plans_create", "package_plans_update", "package_plans_delete"]
+    }
+  },
+  "Finance & Billing": {
+    permissions: [],
+    subModules: {
+      "Invoices": ["billing_read", "billing_read_self"],
+      "Invoice Ranges": ["billing_read"],
+      "Payments": ["billing_create", "billing_update"],
+      "Recharge": ["billing_create"],
+      "Renewal": ["billing_create"]
+    }
+  },
+  "Network Infrastructure": {
+    permissions: [],
+    subModules: {
+      "Fiber Network": ["olt_read"],
+      "Fiber Map": ["olt_read"],
+      "Fiber Networks": ["olt_read"],
+      "OLT Management": ["olt_read", "olt_create"],
+      "Splitter Management": ["olt_read", "olt_create"],
+      "Networking": ["olt_read"],
+      "Network Topology": ["olt_read"],
+      "NAS Management": ["nas_read", "nas_create"],
+      "Add NAS": ["nas_create"],
+      "NAS Details": ["nas_read"],
+      "TR-069 Management": ["services_read", "services_manage"],
+      "Device Management": ["services_read", "services_manage"],
+      "Virtual Hosts": ["services_read", "services_manage"]
+    }
+  },
+  "Inventory Management": {
+    permissions: [],
+    subModules: {
+      "Add Inventory": ["inventory_manage"],
+      "Bulk Inventory": ["bulk_inventory_read", "bulk_inventory_create", "bulk_inventory_update", "bulk_inventory_delete"],
+      "Bulk Assignments": ["inventory_manage"],
+      "Import Inventory": ["inventory_manage"],
+      "Lifecycle Management": ["inventory_read", "inventory_manage"]
+    }
+  },
+  "Drum Management": {
+    permissions: [],
+    subModules: {
+      "Drum Assignments": ["drums_read", "drums_create", "drums_update", "drums_delete"]
+    }
+  },
+  "Branch Management": {
+    permissions: [],
+    subModules: {
+      "Branch Details": ["branches_read"],
+      "Branch Settings": ["branches_read", "branches_create", "branches_update", "branches_delete"]
+    }
+  },
+  "Administrative Management": {
+    permissions: [],
+    subModules: {
+      "User Administration": ["users_read", "users_create", "users_update", "users_delete"],
+      "Users": ["users_read", "users_create", "users_update", "users_delete"],
+      "Roles": ["roles_read", "roles_create", "roles_update", "roles_delete"],
+      "Audit Logs": ["audit_log_read"],
+      "Department Management": ["departments_read", "departments_create", "departments_update", "departments_delete"]
+    }
+  },
+  "Ticketing & Support": {
+    permissions: [],
+    subModules: {
+      "Tickets": ["tickets_read", "tickets_read_self", "tickets_create", "tickets_update"],
+      "Create Ticket": ["tickets_create"]
+    }
+  },
+  "Task Management": {
+    permissions: [],
+    subModules: {
+      "Tasks": ["tasks_read", "tasks_read_self", "tasks_create", "tasks_update", "tasks_delete"]
+    }
+  },
+  "Communication Center": {
+    permissions: [],
+    subModules: {
+      "Messaging": ["lead_read", "customer_read", "services_manage"],
+      "Notifications": ["lead_read", "customer_read", "services_manage"],
+      "SMS Campaigns": ["lead_read", "customer_read", "services_manage"],
+      "Notices": ["lead_read", "customer_read", "services_manage"]
+    }
+  },
+  "Membership Management": {
+    permissions: [],
+    subModules: {
+      "Membership": ["membership_read", "membership_create"]
+    }
+  },
+  "Reports & Analytics": {
+    permissions: [],
+    subModules: {
+      "Reports": ["reports_read", "reports_generate"]
+    }
+  },
+  "Master Configuration": {
+    permissions: [],
+    subModules: {
+      "Master Settings": ["settings_read", "settings_update"]
+    }
+  },
+  "Existing ISP Migration": {
+    permissions: [],
+    subModules: {
+      "Existing ISP Data": ["existingisp_read", "existingisp_create", "existingisp_update"]
+    }
+  },
+  "ISP Registration & Onboarding": {
+    permissions: [],
+    subModules: {
+      "Register ISP": ["isp_read", "isp_create", "isp_update", "isp_delete"]
+    }
+  },
+  "VoIP Integration": {
+    permissions: [],
+    subModules: {
+      "Yeastar PBX": ["yeaster_read", "yeaster_manage"],
+      "Asterisk PBX": ["asterisk_read", "asterisk_manage"]
+    }
+  },
+  "Authentication": {
+    permissions: [],
+    subModules: {
+      "Login": ["dashboard_view"],
+      "Forgot Password": ["dashboard_view"]
+    }
+  }
+};
 
 interface RolePermissionsMatrixProps {
   selectedRoleId: number | null
@@ -177,6 +361,81 @@ export function RolePermissionsMatrix({ selectedRoleId }: RolePermissionsMatrixP
     }
   }
 
+  const handleModuleToggle = (moduleName: string) => {
+    const config = modulePermissionMap[moduleName];
+    if (!config) return;
+    const allFlat = permissions.flatMap(cat => cat.permissions);
+    
+    let requiredPermNames: string[] = [];
+    if (config.subModules) {
+      requiredPermNames = Object.values(config.subModules).flat();
+    } else {
+      requiredPermNames = config.permissions;
+    }
+    
+    const requiredPermIds = allFlat
+      .filter(p => requiredPermNames.includes(p.name))
+      .map(p => p.id);
+
+    if (requiredPermIds.length === 0) return;
+
+    const isCurrentlyEnabled = requiredPermIds.every(id => rolePermissions.includes(id));
+
+    setRolePermissions(prev => {
+      if (isCurrentlyEnabled) {
+        return prev.filter(id => !requiredPermIds.includes(id));
+      } else {
+        return [...new Set([...prev, ...requiredPermIds])];
+      }
+    });
+    setHasChanges(true);
+  };
+
+  const handleSubModuleToggle = (moduleName: string, subName: string) => {
+    const config = modulePermissionMap[moduleName];
+    if (!config || !config.subModules || !config.subModules[subName]) return;
+    
+    const requiredPermNames = config.subModules[subName];
+    const allFlat = permissions.flatMap(cat => cat.permissions);
+    
+    const requiredPermIds = allFlat
+      .filter(p => requiredPermNames.includes(p.name))
+      .map(p => p.id);
+
+    if (requiredPermIds.length === 0) return;
+
+    const isCurrentlyEnabled = requiredPermIds.every(id => rolePermissions.includes(id));
+
+    setRolePermissions(prev => {
+      if (isCurrentlyEnabled) {
+        return prev.filter(id => !requiredPermIds.includes(id));
+      } else {
+        return [...new Set([...prev, ...requiredPermIds])];
+      }
+    });
+    setHasChanges(true);
+  };
+
+  const isModuleEnabled = (moduleName: string) => {
+    const config = modulePermissionMap[moduleName];
+    if (!config) return false;
+    
+    const allFlat = permissions.flatMap(cat => cat.permissions);
+    let requiredPermNames: string[] = [];
+    if (config.subModules) {
+      requiredPermNames = Object.values(config.subModules).flat();
+    } else {
+      requiredPermNames = config.permissions;
+    }
+    
+    const requiredPermIds = allFlat
+      .filter(p => requiredPermNames.includes(p.name))
+      .map(p => p.id);
+
+    if (requiredPermIds.length === 0) return false;
+    return requiredPermIds.every(id => rolePermissions.includes(id));
+  };
+
   const filteredCategories = permissions.filter(
     (category) => selectedTab === "all" || category.category.toLowerCase() === selectedTab.toLowerCase(),
   )
@@ -285,6 +544,87 @@ export function RolePermissionsMatrix({ selectedRoleId }: RolePermissionsMatrixP
 
               <TabsContent value={selectedTab} className="mt-0">
                 <ScrollArea className="h-[800px] pr-4">
+                  {selectedTab === "all" && !searchQuery && (
+                    <div className={`mb-6 p-4 rounded-xl border ${isDarkMode ? "bg-slate-900/50 border-slate-800" : "bg-slate-50 border-slate-200"}`}>
+                      <h3 className={`text-sm font-semibold mb-3 flex items-center gap-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+                        <Shield className="h-4 w-4 text-primary" />
+                        Sidebar Modules & Access Control
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {Object.keys(modulePermissionMap).map((moduleName) => {
+                          const config = modulePermissionMap[moduleName];
+                          const hasSubModules = !!config.subModules;
+                          const enabled = isModuleEnabled(moduleName);
+                          const allFlat = permissions.flatMap(cat => cat.permissions);
+                          const getIdsForPerms = (perms: string[]) => allFlat.filter(p => perms.includes(p.name)).map(p => p.id);
+                          
+                          return (
+                            <div
+                              key={moduleName}
+                              className={`p-3.5 rounded-xl border transition-all ${
+                                enabled
+                                  ? isDarkMode
+                                    ? "bg-slate-900/80 border-primary/30"
+                                    : "bg-slate-50 border-primary/20"
+                                  : isDarkMode
+                                  ? "bg-slate-900/40 border-slate-800"
+                                  : "bg-white border-gray-100"
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <Checkbox
+                                  id={`module-${moduleName}`}
+                                  checked={enabled}
+                                  onCheckedChange={() => handleModuleToggle(moduleName)}
+                                />
+                                <Label
+                                  htmlFor={`module-${moduleName}`}
+                                  className="text-sm font-semibold cursor-pointer select-none"
+                                >
+                                  {moduleName}
+                                </Label>
+                              </div>
+                              
+                              {hasSubModules && config.subModules && (
+                                <div className="mt-3 pl-4 border-l border-slate-700/60 space-y-2.5 ml-2.5">
+                                  {Object.keys(config.subModules).map((subName) => {
+                                    const subPerms = config.subModules![subName];
+                                    const subIds = getIdsForPerms(subPerms);
+                                    const isSubEnabled = subIds.length > 0 && subIds.every(id => rolePermissions.includes(id));
+                                    
+                                    return (
+                                      <div
+                                        key={subName}
+                                        onClick={() => handleSubModuleToggle(moduleName, subName)}
+                                        className={`flex items-center gap-3 p-2 rounded-lg border cursor-pointer transition-all hover:scale-[1.01] ${
+                                          isSubEnabled
+                                            ? isDarkMode
+                                              ? "bg-primary/10 border-primary/40 text-white"
+                                              : "bg-primary/5 border-primary/30 text-primary-dark"
+                                            : isDarkMode
+                                            ? "bg-slate-800/40 border-slate-700/60 text-slate-300 hover:bg-slate-800"
+                                            : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                                        }`}
+                                      >
+                                        <Checkbox
+                                          id={`sub-${moduleName}-${subName}`}
+                                          checked={isSubEnabled}
+                                          onCheckedChange={() => {}}
+                                          className="pointer-events-none"
+                                        />
+                                        <span className="text-xs font-medium cursor-pointer select-none">{subName}</span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {searchQuery ? (
                     <div className="space-y-4">
                       {filteredPermissions.length > 0 ? (

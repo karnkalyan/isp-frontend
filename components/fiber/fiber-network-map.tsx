@@ -11,8 +11,8 @@ export default function FiberNetworkTopology() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Network Topology Map</h1>
-        <p className="text-slate-600 dark:text-slate-400 mt-2">
-          Real-time hierarchical view of OLT → Splitter → ONU connections with status indicators
+        <p className="mt-2 text-slate-600 dark:text-slate-400">
+          Hierarchical view from OLT to splitter to ONT using configured network and customer data.
         </p>
       </div>
       <NetworkTopologyD3 />

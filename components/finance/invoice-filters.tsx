@@ -26,18 +26,18 @@ export function InvoiceFilters() {
       <FilterContainer>
         <div className="flex-1 flex items-center gap-2 flex-wrap">
           <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               type="search"
               placeholder="Search invoices..."
-              className="pl-8 bg-slate-800/50 border-slate-700 text-slate-100 placeholder:text-slate-500 focus-visible:ring-blue-500"
+              className="pl-8 bg-background border-input text-foreground placeholder:text-muted-foreground focus-visible:ring-ring"
             />
           </div>
           <Select>
-            <SelectTrigger className="w-[150px] bg-slate-800/50 border-slate-700 text-slate-100 focus:ring-blue-500">
+            <SelectTrigger className="w-[150px] bg-background border-input text-foreground focus:ring-ring">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
-            <SelectContent className="bg-slate-900 border border-slate-800 text-slate-100">
+            <SelectContent className="bg-popover border-border text-popover-foreground">
               <SelectItem value="all">All Statuses</SelectItem>
               <SelectItem value="paid">Paid</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>
@@ -46,7 +46,7 @@ export function InvoiceFilters() {
           </Select>
           <Button
             variant="outline"
-            className="border-slate-700 bg-slate-800/50 hover:bg-slate-800 text-slate-200"
+            className="border-input bg-background hover:bg-muted text-foreground"
             onClick={() => addFilter("Date: Last 30 days")}
           >
             <Calendar className="mr-2 h-4 w-4" />
@@ -57,7 +57,7 @@ export function InvoiceFilters() {
           <Button
             variant="outline"
             size="icon"
-            className="h-9 w-9 border-slate-700 bg-slate-800/50 hover:bg-slate-800 text-slate-200"
+            className="h-9 w-9 border-input bg-background hover:bg-muted text-foreground"
             onClick={() => addFilter("Custom Filter")}
           >
             <Filter className="h-4 w-4" />
@@ -66,12 +66,12 @@ export function InvoiceFilters() {
           <Button
             variant="outline"
             size="icon"
-            className="h-9 w-9 border-slate-700 bg-slate-800/50 hover:bg-slate-800 text-slate-200"
+            className="h-9 w-9 border-input bg-background hover:bg-muted text-foreground"
           >
             <Download className="h-4 w-4" />
             <span className="sr-only">Download</span>
           </Button>
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
             <Plus className="mr-2 h-4 w-4" />
             New Invoice
           </Button>
@@ -84,13 +84,13 @@ export function InvoiceFilters() {
             <Badge
               key={filter}
               variant="outline"
-              className="flex items-center gap-1 border-slate-700 text-slate-300 bg-slate-800/50 px-3 py-1"
+              className="flex items-center gap-1 border-border text-foreground bg-muted/50 px-3 py-1"
             >
               {filter}
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-4 w-4 p-0 ml-1 hover:bg-transparent hover:text-slate-100"
+                className="h-4 w-4 p-0 ml-1 hover:bg-transparent hover:text-foreground"
                 onClick={() => removeFilter(filter)}
               >
                 <X className="h-3 w-3" />
@@ -101,7 +101,7 @@ export function InvoiceFilters() {
           <Button
             variant="ghost"
             size="sm"
-            className="text-xs h-7 text-slate-400 hover:text-slate-100 hover:bg-transparent"
+            className="text-xs h-7 text-muted-foreground hover:text-foreground hover:bg-transparent"
             onClick={() => setActiveFilters([])}
           >
             Clear all

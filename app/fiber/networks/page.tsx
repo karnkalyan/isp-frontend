@@ -10,12 +10,7 @@ export default function FiberNetworksPage() {
       <div className="space-y-6">
         <PageHeader
           title="FTTH/FTTB Networks"
-          description="Manage fiber optic networks and infrastructure"
-          actions={[
-            { label: "Add Network", href: "#" },
-            { label: "Import Data", href: "#" },
-            { label: "Export", href: "#" },
-          ]}
+          description="View actual OLT, splitter, customer, and ONT topology data"
         />
 
         <FiberNetworkStats />

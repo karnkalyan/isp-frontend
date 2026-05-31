@@ -1,4 +1,4 @@
-// components/services/active-services-list.tsx - FIXED VERSION
+// components/services/active-services-list.tsx - GROUPED VERSION
 "use client";
 
 import { useState, useEffect } from "react";
@@ -9,11 +9,315 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, Filter, RefreshCw } from "lucide-react";
+import { 
+    Search, 
+    Filter, 
+    RefreshCw,
+    Settings,
+    Power,
+    Lock,
+    Wifi,
+    CheckCircle,
+    XCircle,
+    AlertCircle,
+    Phone,
+    Smartphone
+} from "lucide-react";
 import { ISPService } from "@/types/service.types";
 import { ServicesAPI } from "@/lib/api/service";
 import { ServiceCard } from "./service-card";
 import { toast } from "react-hot-toast";
+import { ServiceConfigureDialog } from "./service-configure-dialog";
+import { ServiceTestDialog } from "./service-test-dialog";
+import { ServiceCredentialsDialog } from "./service-credentials-dialog";
+
+interface GroupedServiceCardProps {
+    title: string;
+    description: string;
+    icon: React.ReactNode;
+    category: string;
+    services: ISPService[];
+    onStatusChange: () => void;
+}
+
+function GroupedServiceCard({
+    title,
+    description,
+    icon,
+    category,
+    services,
+    onStatusChange
+}: GroupedServiceCardProps) {
+    const [activeService, setActiveService] = useState<ISPService | null>(null);
+    const [showConfigure, setShowConfigure] = useState(false);
+    const [showCredentials, setShowCredentials] = useState(false);
+    const [showTest, setShowTest] = useState(false);
+    const [testResult, setTestResult] = useState<any>(null);
+    const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+    const handleToggleActivation = async (service: ISPService) => {
+        try {
+            setActionLoading(service.service.code + '-toggle');
+            await ServicesAPI.toggleServiceActivation(service.service.code, !service.isActive);
+            toast.success(`Service ${!service.isActive ? 'activated' : 'deactivated'} successfully`);
+            onStatusChange();
+        } catch (error: any) {
+            toast.error(error.message || "Failed to update service status");
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleTestConnection = async (service: ISPService) => {
+        try {
+            setActionLoading(service.service.code + '-test');
+            const result = await ServicesAPI.testServiceConnection(service.service.code);
+            setTestResult(result);
+            setActiveService(service);
+            setShowTest(true);
+        } catch (error: any) {
+            toast.error(error.message || "Failed to test connection");
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleSetDefault = async (targetService: ISPService) => {
+        try {
+            setActionLoading(targetService.service.code + '-default');
+            const currentConfig = targetService.config && typeof targetService.config === 'object' ? targetService.config : {};
+            const newConfig = { ...currentConfig, isDefault: true };
+            
+            await ServicesAPI.configureService({
+                serviceCode: targetService.service.code,
+                baseUrl: targetService.baseUrl,
+                apiVersion: targetService.apiVersion,
+                config: newConfig,
+                isActive: targetService.isActive
+            });
+            toast.success(`${targetService.service.name} set as default successfully`);
+            onStatusChange();
+        } catch (error: any) {
+            toast.error(error.message || "Failed to set default service");
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const getStatusIcon = (service: ISPService) => {
+        if (!service.isActive) return <XCircle className="h-3.5 w-3.5 text-red-500" />;
+        if (!service.baseUrl) return <AlertCircle className="h-3.5 w-3.5 text-amber-500" />;
+        if (service.credentialCount === 0) return <AlertCircle className="h-3.5 w-3.5 text-amber-500" />;
+        return <CheckCircle className="h-3.5 w-3.5 text-green-500" />;
+    };
+
+    const getStatusText = (service: ISPService) => {
+        if (!service.isActive) return "Inactive";
+        if (!service.baseUrl) return "Not Configured";
+        if (service.credentialCount === 0) return "Missing Credentials";
+        return "Active";
+    };
+
+    const getStatusColor = (service: ISPService) => {
+        if (!service.isActive) return "bg-red-100 text-red-800 border-red-200 dark:bg-red-950/20 dark:text-red-400 dark:border-red-900/30";
+        if (!service.baseUrl || service.credentialCount === 0) return "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30";
+        return "bg-green-100 text-green-800 border-green-200 dark:bg-green-950/20 dark:text-green-400 dark:border-green-900/30";
+    };
+
+    const categoryColors: Record<string, string> = {
+        COMMUNICATION: "bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-950/20 dark:text-cyan-400 dark:border-cyan-900/30",
+        VOIP: "bg-pink-100 text-pink-800 border-pink-200 dark:bg-pink-950/20 dark:text-pink-400 dark:border-pink-900/30",
+    };
+
+    return (
+        <Card className="hover:shadow-lg transition-all duration-300 border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] rounded-xl overflow-hidden relative col-span-1 md:col-span-2 lg:col-span-3">
+            <CardHeader className="pb-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/20">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className={`p-2.5 rounded-xl ${categoryColors[category] || "bg-blue-100 dark:bg-blue-950/20 text-blue-800 dark:text-blue-400"}`}>
+                            {icon}
+                        </div>
+                        <div>
+                            <CardTitle className="text-xl font-bold">{title}</CardTitle>
+                            <CardDescription className="mt-1 text-sm">{description}</CardDescription>
+                        </div>
+                    </div>
+                    <Badge variant="outline" className={`text-xs px-2.5 py-1 ${categoryColors[category] || ""}`}>
+                        {category}
+                    </Badge>
+                </div>
+            </CardHeader>
+
+            <CardContent className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {services.map((service) => {
+                        const isDefault = service.config && service.config.isDefault === true;
+                        const isLoading = actionLoading?.startsWith(service.service.code);
+                        
+                        return (
+                            <div 
+                                key={service.id} 
+                                className={`p-5 rounded-xl border transition-all relative flex flex-col justify-between h-full group ${
+                                    isDefault 
+                                        ? "bg-primary/5 border-primary/45 shadow-sm dark:bg-primary/5" 
+                                        : "bg-card border-slate-200 dark:border-slate-800 hover:border-slate-350 dark:hover:border-slate-700"
+                                }`}
+                            >
+                                {isDefault && (
+                                    <Badge className="absolute -top-2.5 left-4 bg-primary text-white shadow-sm gap-1 text-[10px] font-bold px-2 py-0.5">
+                                        ★ DEFAULT PROVIDER
+                                    </Badge>
+                                )}
+                                
+                                <div className="mb-4">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div>
+                                            <h4 className="text-base font-bold text-foreground">{service.service.name}</h4>
+                                            <div className="text-xs text-muted-foreground font-mono mt-0.5">{service.service.code}</div>
+                                        </div>
+                                        <Badge variant="outline" className={`text-xs px-2 py-0.5 ${getStatusColor(service)}`}>
+                                            <span className="flex items-center gap-1">
+                                                {getStatusIcon(service)}
+                                                {getStatusText(service)}
+                                            </span>
+                                        </Badge>
+                                    </div>
+
+                                    <p className="text-xs text-muted-foreground mb-4 line-clamp-2">{service.service.description}</p>
+
+                                    <div className="grid grid-cols-2 gap-2 text-xs border-t border-slate-100 dark:border-slate-800/80 pt-3 mb-2">
+                                        <div>
+                                            <span className="text-muted-foreground block text-[10px] uppercase font-bold tracking-wider">API URL</span>
+                                            <span className="font-semibold block truncate" title={service.baseUrl || "Not set"}>
+                                                {service.baseUrl || "Not configured"}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground block text-[10px] uppercase font-bold tracking-wider">Version</span>
+                                            <span className="font-semibold block">{service.apiVersion || "v1"}</span>
+                                        </div>
+                                        <div className="mt-2">
+                                            <span className="text-muted-foreground block text-[10px] uppercase font-bold tracking-wider">Credentials</span>
+                                            <span className="font-semibold block">{service.credentialCount} active</span>
+                                        </div>
+                                        <div className="mt-2">
+                                            <span className="text-muted-foreground block text-[10px] uppercase font-bold tracking-wider">Last Updated</span>
+                                            <span className="font-semibold block">{new Date(service.updatedAt).toLocaleDateString()}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-100 dark:border-slate-800/80 mt-auto">
+                                    <Button
+                                        variant={service.isActive ? "destructive" : "default"}
+                                        size="sm"
+                                        className="h-8 text-xs flex-1"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleToggleActivation(service);
+                                        }}
+                                        disabled={!!isLoading}
+                                    >
+                                        <Power className="h-3 w-3 mr-1" />
+                                        {service.isActive ? "Deactivate" : "Activate"}
+                                    </Button>
+
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 text-xs flex-1"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveService(service);
+                                            setShowConfigure(true);
+                                        }}
+                                        disabled={!!isLoading}
+                                    >
+                                        <Settings className="h-3 w-3 mr-1" />
+                                        Configure
+                                    </Button>
+
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 text-xs"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveService(service);
+                                            setShowCredentials(true);
+                                        }}
+                                        disabled={!!isLoading || !service.baseUrl}
+                                        title="Credentials"
+                                    >
+                                        <Lock className="h-3.5 w-3.5" />
+                                    </Button>
+
+                                    {service.baseUrl && service.isActive && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-8 text-xs"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleTestConnection(service);
+                                            }}
+                                            disabled={!!isLoading}
+                                            title="Test Connection"
+                                        >
+                                            <Wifi className="h-3.5 w-3.5" />
+                                        </Button>
+                                    )}
+
+                                    {service.isActive && service.credentialCount > 0 && !isDefault && (
+                                        <Button
+                                            variant="secondary"
+                                            size="sm"
+                                            className="h-8 text-xs w-full mt-1 bg-primary/10 text-primary hover:bg-primary/20"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleSetDefault(service);
+                                            }}
+                                            disabled={!!isLoading}
+                                        >
+                                            ★ Set as Default
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </CardContent>
+
+            {showConfigure && activeService && (
+                <ServiceConfigureDialog
+                    service={activeService}
+                    open={showConfigure}
+                    onOpenChange={setShowConfigure}
+                    onSuccess={onStatusChange}
+                />
+            )}
+
+            {showTest && activeService && testResult && (
+                <ServiceTestDialog
+                    service={activeService}
+                    result={testResult}
+                    open={showTest}
+                    onOpenChange={setShowTest}
+                />
+            )}
+
+            {showCredentials && activeService && (
+                <ServiceCredentialsDialog
+                    service={activeService}
+                    open={showCredentials}
+                    onOpenChange={setShowCredentials}
+                    onSuccess={onStatusChange}
+                />
+            )}
+        </Card>
+    );
+}
 
 export function ActiveServicesList() {
     const router = useRouter();
@@ -65,6 +369,16 @@ export function ActiveServicesList() {
 
         return matchesSearch && matchesStatus;
     });
+
+    const smsServices = filteredServices.filter(s => s.service.code === 'AAKASHSMS' || s.service.code === 'SPARROWSMS');
+    const voipServices = filteredServices.filter(s => s.service.code === 'YEASTAR' || s.service.code === 'ASTERISK');
+    const otherServices = filteredServices.filter(s => 
+        s.service.code !== 'AAKASHSMS' && 
+        s.service.code !== 'SPARROWSMS' && 
+        s.service.code !== 'YEASTAR' && 
+        s.service.code !== 'ASTERISK' &&
+        s.service.code !== 'SMS_GATEWAY'
+    );
 
     const stats = {
         total: services.length,
@@ -120,21 +434,21 @@ export function ActiveServicesList() {
                 <div className="space-y-4 mb-6">
                     {/* Statistics */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
-                            <div className="text-2xl font-bold text-blue-700">{stats.total}</div>
-                            <div className="text-sm text-blue-600">Total Services</div>
+                        <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 dark:bg-blue-950/20 dark:border-blue-900/30">
+                            <div className="text-2xl font-bold text-blue-700 dark:text-blue-400">{stats.total}</div>
+                            <div className="text-sm text-blue-600 dark:text-blue-500">Total Services</div>
                         </div>
-                        <div className="bg-green-50 border border-green-100 rounded-lg p-3">
-                            <div className="text-2xl font-bold text-green-700">{stats.active}</div>
-                            <div className="text-sm text-green-600">Active</div>
+                        <div className="bg-green-50 border border-green-100 rounded-lg p-3 dark:bg-green-950/20 dark:border-green-900/30">
+                            <div className="text-2xl font-bold text-green-700 dark:text-green-400">{stats.active}</div>
+                            <div className="text-sm text-green-600 dark:text-green-500">Active</div>
                         </div>
-                        <div className="bg-purple-50 border border-purple-100 rounded-lg p-3">
-                            <div className="text-2xl font-bold text-purple-700">{stats.configured}</div>
-                            <div className="text-sm text-purple-600">Configured</div>
+                        <div className="bg-purple-50 border border-purple-100 rounded-lg p-3 dark:bg-purple-950/20 dark:border-purple-900/30">
+                            <div className="text-2xl font-bold text-purple-700 dark:text-purple-400">{stats.configured}</div>
+                            <div className="text-sm text-purple-600 dark:text-purple-500">Configured</div>
                         </div>
-                        <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
-                            <div className="text-2xl font-bold text-amber-700">{stats.withCredentials}</div>
-                            <div className="text-sm text-amber-600">With Credentials</div>
+                        <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 dark:bg-amber-950/20 dark:border-amber-900/30">
+                            <div className="text-2xl font-bold text-amber-700 dark:text-amber-400">{stats.withCredentials}</div>
+                            <div className="text-sm text-amber-600 dark:text-amber-500">With Credentials</div>
                         </div>
                     </div>
 
@@ -187,7 +501,29 @@ export function ActiveServicesList() {
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {filteredServices.map((service) => (
+                        {smsServices.length > 0 && (
+                            <GroupedServiceCard
+                                title="SMS Gateway"
+                                description="Configure and manage SMS communication channels. Select a default provider for automatic alerts."
+                                icon={<Smartphone className="h-6 w-6" />}
+                                category="COMMUNICATION"
+                                services={smsServices}
+                                onStatusChange={fetchServices}
+                            />
+                        )}
+
+                        {voipServices.length > 0 && (
+                            <GroupedServiceCard
+                                title="VOIP Services"
+                                description="Configure and manage Yeastar & Asterisk PBX integrations. Select a default provider for call routing."
+                                icon={<Phone className="h-6 w-6" />}
+                                category="VOIP"
+                                services={voipServices}
+                                onStatusChange={fetchServices}
+                            />
+                        )}
+
+                        {otherServices.map((service) => (
                             <ServiceCard
                                 key={service.id}
                                 service={service}

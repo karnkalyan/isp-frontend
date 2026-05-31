@@ -29,6 +29,7 @@ const serviceIcons: Record<string, React.ReactNode> = {
     RADIUS: <Shield className="h-5 w-5" />,
     NETTV: <Tv className="h-5 w-5" />,
     YEASTAR: <Phone className="h-5 w-5" />,
+    ASTERISK: <Phone className="h-5 w-5" />,
     MIKROTIK: <Server className="h-5 w-5" />,
     HUAWEI_OLT: <Server className="h-5 w-5" />,
     ZTE_OLT: <Server className="h-5 w-5" />,
@@ -36,7 +37,8 @@ const serviceIcons: Record<string, React.ReactNode> = {
     ESEWA: <CreditCard className="h-5 w-5" />,
     KHALTI: <CreditCard className="h-5 w-5" />,
     SMS_GATEWAY: <Mail className="h-5 w-5" />,
-    EMAIL_SERVICE: <Mail className="h-5 w-5" />
+    EMAIL_SERVICE: <Mail className="h-5 w-5" />,
+    GENIEACS: <Server className="h-5 w-5" />
 };
 
 const categoryColors: Record<string, string> = {
@@ -48,6 +50,7 @@ const categoryColors: Record<string, string> = {
     VOIP: "bg-pink-100 text-pink-800 border-pink-200",
     SECURITY: "bg-red-100 text-red-800 border-red-200",
     COMMUNICATION: "bg-cyan-100 text-cyan-800 border-cyan-200",
+    ACS: "bg-indigo-100 text-indigo-800 border-indigo-200",
     OTHER: "bg-yellow-100 text-yellow-800 border-yellow-200"
 };
 

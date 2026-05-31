@@ -11,7 +11,7 @@ import { DeleteUserDialog } from "@/components/admin/delete-user-dialog"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 import { toast } from "react-hot-toast"
-import { apiRequest } from "@/lib/api"
+import { apiRequest, getDynamicBaseUrl } from "@/lib/api"
 
 export type User = {
   id: string
@@ -23,6 +23,11 @@ export type User = {
   createdAt: string
   avatar?: string
   department?: string
+  branchId?: string
+  branchName?: string
+  branchIds?: string[]
+  branchNames?: string[]
+  permissions?: string[]
 }
 
 export function UserManagement() {
@@ -36,6 +41,7 @@ export function UserManagement() {
   // ← NEW: real-departments state
   const [departmentOptions, setDepartmentOptions] = useState<{ value: string; label: string }[]>([])
   const [roleOptions, setRoleOptions] = useState<{ value: string; label: string }[]>([])
+  const [branchOptions, setBranchOptions] = useState<{ value: string; label: string }[]>([])
 
   // ← NEW: fetch and map your JSON array
 const fetchDepartments = async () => {
@@ -88,6 +94,27 @@ const fetchDepartments = async () => {
     fetchRoles()
   }, [])
 
+  const fetchBranches = async () => {
+    try {
+      const raw = await apiRequest("/branches")
+      if (!Array.isArray(raw)) {
+        throw new Error("Expected array of branches")
+      }
+      const opts = raw
+        .filter((branch: any) => branch.isActive !== false)
+        .map((branch: any) => ({ value: String(branch.id), label: `${branch.name} (${branch.code})` }))
+      setBranchOptions(opts)
+    } catch (err: any) {
+      console.error("branch fetch failed:", err)
+      toast.error("Failed to load branches")
+      setBranchOptions([])
+    }
+  }
+
+  useEffect(() => {
+    fetchBranches()
+  }, [])
+
 
 
 
@@ -102,7 +129,7 @@ const fetchDepartments = async () => {
   // ]
 
   const buildAvatarUrl = (avatarPath?: string | null) => {
-    const base = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ?? ""
+    const base = getDynamicBaseUrl().replace(/\/+$/, "")
     const path = avatarPath?.replace(/^\/+/, "") ?? ""
     return path ? `${base}/${path}` : "/placeholder.svg"
   }
@@ -124,16 +151,23 @@ const fetchDepartments = async () => {
     setError(null)
     try {
       const data = await apiRequest("/users")
-      const mapped: User[] = data.map((u: any) => ({
+      const mapped: User[] = data
+        .filter((u: any) => String(u.role?.name || "").toLowerCase() !== "customer")
+        .map((u: any) => ({
         id: String(u.id),
         name: u.name,
         email: u.email,
-        role: String(u.roleId || u.role.id),
+        role: String(u.roleId || u.role?.id || ""),
         status: u.status,
         lastLogin: u.lastLogin ?? "-",
         createdAt: u.createdAt,
         avatar: u.profilePicture ?? "",
-        department: String(u.department.id || ""),
+        department: String(u.departmentId || u.department?.id || ""),
+        branchId: u.branchId ? String(u.branchId) : "",
+        branchName: u.branch?.name || "",
+        branchIds: (u.userBranches || []).map((userBranch: any) => String(userBranch.branchId || userBranch.branch?.id)),
+        branchNames: (u.userBranches || []).map((userBranch: any) => userBranch.branch?.name).filter(Boolean),
+        permissions: u.role?.permissions?.map((permission: any) => permission.name) || [],
       }))
       setUsers(mapped)
     } catch (err: any) {
@@ -247,9 +281,8 @@ const fetchDepartments = async () => {
               onDelete={handleDeleteClick}
               roleOptions={roleOptions}
               departmentOptions={departmentOptions}
+              branchOptions={branchOptions}
               buildAvatarUrl={buildAvatarUrl}
-              roleToLabel={roleToLabel}
-              deptToLabel={deptToLabel}
             />
           </CardContainer>
         </TabsContent>
@@ -265,6 +298,7 @@ const fetchDepartments = async () => {
               onCancel={() => setActiveTab("users-list")}
               roles={roleOptions}
               departments={departmentOptions}
+              branches={branchOptions}
             />
           </CardContainer>
         </TabsContent>
@@ -280,9 +314,8 @@ const fetchDepartments = async () => {
                 user={selectedUser}
                 roles={roleOptions}
                 departments={departmentOptions}
+                branches={branchOptions}
                 buildAvatarUrl={buildAvatarUrl}
-                roleToLabel={roleToLabel}
-                deptToLabel={deptToLabel}
                 onEdit={() => setActiveTab("edit-user")}
                 onBack={() => setActiveTab("users-list")}
               />
@@ -303,6 +336,7 @@ const fetchDepartments = async () => {
                 onCancel={() => setActiveTab("users-list")}
                 roles={roleOptions}
                 departments={departmentOptions}
+                branches={branchOptions}
                 buildAvatarUrl={buildAvatarUrl}
               />
             </CardContainer>

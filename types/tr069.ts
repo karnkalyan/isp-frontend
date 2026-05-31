@@ -29,6 +29,7 @@ export interface WanConnection {
     name: string;
     uptime: number;
     username?: string;
+    password?: string;
     remoteIPAddress?: string;
     transportType?: string;
     authenticationProtocol?: string;

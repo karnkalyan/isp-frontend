@@ -16,12 +16,13 @@ interface UserDetailsProps {
   user: User
   roles: Option[]
   departments: Option[]
+  branches: Option[]
   onEdit: () => void
   onBack: () => void
   buildAvatarUrl: (avatarPath?: string | null) => string;
 }
 
-export function UserDetails({ user, roles, departments, onEdit, onBack, buildAvatarUrl }: UserDetailsProps) {
+export function UserDetails({ user, roles, departments, branches, onEdit, onBack, buildAvatarUrl }: UserDetailsProps) {
   const getInitials = (name: string) =>
     name
       .split(" ")
@@ -44,6 +45,7 @@ export function UserDetails({ user, roles, departments, onEdit, onBack, buildAva
   const roleLabel = roles.find((r) => r.value === String(user.role))?.label ?? String(user.role)
   const deptLabel =
     departments.find((d) => d.value === String(user.department))?.label ?? user.department ?? "-"
+  const branchLabel = branches.find((branch) => branch.value === String(user.branchId))?.label ?? user.branchName ?? "-"
 
   return (
     <div className="space-y-6">
@@ -98,6 +100,16 @@ export function UserDetails({ user, roles, departments, onEdit, onBack, buildAva
             <div>
               <h4 className="text-sm font-medium text-muted-foreground dark:text-slate-400 mb-1">Created At</h4>
               <p className="text-foreground dark:text-slate-100">{formatDate(user.createdAt)}</p>
+            </div>
+            <div>
+              <h4 className="text-sm font-medium text-muted-foreground dark:text-slate-400 mb-1">Primary Branch</h4>
+              <p className="text-foreground dark:text-slate-100">{branchLabel}</p>
+            </div>
+            <div>
+              <h4 className="text-sm font-medium text-muted-foreground dark:text-slate-400 mb-1">Additional Branches</h4>
+              <p className="text-foreground dark:text-slate-100">
+                {(user.branchNames || []).length > 0 ? (user.branchNames || []).join(", ") : "-"}
+              </p>
             </div>
           </div>
 

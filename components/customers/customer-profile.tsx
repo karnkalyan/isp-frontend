@@ -11,6 +11,7 @@ import { CustomerInvoices } from "@/components/customers/customer-invoices"
 import { CustomerTickets } from "@/components/customers/customer-tickets"
 import { Progress } from "@/components/ui/progress"
 import { toast } from "@/hooks/use-toast"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   User,
   Mail,
@@ -47,8 +48,12 @@ import {
   BarChart,
   Play,
   Pause,
+  ArrowRightLeft,
+  Plus,
+  Search,
+  Check
 } from "lucide-react"
-import { apiRequest } from "@/lib/api"
+import { apiRequest, getDynamicBaseUrl } from "@/lib/api"
 
 // TR-069 components
 import { TR069DeviceDetails } from "@/components/tr069/device-details"
@@ -59,6 +64,7 @@ import { TR069DeviceNeighbors } from "@/components/tr069/device-neighbors"
 
 // Realtime Usage Chart
 import { RealtimeUsageChart } from "@/components/customers/realtime-charts"
+import { CustomerBillingManagement } from "@/components/customers/customer-billing-management"
 
 import {
   Dialog,
@@ -187,11 +193,13 @@ interface Customer {
     name: string
     email: string
   } | null
+  referencedById?: number | null
   referencedBy?: {
     firstName: string
     lastName: string
     email: string
   } | null
+  inventoryItems?: any[]
   existingISP?: {
     id: number
     name: string
@@ -792,6 +800,8 @@ export function CustomerProfile() {
   const [error, setError] = useState<string | null>(null)
   const [packages, setPackages] = useState<PackageOption[]>([])
 
+  // Removed duplicate state definition
+
   // Additional service details
   const [tshulDetails, setTshulDetails] = useState<any>(null)
   const [nettvDetails, setNettvDetails] = useState<any>(null)
@@ -811,6 +821,50 @@ export function CustomerProfile() {
   const [newMacAddress, setNewMacAddress] = useState("")
   const [actionLoading, setActionLoading] = useState(false)
   const [renewLoading, setRenewLoading] = useState(false)
+  const [assignHardwareOpen, setAssignHardwareOpen] = useState(false)
+  const [hardwareSearch, setHardwareSearch] = useState("")
+  const [availableStock, setAvailableStock] = useState<any[]>([])
+  const [selectedHardwareId, setSelectedHardwareId] = useState<number | null>(null)
+  const [stockLoading, setStockLoading] = useState(false)
+
+  const fetchAvailableStock = async () => {
+    setStockLoading(true)
+    try {
+      const query = hardwareSearch ? `&search=${hardwareSearch}` : `&branchId=${customer?.branchId}&status=ASSIGNED_TO_BRANCH`
+      const data = await apiRequest<any>(`/inventory?status=IN_STOCK${query}`)
+      setAvailableStock(Array.isArray(data) ? data : (data?.data || []))
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setStockLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (assignHardwareOpen) fetchAvailableStock()
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [assignHardwareOpen, hardwareSearch, customer?.branchId])
+
+  const handleAssignHardware = async () => {
+    if (!selectedHardwareId) return;
+    setActionLoading(true)
+    try {
+      await apiRequest(`/inventory/${selectedHardwareId}/assign`, {
+        method: "POST",
+        body: JSON.stringify({ customerId: customer?.id })
+      })
+      toast({ title: "Hardware assigned successfully" })
+      setAssignHardwareOpen(false)
+      setSelectedHardwareId(null)
+      fetchCustomerData()
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" })
+    } finally {
+      setActionLoading(false)
+    }
+  }
 
   const params = useParams()
   const router = useRouter()
@@ -826,32 +880,33 @@ export function CustomerProfile() {
     bindNASPORT: false,
   })
 
-  useEffect(() => {
-    const fetchCustomer = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-        const data = await apiRequest<Customer>(`/customer/${customerId}`)
-        if (data) {
-          setCustomer(data)
-          if (data.connectionUsers.length > 0) {
-            setSelectedConnectionUser(data.connectionUsers[0].id.toString())
-          }
-          const currentMac = data.devices?.[0]?.macAddress || ""
-          setNewMacAddress(currentMac)
-        } else {
-          setError("Customer not found")
-          toast({ title: "Error", description: "Customer not found", variant: "destructive" })
+  const fetchCustomerData = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const data = await apiRequest<Customer>(`/customer/${customerId}`)
+      if (data) {
+        setCustomer(data)
+        if (data.connectionUsers.length > 0) {
+          setSelectedConnectionUser(data.connectionUsers[0].id.toString())
         }
-      } catch (error: any) {
-        console.error("Error fetching customer:", error)
-        setError(error.message || "Failed to fetch customer data")
-        toast({ title: "Error", description: "Failed to load customer data", variant: "destructive" })
-      } finally {
-        setLoading(false)
+        const currentMac = data.devices?.[0]?.macAddress || ""
+        setNewMacAddress(currentMac)
+      } else {
+        setError("Customer not found")
+        toast({ title: "Error", description: "Customer not found", variant: "destructive" })
       }
+    } catch (error: any) {
+      console.error("Error fetching customer:", error)
+      setError(error.message || "Failed to fetch customer data")
+      toast({ title: "Error", description: "Failed to load customer data", variant: "destructive" })
+    } finally {
+      setLoading(false)
     }
-    if (customerId) fetchCustomer()
+  }
+
+  useEffect(() => {
+    if (customerId) fetchCustomerData()
   }, [customerId])
 
   useEffect(() => {
@@ -924,10 +979,10 @@ export function CustomerProfile() {
       setActionLoading(true)
       const response = await apiRequest(`/customer/${customerId}/username`, {
         method: 'PUT',
-        data: {
+        body: JSON.stringify({
           connectionUserId: parseInt(selectedConnectionUser),
           newUsername: newUsername.trim()
-        }
+        })
       })
 
       toast({
@@ -968,9 +1023,9 @@ export function CustomerProfile() {
       setActionLoading(true)
       const response = await apiRequest(`/customer/${customerId}/package`, {
         method: 'PUT',
-        data: {
+        body: JSON.stringify({
           newPackageId: parseInt(selectedPackage)
-        }
+        })
       })
 
       toast({
@@ -1020,9 +1075,9 @@ export function CustomerProfile() {
       setActionLoading(true)
       const response = await apiRequest(`/customer/${customerId}/mac`, {
         method: 'PUT',
-        data: {
+        body: JSON.stringify({
           newMacAddress: newMacAddress.trim()
-        }
+        })
       })
 
       toast({
@@ -1112,7 +1167,7 @@ export function CustomerProfile() {
       setActionLoading(false)
     }
   }
-
+  
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -1357,7 +1412,7 @@ export function CustomerProfile() {
         </DialogContent>
       </Dialog>
 
-      <CardContainer className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
+      <CardContainer title="Customer Information" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
             <Avatar className="h-16 w-16 ring-2 ring-primary/20 ring-offset-2">
@@ -1593,11 +1648,11 @@ export function CustomerProfile() {
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Assigned Package:</span>
-                    <span className="font-medium">{customer.packagePrice.packageName}</span>
+                    <span className="font-medium">{customer.packagePrice?.packageName || 'N/A'}</span>
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Subscribed Package:</span>
-                    <span className="font-medium">{customer.subscribedPkg.packageName}</span>
+                    <span className="font-medium">{customer.subscribedPkg?.packageName || 'N/A'}</span>
                   </div>
                 </div>
               </div>
@@ -1608,43 +1663,43 @@ export function CustomerProfile() {
                 <div className="grid grid-cols-1 gap-2">
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Plan Name:</span>
-                    <span className="font-medium">{customer.subscribedPkg.packagePlanDetails.planName}</span>
+                    <span className="font-medium">{customer.subscribedPkg?.packagePlanDetails?.planName || 'N/A'}</span>
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Plan Code:</span>
-                    <span className="font-medium">{customer.subscribedPkg.packagePlanDetails.planCode}</span>
+                    <span className="font-medium">{customer.subscribedPkg?.packagePlanDetails?.planCode || 'N/A'}</span>
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Download Speed:</span>
-                    <span className="font-medium">{customer.subscribedPkg.packagePlanDetails.downSpeed} Mbps</span>
+                    <span className="font-medium">{customer.subscribedPkg?.packagePlanDetails?.downSpeed || 'N/A'} Mbps</span>
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Upload Speed:</span>
-                    <span className="font-medium">{customer.subscribedPkg.packagePlanDetails.upSpeed} Mbps</span>
+                    <span className="font-medium">{customer.subscribedPkg?.packagePlanDetails?.upSpeed || 'N/A'} Mbps</span>
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Data Limit:</span>
                     <span className="font-medium">
-                      {customer.subscribedPkg.packagePlanDetails.dataLimit === 0 ? "Unlimited" : `${customer.subscribedPkg.packagePlanDetails.dataLimit} GB`}
+                      {customer.subscribedPkg?.packagePlanDetails?.dataLimit === 0 ? "Unlimited" : customer.subscribedPkg?.packagePlanDetails?.dataLimit ? `${customer.subscribedPkg.packagePlanDetails.dataLimit} GB` : 'N/A'}
                     </span>
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Device Limit:</span>
-                    <span className="font-medium">{customer.subscribedPkg.packagePlanDetails.deviceLimit} devices</span>
+                    <span className="font-medium">{customer.subscribedPkg?.packagePlanDetails?.deviceLimit ?? 'N/A'} devices</span>
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Package Duration:</span>
-                    <span className="font-medium">{customer.subscribedPkg.packageDuration}</span>
+                    <span className="font-medium">{customer.subscribedPkg?.packageDuration || 'N/A'}</span>
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Reference ID:</span>
-                    <span className="font-medium">{customer.subscribedPkg.referenceId}</span>
+                    <span className="font-medium">{customer.subscribedPkg?.referenceId || 'N/A'}</span>
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Package Status:</span>
                     <span className="font-medium">
-                      <Badge className={customer.subscribedPkg.isActive ? "bg-green-500" : "bg-red-500"}>
-                        {customer.subscribedPkg.isActive ? "Active" : "Inactive"}
+                      <Badge className={customer.subscribedPkg?.isActive ? "bg-green-500" : "bg-red-500"}>
+                        {customer.subscribedPkg?.isActive ? "Active" : "Inactive"}
                       </Badge>
                     </span>
                   </div>
@@ -2090,9 +2145,155 @@ export function CustomerProfile() {
           </CardContainer>
         </TabsContent>
 
-        <TabsContent value="devices" className="space-y-4">
+        <TabsContent value="billing" className="space-y-4 animate-in slide-in-from-bottom-2 duration-300">
+           <CustomerBillingManagement 
+              customer={customer} 
+              refreshCustomer={() => fetchCustomerData()} 
+           />
+        </TabsContent>
+
+        <TabsContent value="devices" className="space-y-4 animate-in fade-in duration-300">
+           {/* Physical Hardware Inventory (Real stock items) */}
+            <CardContainer 
+              title="Hardware"
+              className="border-0 shadow-lg overflow-hidden" 
+              actions={[
+                { 
+                  label: "Assign Hardware", 
+                  onClick: () => setAssignHardwareOpen(true),
+                  icon: <Plus className="h-4 w-4" />
+                }
+              ]}
+            >
+              <div className="space-y-4">
+                {customer.inventoryItems && customer.inventoryItems.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {customer.inventoryItems.map((item: any) => (
+                      <div key={item.id} className="p-4 rounded-xl border bg-card shadow-sm flex items-center justify-between group">
+                        <div className="flex items-center gap-4">
+                          <div className="p-3 rounded-full bg-slate-100 dark:bg-slate-800">
+                            <Package className="h-6 w-6 text-primary" />
+                          </div>
+                          <div>
+                            <div className="font-bold text-sm">
+                              {item.name} 
+                              <Badge variant="outline" className="ml-2 py-0 h-4 text-[10px]">{item.type}</Badge>
+                            </div>
+                            <div className="text-xs font-mono text-muted-foreground">SN: {item.serialNumber}</div>
+                            {item.macAddress && <div className="text-[10px] text-muted-foreground uppercase">MAC: {item.macAddress}</div>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={item.status === 'FAULTY' ? 'destructive' : 'secondary'}>
+                            {item.status.replace(/_/g, ' ')}
+                          </Badge>
+                          <Button 
+                             variant="outline" 
+                             size="sm" 
+                             className="bg-rose-50 text-rose-600 border-rose-100 hover:bg-rose-100 h-8 gap-1"
+                             onClick={async () => {
+                               if(confirm(`Process return for device ${item.serialNumber}?`)) {
+                                 const isFaulty = confirm("Is this device faulty?")
+                                 const note = prompt("Additional notes?")
+                                 try {
+                                   await apiRequest(`/inventory/${item.id}/return`, { method: "PUT", body: JSON.stringify({ status: isFaulty ? 'FAULTY' : 'IN_STOCK', note }) })
+                                   toast({ title: "Success", description: "Hardware returned to stock" })
+                                   fetchCustomerData()
+                                 } catch(e:any) { toast({title: "Error", description: e.message, variant: "destructive"}) }
+                               }
+                             }}
+                          >
+                            <ArrowRightLeft className="h-3 w-3" /> Return
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 border-2 border-dashed rounded-xl">
+                    <Package className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+                    <p className="text-muted-foreground text-sm">No physical hardware items currently assigned to this customer.</p>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="mt-4 gap-2"
+                      onClick={() => setAssignHardwareOpen(true)}
+                    >
+                      <Plus className="h-4 w-4" /> Assign Hardware Now
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </CardContainer>
+
+            {/* Assign Hardware Dialog */}
+            <Dialog open={assignHardwareOpen} onOpenChange={setAssignHardwareOpen}>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Assign Hardware to Customer</DialogTitle>
+                  <DialogDescription>Search for available hardware in stock and assign it to this customer.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      placeholder="Search by serial number, mac address, or model..." 
+                      className="pl-9"
+                      value={hardwareSearch}
+                      onChange={(e) => setHardwareSearch(e.target.value)}
+                    />
+                  </div>
+                  
+                  <ScrollArea className="h-64 rounded-md border">
+                    <div className="p-4 space-y-2">
+                      {stockLoading ? (
+                        <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                      ) : availableStock.length === 0 ? (
+                        <div className="text-center p-8 text-muted-foreground text-sm">No matching items in stock</div>
+                      ) : (
+                        availableStock.map((item: any) => (
+                          <div 
+                            key={item.id} 
+                            className={`flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer ${
+                              selectedHardwareId === item.id 
+                                ? "border-primary bg-primary/5 ring-1 ring-primary" 
+                                : "hover:bg-slate-50 dark:hover:bg-slate-800"
+                            }`}
+                            onClick={() => setSelectedHardwareId(item.id)}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 rounded-full bg-slate-100 dark:bg-slate-800">
+                                <Package className="h-4 w-4 text-primary" />
+                              </div>
+                              <div>
+                                <div className="text-sm font-bold">{item.name} <Badge variant="outline" className="text-[10px] py-0 h-4">{item.type}</Badge></div>
+                                <div className="text-xs text-muted-foreground font-mono">SN: {item.serialNumber}</div>
+                                {item.macAddress && <div className="text-[10px] text-muted-foreground uppercase">MAC: {item.macAddress}</div>}
+                              </div>
+                            </div>
+                            {selectedHardwareId === item.id && <Check className="h-5 w-5 text-primary" />}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </ScrollArea>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setAssignHardwareOpen(false)}>Cancel</Button>
+                  <Button 
+                    onClick={handleAssignHardware} 
+                    disabled={!selectedHardwareId || actionLoading}
+                    className="bg-primary"
+                  >
+                    {actionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Assign Hardware
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
           {customer.devices.filter(d => d.deviceType === "ONT" && d.serialNumber).length > 0 && (
-            <CardContainer title="ACS Device Information" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
+            <CardContainer title="ACS Device Information (TR-069)" className="mt-6 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
               <Tabs defaultValue={customer.devices.find(d => d.deviceType === "ONT")?.serialNumber}>
                 <TabsList className="mb-4">
                   {customer.devices.filter(d => d.deviceType === "ONT").map((device, idx) => (
@@ -2164,7 +2365,7 @@ export function CustomerProfile() {
                           <div className="mt-3 flex gap-2">
                             <Button size="sm" variant="outline" className="text-xs" onClick={() => {
                               const filePath = doc.filePath.replace(/\\/g, '/');
-                              const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3200';
+                              const baseUrl = getDynamicBaseUrl().replace(/\/+$/, '');
                               const url = `${baseUrl}/${filePath}`;
                               const link = document.createElement('a');
                               link.href = url;
@@ -2176,7 +2377,7 @@ export function CustomerProfile() {
                             }}>Download</Button>
                             <Button size="sm" variant="outline" className="text-xs" onClick={() => {
                               const filePath = doc.filePath.replace(/\\/g, '/');
-                              const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3200';
+                              const baseUrl = getDynamicBaseUrl().replace(/\/+$/, '');
                               window.open(`${baseUrl}/${filePath}`, '_blank');
                             }}>Preview</Button>
                           </div>
@@ -2199,7 +2400,7 @@ export function CustomerProfile() {
         </TabsContent>
 
         <TabsContent value="support" className="space-y-4">
-          <CustomerTickets />
+          <CustomerTickets customerId={customer.id} />
         </TabsContent>
       </Tabs>
     </div>

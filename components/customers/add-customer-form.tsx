@@ -539,6 +539,10 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
     ponSerial: "",
     notes: "",
   })
+  
+  const [inventoryItems, setInventoryItems] = useState<any[]>([])
+  const [loadingInventory, setLoadingInventory] = useState(false)
+  const [entryMode, setEntryMode] = useState<"inventory" | "manual">("inventory")
 
   useEffect(() => {
     if (device) {
@@ -547,6 +551,7 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
         ponSerial: (device as any).ponSerial || "",
         macAddress: device.macAddress ? formatMacAddress(device.macAddress) : "",
       })
+      setEntryMode("manual")
     } else {
       setFormData({
         deviceType: "ONT",
@@ -557,11 +562,43 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
         ponSerial: "",
         notes: "",
       })
+      setEntryMode("inventory")
     }
   }, [device, open])
 
+  // Fetch branch stock
+  useEffect(() => {
+    if (open && entryMode === "inventory" && formData.deviceType !== "Router") {
+      setLoadingInventory(true)
+      apiRequest(`/inventory?type=${formData.deviceType}`)
+        .then(data => {
+           // Filter for available stock
+           const available = (data || []).filter((item: any) => 
+               item.status === "ASSIGNED_TO_BRANCH" || item.status === "ASSIGNED_TO_USER" || item.status === "IN_STOCK"
+           )
+           setInventoryItems(available)
+        })
+        .catch(console.error)
+        .finally(() => setLoadingInventory(false))
+    }
+  }, [open, entryMode, formData.deviceType])
+
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  const handleInventorySelect = (serialNumber: string) => {
+    const item = inventoryItems.find(i => i.serialNumber === serialNumber)
+    if (item) {
+      setFormData(prev => ({
+        ...prev,
+        serialNumber: item.serialNumber,
+        macAddress: item.macAddress || prev.macAddress,
+        ponSerial: item.ponSerialNumber || prev.ponSerial,
+        brand: item.name || prev.brand,
+        model: item.type || prev.model
+      }))
+    }
   }
 
   const handleMacBlur = () => {
@@ -583,12 +620,25 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{device ? "Edit Device" : "Add New Device"}</DialogTitle>
+          <DialogTitle>{device ? "Edit Device" : "Add Provisioned Device"}</DialogTitle>
           <DialogDescription>
-            Enter the details of the customer's device (ONT, router, etc.)
+            Assign an ONT/Device from your branch's inventory to this customer.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
+          <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
+             <button 
+                type="button"
+                className={`flex-1 text-sm py-1.5 rounded-md transition-colors ${entryMode === 'inventory' ? 'bg-white shadow dark:bg-slate-900' : 'text-muted-foreground'}`}
+                onClick={() => setEntryMode('inventory')}
+             >From Inventory</button>
+             <button 
+                type="button"
+                className={`flex-1 text-sm py-1.5 rounded-md transition-colors ${entryMode === 'manual' ? 'bg-white shadow dark:bg-slate-900' : 'text-muted-foreground'}`}
+                onClick={() => setEntryMode('manual')}
+             >Manual Entry</button>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="deviceType">Device Type *</Label>
             <SearchableSelect
@@ -602,6 +652,24 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
               placeholder="Select device type"
             />
           </div>
+
+          {entryMode === "inventory" && formData.deviceType !== "Router" && (
+             <div className="space-y-2 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-100 rounded-lg">
+                <Label>Select Available Stock *</Label>
+                <SearchableSelect
+                   options={inventoryItems.map(i => ({ 
+                      value: i.serialNumber, 
+                      label: `${i.name} (${i.serialNumber})` 
+                   }))}
+                   value={formData.serialNumber}
+                   onValueChange={handleInventorySelect}
+                   placeholder={loadingInventory ? "Loading inventory..." : "Select from branch stock"}
+                   disabled={loadingInventory}
+                />
+                <p className="text-[10px] text-muted-foreground">Only showing unassigned devices from your active branch.</p>
+             </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="brand">Brand *</Label>
@@ -630,6 +698,7 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
                 value={formData.serialNumber}
                 onChange={(e) => handleChange("serialNumber", e.target.value)}
                 placeholder="SN123456"
+                disabled={entryMode === "inventory" && formData.deviceType !== "Router"}
               />
             </div>
             <div className="space-y-2">
@@ -3359,22 +3428,6 @@ export function AddCustomerForm() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="assignedPkg">Assigned Package (Trial)</Label>
-                      <SearchableSelect
-                        options={packages
-                          .filter((pkg) => pkg.isTrial)
-                          .map((pkg) => ({
-                            value: pkg.id.toString(),
-                            label: pkg.packageName,
-                            description: `${pkg.packageDuration} - Rs. ${pkg.price}`,
-                          }))}
-                        value={serviceDetails.assignedPkg}
-                        onValueChange={(value) => handleServiceChange("assignedPkg", value)}
-                        placeholder={loading.packages ? "Loading packages..." : "Select assigned package"}
-                        disabled={loading.packages}
-                      />
-                    </div>
                     <div className="space-y-2">
                       <Label htmlFor="subscribedPkgId">Subscribed Package</Label>
                       <SearchableSelect

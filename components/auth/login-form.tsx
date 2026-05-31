@@ -12,25 +12,8 @@ import { Label } from "@/components/ui/label"
 import { CardContainer } from "@/components/ui/card-container"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useTheme } from "next-themes"
-
-/**
- * Helper to get the correct API URL based on the current browser domain
- */
-const getDynamicApiUrl = (endpoint: string) => {
-  const hostname = typeof window !== "undefined" ? window.location.hostname : ""
-  let base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://api.cms.arrownet.com.np"
-
-  if (hostname.includes("namaste.net.np")) {
-    base = "https://api.radius.namaste.net.np"
-  } else if (hostname.includes("kisan.net.np")) {
-    base = "https://api.radius.kisan.net.np"
-  }
-  else if (hostname.includes("arrownet.com.np")) {
-    base = "https://api.cms.arrownet.com.np"
-  }
-
-  return `${base}${endpoint}`
-}
+import { useAuth } from "@/contexts/AuthContext"
+import { apiRequest } from "@/lib/api"
 
 export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false)
@@ -48,14 +31,31 @@ export function LoginForm() {
 
   const googleButtonRef = useRef<HTMLDivElement>(null)
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
+  const { setUser } = useAuth()
 
   const handleAuthSuccess = (data: any) => {
     if (data.user) {
-      localStorage.setItem("user", JSON.stringify(data.user))
+      setUser(data.user)
     }
+    
+    // Clear any stale branch context from previous sessions to prevent Access Denied errors
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("selected-branch-id")
+    }
+    
     toast.success("Signed in successfully!")
+    
+    // Role-based redirect
+    const roleName = data.user?.role?.name?.toLowerCase() || ''
+    let redirectPath = "/dashboard/overview"
+    if (roleName === 'customer') {
+      redirectPath = "/customer/dashboard"
+    } else if (roleName === 'field staff') {
+      redirectPath = "/tasks"
+    }
+    
     // Small delay to ensure cookies are settled before redirecting
-    setTimeout(() => router.push("/dashboard/overview"), 150)
+    setTimeout(() => router.push(redirectPath), 150)
   }
 
   const handleAuthError = (err: any, toastId?: string) => {
@@ -72,16 +72,10 @@ export function LoginForm() {
     const toastId = toast.loading("Verifying with Google...")
 
     try {
-      // DYNAMIC URL APPLIED HERE
-      const res = await fetch(getDynamicApiUrl("/auth/google"), {
+      const data = await apiRequest("/auth/google", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({ credential: credentialResponse.credential }),
       })
-
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Google login failed")
 
       toast.dismiss(toastId)
       handleAuthSuccess(data)
@@ -130,19 +124,14 @@ export function LoginForm() {
     const toastId = toast.loading("Signing in as Admin...")
 
     try {
-      const res = await fetch(getDynamicApiUrl("/auth/login"), {
+      const data = await apiRequest("/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({
           email: "karnkalyan@gmail.com",
           password: "kalyan_vickey",
           rememberMe: true,
         }),
       })
-
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Admin login failed")
 
       toast.dismiss(toastId)
       handleAuthSuccess(data)
@@ -160,16 +149,10 @@ export function LoginForm() {
     const toastId = toast.loading("Signing in...")
 
     try {
-      // DYNAMIC URL APPLIED HERE
-      const res = await fetch(getDynamicApiUrl("/auth/login"), {
+      const data = await apiRequest("/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({ ...formData, rememberMe }),
       })
-
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Login failed")
 
       toast.dismiss(toastId)
       handleAuthSuccess(data)

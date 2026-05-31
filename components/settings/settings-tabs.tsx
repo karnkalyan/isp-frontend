@@ -7,15 +7,17 @@ import { InternetPlansSettings } from "@/components/settings/internet-plans-sett
 import { ExtraChargesSettings } from "@/components/settings/billing-cycles-settings"
 import { PaymentMethodsSettings } from "@/components/settings/payment-methods-settings"
 import { ServiceAreasSettings } from "@/components/settings/service-areas-settings"
+import { SystemSettings } from "@/components/settings/system-settings"
+import { PackageCreationSettings } from "@/components/settings/package-creation-settings"
+import { Building, Globe, MapPin, Calendar, Settings as SettingsIcon, PlusCircle } from "lucide-react"
 import { CardContainer } from "@/components/ui/card-container"
-import { Building, Globe, Calendar, CreditCard, MapPin } from "lucide-react"
 
 export function SettingsTabs() {
   const [activeTab, setActiveTab] = useState("isp-types")
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <TabsList className="w-full justify-start border-b bg-transparent p-0">
+      <TabsList className="w-full justify-start border-b bg-transparent p-0 flex-wrap">
         <TabsTrigger
           value="isp-types"
           className="flex items-center gap-2 rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-primary data-[state=active]:bg-transparent"
@@ -38,19 +40,26 @@ export function SettingsTabs() {
           Package Prices
         </TabsTrigger>
         <TabsTrigger
+          value="package-creation"
+          className="flex items-center gap-2 rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-primary data-[state=active]:bg-transparent"
+        >
+          <PlusCircle className="h-4 w-4" />
+          Package Creation
+        </TabsTrigger>
+        <TabsTrigger
           value="items-charges"
           className="flex items-center gap-2 rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-primary data-[state=active]:bg-transparent"
         >
           <Calendar className="h-4 w-4" />
          Package Addon Charges
         </TabsTrigger>
-        {/* <TabsTrigger
-          value="payment-methods"
+        <TabsTrigger
+          value="system-settings"
           className="flex items-center gap-2 rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-primary data-[state=active]:bg-transparent"
         >
-          <CreditCard className="h-4 w-4" />
-          Payment Methods
-        </TabsTrigger> */}
+          <SettingsIcon className="h-4 w-4" />
+          System Settings
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="isp-types" className="mt-6">
@@ -83,6 +92,16 @@ export function SettingsTabs() {
         </CardContainer>
       </TabsContent>
 
+      <TabsContent value="package-creation" className="mt-6">
+        <CardContainer
+          title="Package Creation"
+          description="Manage ISP package plans, subscription options, duration tiers, and extra charges"
+          gradientColor="#10b981"
+        >
+          <PackageCreationSettings />
+        </CardContainer>
+      </TabsContent>
+
       <TabsContent value="items-charges" className="mt-6">
         <CardContainer
           title="Inventory Items for Package Addon Charges"
@@ -93,15 +112,15 @@ export function SettingsTabs() {
         </CardContainer>
       </TabsContent>
 
-      {/* <TabsContent value="payment-methods" className="mt-6">
+      <TabsContent value="system-settings" className="mt-6">
         <CardContainer
-          title="Payment Methods"
-          description="Manage payment methods available to customers"
+          title="System Settings"
+          description="Configure mail server and system features"
           gradientColor="#0ea5e9"
         >
-          <PaymentMethodsSettings />
+          <SystemSettings />
         </CardContainer>
-      </TabsContent> */}
+      </TabsContent>
     </Tabs>
   )
 }

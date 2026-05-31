@@ -5,54 +5,82 @@ import { useState, useEffect } from "react"
 
 import { Users, Wifi, CreditCard, ShoppingCart } from "lucide-react"
 import { motion } from "framer-motion"
-
-// Ensure stats is defined with a default value to prevent undefined errors
-const stats = [
-  {
-    title: "Total Revenue",
-    value: "$45,231.89",
-    change: "+12.5%",
-    icon: CreditCard,
-    iconBg: "#10B981",
-    gradientFrom: "#10B981",
-    gradientTo: "#3B82F6",
-  },
-  {
-    title: "New Customers",
-    value: "2,350",
-    change: "+5.2%",
-    icon: Users,
-    iconBg: "#3B82F6",
-    gradientFrom: "#3B82F6",
-    gradientTo: "#10B981",
-  },
-  {
-    title: "Active Subscriptions",
-    value: "1,725",
-    change: "+2.1%",
-    icon: Wifi,
-    iconBg: "#F59E0B",
-    gradientFrom: "#F59E0B",
-    gradientTo: "#EF4444",
-  },
-  {
-    title: "Pending Orders",
-    value: "432",
-    change: "+8.9%",
-    icon: ShoppingCart,
-    iconBg: "#EF4444",
-    gradientFrom: "#EF4444",
-    gradientTo: "#EC4899",
-  },
-]
+import { apiRequest } from "@/lib/api"
+import { Loader2 } from "lucide-react"
 
 export function StatsCards() {
-  // Ensure stats is always an array to prevent forEach errors
-  const safeStats = stats || []
+  const [statsData, setStatsData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        const data = await apiRequest('/branches/stats/overall/optimized')
+        setStatsData(data)
+      } catch (error) {
+        console.error("Failed to fetch overall stats:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchStats()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 min-h-[120px]">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="animate-pulse bg-muted rounded-xl border border-border h-[120px]" />
+        ))}
+      </div>
+    )
+  }
+
+  const activeCustomers = statsData?.activeCustomers || 0
+  const totalCustomers = statsData?.totalCustomers || 0
+  
+  const stats = [
+    {
+      title: "Active Customers",
+      value: (statsData?.activeCustomers || 0).toLocaleString(),
+      change: "Active Subscriptions",
+      icon: Users,
+      iconBg: "#3B82F6",
+      gradientFrom: "#3B82F6",
+      gradientTo: "#10B981",
+    },
+    {
+      title: "Expiring This Week",
+      value: (statsData?.expiringThisWeek || 0).toLocaleString(),
+      change: "Renewal needed soon",
+      icon: ShoppingCart,
+      iconBg: "#F59E0B",
+      gradientFrom: "#F59E0B",
+      gradientTo: "#EF4444",
+    },
+    {
+      title: "Expiring This Month",
+      value: (statsData?.expiringThisMonth || 0).toLocaleString(),
+      change: "Upcoming renewals",
+      icon: Wifi,
+      iconBg: "#10B981",
+      gradientFrom: "#10B981",
+      gradientTo: "#3B82F6",
+    },
+    {
+      title: "Expired Users",
+      value: (statsData?.expiredUsers || 0).toLocaleString(),
+      change: `${statsData?.expiredUsers || 0} disconnected`,
+      icon: CreditCard,
+      iconBg: "#EF4444",
+      gradientFrom: "#EF4444",
+      gradientTo: "#EC4899",
+    },
+  ]
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      {safeStats.map((stat, index) => (
+      {stats.map((stat, index) => (
         <motion.div
           key={stat.title}
           initial={{ opacity: 0, y: 20 }}

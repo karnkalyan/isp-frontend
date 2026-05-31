@@ -19,6 +19,7 @@
     users: User[]
     roleOptions: Option[]
     departmentOptions: Option[]
+    branchOptions: Option[]
     onView: (user: User) => void
     onEdit: (user: User) => void
     onDelete: (user: User) => void
@@ -29,6 +30,7 @@
     users,
     roleOptions,
     departmentOptions,
+    branchOptions,
     onView,
     onEdit,
     onDelete,
@@ -45,7 +47,14 @@
     const deptToLabel = (value: any) => {
       if (value == null) return "-"
       const str = String(value)
+      if (!/^\d+$/.test(str)) return str
       return departmentOptions.find((d) => d.value === str)?.label ?? str
+    }
+
+    const branchToLabel = (value: any) => {
+      if (value == null || value === "") return "-"
+      const str = String(value)
+      return branchOptions.find((branch) => branch.value === str)?.label ?? str
     }
 
     const filteredUsers = users.filter((user) => {
@@ -53,7 +62,11 @@
       const emailMatch = user.email?.toLowerCase().includes(term)   ?? false
       const roleMatch  = roleToLabel(user.role).toLowerCase().includes(term)
       const deptMatch  = deptToLabel(user.department).toLowerCase().includes(term)
-      return nameMatch || emailMatch || roleMatch || deptMatch
+      const branchMatch = [
+        branchToLabel(user.branchId),
+        ...(user.branchNames || []),
+      ].join(" ").toLowerCase().includes(term)
+      return nameMatch || emailMatch || roleMatch || deptMatch || branchMatch
     })
     
 
@@ -101,6 +114,20 @@
         key: "department",
         header: "Department",
         cell: (user: User) => <div className="text-foreground dark:text-slate-300">{deptToLabel(user.department)}</div>,
+      },
+      {
+        key: "branch",
+        header: "Branch Access",
+        cell: (user: User) => (
+          <div className="space-y-1 text-foreground dark:text-slate-300">
+            <div>{branchToLabel(user.branchId)}</div>
+            {(user.branchNames || []).length > 0 && (
+              <div className="text-xs text-muted-foreground dark:text-slate-400">
+                Also: {(user.branchNames || []).join(", ")}
+              </div>
+            )}
+          </div>
+        ),
       },
       {
         key: "status",

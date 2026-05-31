@@ -135,21 +135,21 @@ class WebSocketClient {
     if (!this.isBrowser()) return "";
 
     const host = window.location.hostname;
+    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
 
     if (host === "localhost" || host === "127.0.0.1") {
       return "ws://localhost:3200/ws";
     }
 
-    if (host.includes("arrownet.com.np")) {
-      return "wss://api.cms.arrownet.com.np/ws";
-    }
-
     const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "";
     if (apiBase) {
+      if (apiBase.startsWith("/")) {
+        return `${protocol}://${window.location.host}/ws`;
+      }
       return apiBase.replace(/^http/, "ws") + "/ws";
     }
 
-    return "ws://localhost:3200/ws";
+    return `${protocol}://${window.location.host}/ws`;
   }
 
   async connect(): Promise<void> {

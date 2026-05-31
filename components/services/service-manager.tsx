@@ -72,6 +72,26 @@ const defaultServiceTemplates = {
             }
         }, null, 2)
     },
+    ASTERISK: {
+        baseUrl: "http://10.3.2.51",
+        apiVersion: "v1",
+        config: JSON.stringify({
+            ami_port: 5038,
+            ari_port: 8088,
+            ari_app_name: "kisan",
+            defaultCredentials: {
+                ami_host: "10.3.2.51",
+                ami_port: "5038",
+                ami_username: "kisan_ami",
+                ami_password: "AmiPassword@123",
+                ari_host: "10.3.2.51",
+                ari_port: "8088",
+                ari_username: "kisan_ari",
+                ari_password: "AriPassword@123",
+                ari_app_name: "kisan"
+            }
+        }, null, 2)
+    },
     NETTV: {
         baseUrl: "https://resources.geniustv.dev.geniussystems.com.np",
         apiVersion: "v1",
@@ -195,7 +215,7 @@ export function ServiceManager({ service, mode, onSuccess, onCancel }: ServiceMa
                 // Create new service configuration
                 const response = await ServicesAPI.configureService({
                     serviceCode: formData.serviceCode,
-                    baseUrl: formData.baseUrl || null,
+                    baseUrl: formData.baseUrl || undefined,
                     apiVersion: formData.apiVersion,
                     config: config,
                     isActive: formData.isActive,
@@ -207,13 +227,13 @@ export function ServiceManager({ service, mode, onSuccess, onCancel }: ServiceMa
                         onSuccess();
                     }
                 } else {
-                    toast.error(response.error || "Failed to add service");
+                    toast.error((response as any).error || "Failed to add service");
                 }
             } else {
                 // Update existing service
                 const response = await ServicesAPI.configureService({
                     serviceCode: formData.serviceCode,
-                    baseUrl: formData.baseUrl || null,
+                    baseUrl: formData.baseUrl || undefined,
                     apiVersion: formData.apiVersion,
                     config: config,
                     isActive: formData.isActive,
@@ -225,7 +245,7 @@ export function ServiceManager({ service, mode, onSuccess, onCancel }: ServiceMa
                         onSuccess();
                     }
                 } else {
-                    toast.error(response.error || "Failed to update service");
+                    toast.error((response as any).error || "Failed to update service");
                 }
             }
         } catch (error: any) {
@@ -250,7 +270,7 @@ export function ServiceManager({ service, mode, onSuccess, onCancel }: ServiceMa
                     onSuccess();
                 }
             } else {
-                toast.error(response.error || "Failed to deactivate service");
+                toast.error((response as any).error || "Failed to deactivate service");
             }
         } catch (error: any) {
             toast.error(error.message || "Failed to delete service");
@@ -503,7 +523,7 @@ export function ServiceManager({ service, mode, onSuccess, onCancel }: ServiceMa
                                     id="isActive"
                                     checked={formData.isActive}
                                     onCheckedChange={(checked) => handleInputChange("isActive", checked)}
-                                    disabled={mode === 'view'}
+                                    disabled={loading}
                                 />
                             </div>
                         </div>

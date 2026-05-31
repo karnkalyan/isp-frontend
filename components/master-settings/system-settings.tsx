@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { CardContainer } from "@/components/ui/card-container"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,7 +9,8 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "react-hot-toast"
-import { Save } from "lucide-react"
+import { Save, Loader2 } from "lucide-react"
+import { apiRequest } from "@/lib/api"
 
 type DiscountEntry = {
   enabled: boolean
@@ -36,6 +37,10 @@ export function SystemSettings() {
     passwordMinLength: "8",
     termsAndConditions: "By using our services, you agree to our terms and conditions...",
     privacyPolicy: "We respect your privacy and are committed to protecting your personal data...",
+    autoTrialEnabled: true,
+    trialDurationDays: 3,
+    maxStaffGraceDays: 3,
+    allowStaffCompensation: false,
     // NEW: global discount settings for members
     newMemberDiscount: {
       enabled: true,
@@ -92,20 +97,69 @@ export function SystemSettings() {
     return true
   }
 
-  const saveSettings = () => {
-    if (!validate()) return
+  const [saving, setSaving] = useState(false)
 
-    // Replace this with real API call
-    toast.promise(
-      new Promise((resolve) => {
-        setTimeout(() => resolve(true), 900)
-      }),
-      {
-        loading: "Saving system settings...",
-        success: "System settings saved successfully!",
-        error: "Failed to save system settings",
-      },
-    )
+  // Load settings from backend on mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const data = await apiRequest<Record<string, string>>("/settings")
+        if (data && typeof data === 'object') {
+          setSettings(prev => ({
+            ...prev,
+            companyName: data.companyName || prev.companyName,
+            companyEmail: data.companyEmail || prev.companyEmail,
+            companyPhone: data.companyPhone || prev.companyPhone,
+            companyAddress: data.companyAddress || prev.companyAddress,
+            timezone: data.timezone || prev.timezone,
+            currency: data.currency || prev.currency,
+            language: data.language || prev.language,
+            maintenanceMode: data.maintenanceMode === 'true',
+            autoBackup: data.autoBackup !== 'false',
+            emailNotifications: data.emailNotifications !== 'false',
+            smsNotifications: data.smsNotifications === 'true',
+            backupRetentionDays: data.backupRetentionDays || prev.backupRetentionDays,
+            sessionTimeout: data.sessionTimeout || prev.sessionTimeout,
+            maxLoginAttempts: data.maxLoginAttempts || prev.maxLoginAttempts,
+            passwordMinLength: data.passwordMinLength || prev.passwordMinLength,
+            termsAndConditions: data.termsAndConditions || prev.termsAndConditions,
+            privacyPolicy: data.privacyPolicy || prev.privacyPolicy,
+            autoTrialEnabled: data.autoTrialEnabled !== 'false',
+            trialDurationDays: parseInt(data.trialDurationDays || '3'),
+            maxStaffGraceDays: parseInt(data.maxStaffGraceDays || '3'),
+            allowStaffCompensation: data.allowStaffCompensation === 'true',
+            newMemberDiscount: data.newMemberDiscount ? JSON.parse(data.newMemberDiscount) : prev.newMemberDiscount,
+            renewalDiscount: data.renewalDiscount ? JSON.parse(data.renewalDiscount) : prev.renewalDiscount,
+          }))
+        }
+      } catch (e) {
+        // Fall back to defaults if settings haven't been saved yet
+      }
+    }
+    loadSettings()
+  }, [])
+
+  const saveSettings = async () => {
+    if (!validate()) return
+    setSaving(true)
+
+    try {
+      const settingsArray = Object.entries(settings).map(([key, value]) => ({
+        key,
+        value: typeof value === 'object' ? JSON.stringify(value) : String(value),
+        description: `System setting: ${key}`,
+      }))
+
+      await apiRequest("/settings/batch", {
+        method: "POST",
+        body: JSON.stringify({ settings: settingsArray }),
+      })
+      toast.success("System settings saved successfully!")
+    } catch (error: any) {
+      toast.error(error.message || "Failed to save system settings")
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -115,9 +169,9 @@ export function SystemSettings() {
           <h2 className="text-2xl font-bold">System Configuration</h2>
           <p className="text-muted-foreground">Configure general system settings</p>
         </div>
-        <Button onClick={saveSettings} className="flex items-center gap-2">
-          <Save className="h-4 w-4" />
-          Save Settings
+        <Button onClick={saveSettings} disabled={saving} className="flex items-center gap-2">
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          {saving ? "Saving..." : "Save Settings"}
         </Button>
       </div>
 
@@ -325,6 +379,68 @@ export function SystemSettings() {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </CardContainer>
+
+        <CardContainer title="Billing & Provisioning Features" description="Configure auto-trials, grace periods, and technical compensation limits.">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="p-4 border rounded-lg bg-slate-50 dark:bg-slate-800/50">
+               <h4 className="font-medium mb-1">Trial Auto-Assignment</h4>
+               <p className="text-xs text-muted-foreground mb-4">Automatically assign a free trial package to newly provisioned customers.</p>
+               <div className="space-y-4">
+                 <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Enable Auto-Trial</span>
+                    <Switch
+                       checked={settings.autoTrialEnabled ?? true}
+                       onCheckedChange={(checked) => updateSetting("autoTrialEnabled", checked)}
+                    />
+                 </div>
+                 {settings.autoTrialEnabled !== false && (
+                    <div className="space-y-2">
+                      <Label>Default Trial Duration (Days)</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={30}
+                        value={settings.trialDurationDays ?? 3}
+                        onChange={(e) => updateSetting("trialDurationDays", Number(e.target.value))}
+                      />
+                    </div>
+                 )}
+               </div>
+            </div>
+
+            <div className="p-4 border rounded-lg bg-orange-50/50 dark:bg-orange-900/10 border-orange-100 dark:border-orange-900/30">
+               <h4 className="font-medium mb-1 text-orange-800 dark:text-orange-400">Grace & Compensation Limits</h4>
+               <p className="text-xs text-muted-foreground mb-4">Set maximum days staff can extend packages without Admin approval.</p>
+               <div className="space-y-4">
+                 <div className="space-y-2">
+                   <Label>Max Grace Period Extension (Staff)</Label>
+                   <div className="flex items-center gap-2">
+                     <Input
+                       type="number"
+                       min={0}
+                       max={10}
+                       value={settings.maxStaffGraceDays ?? 3}
+                       onChange={(e) => updateSetting("maxStaffGraceDays", Number(e.target.value))}
+                     />
+                     <span className="text-sm">Days</span>
+                   </div>
+                   <p className="text-[10px] text-muted-foreground">Grace days are automatically deducted from the customer's next renewal.</p>
+                 </div>
+                 
+                 <div className="flex items-center justify-between pt-2 border-t border-orange-200/50 w-full">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm">Allow Staff Compensation</Label>
+                      <p className="text-[10px] text-muted-foreground">Free extensions (No deduction on renew)</p>
+                    </div>
+                    <Switch
+                       checked={settings.allowStaffCompensation ?? false}
+                       onCheckedChange={(checked) => updateSetting("allowStaffCompensation", checked)}
+                    />
+                 </div>
+               </div>
             </div>
           </div>
         </CardContainer>

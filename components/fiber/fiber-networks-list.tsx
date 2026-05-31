@@ -1,312 +1,181 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { MoreHorizontal, Search, Filter, MapPin, Cable, Signal, Users, Settings, Eye, Edit, Trash } from "lucide-react"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-
-// Mock data for fiber networks
-const networks = [
-  {
-    id: "FN-001",
-    name: "Downtown FTTH Network",
-    type: "FTTH",
-    location: "Downtown",
-    subscribers: 845,
-    oltCount: 4,
-    onuCount: 845,
-    status: "active",
-    signalQuality: "excellent",
-  },
-  {
-    id: "FN-002",
-    name: "Business District FTTB",
-    type: "FTTB",
-    location: "Business District",
-    subscribers: 124,
-    oltCount: 2,
-    onuCount: 124,
-    status: "active",
-    signalQuality: "good",
-  },
-  {
-    id: "FN-003",
-    name: "North Residential Area",
-    type: "FTTH",
-    location: "North Residential",
-    subscribers: 567,
-    oltCount: 3,
-    onuCount: 567,
-    status: "active",
-    signalQuality: "excellent",
-  },
-  {
-    id: "FN-004",
-    name: "East Suburb Network",
-    type: "FTTH",
-    location: "East Suburb",
-    subscribers: 328,
-    oltCount: 2,
-    onuCount: 328,
-    status: "maintenance",
-    signalQuality: "fair",
-  },
-  {
-    id: "FN-005",
-    name: "Industrial Zone FTTB",
-    type: "FTTB",
-    location: "Industrial Zone",
-    subscribers: 42,
-    oltCount: 1,
-    onuCount: 42,
-    status: "active",
-    signalQuality: "good",
-  },
-]
+import { Cable, Eye, Loader2, MapPin, RefreshCw, Search, Signal, Users } from "lucide-react"
+import { fetchFiberNetworkDataset, type FiberNetworkRow } from "@/lib/fiber-network-data"
 
 export function FiberNetworksList() {
   const [searchQuery, setSearchQuery] = useState("")
-  const [isDarkMode, setIsDarkMode] = useState(true)
+  const [networks, setNetworks] = useState<FiberNetworkRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Check for dark mode
-  useEffect(() => {
-    setIsDarkMode(document.documentElement.classList.contains("dark"))
-
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.attributeName === "class") {
-          setIsDarkMode(document.documentElement.classList.contains("dark"))
-        }
-      })
-    })
-
-    observer.observe(document.documentElement, { attributes: true })
-    return () => observer.disconnect()
-  }, [])
-
-  const filteredNetworks = networks.filter(
-    (network) =>
-      network.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      network.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      network.id.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "active":
-        return (
-          <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500">
-            Active
-          </Badge>
-        )
-      case "maintenance":
-        return (
-          <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500">
-            Maintenance
-          </Badge>
-        )
-      case "offline":
-        return (
-          <Badge variant="outline" className="bg-red-500/10 text-red-500 border-red-500">
-            Offline
-          </Badge>
-        )
-      default:
-        return <Badge variant="outline">{status}</Badge>
+  const loadNetworks = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const dataset = await fetchFiberNetworkDataset()
+      setNetworks(dataset.rows)
+    } catch (err: any) {
+      setError(err?.message || "Failed to load fiber networks")
+    } finally {
+      setLoading(false)
     }
   }
 
-  const getSignalQualityBadge = (quality: string) => {
-    switch (quality) {
-      case "excellent":
-        return (
-          <div className="flex items-center">
-            <div className="flex space-x-0.5">
-              <div className="w-1.5 h-3 bg-green-500 rounded-sm"></div>
-              <div className="w-1.5 h-3 bg-green-500 rounded-sm"></div>
-              <div className="w-1.5 h-3 bg-green-500 rounded-sm"></div>
-              <div className="w-1.5 h-3 bg-green-500 rounded-sm"></div>
-            </div>
-            <span className="ml-2 text-xs">Excellent</span>
-          </div>
-        )
-      case "good":
-        return (
-          <div className="flex items-center">
-            <div className="flex space-x-0.5">
-              <div className="w-1.5 h-3 bg-green-500 rounded-sm"></div>
-              <div className="w-1.5 h-3 bg-green-500 rounded-sm"></div>
-              <div className="w-1.5 h-3 bg-green-500 rounded-sm"></div>
-              <div className="w-1.5 h-3 bg-muted rounded-sm"></div>
-            </div>
-            <span className="ml-2 text-xs">Good</span>
-          </div>
-        )
-      case "fair":
-        return (
-          <div className="flex items-center">
-            <div className="flex space-x-0.5">
-              <div className="w-1.5 h-3 bg-amber-500 rounded-sm"></div>
-              <div className="w-1.5 h-3 bg-amber-500 rounded-sm"></div>
-              <div className="w-1.5 h-3 bg-muted rounded-sm"></div>
-              <div className="w-1.5 h-3 bg-muted rounded-sm"></div>
-            </div>
-            <span className="ml-2 text-xs">Fair</span>
-          </div>
-        )
-      case "poor":
-        return (
-          <div className="flex items-center">
-            <div className="flex space-x-0.5">
-              <div className="w-1.5 h-3 bg-red-500 rounded-sm"></div>
-              <div className="w-1.5 h-3 bg-muted rounded-sm"></div>
-              <div className="w-1.5 h-3 bg-muted rounded-sm"></div>
-              <div className="w-1.5 h-3 bg-muted rounded-sm"></div>
-            </div>
-            <span className="ml-2 text-xs">Poor</span>
-          </div>
-        )
+  useEffect(() => {
+    loadNetworks()
+  }, [])
+
+  const filteredNetworks = useMemo(() => {
+    const query = searchQuery.toLowerCase()
+    return networks.filter(
+      (network) =>
+        network.name.toLowerCase().includes(query) ||
+        network.location.toLowerCase().includes(query) ||
+        network.id.toLowerCase().includes(query)
+    )
+  }, [networks, searchQuery])
+
+  const getStatusBadge = (status: FiberNetworkRow["status"]) => {
+    switch (status) {
+      case "active":
+        return <Badge variant="outline" className="border-green-500 bg-green-500/10 text-green-600">Active</Badge>
+      case "maintenance":
+        return <Badge variant="outline" className="border-amber-500 bg-amber-500/10 text-amber-600">Maintenance</Badge>
       default:
-        return <span>Unknown</span>
+        return <Badge variant="outline" className="border-red-500 bg-red-500/10 text-red-600">Offline</Badge>
     }
+  }
+
+  const getSignalQualityBadge = (quality: FiberNetworkRow["signalQuality"]) => {
+    const config = {
+      excellent: { bars: 4, label: "Excellent", color: "bg-green-500" },
+      good: { bars: 3, label: "Good", color: "bg-green-500" },
+      fair: { bars: 2, label: "Fair", color: "bg-amber-500" },
+      poor: { bars: 1, label: "Poor", color: "bg-red-500" },
+      unknown: { bars: 0, label: "N/A", color: "bg-muted" },
+    }[quality]
+
+    return (
+      <div className="flex items-center">
+        <div className="flex space-x-0.5">
+          {[1, 2, 3, 4].map((bar) => (
+            <div key={bar} className={`h-3 w-1.5 rounded-sm ${bar <= config.bars ? config.color : "bg-muted"}`} />
+          ))}
+        </div>
+        <span className="ml-2 text-xs">{config.label}</span>
+      </div>
+    )
   }
 
   return (
-    <Card
-      className={`${isDarkMode ? "bg-[#0f172a] border-[#1e293b]" : "bg-white border-gray-200"} rounded-xl overflow-hidden relative`}
-    >
-      {/* Top-left corner gradient */}
-      <div
-        className="absolute -top-32 -left-32 w-64 h-64 rounded-full opacity-20"
-        style={{
-          background: `radial-gradient(circle, #3B82F6 0%, transparent 70%)`,
-        }}
-      />
-
-      {/* Bottom-right corner gradient */}
-      <div
-        className="absolute -bottom-32 -right-32 w-64 h-64 rounded-full opacity-20"
-        style={{
-          background: `radial-gradient(circle, #10B981 0%, transparent 70%)`,
-        }}
-      />
-
-      <CardHeader
-        className={`flex flex-row items-center justify-between relative z-10 ${isDarkMode ? "border-[#1e293b]" : "border-gray-200"} border-b`}
-      >
-        <CardTitle className={isDarkMode ? "text-white" : "text-gray-900"}>Fiber Networks</CardTitle>
-        <div className="flex items-center gap-2">
-          <div className="relative w-64">
+    <Card className="relative overflow-hidden">
+      <CardHeader className="flex flex-col gap-3 border-b sm:flex-row sm:items-center sm:justify-between">
+        <CardTitle>Fiber Networks</CardTitle>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative w-full sm:w-72">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               type="search"
               placeholder="Search networks..."
-              className="pl-8 w-full"
+              className="pl-8"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(event) => setSearchQuery(event.target.value)}
             />
           </div>
-          <Button variant="outline" size="icon">
-            <Filter className="h-4 w-4" />
-          </Button>
-          <Button>
-            <Cable className="mr-2 h-4 w-4" />
-            Add Network
+          <Button variant="outline" onClick={loadNetworks} disabled={loading}>
+            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+            Refresh
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="relative z-10 p-4">
-        <div className={`rounded-md border ${isDarkMode ? "border-[#1e293b]" : "border-gray-200"}`}>
+      <CardContent className="p-4">
+        {error && (
+          <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            {error}
+          </div>
+        )}
+        <div className="rounded-md border">
           <Table>
             <TableHeader>
-              <TableRow className={isDarkMode ? "hover:bg-[#1e293b]" : "hover:bg-gray-50"}>
-                <TableHead className={isDarkMode ? "text-slate-300" : "text-gray-700"}>Network ID</TableHead>
-                <TableHead className={isDarkMode ? "text-slate-300" : "text-gray-700"}>Name</TableHead>
-                <TableHead className={isDarkMode ? "text-slate-300" : "text-gray-700"}>Type</TableHead>
-                <TableHead className={isDarkMode ? "text-slate-300" : "text-gray-700"}>Location</TableHead>
-                <TableHead className={isDarkMode ? "text-slate-300" : "text-gray-700"}>Subscribers</TableHead>
-                <TableHead className={isDarkMode ? "text-slate-300" : "text-gray-700"}>OLT/ONU</TableHead>
-                <TableHead className={isDarkMode ? "text-slate-300" : "text-gray-700"}>Status</TableHead>
-                <TableHead className={isDarkMode ? "text-slate-300" : "text-gray-700"}>Signal Quality</TableHead>
-                <TableHead className={`text-right ${isDarkMode ? "text-slate-300" : "text-gray-700"}`}>
-                  Actions
-                </TableHead>
+              <TableRow>
+                <TableHead>Network ID</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Location</TableHead>
+                <TableHead>Subscribers</TableHead>
+                <TableHead>OLT / Splitter / ONT</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>ONT Availability</TableHead>
+                <TableHead className="text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredNetworks.map((network) => (
-                <TableRow key={network.id} className={isDarkMode ? "hover:bg-[#1e293b]" : "hover:bg-gray-50"}>
-                  <TableCell className={`font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-                    {network.id}
-                  </TableCell>
-                  <TableCell className={isDarkMode ? "text-white" : "text-gray-900"}>{network.name}</TableCell>
-                  <TableCell className={isDarkMode ? "text-white" : "text-gray-900"}>{network.type}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center">
-                      <MapPin className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
-                      <span className={isDarkMode ? "text-white" : "text-gray-900"}>{network.location}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center">
-                      <Users className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
-                      <span className={isDarkMode ? "text-white" : "text-gray-900"}>{network.subscribers}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell
-                    className={isDarkMode ? "text-white" : "text-gray-900"}
-                  >{`${network.oltCount} / ${network.onuCount}`}</TableCell>
-                  <TableCell>{getStatusBadge(network.status)}</TableCell>
-                  <TableCell>{getSignalQualityBadge(network.signalQuality)}</TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
-                          <span className="sr-only">Open menu</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem>
-                          <Eye className="mr-2 h-4 w-4" />
-                          View Details
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Settings className="mr-2 h-4 w-4" />
-                          Configure
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Signal className="mr-2 h-4 w-4" />
-                          Signal Analysis
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem>
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive">
-                          <Trash className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="h-24 text-center">
+                    <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : filteredNetworks.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
+                    No fiber network data found.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredNetworks.map((network) => (
+                  <TableRow key={network.id}>
+                    <TableCell className="font-medium">{network.id}</TableCell>
+                    <TableCell>{network.name}</TableCell>
+                    <TableCell>{network.type}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center">
+                        <MapPin className="mr-1 h-3.5 w-3.5 text-muted-foreground" />
+                        <span>{network.location}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center">
+                        <Users className="mr-1 h-3.5 w-3.5 text-muted-foreground" />
+                        <span>{network.subscribers}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1 text-sm">
+                        <Cable className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span>{network.oltCount}</span>
+                        <span className="text-muted-foreground">/</span>
+                        <span>{network.splitterCount}</span>
+                        <span className="text-muted-foreground">/</span>
+                        <span>{network.onuCount}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>{getStatusBadge(network.status)}</TableCell>
+                    <TableCell>{getSignalQualityBadge(network.signalQuality)}</TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" asChild>
+                        <a href="/fiber/olt">
+                          <Eye className="h-4 w-4" />
+                          <span className="sr-only">View OLT details</span>
+                        </a>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
+        </div>
+        <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+          <Signal className="h-3.5 w-3.5" />
+          Counts are built from actual OLT, splitter, customer service, and ONT device records.
         </div>
       </CardContent>
     </Card>

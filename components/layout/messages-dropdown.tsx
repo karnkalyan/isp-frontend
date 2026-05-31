@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Mail, ArrowRight, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -15,54 +15,8 @@ import {
 import { useTheme } from "next-themes"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
-
-type Message = {
-  id: string
-  sender: {
-    name: string
-    avatar?: string
-    initials: string
-  }
-  content: string
-  timestamp: string
-  read: boolean
-}
-
-const messages: Message[] = [
-  {
-    id: "msg-1",
-    sender: {
-      name: "Alex Johnson",
-      avatar: "/abstract-letter-aj.png",
-      initials: "AJ",
-    },
-    content: "I need help with my internet connection, it's been down since yesterday.",
-    timestamp: "10 min ago",
-    read: false,
-  },
-  {
-    id: "msg-2",
-    sender: {
-      name: "Sarah Williams",
-      avatar: "/stylized-sw.png",
-      initials: "SW",
-    },
-    content: "When will the technician arrive? I've been waiting all morning.",
-    timestamp: "25 min ago",
-    read: false,
-  },
-  {
-    id: "msg-3",
-    sender: {
-      name: "Michael Brown",
-      avatar: "/monogram-mb.png",
-      initials: "MB",
-    },
-    content: "Thanks for resolving my billing issue so quickly!",
-    timestamp: "2 hours ago",
-    read: true,
-  },
-]
+import Link from "next/link"
+import { apiRequest } from "@/lib/api"
 
 interface MessagesDropdownProps {
   className?: string
@@ -70,10 +24,28 @@ interface MessagesDropdownProps {
 
 export function MessagesDropdown({ className }: MessagesDropdownProps) {
   const [open, setOpen] = useState(false)
+  const [messages, setMessages] = useState<any[]>([])
   const { resolvedTheme } = useTheme()
   const isDarkMode = resolvedTheme === "dark"
 
-  const unreadCount = messages.filter((msg) => !msg.read).length
+  const fetchMessages = async () => {
+      try {
+          const data = await apiRequest("/messages")
+          setMessages(Array.isArray(data) ? data : [])
+      } catch (e) {
+          console.error(e)
+      }
+  }
+
+  useEffect(() => {
+      if (open) fetchMessages()
+  }, [open])
+
+  useEffect(() => {
+      fetchMessages() 
+  }, [])
+
+  const unreadCount = messages.filter((msg) => !msg.isRead).length
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -115,32 +87,33 @@ export function MessagesDropdown({ className }: MessagesDropdownProps) {
           </Button>
         </DropdownMenuLabel>
         <DropdownMenuGroup className="max-h-[300px] overflow-auto py-1">
-          {messages.map((message) => (
+          {messages.length === 0 ? (
+              <div className="p-4 text-center text-sm text-muted-foreground">No messages</div>
+          ) : messages.slice(0, 5).map((message) => (
             <DropdownMenuItem key={message.id} className="focus:bg-transparent">
               <div
                 className={cn(
                   "flex items-start w-full p-2 rounded-md cursor-pointer transition-all duration-200",
-                  !message.read ? "bg-primary/5" : "",
+                  !message.isRead ? "bg-primary/5" : "",
                   "hover:bg-primary/10",
                 )}
               >
                 <Avatar className="h-9 w-9 mr-2">
-                  <AvatarImage src={message.sender.avatar || "/placeholder.svg"} alt={message.sender.name} />
-                  <AvatarFallback>{message.sender.initials}</AvatarFallback>
+                  <AvatarFallback>{message.sender?.name?.substring(0, 2) || '?'}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 space-y-0.5 min-w-0">
                   <div className="flex items-center justify-between">
-                    <p className={cn("text-sm truncate", !message.read && "font-semibold")}>{message.sender.name}</p>
+                    <p className={cn("text-sm truncate", !message.isRead && "font-semibold")}>{message.sender?.name}</p>
                     <span className="flex items-center text-xs text-muted-foreground whitespace-nowrap ml-1">
-                      {!message.read ? (
+                      {!message.isRead ? (
                         <span className="flex items-center">
                           <span className="mr-1 h-2 w-2 rounded-full bg-blue-500"></span>
-                          {message.timestamp}
+                          {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       ) : (
                         <span className="flex items-center">
                           <Check className="mr-1 h-3 w-3 text-green-500" />
-                          {message.timestamp}
+                          {new Date(message.createdAt).toLocaleDateString()}
                         </span>
                       )}
                     </span>
@@ -153,13 +126,17 @@ export function MessagesDropdown({ className }: MessagesDropdownProps) {
         </DropdownMenuGroup>
         <DropdownMenuSeparator className="opacity-50" />
         <div className="p-2 flex gap-2">
-          <Button variant="outline" size="sm" className="w-full justify-center text-xs h-8">
-            View all
-          </Button>
-          <Button variant="default" size="sm" className="w-full justify-center text-xs h-8">
-            New message
-            <ArrowRight className="ml-1 h-3 w-3" />
-          </Button>
+          <Link href="/messages" onClick={() => setOpen(false)} className="w-full">
+            <Button variant="outline" size="sm" className="w-full justify-center text-xs h-8">
+              View all
+            </Button>
+          </Link>
+          <Link href="/messages" onClick={() => setOpen(false)} className="w-full">
+            <Button variant="default" size="sm" className="w-full justify-center text-xs h-8">
+              New message
+              <ArrowRight className="ml-1 h-3 w-3" />
+            </Button>
+          </Link>
         </div>
       </DropdownMenuContent>
     </DropdownMenu>

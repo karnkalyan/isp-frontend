@@ -4,7 +4,8 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_BASE_URL: "https://api.cms.arrownet.com.np"
+        NEXT_PUBLIC_API_BASE_URL: "/api"
+        INTERNAL_API_BASE_URL: "http://host.docker.internal:3200"
         NEXT_PUBLIC_GOOGLE_CLIENT_ID: "497249566156-jed3q4fsm8ndrip7sdopqtk9gp5rh0eh.apps.googleusercontent.com"
 
     container_name: kisan-isp-frontend
@@ -15,10 +16,15 @@ services:
 
     environment:
       NODE_ENV: production
+      NEXT_PUBLIC_API_BASE_URL: "/api"
+      INTERNAL_API_BASE_URL: "http://host.docker.internal:3200"
 
       # ✅ SERVER ONLY (safe)
       ACCESS_SECRET: "IspMainAdminPanel123@!23"
       REFRESH_SECRET: "ispMainAdminPanelRefresh123"
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
     logging:
       driver: "json-file"

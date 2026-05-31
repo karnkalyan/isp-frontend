@@ -8,12 +8,14 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { toast } from "react-hot-toast"
-import { Save, Plus, Pencil, Trash2, MapPin, Building, Phone, Mail, Globe, User, BarChart3 } from "lucide-react"
+import { Save, Plus, Pencil, Trash2, MapPin, Building, Phone, Mail, Globe, User, BarChart3, Settings } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { apiRequest } from "@/lib/api"
 import { useConfirmToast } from "@/hooks/use-confirm-toast"
 import { BranchStatsCards } from "./branch-stat-cards"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useAuth } from "@/contexts/AuthContext"
 
 type Branch = {
     id: string
@@ -31,6 +33,7 @@ type Branch = {
     isActive: boolean
     createdAt: string
     updatedAt: string
+    parent?: { id: string | number, name: string } | null
     _count?: {
         users: number
         customers: number
@@ -41,6 +44,17 @@ type Branch = {
 }
 
 export default function BranchForm() {
+    const { user } = useAuth()
+    const isGlobalAdmin = React.useMemo(() => {
+        const roleStr = typeof user?.role === "string" ? user.role : user?.role?.name;
+        const roleName = (roleStr || "").toLowerCase()
+        return roleName === "administrator" || 
+               roleName === "admin" || 
+               roleName === "isp_admin" || 
+               roleName === "super admin" || 
+               roleName.startsWith("global ")
+    }, [user])
+
     const [branches, setBranches] = useState<Branch[]>([])
     const [editingId, setEditingId] = useState<string | null>(null)
     const [isAdding, setIsAdding] = useState(false)
@@ -73,7 +87,15 @@ export default function BranchForm() {
         country: "",
         contactPerson: "",
         logoUrl: "",
+        parentId: "none",
     })
+
+    // Handle user loading and parent branch auto-fill
+    useEffect(() => {
+        if (user && !isGlobalAdmin && formData.parentId === "none" && user.branchId) {
+            setFormData(prev => ({ ...prev, parentId: String(user.branchId) }))
+        }
+    }, [user, isGlobalAdmin])
 
     const [isActive, setIsActive] = useState(true)
 
@@ -172,6 +194,7 @@ export default function BranchForm() {
             contactPerson: formData.contactPerson.trim() || null,
             logoUrl: formData.logoUrl.trim() || null,
             isActive: isActive,
+            parentId: formData.parentId !== "none" ? formData.parentId : null,
         }
 
         try {
@@ -218,6 +241,7 @@ export default function BranchForm() {
             country: branch.country || "",
             contactPerson: branch.contactPerson || "",
             logoUrl: branch.logoUrl || "",
+            parentId: branch.parent?.id ? String(branch.parent.id) : "none"
         })
         setIsActive(branch.isActive)
     }
@@ -261,6 +285,7 @@ export default function BranchForm() {
             country: "",
             contactPerson: "",
             logoUrl: "",
+            parentId: isGlobalAdmin ? "none" : (user?.branchId ? String(user.branchId) : "none"),
         })
         setIsActive(true)
         setEditingId(null)
@@ -300,7 +325,6 @@ export default function BranchForm() {
                 <CardContainer
                     title={editingId ? "Edit Branch" : "Add New Branch"}
                     description={editingId ? "Update branch details" : "Create a new branch"}
-                    icon={Building}
                 >
                     <div className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -455,18 +479,44 @@ export default function BranchForm() {
                                 />
                             </div>
 
-                            <div className="flex items-center justify-between p-4 border rounded-lg dark:border-[#334155] dark:bg-[#1e293b]">
-                                <div>
-                                    <h4 className="font-medium dark:text-white">Branch Status</h4>
-                                    <p className="text-sm text-muted-foreground dark:text-slate-400">Active branches can be assigned to users and customers</p>
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="parentId" className="dark:text-slate-300">Parent Branch <span className="text-muted-foreground text-xs font-normal">(Optional)</span></Label>
+                                    <Select 
+                                        value={formData.parentId} 
+                                        onValueChange={(val) => setFormData({ ...formData, parentId: val })}
+                                        disabled={!isGlobalAdmin}
+                                    >
+                                        <SelectTrigger className="dark:bg-[#1e293b] dark:border-[#334155] dark:text-white">
+                                            <SelectValue placeholder="Select Parent Branch" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {isGlobalAdmin && <SelectItem value="none">None (Main Branch)</SelectItem>}
+                                            {branches
+                                                .filter(b => b.id !== editingId)
+                                                .map(b => (
+                                                    <SelectItem key={b.id} value={String(b.id)}>
+                                                        {b.name} ({b.code})
+                                                    </SelectItem>
+                                                 ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <p className="text-xs text-muted-foreground dark:text-slate-400">Assigning a parent turns this into a sub-branch</p>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-sm dark:text-slate-300">{isActive ? "Active" : "Inactive"}</span>
-                                    <Switch
-                                        checked={isActive}
-                                        onCheckedChange={setIsActive}
-                                        className="data-[state=checked]:bg-green-500"
-                                    />
+
+                                <div className="flex items-center justify-between p-4 border rounded-lg dark:border-[#334155] dark:bg-[#1e293b]">
+                                    <div>
+                                        <h4 className="font-medium dark:text-white">Branch Status</h4>
+                                        <p className="text-sm text-muted-foreground dark:text-slate-400">Active branches can be assigned to users and customers</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm dark:text-slate-300">{isActive ? "Active" : "Inactive"}</span>
+                                        <Switch
+                                            checked={isActive}
+                                            onCheckedChange={setIsActive}
+                                            className="data-[state=checked]:bg-green-500"
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -567,7 +617,7 @@ export default function BranchForm() {
                         </CardContainer>
                     )}
 
-                    <CardContainer className="dark:bg-[#0f172a] dark:border-[#1e293b]">
+                    <CardContainer title="Branch List" className="dark:bg-[#0f172a] dark:border-[#1e293b]">
                         {loading ? (
                             <div className="text-center py-8 dark:text-slate-400">Loading branches...</div>
                         ) : branches.length === 0 ? (
@@ -581,6 +631,7 @@ export default function BranchForm() {
                                         <TableRow className="dark:border-b-[#1e293b] dark:hover:bg-[#1e293b]">
                                             <TableHead className="dark:text-slate-400">Code</TableHead>
                                             <TableHead className="dark:text-slate-400">Branch Name</TableHead>
+                                            <TableHead className="dark:text-slate-400">Parent Branch</TableHead>
                                             <TableHead className="dark:text-slate-400">Contact</TableHead>
                                             <TableHead className="dark:text-slate-400">Location</TableHead>
                                             <TableHead className="dark:text-slate-400">Statistics</TableHead>
@@ -603,6 +654,15 @@ export default function BranchForm() {
                                                         <div className="text-sm text-muted-foreground dark:text-slate-400">
                                                             {branch.contactPerson}
                                                         </div>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {branch.parent ? (
+                                                        <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20">
+                                                            {branch.parent.name}
+                                                        </Badge>
+                                                    ) : (
+                                                        <span className="text-muted-foreground dark:text-slate-500">-</span>
                                                     )}
                                                 </TableCell>
                                                 <TableCell>
@@ -684,6 +744,17 @@ export default function BranchForm() {
                                                                 </svg>
                                                             )}
                                                         </Button>
+                                                        {isGlobalAdmin && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                onClick={() => window.location.href = `/branch/${branch.id}/settings`}
+                                                                className="h-8 w-8 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                                                                title="Service & Branch Settings"
+                                                            >
+                                                                <Settings className="h-4 w-4" />
+                                                            </Button>
+                                                        )}
                                                         <Button
                                                             variant="ghost"
                                                             size="icon"

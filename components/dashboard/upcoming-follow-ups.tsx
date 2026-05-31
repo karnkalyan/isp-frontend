@@ -32,8 +32,14 @@ export function UpcomingFollowUps() {
   const fetchUpcomingFollowUps = async () => {
     try {
       setLoading(true)
-      const data = await apiRequest("/follow-ups/upcoming?days=7")
-      setFollowUps(data)
+      const response = await apiRequest<{ success: boolean; data: FollowUp[] }>("/follow-ups/upcoming?days=7")
+      if (response && response.success && Array.isArray(response.data)) {
+        setFollowUps(response.data)
+      } else if (Array.isArray(response)) {
+        setFollowUps(response as any)
+      } else {
+        setFollowUps([])
+      }
     } catch (error) {
       console.error("Failed to fetch upcoming follow-ups:", error)
     } finally {

@@ -1,14 +1,12 @@
 "use client"
 
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { LeadSearchHero } from "@/components/dashboard/lead-search-hero"
+import { RoleBasedDashboard } from "@/components/dashboard/RoleBasedDashboard"
 
 export default function DashboardOverviewPage() {
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <LeadSearchHero />
-      </div>
+      <RoleBasedDashboard />
     </DashboardLayout>
   )
 }

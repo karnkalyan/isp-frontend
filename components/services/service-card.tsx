@@ -33,6 +33,7 @@ const serviceIcons: Record<string, React.ReactNode> = {
     RADIUS: <div className="h-5 w-5">🔐</div>,
     NETTV: <div className="h-5 w-5">📺</div>,
     YEASTAR: <div className="h-5 w-5">📞</div>,
+    ASTERISK: <div className="h-5 w-5">📞</div>,
     MIKROTIK: <div className="h-5 w-5">🛰️</div>,
     HUAWEI_OLT: <div className="h-5 w-5">🌐</div>,
     ZTE_OLT: <div className="h-5 w-5">🌐</div>,
@@ -40,7 +41,8 @@ const serviceIcons: Record<string, React.ReactNode> = {
     ESEWA: <div className="h-5 w-5">💳</div>,
     KHALTI: <div className="h-5 w-5">💳</div>,
     SMS_GATEWAY: <div className="h-5 w-5">✉️</div>,
-    EMAIL_SERVICE: <div className="h-5 w-5">📧</div>
+    EMAIL_SERVICE: <div className="h-5 w-5">📧</div>,
+    GENIEACS: <div className="h-5 w-5">🌐</div>
 };
 
 const categoryColors: Record<string, string> = {
@@ -52,6 +54,7 @@ const categoryColors: Record<string, string> = {
     VOIP: "bg-pink-100 text-pink-800 border-pink-200",
     SECURITY: "bg-red-100 text-red-800 border-red-200",
     COMMUNICATION: "bg-cyan-100 text-cyan-800 border-cyan-200",
+    ACS: "bg-indigo-100 text-indigo-800 border-indigo-200",
     OTHER: "bg-yellow-100 text-yellow-800 border-yellow-200"
 };
 

@@ -77,6 +77,7 @@ export type ServiceCategory =
     | 'VOIP'
     | 'SECURITY'
     | 'COMMUNICATION'
+    | 'ACS'
     | 'OTHER';
 
 export type CredentialType =

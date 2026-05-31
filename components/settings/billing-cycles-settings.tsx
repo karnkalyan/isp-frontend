@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { Plus, Pencil, Trash2, Save, X, Loader } from "lucide-react"
+import { Plus, Pencil, Trash2, Save, X, Loader, RefreshCw } from "lucide-react"
 import { toast } from "react-hot-toast"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,7 +16,8 @@ type ExtraCharge = {
   name: string
   code: string
   isTaxable: boolean
-  amount: number
+  amount: number | null
+  forPackageCreation: boolean
   description: string | null
   // FIX #1: The API sends 'id', not 'packageId'.
   applicablePackages: { id: number }[]
@@ -28,6 +29,7 @@ type FormItem = {
   code: string
   isTaxable: boolean
   amount: number
+  forPackageCreation: boolean
   description: string
   applicablePackageIds: number[]
 }
@@ -38,6 +40,7 @@ export function ExtraChargesSettings() {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [packageOptions, setPackageOptions] = useState<Option[]>([])
   const [isApiCalling, setIsApiCalling] = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
   const initialItems: FormItem = {
@@ -45,6 +48,7 @@ export function ExtraChargesSettings() {
     code: "",
     isTaxable: false,
     amount: 0,
+    forPackageCreation: false,
     description: "",
     applicablePackageIds: [],
   }
@@ -71,6 +75,22 @@ export function ExtraChargesSettings() {
       toast.error("Could not load extra charges")
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleSyncWithTshul = async () => {
+    try {
+      setIsSyncing(true)
+      const res = await apiRequest<{ success: boolean; message: string }>("/extra-charges/sync", {
+        method: "POST"
+      })
+      toast.success(res.message || "Synced successfully with T-Shul")
+      await fetchExtraCharges()
+    } catch (err: any) {
+      console.error("Sync failed:", err)
+      toast.error(err.message || "Failed to sync with T-Shul")
+    } finally {
+      setIsSyncing(false)
     }
   }
 
@@ -101,8 +121,8 @@ export function ExtraChargesSettings() {
 
   // Handle creating a new item
   const handleAdd = async () => {
-    if (!items.name || !items.code || items.amount <= 0) {
-      toast.error("Name, code, and a positive amount are required")
+    if (!items.name || !items.code || (!items.forPackageCreation && items.amount <= 0)) {
+      toast.error("Name, code, and a positive amount are required (unless for package creation)")
       return
     }
     try {
@@ -128,8 +148,9 @@ export function ExtraChargesSettings() {
     setItems({
       name: charge.name,
       code: charge.code,
-      amount: charge.amount,
+      amount: charge.amount || 0,
       isTaxable: charge.isTaxable,
+      forPackageCreation: charge.forPackageCreation || false,
       description: charge.description || "",
       // FIX #2: Use p.id to correctly populate the form state.
       applicablePackageIds: charge.applicablePackages.map(p => p.id),
@@ -140,8 +161,8 @@ export function ExtraChargesSettings() {
   // Handle updating an existing item
   const handleUpdate = async () => {
     if (!editingId) return
-    if (!items.name || !items.code || items.amount <= 0) {
-      toast.error("Name, code, and a positive amount are required")
+    if (!items.name || !items.code || (!items.forPackageCreation && items.amount <= 0)) {
+      toast.error("Name, code, and a positive amount are required (unless for package creation)")
       return
     }
 
@@ -224,7 +245,7 @@ export function ExtraChargesSettings() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-4">
             <div className="space-y-2">
               <Label htmlFor="amount">Amount</Label>
               <Input
@@ -233,13 +254,13 @@ export function ExtraChargesSettings() {
                 min={0}
                 value={items.amount}
                 onChange={(e) => setItems({ ...items, amount: Number(e.target.value) || 0 })}
+                disabled={items.forPackageCreation}
               />
             </div>
 
             <div>
               <Label htmlFor="isTaxable">Is Taxable</Label>
               <SearchableSelect
-                id="isTaxable"
                 options={IS_TAXABLE}
                 value={String(items.isTaxable)}
                 onValueChange={(v) =>
@@ -251,7 +272,6 @@ export function ExtraChargesSettings() {
             <div>
               <Label htmlFor="applicablePackages">Applicable Packages</Label>
               <SearchableSelect
-                id="applicablePackages"
                 options={packageOptions}
                 value={items.applicablePackageIds.map(String)}
                 onValueChange={(v) =>
@@ -263,6 +283,16 @@ export function ExtraChargesSettings() {
                 placeholder="Select packages (or leave empty for all)"
                 multiple
               />
+            </div>
+            <div className="flex items-center space-x-2 pt-8">
+              <input
+                id="forPackageCreation"
+                type="checkbox"
+                className="h-4 w-4 rounded border-gray-350 text-indigo-600 focus:ring-indigo-500 bg-slate-900 border-slate-700"
+                checked={items.forPackageCreation}
+                onChange={(e) => setItems({ ...items, forPackageCreation: e.target.checked, amount: e.target.checked ? 0 : items.amount })}
+              />
+              <Label htmlFor="forPackageCreation" className="text-sm font-medium">For Package Creation</Label>
             </div>
           </div>
 
@@ -292,12 +322,23 @@ export function ExtraChargesSettings() {
       )}
 
       {!isAdding && !editingId && (
-        <Button
-          onClick={() => setIsAdding(true)}
-          className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white"
-        >
-          <Plus className="mr-2 h-4 w-4" /> Add New Item
-        </Button>
+        <div className="flex justify-between items-center mb-6">
+          <Button
+            onClick={() => setIsAdding(true)}
+            className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white"
+          >
+            <Plus className="mr-2 h-4 w-4" /> Add New Item
+          </Button>
+
+          <Button
+            onClick={handleSyncWithTshul}
+            disabled={isSyncing}
+            variant="outline"
+            className="border-slate-200 dark:border-slate-800"
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} /> Sync with T-Shul
+          </Button>
+        </div>
       )}
 
       <div className="rounded-md border overflow-hidden">
@@ -330,12 +371,19 @@ export function ExtraChargesSettings() {
                   <TableRow key={charge.id}>
                     <TableCell>
                       <div className="flex flex-col">
-                        <span className="font-medium">{charge.name}</span>
+                        <div className="flex items-center space-x-2">
+                          <span className="font-medium">{charge.name}</span>
+                          {charge.forPackageCreation && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">
+                              Package Creation Only
+                            </span>
+                          )}
+                        </div>
                         <span className="text-xs text-muted-foreground">{charge.code}</span>
                       </div>
                     </TableCell>
                     <TableCell>
-                      {new Intl.NumberFormat('en-NP', { style: 'currency', currency: 'NPR' }).format(charge.amount)}
+                      {new Intl.NumberFormat('en-NP', { style: 'currency', currency: 'NPR' }).format(charge.amount || 0)}
                     </TableCell>
                     <TableCell>
                       {charge.isTaxable ? "Yes" : "No"}

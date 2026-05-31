@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from "react-hot-toast"
 import { Upload } from "lucide-react"
 import { apiRequest } from "@/lib/api"
@@ -20,9 +21,10 @@ interface AddUserFormProps {
   onCancel: () => void
   roles: Array<Option>
   departments: Array<Option> // departments now provides value as stringified IDs
+  branches: Array<Option>
 }
 
-export function AddUserForm({ onSubmit, onCancel, roles, departments }: AddUserFormProps) {
+export function AddUserForm({ onSubmit, onCancel, roles, departments, branches }: AddUserFormProps) {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -30,7 +32,9 @@ export function AddUserForm({ onSubmit, onCancel, roles, departments }: AddUserF
     roleId: "", // CHANGED: Renamed from 'role' to 'roleId' to match backend
     status: "pending" as "active" | "inactive" | "pending",
     departmentId: "", // CHANGED: Renamed from 'department' to 'departmentId'
+    branchId: "",
   })
+  const [branchIds, setBranchIds] = useState<string[]>([])
 
   const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null)
   const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null)
@@ -69,6 +73,9 @@ export function AddUserForm({ onSubmit, onCancel, roles, departments }: AddUserF
   // CHANGED: The keyof typeof formData now correctly includes 'roleId' and 'departmentId'
   const handleSelectChange = (name: keyof typeof formData, value: string) => {
     setFormData((prev) => ({ ...prev, [name]: value }))
+    if (name === "branchId") {
+      setBranchIds((prev) => prev.filter((id) => id !== value))
+    }
     if (errors[name]) {
       setErrors((prev) => {
         const newErrors = { ...prev }
@@ -76,6 +83,13 @@ export function AddUserForm({ onSubmit, onCancel, roles, departments }: AddUserF
         return newErrors
       })
     }
+  }
+
+  const toggleAdditionalBranch = (branchId: string, checked: boolean) => {
+    setBranchIds((prev) => {
+      if (checked) return Array.from(new Set([...prev, branchId]))
+      return prev.filter((id) => id !== branchId)
+    })
   }
 
   // Frontend validation (still good to have for immediate feedback)
@@ -136,6 +150,10 @@ export function AddUserForm({ onSubmit, onCancel, roles, departments }: AddUserF
       if (formData.departmentId) {
         data.append("departmentId", formData.departmentId);
       }
+      if (formData.branchId) {
+        data.append("branchId", formData.branchId);
+      }
+      data.append("branchIds", JSON.stringify(branchIds.filter((id) => id !== formData.branchId)));
       data.append("ispId", ispIdToSend);
       if (profilePictureFile) {
         data.append("profilePicture", profilePictureFile);
@@ -154,7 +172,9 @@ export function AddUserForm({ onSubmit, onCancel, roles, departments }: AddUserF
         roleId: "",
         status: "pending",
         departmentId: "",
+        branchId: "",
       });
+      setBranchIds([]);
       setProfilePictureFile(null);
       setProfilePicturePreview(null);
       setErrors({});
@@ -285,6 +305,42 @@ export function AddUserForm({ onSubmit, onCancel, roles, departments }: AddUserF
               <SelectItem value="pending">Pending</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="add-primary-branch">Primary Branch</Label>
+          <Select value={formData.branchId} onValueChange={(val) => handleSelectChange("branchId", val)}>
+            <SelectTrigger id="add-primary-branch">
+              <SelectValue placeholder="Select primary branch" />
+            </SelectTrigger>
+            <SelectContent>
+              {branches.map((branch) => (
+                <SelectItem key={branch.value} value={branch.value}>
+                  {branch.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <Label>Additional Branch Access</Label>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-md border p-4">
+          {branches.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No branches available</p>
+          ) : (
+            branches.map((branch) => (
+              <label key={branch.value} className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={branchIds.includes(branch.value)}
+                  disabled={branch.value === formData.branchId}
+                  onCheckedChange={(checked) => toggleAdditionalBranch(branch.value, checked === true)}
+                />
+                <span>{branch.label}</span>
+              </label>
+            ))
+          )}
         </div>
       </div>
 

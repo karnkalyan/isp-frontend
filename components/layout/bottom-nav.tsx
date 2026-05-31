@@ -4,6 +4,7 @@ import { BarChart3, CreditCard, LayoutDashboard, Settings, Users, UserPlus } fro
 import { cn } from "@/lib/utils"
 import { usePathname } from "next/navigation"
 import { motion } from "framer-motion"
+import { useAuth } from "@/contexts/AuthContext"
 
 const navItems = [
   {
@@ -15,31 +16,37 @@ const navItems = [
     title: "Users",
     icon: Users,
     href: "/admin/users",
+    permission: "users_read",
   },
   {
     title: "Leads",
     icon: UserPlus,
     href: "/leads",
+    permission: "lead_read",
   },
   {
     title: "Customers",
     icon: Users,
     href: "/customers/all",
+    permission: "customer_read",
   },
   {
     title: "Packages",
     icon: Settings,
     href: "/dashboard/settings",
+    permission: "settings_read",
   },
 ]
 
 export function BottomNav() {
   const pathname = usePathname()
+  const { hasPermission } = useAuth()
+  const visibleItems = navItems.filter(item => !item.permission || hasPermission(item.permission))
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border/40 glass-navbar md:hidden">
       <nav className="flex h-14" aria-label="Mobile navigation">
-        {navItems.map((item) => {
+        {visibleItems.map((item) => {
           const isActive = pathname === item.href
           return (
             <a

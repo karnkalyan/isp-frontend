@@ -121,14 +121,14 @@ export function ConvertedLeads() {
                                         <TableCell>
                                             {lead.customers && lead.customers.length > 0 ? (
                                                 <div className="space-y-1">
-                                                    {lead.customers.map(customer => (
+                                                    {lead.customers.map((customer: any) => (
                                                         <div key={customer.id} className="flex items-center gap-2">
                                                             <User className="h-4 w-4 text-muted-foreground" />
                                                             <span className="font-medium">
-                                                                {customer.firstName} {customer.lastName}
+                                                                {lead.firstName} {lead.lastName}
                                                             </span>
                                                             <Badge variant="outline" className="text-xs">
-                                                                Customer
+                                                                {customer.customerUniqueId || customer.idNumber || 'Customer'}
                                                             </Badge>
                                                         </div>
                                                     ))}

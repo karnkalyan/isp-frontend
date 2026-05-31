@@ -1,13 +1,13 @@
+// app/tr069/device/[id]/page.tsx
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { use, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TR069DeviceDetails } from "@/components/tr069/device-details";
 import { TR069DeviceWifi } from "@/components/tr069/device-wifi";
 import { TR069DeviceSpeedTest } from "@/components/tr069/device-speed-test";
 import { TR069DeviceNeighbors } from "@/components/tr069/device-neighbors";
 import { TR069DeviceDiagnostics } from "@/components/tr069/device-diagnostics";
-import { TR069DeviceFirmware } from "@/components/tr069/device-firmware";
 import { TR069DeviceWanConnections } from "@/components/tr069/device-wan-connections";
 import { TR069DeviceLanInfo } from "@/components/tr069/device-lan";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,8 @@ interface PageProps {
 }
 
 export default function TR069DevicePage({ params }: PageProps) {
-  const { id } = use(params);
+  const resolvedParams = use(params);
+  const id = String(resolvedParams?.id ?? "");
   const { toast } = useToast();
 
   const [isRebooting, setIsRebooting] = useState(false);
@@ -37,6 +38,7 @@ export default function TR069DevicePage({ params }: PageProps) {
         `/services/genieacs/devices/${id}/reboot`,
         { method: "POST" }
       );
+
       if (data.success) {
         toast({
           title: "Success",
@@ -63,6 +65,7 @@ export default function TR069DevicePage({ params }: PageProps) {
         `/services/genieacs/devices/${id}/reset`,
         { method: "POST" }
       );
+
       if (data.success) {
         toast({
           title: "Success",
@@ -86,10 +89,7 @@ export default function TR069DevicePage({ params }: PageProps) {
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <PageHeader
-            heading="TR-069 Device"
-            subheading="Device Management"
-          />
+          <PageHeader heading="TR-069 Device" subheading="Device Management" />
           <Button variant="outline" size="sm" asChild>
             <Link href="/tr069">
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -103,21 +103,27 @@ export default function TR069DevicePage({ params }: PageProps) {
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh All
           </Button>
+
           <Button variant="outline" size="sm">
             <Download className="h-4 w-4 mr-2" />
             Fetch New Data
           </Button>
-          <Button variant="outline" size="sm" onClick={rebootDevice} disabled={isRebooting}>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={rebootDevice}
+            disabled={isRebooting}
+          >
             <RotateCw className="h-4 w-4 mr-2" />
             Reboot
           </Button>
+
           <Button variant="outline" size="sm">
             <UserMinus className="h-4 w-4 mr-2" />
             Unassign Customer
           </Button>
         </div>
-
-
 
         <Tabs defaultValue="basic-info" className="w-full">
           <TabsList className="w-full justify-start h-10 bg-background p-1 rounded-md overflow-x-auto">
@@ -128,7 +134,6 @@ export default function TR069DevicePage({ params }: PageProps) {
             <TabsTrigger value="neighbor-devices">Connected Devices</TabsTrigger>
             <TabsTrigger value="speed-test">Speed Test</TabsTrigger>
             <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
-            {/* <TabsTrigger value="firmware-update">Firmware</TabsTrigger> */}
           </TabsList>
 
           <TabsContent value="basic-info" className="pt-6">
@@ -158,10 +163,6 @@ export default function TR069DevicePage({ params }: PageProps) {
           <TabsContent value="diagnostics" className="pt-6">
             <TR069DeviceDiagnostics deviceId={id} />
           </TabsContent>
-
-          {/* <TabsContent value="firmware-update" className="pt-6">
-            <TR069DeviceFirmware deviceId={id} />
-          </TabsContent> */}
         </Tabs>
       </div>
     </DashboardLayout>

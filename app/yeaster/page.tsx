@@ -5,6 +5,7 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { PageHeader } from "@/components/ui/page-header"
 import YeastarDashboard from "@/components/yeaster/YeasterDashboard"
 import { useState } from "react"
+import { Phone } from "lucide-react"
 
 export default function YeastarPage() {
     const [makeCallModalOpen, setMakeCallModalOpen] = useState(false)
@@ -19,7 +20,7 @@ export default function YeastarPage() {
                         {
                             label: "Make Call",
                             onClick: () => setMakeCallModalOpen(true),
-                            variant: "primary"
+                            variant: "default"
                         },
                         {
                             label: "Configure Service",
@@ -32,7 +33,7 @@ export default function YeastarPage() {
                             variant: "outline"
                         },
                     ]}
-                    icon="phone"
+                    icon={Phone}
                 />
 
                 <YeastarDashboard

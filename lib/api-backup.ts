@@ -99,8 +99,10 @@ export async function apiRequest<T = any>(
         const payloadStr =
           typeof payload === "string" ? payload : JSON.stringify(payload);
         if (isClient()) {
-          toast.error("Session expired. Please login again.");
-          window.location.href = "/login";
+          if (window.location.pathname !== "/login") {
+            toast.error("Session expired. Please login again.");
+            window.location.href = "/login";
+          }
         }
         throw new Error(payloadStr || "Session expired");
       }
