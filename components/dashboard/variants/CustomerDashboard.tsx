@@ -320,7 +320,7 @@ export function CustomerDashboard() {
                   <Loader2 className="h-4 w-4 animate-spin" /> Loading router data...
                 </div>
               ) : connectedDevices.length > 0 ? (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {connectedDevices.slice(0, 8).map((client: any, index: number) => (
                     <div key={`${client.macAddress}-${index}`} className="flex items-center justify-between rounded-md border p-3">
                       <div className="flex items-center gap-3">
@@ -345,7 +345,7 @@ export function CustomerDashboard() {
           <div className="grid gap-4 lg:grid-cols-3">
             <CardContainer title="WiFi Networks" className="lg:col-span-1">
               {ssids.length > 0 ? (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {ssids.map((ssid: any) => (
                     <button
                       key={ssid.instance}
@@ -440,7 +440,7 @@ export function CustomerDashboard() {
           <div className="grid gap-4 lg:grid-cols-3">
             <CardContainer title="Create Ticket" className="lg:col-span-1">
               <form className="space-y-4" onSubmit={createTicket}>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <Label>Subject</Label>
                   <Input name="title" placeholder="Speed slow, WiFi issue..." required />
                 </div>
@@ -457,17 +457,27 @@ export function CustomerDashboard() {
 
             <CardContainer title="Support Tickets" className="lg:col-span-2">
               {(profile.tickets || []).length > 0 ? (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {(profile.tickets || []).map((ticketItem) => (
-                    <div key={ticketItem.id} className="flex items-center justify-between rounded-md border p-3">
-                      <div className="flex items-center gap-3">
-                        <Ticket className="h-4 w-4 text-primary" />
-                        <div>
-                          <div className="font-medium">{ticketItem.title}</div>
+                    <div key={ticketItem.id} className="rounded-md border p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <Ticket className="mt-1 h-4 w-4 shrink-0 text-primary" />
+                          <div className="min-w-0 space-y-1">
+                            <div className="font-medium">{ticketItem.title}</div>
                           <div className="text-xs text-muted-foreground">#{ticketItem.ticketNumber} · {formatDate(ticketItem.createdAt)}</div>
                         </div>
                       </div>
-                      <Badge variant="outline">{ticketItem.status}</Badge>
+                        <Badge variant="outline" className="shrink-0">{ticketItem.status}</Badge>
+                      </div>
+                      <div className="mt-3 rounded-md bg-muted/30 p-3 text-sm leading-relaxed text-muted-foreground">
+                        {ticketItem.description?.trim() || "No description provided."}
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {ticketItem.priority && <Badge variant="secondary">Priority: {ticketItem.priority}</Badge>}
+                        {ticketItem.category && <Badge variant="secondary">Category: {ticketItem.category}</Badge>}
+                        {ticketItem.resolution && <Badge variant="success">Resolved</Badge>}
+                      </div>
                     </div>
                   ))}
                 </div>
