@@ -28,6 +28,10 @@ export function Navbar({ onMenuClick }: NavbarProps) {
   const [inquiryDialogOpen, setInquiryDialogOpen] = useState(false);
   const [activeCallsCount, setActiveCallsCount] = useState(0);
   const { user } = useAuth();
+  const roleName = typeof user?.role === "string" ? user.role : user?.role?.name;
+  const normalizedRole = String(roleName || "").toLowerCase();
+  const isCustomer = normalizedRole === "customer";
+  const isGlobalRole = normalizedRole === "administrator" || normalizedRole.startsWith("global ");
 
   useEffect(() => {
     setMounted(true);
@@ -95,7 +99,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
       >
         <div className="flex h-14 items-center px-4">
           <div className="flex items-center gap-2 md:gap-4">
-            <Button variant="ghost" size="icon" onClick={onMenuClick} aria-label="Toggle menu">
+            <Button variant="ghost" size="icon" onClick={onMenuClick} aria-label="Toggle menu" className={isCustomer ? "hidden md:inline-flex" : ""}>
               <Menu className="h-5 w-5" />
             </Button>
           </div>
@@ -130,7 +134,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
-            {(!user?.role?.name || !(user.role.name.toLowerCase() === 'administrator' || user.role.name.toLowerCase().startsWith('global '))) && (
+            {!isCustomer && !isGlobalRole && (
               <BranchSwitcher className="hidden lg:flex" />
             )}
             
@@ -176,7 +180,6 @@ export function Navbar({ onMenuClick }: NavbarProps) {
       <InquiryDialog
         open={inquiryDialogOpen}
         onOpenChange={setInquiryDialogOpen}
-        onCallsCountChange={setActiveCallsCount}
       />
     </>
   );

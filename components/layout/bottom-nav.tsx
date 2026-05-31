@@ -1,6 +1,6 @@
 "use client"
 
-import { BarChart3, CreditCard, LayoutDashboard, Settings, Users, UserPlus } from "lucide-react"
+import { Contact, LayoutDashboard, Router, Settings, Users, UserPlus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { usePathname } from "next/navigation"
 import { motion } from "framer-motion"
@@ -40,14 +40,21 @@ const navItems = [
 
 export function BottomNav() {
   const pathname = usePathname()
-  const { hasPermission } = useAuth()
-  const visibleItems = navItems.filter(item => !item.permission || hasPermission(item.permission))
+  const { user, hasPermission } = useAuth()
+  const roleName = typeof user?.role === "string" ? user.role : user?.role?.name
+  const isCustomer = String(roleName || "").toLowerCase() === "customer"
+  const customerItems = [
+    { title: "Dashboard", icon: LayoutDashboard, href: "/customer/dashboard" },
+    { title: "Router", icon: Router, href: "/customer/router" },
+    { title: "Contact", icon: Contact, href: "/customer/contact" },
+  ]
+  const visibleItems = isCustomer ? customerItems : navItems.filter(item => !item.permission || hasPermission(item.permission))
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border/40 glass-navbar md:hidden">
       <nav className="flex h-14" aria-label="Mobile navigation">
         {visibleItems.map((item) => {
-          const isActive = pathname === item.href
+          const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
           return (
             <a
               key={item.title}

@@ -6,9 +6,7 @@ import { CustomerDashboard } from "@/components/dashboard/variants/CustomerDashb
 export default function CustomerDashboardPage() {
     return (
         <DashboardLayout>
-            <div className="p-6">
-                <CustomerDashboard />
-            </div>
+            <CustomerDashboard />
         </DashboardLayout>
     )
 }

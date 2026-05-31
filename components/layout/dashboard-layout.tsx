@@ -48,6 +48,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [isAuthorized, setIsAuthorized] = useState(true);
+  const roleName = typeof user?.role === "string" ? user.role : user?.role?.name;
+  const isCustomer = String(roleName || "").toLowerCase() === "customer";
 
   useEffect(() => {
     // Read the real theme only after hydration — this is the correct moment.
@@ -118,10 +120,10 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       data-theme={mounted ? (isDarkMode ? "dark" : "light") : undefined}
       suppressHydrationWarning
     >
-      <Sidebar open={sidebarOpen} setOpen={setSidebarOpen} />
+      {!(isCustomer && isMobile) && <Sidebar open={sidebarOpen} setOpen={setSidebarOpen} />}
       <div className="flex flex-1 flex-col overflow-hidden">
         <Navbar onMenuClick={() => setSidebarOpen((o) => !o)} />
-        <main className="flex-1 overflow-auto p-4 md:p-6">
+        <main className="flex-1 overflow-auto p-4 pb-20 md:p-6 md:pb-6">
           {isAuthorized ? children : <div className="flex items-center justify-center h-full">Redirecting...</div>}
         </main>
         {isMobile && <BottomNav />}

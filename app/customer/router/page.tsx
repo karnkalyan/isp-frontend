@@ -6,9 +6,7 @@ import { CustomerDashboard } from "@/components/dashboard/variants/CustomerDashb
 export default function CustomerRouterPage() {
   return (
     <DashboardLayout>
-      <div className="p-6">
-        <CustomerDashboard initialTab="router" />
-      </div>
+      <CustomerDashboard initialTab="router" />
     </DashboardLayout>
   )
 }
