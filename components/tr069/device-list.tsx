@@ -9,7 +9,7 @@ import {
   Search, Filter, MoreVertical, Router, ExternalLink, AlertCircle,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   Power, PowerOff, Signal, SignalHigh, SignalMedium, SignalLow, X, RefreshCw,
-  User, UserPlus, UserMinus, Link2, Info, CheckCircle2
+  User, UserPlus, UserMinus, Link2, Info, CheckCircle2, Trash2
 } from "lucide-react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
@@ -216,6 +216,27 @@ export function TR069DeviceList() {
       }
     } catch (err) {
       toast.error("Error unlinking lead")
+    }
+  }
+
+  const handleDeleteDevice = async (device: Device) => {
+    const label = device.device || device.SerialNumber
+    if (!confirm(`Delete ${label} from the local TR069 list? You can sync from GenieACS again if the device still exists there.`)) return
+
+    try {
+      const response = await apiRequest<{ success: boolean; message?: string; error?: string }>(
+        `/tr069-devices/${device.SerialNumber}`,
+        { method: 'DELETE' }
+      )
+
+      if (response.success) {
+        toast.success(response.message || "Device deleted")
+        setDevices(prev => prev.filter(item => item.SerialNumber !== device.SerialNumber))
+      } else {
+        toast.error(response.error || response.message || "Failed to delete device")
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Error deleting device")
     }
   }
 
@@ -575,6 +596,13 @@ export function TR069DeviceList() {
                                 </DropdownMenuItem>
                                 <DropdownMenuItem>Run Diagnostics</DropdownMenuItem>
                                 <DropdownMenuItem>Update Firmware</DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => handleDeleteDevice(device)}
+                                  className="text-destructive focus:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" /> Delete Device
+                                </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>
