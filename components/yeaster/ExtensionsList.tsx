@@ -57,7 +57,7 @@ export default function ExtensionsList({ ispId, webSocketConnected, serverDown }
             setLoading(true)
             console.log('🔄 Fetching extensions from DB for ISP:', ispId)
 
-            const response = await apiRequest<{ success: boolean; data: Extension[]; total: number }>('/yeaster/extensions/db')
+            const response = await apiRequest<{ success: boolean; data: Extension[]; total: number; error?: string }>('/yeaster/extensions/db')
             console.log('✅ Extensions response:', response)
 
             if (response.success) {
@@ -217,6 +217,9 @@ export default function ExtensionsList({ ispId, webSocketConnected, serverDown }
         })
     }
 
+    const isRegistered = (extension: Extension) =>
+        extension.registered === true || String(extension.status || "").toLowerCase() === "registered"
+
     if (loading && !serverDown) {
         return (
             <CardContainer title="Extensions">
@@ -262,8 +265,7 @@ export default function ExtensionsList({ ispId, webSocketConnected, serverDown }
                         label: "Refresh",
                         onClick: fetchExtensions,
                         icon: <RefreshCw className="h-4 w-4" />,
-                        variant: "outline",
-                        disabled: loading || serverDown
+                        variant: "outline"
                     }
                 ]}
             >
@@ -281,7 +283,9 @@ export default function ExtensionsList({ ispId, webSocketConnected, serverDown }
 
                     {/* Extensions Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {filteredExtensions.map((extension) => (
+                        {filteredExtensions.map((extension) => {
+                            const registered = isRegistered(extension)
+                            return (
                             <div
                                 key={extension.extensionNumber}
                                 className="rounded-lg border dark:border-gray-800 p-4 bg-card hover:bg-accent/50 transition-colors"
@@ -291,10 +295,10 @@ export default function ExtensionsList({ ispId, webSocketConnected, serverDown }
                                         <div className="flex items-center gap-2">
                                             <h3 className="font-semibold text-lg">{extension.extensionNumber}</h3>
                                             <Badge
-                                                variant={extension.registered ? "success" : "secondary"}
+                                                variant={registered ? "success" : "secondary"}
                                                 className="text-xs"
                                             >
-                                                {extension.registered ? "Registered" : "Offline"}
+                                                {registered ? "Registered" : "Offline"}
                                             </Badge>
                                         </div>
                                         <p className="text-sm text-muted-foreground">{extension.extensionName}</p>
@@ -337,15 +341,15 @@ export default function ExtensionsList({ ispId, webSocketConnected, serverDown }
                                     <div className="flex items-center justify-between">
                                         <span className="text-muted-foreground">Status:</span>
                                         <div className="flex items-center gap-1">
-                                            {extension.registered ? (
+                                            {registered ? (
                                                 <>
                                                     <Wifi className="h-3 w-3 text-green-500" />
-                                                    <span className="text-green-600">Online</span>
+                                                    <span className="text-green-600">{extension.status || "Registered"}</span>
                                                 </>
                                             ) : (
                                                 <>
                                                     <WifiOff className="h-3 w-3 text-gray-500" />
-                                                    <span className="text-gray-600">Offline</span>
+                                                    <span className="text-gray-600">{extension.status || "Offline"}</span>
                                                 </>
                                             )}
                                         </div>
@@ -387,7 +391,8 @@ export default function ExtensionsList({ ispId, webSocketConnected, serverDown }
                                     </Button>
                                 </div>
                             </div>
-                        ))}
+                            )
+                        })}
                     </div>
 
                     {filteredExtensions.length === 0 && (
