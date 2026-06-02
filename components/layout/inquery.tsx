@@ -574,7 +574,7 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
         channelid: channelId
       }
       
-      const response = await apiRequest("/yeaster/acceptCall", {
+      const response = await apiRequest("/yeaster/calls/accept-inbound", {
         method: "POST",
         body: JSON.stringify(acceptPayload)
       })
@@ -754,14 +754,17 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
   }
 
   const isCallRinging = (call: NumberCall) => {
-    return call.members.some(m => 
-      m.ext?.memberstatus === "ANSWER" && 
-      !call.members.some(m2 => m2.inbound?.memberstatus === "ANSWERED")
-    )
+    return call.members.some(m => {
+      const status = String(m.ext?.memberstatus || "").toUpperCase()
+      return status === "RING" || status === "RINGING"
+    })
   }
 
   const isCallAnswered = (call: NumberCall) => {
-    return call.members.some(m => m.inbound?.memberstatus === "ANSWERED")
+    return call.members.some(m => {
+      const status = String(m.ext?.memberstatus || "").toUpperCase()
+      return status === "ANSWER" || status === "ANSWERED"
+    })
   }
 
   const getExtensionChannelId = (call: NumberCall): string | null => {
@@ -1007,7 +1010,7 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
                                                       </p>
                                                     </div>
                                                     
-                                                    {/* Show Accept Call button only when ringing and not answered */}
+                                                    {/* Show receive button while the assigned extension is ringing */}
                                                     {isRinging && extChannelId && !isAnswered && (
                                                       <Button
                                                         size="sm"
@@ -1022,12 +1025,12 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
                                                         {acceptingCall === call.callid ? (
                                                           <>
                                                             <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                                                            Accepting...
+                                                            Receiving...
                                                           </>
                                                         ) : (
                                                           <>
                                                             <PhoneCall className="h-4 w-4 mr-2" />
-                                                            Accept Call
+                                                            Receive Call
                                                           </>
                                                         )}
                                                       </Button>
