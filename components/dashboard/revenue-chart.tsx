@@ -33,7 +33,7 @@ export function RevenueChart() {
       try {
         const { apiRequest } = await import("@/lib/api")
         const data = await apiRequest('/billing/stats')
-        setBillingData(data)
+        setBillingData(Array.isArray(data) ? data : [])
       } catch (error) {
         console.error("Failed to fetch billing stats:", error)
       } finally {
@@ -70,7 +70,7 @@ export function RevenueChart() {
 
   const getChartData = () => {
     // If we only have monthly data, we'll use it for both for now, or just show the actual data
-    return billingData.length > 0 ? billingData : quarterlyData
+    return Array.isArray(billingData) && billingData.length > 0 ? billingData : quarterlyData
   }
 
   return (

@@ -7,6 +7,7 @@ import { Toaster } from "react-hot-toast";
 import { WebSocketProvider } from "@/contexts/WebSocketContext";
 import { BranchProvider } from "@/contexts/BranchContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { LicenseExpiredModal } from "@/components/license-expired-modal";
 
 export const metadata: Metadata = {
   title: "Radius Manager - ISP Dashboard",
@@ -84,6 +85,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <BranchProvider>
                 {children}
               </BranchProvider>
+              <LicenseExpiredModal />
               <Toaster
                 position="top-right"
                 toastOptions={{

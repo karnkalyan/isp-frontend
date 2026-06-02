@@ -229,6 +229,10 @@ export function RolePermissionsMatrix({ selectedRoleId }: RolePermissionsMatrixP
   const fetchPermissions = async () => {
     try {
       const response = await apiRequest("/roles/permissions")
+      if (!response) {
+        setPermissions([])
+        return
+      }
       // Handle both response formats
       const data = response.data || response
       setPermissions(data)
@@ -252,6 +256,13 @@ export function RolePermissionsMatrix({ selectedRoleId }: RolePermissionsMatrixP
     try {
       setLoading(true)
       const response = await apiRequest(`/roles/${selectedRoleId}/permissions`)
+      if (!response) {
+        setRolePermissions([])
+        setOriginalPermissions([])
+        setRoleName("")
+        setHasChanges(false)
+        return
+      }
       // Handle both response formats
       const data = response.data || response
       

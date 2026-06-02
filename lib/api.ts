@@ -74,6 +74,16 @@ function isClient() {
   return typeof window !== "undefined" && typeof document !== "undefined";
 }
 
+function notifyLicenseExpired(payload: any, fallbackMessage: string) {
+  if (!isClient()) return;
+  window.dispatchEvent(new CustomEvent("license-expired", {
+    detail: {
+      message: payload?.message || payload?.error || fallbackMessage,
+      hwid: payload?.hwid || null,
+    },
+  }));
+}
+
 async function parseResponsePayload(res: Response) {
   try {
     return await res.clone().json();
@@ -179,6 +189,16 @@ export async function apiRequest<T = any>(
       payloadStr = payload;
     } else {
       payloadStr = `${response.status} ${response.statusText}`;
+    }
+
+    if (payload && typeof payload === "object" && (payload as any).licenseExpired) {
+      notifyLicenseExpired(payload, payloadStr);
+      return null as unknown as T;
+    }
+
+    if (response.status === 402) {
+      notifyLicenseExpired(payload, payloadStr);
+      throw new Error(payloadStr);
     }
 
     if (isClient() && !suppressToast) toast.error(payloadStr);

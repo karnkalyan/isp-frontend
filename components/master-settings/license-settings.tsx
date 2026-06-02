@@ -24,6 +24,25 @@ type LicenseStatus = {
   error?: string
 }
 
+export type GeneratedLicense = {
+  id: number
+  licenseId: string
+  company: string
+  contact?: string | null
+  hwid: string
+  status: string
+  expiresAt: string
+  issuedAt?: string
+  installedAt?: string | null
+  installedIspId?: number | null
+  createdByEmail?: string | null
+  revokedAt?: string | null
+  revokedByEmail?: string | null
+  revokeReason?: string | null
+  createdAt?: string
+  updatedAt?: string
+}
+
 export function LicenseSettings() {
   const [status, setStatus] = useState<LicenseStatus | null>(null)
   const [token, setToken] = useState("")
@@ -112,7 +131,7 @@ export function LicenseSettings() {
   )
 }
 
-export function LicenseGenerator({ onGenerated }: { onGenerated: () => void }) {
+export function LicenseGenerator({ onGenerated }: { onGenerated?: (license: GeneratedLicense) => void }) {
   const [form, setForm] = useState({
     company: "",
     contact: "",
@@ -131,14 +150,14 @@ export function LicenseGenerator({ onGenerated }: { onGenerated: () => void }) {
   const generate = async () => {
     setLoading(true)
     try {
-      const response = await apiRequest<{ token: string }>("/license/generate", {
+      const response = await apiRequest<{ token: string; license: GeneratedLicense }>("/license/generate", {
         method: "POST",
         body: JSON.stringify(form),
       })
       setGenerated(response.token)
       await navigator.clipboard.writeText(response.token)
       toast.success("License generated and copied")
-      onGenerated()
+      onGenerated?.(response.license)
     } finally {
       setLoading(false)
     }

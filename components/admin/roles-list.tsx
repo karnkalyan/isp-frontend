@@ -76,6 +76,10 @@ export function RolesList({ selectedRoleId, onRoleSelect }: RolesListProps) {
     try {
       setLoading(true)
       const response = await apiRequest("/roles")
+      if (!response) {
+        setRoles([])
+        return
+      }
       // Handle both response formats
       const data = response.data || response
       setRoles(data)
