@@ -31,6 +31,27 @@ type SidebarBranding = {
   sidebarLogoCollapsedDarkUrl?: string | null
 }
 
+type ActiveIsp = {
+  id?: number
+  companyName?: string | null
+  businessType?: string | null
+  website?: string | null
+  contactPerson?: string | null
+  phoneNumber?: string | null
+  masterEmail?: string | null
+  description?: string | null
+  address?: string | null
+  city?: string | null
+  state?: string | null
+  zipCode?: string | null
+  country?: string | null
+  asnNumber?: string | null
+  ipv4Blocks?: string | null
+  ipv6Blocks?: string | null
+  upstreamProviders?: string | null
+  sidebarBranding?: SidebarBranding
+}
+
 const BRANDING_FIELDS: Array<{
   key: BrandingKey
   settingKey: keyof SidebarBranding
@@ -65,10 +86,6 @@ const BRANDING_FIELDS: Array<{
 
 export function SystemSettings() {
   const [settings, setSettings] = useState({
-    companyName: "KisanNET",
-    companyEmail: "admin@kisannet.com",
-    companyPhone: "+977-1-4444444",
-    companyAddress: "Kathmandu, Nepal",
     timezone: "Asia/Kathmandu",
     currency: "NPR",
     language: "en",
@@ -98,9 +115,34 @@ export function SystemSettings() {
       value: 10.5,
     } as DiscountEntry,
   })
+  const [ispInfo, setIspInfo] = useState<ActiveIsp>({
+    companyName: "",
+    businessType: "",
+    website: "",
+    contactPerson: "",
+    phoneNumber: "",
+    masterEmail: "",
+    description: "",
+    address: "",
+    city: "",
+    state: "",
+    zipCode: "",
+    country: "",
+    asnNumber: "",
+    ipv4Blocks: "",
+    ipv6Blocks: "",
+    upstreamProviders: "",
+  })
 
   const updateSetting = (key: string, value: any) => {
     setSettings((prev) => ({
+      ...prev,
+      [key]: value,
+    }))
+  }
+
+  const updateIspInfo = (key: keyof ActiveIsp, value: string) => {
+    setIspInfo((prev) => ({
       ...prev,
       [key]: value,
     }))
@@ -119,8 +161,12 @@ export function SystemSettings() {
   const validate = () => {
     const n = settings.newMemberDiscount
     const r = settings.renewalDiscount
-    if (!settings.companyName?.trim()) {
+    if (!ispInfo.companyName?.trim()) {
       toast.error("Company name is required")
+      return false
+    }
+    if (!ispInfo.masterEmail?.trim()) {
+      toast.error("Master email is required")
       return false
     }
     if (n.enabled && n.isPercent && (n.value < 0 || n.value > 100)) {
@@ -157,10 +203,6 @@ export function SystemSettings() {
         if (data && typeof data === 'object') {
           setSettings(prev => ({
             ...prev,
-            companyName: data.companyName || prev.companyName,
-            companyEmail: data.companyEmail || prev.companyEmail,
-            companyPhone: data.companyPhone || prev.companyPhone,
-            companyAddress: data.companyAddress || prev.companyAddress,
             timezone: data.timezone || prev.timezone,
             currency: data.currency || prev.currency,
             language: data.language || prev.language,
@@ -190,16 +232,36 @@ export function SystemSettings() {
   }, [])
 
   useEffect(() => {
-    const loadBranding = async () => {
+    const loadActiveIsp = async () => {
       try {
         const response = await apiRequest<{ data?: { sidebarBranding?: SidebarBranding } } | any>("/isp/active")
         const activeIsp = response?.data || response?.isp || response
+        if (activeIsp) {
+          setIspInfo({
+            companyName: activeIsp.companyName || "",
+            businessType: activeIsp.businessType || "",
+            website: activeIsp.website || "",
+            contactPerson: activeIsp.contactPerson || "",
+            phoneNumber: activeIsp.phoneNumber || "",
+            masterEmail: activeIsp.masterEmail || "",
+            description: activeIsp.description || "",
+            address: activeIsp.address || "",
+            city: activeIsp.city || "",
+            state: activeIsp.state || "",
+            zipCode: activeIsp.zipCode || "",
+            country: activeIsp.country || "",
+            asnNumber: activeIsp.asnNumber || "",
+            ipv4Blocks: activeIsp.ipv4Blocks || "",
+            ipv6Blocks: activeIsp.ipv6Blocks || "",
+            upstreamProviders: activeIsp.upstreamProviders || "",
+          })
+        }
         setBranding(activeIsp?.sidebarBranding || {})
       } catch (e) {
-        // Sidebar branding is optional; keep the text fallback when unavailable.
+        // ISP details and sidebar branding are optional during first setup.
       }
     }
-    loadBranding()
+    loadActiveIsp()
   }, [])
 
   const handleBrandingFileChange = (key: BrandingKey, file: File | null) => {
@@ -282,6 +344,18 @@ export function SystemSettings() {
         method: "POST",
         body: JSON.stringify({ settings: settingsArray }),
       })
+      const response = await apiRequest<{ data?: ActiveIsp }>("/isp/active", {
+        method: "PUT",
+        body: JSON.stringify(ispInfo),
+      })
+      const updatedIsp = (response?.data || response) as ActiveIsp | null
+      if (updatedIsp) {
+        setIspInfo((prev) => ({
+          ...prev,
+          ...updatedIsp,
+        }))
+        if (updatedIsp.sidebarBranding) setBranding(updatedIsp.sidebarBranding)
+      }
       toast.success("System settings saved successfully!")
     } catch (error: any) {
       toast.error(error.message || "Failed to save system settings")
@@ -353,45 +427,156 @@ export function SystemSettings() {
           </div>
         </CardContainer>
 
-        <CardContainer title="Company Information" description="Basic company details">
+        <CardContainer title="ISP Information" description="Details loaded from the active ISP profile">
           <div className="grid gap-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="companyName">Company Name</Label>
                 <Input
                   id="companyName"
-                  value={settings.companyName}
-                  onChange={(e) => updateSetting("companyName", e.target.value)}
+                  value={ispInfo.companyName || ""}
+                  onChange={(e) => updateIspInfo("companyName", e.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="companyEmail">Company Email</Label>
+                <Label htmlFor="masterEmail">Master Email</Label>
                 <Input
-                  id="companyEmail"
+                  id="masterEmail"
                   type="email"
-                  value={settings.companyEmail}
-                  onChange={(e) => updateSetting("companyEmail", e.target.value)}
+                  value={ispInfo.masterEmail || ""}
+                  onChange={(e) => updateIspInfo("masterEmail", e.target.value)}
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="companyPhone">Company Phone</Label>
+                <Label htmlFor="businessType">Business Type</Label>
                 <Input
-                  id="companyPhone"
-                  value={settings.companyPhone}
-                  onChange={(e) => updateSetting("companyPhone", e.target.value)}
+                  id="businessType"
+                  value={ispInfo.businessType || ""}
+                  onChange={(e) => updateIspInfo("businessType", e.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="companyAddress">Company Address</Label>
+                <Label htmlFor="website">Website</Label>
                 <Input
-                  id="companyAddress"
-                  value={settings.companyAddress}
-                  onChange={(e) => updateSetting("companyAddress", e.target.value)}
+                  id="website"
+                  value={ispInfo.website || ""}
+                  onChange={(e) => updateIspInfo("website", e.target.value)}
                 />
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="contactPerson">Contact Person</Label>
+                <Input
+                  id="contactPerson"
+                  value={ispInfo.contactPerson || ""}
+                  onChange={(e) => updateIspInfo("contactPerson", e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phoneNumber">Phone Number</Label>
+                <Input
+                  id="phoneNumber"
+                  value={ispInfo.phoneNumber || ""}
+                  onChange={(e) => updateIspInfo("phoneNumber", e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                rows={3}
+                value={ispInfo.description || ""}
+                onChange={(e) => updateIspInfo("description", e.target.value)}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="address">Address</Label>
+                <Input
+                  id="address"
+                  value={ispInfo.address || ""}
+                  onChange={(e) => updateIspInfo("address", e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="city">City</Label>
+                <Input
+                  id="city"
+                  value={ispInfo.city || ""}
+                  onChange={(e) => updateIspInfo("city", e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="state">State</Label>
+                <Input
+                  id="state"
+                  value={ispInfo.state || ""}
+                  onChange={(e) => updateIspInfo("state", e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="zipCode">Zip Code</Label>
+                <Input
+                  id="zipCode"
+                  value={ispInfo.zipCode || ""}
+                  onChange={(e) => updateIspInfo("zipCode", e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="country">Country</Label>
+                <Input
+                  id="country"
+                  value={ispInfo.country || ""}
+                  onChange={(e) => updateIspInfo("country", e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="asnNumber">ASN Number</Label>
+                <Input
+                  id="asnNumber"
+                  value={ispInfo.asnNumber || ""}
+                  onChange={(e) => updateIspInfo("asnNumber", e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ipv4Blocks">IPv4 Blocks</Label>
+                <Input
+                  id="ipv4Blocks"
+                  value={ispInfo.ipv4Blocks || ""}
+                  onChange={(e) => updateIspInfo("ipv4Blocks", e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ipv6Blocks">IPv6 Blocks</Label>
+                <Input
+                  id="ipv6Blocks"
+                  value={ispInfo.ipv6Blocks || ""}
+                  onChange={(e) => updateIspInfo("ipv6Blocks", e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="upstreamProviders">Upstream Providers</Label>
+              <Input
+                id="upstreamProviders"
+                value={ispInfo.upstreamProviders || ""}
+                onChange={(e) => updateIspInfo("upstreamProviders", e.target.value)}
+              />
             </div>
           </div>
         </CardContainer>

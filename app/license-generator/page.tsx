@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Copy, Eye, KeyRound, Lock, Loader2, RefreshCw, ShieldAlert, ShieldCheck, ShieldX } from "lucide-react"
+import { Copy, Eye, KeyRound, Lock, Loader2, RefreshCw, ShieldAlert, ShieldCheck, ShieldX, Upload } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { PageHeader } from "@/components/ui/page-header"
@@ -44,6 +44,7 @@ export default function LicenseGeneratorPage() {
   const [selectedLicense, setSelectedLicense] = useState<GeneratedLicense | null>(null)
   const [selectedToken, setSelectedToken] = useState("")
   const [tokenLoadingId, setTokenLoadingId] = useState<number | null>(null)
+  const [installingId, setInstallingId] = useState<number | null>(null)
 
   const isAdmin = useMemo(() => {
     if (!user) return false
@@ -120,6 +121,19 @@ export default function LicenseGeneratorPage() {
     }
   }
 
+  const installGeneratedLicense = async (license: GeneratedLicense) => {
+    setInstallingId(license.id)
+    try {
+      await apiRequest(`/license/generated/${license.id}/install`, {
+        method: "POST",
+      })
+      toast.success("License installed and activated on this server")
+      await loadLicenses()
+    } finally {
+      setInstallingId(null)
+    }
+  }
+
   if (loading || !isAdmin) {
     return null
   }
@@ -182,6 +196,10 @@ export default function LicenseGeneratorPage() {
                             <Button type="button" size="sm" variant="outline" disabled={tokenLoadingId === license.id} onClick={() => openLicenseKey(license)}>
                               {tokenLoadingId === license.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Eye className="mr-2 h-4 w-4" />}
                               Open Key
+                            </Button>
+                            <Button type="button" size="sm" disabled={installingId === license.id || !isActive} onClick={() => installGeneratedLicense(license)}>
+                              {installingId === license.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                              Install
                             </Button>
                             {!isActive && (
                               <Button type="button" size="sm" variant="outline" disabled={isBusy} onClick={() => updateStatus(license, "ACTIVE")}>
