@@ -66,7 +66,8 @@
         branchToLabel(user.branchId),
         ...(user.branchNames || []),
       ].join(" ").toLowerCase().includes(term)
-      return nameMatch || emailMatch || roleMatch || deptMatch || branchMatch
+      const extMatch = user.yeastarExt?.toLowerCase().includes(term) ?? false
+      return nameMatch || emailMatch || roleMatch || deptMatch || branchMatch || extMatch
     })
     
 
@@ -128,6 +129,11 @@
             )}
           </div>
         ),
+      },
+      {
+        key: "yeastarExt",
+        header: "VoIP Ext",
+        cell: (user: User) => <div className="text-foreground dark:text-slate-300">{user.yeastarExt || "-"}</div>,
       },
       {
         key: "status",

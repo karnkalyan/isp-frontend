@@ -38,6 +38,7 @@ export function EditUserForm({ user, roles, departments, branches, onComplete, o
     status: user.status,
     department: user.department ? String(user.department) : "",
     branchId: user.branchId ? String(user.branchId) : "",
+    yeastarExt: user.yeastarExt || "",
   })
   const [branchIds, setBranchIds] = useState<string[]>((user.branchIds || []).map(String))
   const [logoFile, setLogoFile] = useState<File | null>(null)
@@ -93,6 +94,9 @@ export function EditUserForm({ user, roles, departments, branches, onComplete, o
     // Password validation still applies, even if not hashed on frontend
     if (formData.password && formData.password.length < 6) newErr.password = "Minimum 6 characters"
     if (!formData.role) newErr.role = "Role is required"
+    if (formData.yeastarExt.trim() && !/^\d{1,7}$/.test(formData.yeastarExt.trim())) {
+      newErr.yeastarExt = "VoIP extension must be 1 to 7 digits"
+    }
     setErrors(newErr)
     return Object.keys(newErr).length === 0
   }
@@ -109,6 +113,7 @@ export function EditUserForm({ user, roles, departments, branches, onComplete, o
     data.append("status", formData.status || "")
     data.append("departmentId", formData.department || "")
     if (formData.branchId) data.append("branchId", formData.branchId)
+    data.append("yeastarExt", formData.yeastarExt.trim())
     data.append("branchIds", JSON.stringify(branchIds.filter(id => id !== formData.branchId)))
     if (logoFile) data.append("profilePicture", logoFile)
   
@@ -236,6 +241,19 @@ export function EditUserForm({ user, roles, departments, branches, onComplete, o
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="edit-yeastar-ext">VoIP Extension</Label>
+          <Input
+            id="edit-yeastar-ext"
+            name="yeastarExt"
+            value={formData.yeastarExt}
+            onChange={handleChange}
+            inputMode="numeric"
+            placeholder="888"
+          />
+          {errors.yeastarExt && <p className="text-destructive text-sm">{errors.yeastarExt}</p>}
         </div>
       </div>
 

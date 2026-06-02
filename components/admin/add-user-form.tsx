@@ -33,6 +33,7 @@ export function AddUserForm({ onSubmit, onCancel, roles, departments, branches }
     status: "pending" as "active" | "inactive" | "pending",
     departmentId: "", // CHANGED: Renamed from 'department' to 'departmentId'
     branchId: "",
+    yeastarExt: "",
   })
   const [branchIds, setBranchIds] = useState<string[]>([])
 
@@ -106,6 +107,9 @@ export function AddUserForm({ onSubmit, onCancel, roles, departments, branches }
     else if (formData.password.length < 8) newErrors.password = "Minimum 8 characters"
 
     if (!formData.roleId) newErrors.roleId = "Role is required" // CHANGED: Validate roleId
+    if (formData.yeastarExt.trim() && !/^\d{1,7}$/.test(formData.yeastarExt.trim())) {
+      newErrors.yeastarExt = "VoIP extension must be 1 to 7 digits"
+    }
     // DepartmentId is optional based on schema, so no validation needed here unless it's strictly required by your business logic
     // if (!formData.departmentId) newErrors.departmentId = "Department is required"
 
@@ -153,6 +157,9 @@ export function AddUserForm({ onSubmit, onCancel, roles, departments, branches }
       if (formData.branchId) {
         data.append("branchId", formData.branchId);
       }
+      if (formData.yeastarExt.trim()) {
+        data.append("yeastarExt", formData.yeastarExt.trim());
+      }
       data.append("branchIds", JSON.stringify(branchIds.filter((id) => id !== formData.branchId)));
       data.append("ispId", ispIdToSend);
       if (profilePictureFile) {
@@ -173,6 +180,7 @@ export function AddUserForm({ onSubmit, onCancel, roles, departments, branches }
         status: "pending",
         departmentId: "",
         branchId: "",
+        yeastarExt: "",
       });
       setBranchIds([]);
       setProfilePictureFile(null);
@@ -321,6 +329,19 @@ export function AddUserForm({ onSubmit, onCancel, roles, departments, branches }
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="add-yeastar-ext">VoIP Extension</Label>
+          <Input
+            id="add-yeastar-ext"
+            name="yeastarExt"
+            value={formData.yeastarExt}
+            onChange={handleChange}
+            inputMode="numeric"
+            placeholder="888"
+          />
+          {errors.yeastarExt && <p className="text-sm text-destructive">{errors.yeastarExt}</p>}
         </div>
       </div>
 

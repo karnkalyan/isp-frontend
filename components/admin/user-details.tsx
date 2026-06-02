@@ -106,6 +106,10 @@ export function UserDetails({ user, roles, departments, branches, onEdit, onBack
               <p className="text-foreground dark:text-slate-100">{branchLabel}</p>
             </div>
             <div>
+              <h4 className="text-sm font-medium text-muted-foreground dark:text-slate-400 mb-1">VoIP Extension</h4>
+              <p className="text-foreground dark:text-slate-100">{user.yeastarExt || "-"}</p>
+            </div>
+            <div>
               <h4 className="text-sm font-medium text-muted-foreground dark:text-slate-400 mb-1">Additional Branches</h4>
               <p className="text-foreground dark:text-slate-100">
                 {(user.branchNames || []).length > 0 ? (user.branchNames || []).join(", ") : "-"}

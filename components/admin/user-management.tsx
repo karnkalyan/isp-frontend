@@ -27,6 +27,7 @@ export type User = {
   branchName?: string
   branchIds?: string[]
   branchNames?: string[]
+  yeastarExt?: string | null
   permissions?: string[]
 }
 
@@ -167,6 +168,7 @@ const fetchDepartments = async () => {
         branchName: u.branch?.name || "",
         branchIds: (u.userBranches || []).map((userBranch: any) => String(userBranch.branchId || userBranch.branch?.id)),
         branchNames: (u.userBranches || []).map((userBranch: any) => userBranch.branch?.name).filter(Boolean),
+        yeastarExt: u.yeastarExt || "",
         permissions: u.role?.permissions?.map((permission: any) => permission.name) || [],
       }))
       setUsers(mapped)
