@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Phone, Users, Clock, BarChart3, TrendingUp, TrendingDown, Activity, PieChart } from "lucide-react"
 import { toast } from "react-hot-toast"
 import { apiRequest } from "@/lib/api"
-import { RealTimeApi } from "@/lib/real-time-api"
+import { useWebSocket } from "@/contexts/WebSocketContext"
 
 interface CallStats {
     total: number
@@ -33,15 +33,22 @@ interface DashboardData {
 
 interface CallDashboardProps {
     ispId: number
-    realTimeApi: RealTimeApi | null
+    webSocketConnected?: boolean
+    serverDown?: boolean
 }
 
-export default function CallDashboard({ ispId, realTimeApi }: CallDashboardProps) {
+export default function CallDashboard({ ispId, webSocketConnected, serverDown }: CallDashboardProps) {
     const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
     const [loading, setLoading] = useState(true)
+    const { on } = useWebSocket()
 
     // Fetch dashboard data
     const fetchDashboardData = async () => {
+        if (serverDown) {
+            setLoading(false)
+            return
+        }
+
         try {
             setLoading(true)
             const response = await apiRequest<{ success: boolean; data: DashboardData }>('/yeaster/calls/dashboard')
@@ -56,67 +63,74 @@ export default function CallDashboard({ ispId, realTimeApi }: CallDashboardProps
         }
     }
 
+    useEffect(() => {
+        fetchDashboardData()
+    }, [serverDown])
+
     // Initialize real-time updates
     useEffect(() => {
-        if (!realTimeApi) return
+        const handleCallEvent = (event: any) => {
+            const eventType = String(event?.eventType || event?.data?.event || "").toLowerCase()
+            if (!["callstatus", "newcdr", "callfailed"].includes(eventType)) return
 
-        fetchDashboardData()
+            const members = event?.data?.members || []
+            const statuses = members.flatMap((member: any) => [
+                member.ext?.memberstatus,
+                member.inbound?.memberstatus,
+                member.outbound?.memberstatus,
+            ].filter(Boolean))
+            const ended = eventType === "newcdr" || statuses.some((status: string) => String(status).toUpperCase() === "BYE")
+            const direction = members.some((member: any) => member.inbound)
+                ? "inbound"
+                : members.some((member: any) => member.outbound)
+                    ? "outbound"
+                    : "internal"
 
-        // Set up real-time event listeners for dashboard updates
-        const unsubscribeCallStart = realTimeApi.on('call:start', () => {
-            // Update dashboard stats in real-time
             setDashboardData(prev => {
                 if (!prev) return prev
+                const activeTotal = ended ? Math.max(0, prev.activeCalls.total - 1) : prev.activeCalls.total + 1
+
                 return {
                     ...prev,
+                    timestamp: new Date().toISOString(),
                     activeCalls: {
                         ...prev.activeCalls,
-                        total: prev.activeCalls.total + 1,
-                        timestamp: new Date().toISOString()
+                        total: activeTotal,
+                        inbound: direction === "inbound"
+                            ? Math.max(0, prev.activeCalls.inbound + (ended ? -1 : 1))
+                            : prev.activeCalls.inbound,
+                        outbound: direction === "outbound"
+                            ? Math.max(0, prev.activeCalls.outbound + (ended ? -1 : 1))
+                            : prev.activeCalls.outbound,
+                        internal: direction === "internal"
+                            ? Math.max(0, prev.activeCalls.internal + (ended ? -1 : 1))
+                            : prev.activeCalls.internal,
                     },
                     todayStats: {
                         ...prev.todayStats,
-                        total: prev.todayStats.total + 1,
-                        timestamp: new Date().toISOString()
+                        total: ended ? prev.todayStats.total : prev.todayStats.total + 1,
+                        inbound: !ended && direction === "inbound" ? prev.todayStats.inbound + 1 : prev.todayStats.inbound,
+                        outbound: !ended && direction === "outbound" ? prev.todayStats.outbound + 1 : prev.todayStats.outbound,
+                        internal: !ended && direction === "internal" ? prev.todayStats.internal + 1 : prev.todayStats.internal,
                     }
                 }
             })
-        })
 
-        const unsubscribeCallEnd = realTimeApi.on('call:end', (data) => {
-            // Update dashboard stats in real-time
-            setDashboardData(prev => {
-                if (!prev) return prev
-                return {
-                    ...prev,
-                    activeCalls: {
-                        ...prev.activeCalls,
-                        total: Math.max(0, prev.activeCalls.total - 1),
-                        timestamp: new Date().toISOString()
-                    },
-                    todayStats: {
-                        ...prev.todayStats,
-                        answered: data.status === 'ANSWERED' ? prev.todayStats.answered + 1 : prev.todayStats.answered,
-                        missed: data.status !== 'ANSWERED' ? prev.todayStats.missed + 1 : prev.todayStats.missed,
-                        totalDuration: prev.todayStats.totalDuration + (data.duration || 0),
-                        timestamp: new Date().toISOString()
-                    }
-                }
-            })
-        })
-
-        const unsubscribeDataSynced = realTimeApi.on('data:synced', () => {
-            // Refresh dashboard data when data is synced
-            fetchDashboardData()
-        })
-
-        // Clean up
-        return () => {
-            unsubscribeCallStart()
-            unsubscribeCallEnd()
-            unsubscribeDataSynced()
+            window.setTimeout(fetchDashboardData, 1200)
         }
-    }, [realTimeApi])
+
+        const unsubscribeStatus = on("yeastar.call.status", handleCallEvent)
+        const unsubscribeEvent = on("yeastar.event", handleCallEvent)
+        const unsubscribeCdr = on("yeastar.newcdr", handleCallEvent)
+        const unsubscribeSynced = on("yeastar.data.synced", fetchDashboardData)
+
+        return () => {
+            unsubscribeStatus()
+            unsubscribeEvent()
+            unsubscribeCdr()
+            unsubscribeSynced()
+        }
+    }, [on, webSocketConnected, serverDown])
 
     const formatDuration = (seconds: number) => {
         const hours = Math.floor(seconds / 3600)
