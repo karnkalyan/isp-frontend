@@ -572,18 +572,23 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
       
       const acceptPayload = {
         channelid: channelId,
-        channelids: [channelId, fallbackChannelId].filter(Boolean)
+        channelids: [channelId, fallbackChannelId].filter(Boolean),
+        extnumber: assignedExtension
       }
       
-      const response = await apiRequest("/yeaster/calls/accept-inbound", {
+      const response: any = await apiRequest("/yeaster/calls/accept-inbound", {
         method: "POST",
         body: JSON.stringify(acceptPayload)
       })
       
-      toast.success("Call accepted successfully!")
+      if (response?.remoteAnswered === false) {
+        toast.error(response.message || "PBX accepted the inbound route, but the extension is still ringing. Enable uaCSTA to answer from the dashboard.")
+      } else {
+        toast.success("Call received successfully!")
+      }
       
       // Update local state immediately
-      if (callData) {
+      if (response?.remoteAnswered !== false && callData) {
         const updatedCallList = callData.data.calllist.map(extension => ({
           ...extension,
           numbercalls: extension.numbercalls.map(call => {
