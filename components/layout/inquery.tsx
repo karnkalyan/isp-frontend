@@ -130,9 +130,10 @@ interface ExtensionListResponse {
 interface InquiryDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  onCallsCountChange?: (count: number) => void
 }
 
-export function InquiryDialog({ open, onOpenChange }: InquiryDialogProps) {
+export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: InquiryDialogProps) {
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [callData, setCallData] = useState<InquiryResponse | null>(null)
@@ -209,7 +210,7 @@ export function InquiryDialog({ open, onOpenChange }: InquiryDialogProps) {
         setLoading(true)
       }
       
-      const data = await apiRequest<InquiryResponse>("/services/yeastar/extensions", {
+      const data = await apiRequest<InquiryResponse>("/yeaster/calls/my-extension", {
         method: "GET",
       })
       
@@ -229,8 +230,10 @@ export function InquiryDialog({ open, onOpenChange }: InquiryDialogProps) {
             calllist: filteredCalllist
           }
         }
+        const activeCallCount = filteredCalllist.reduce((acc, item) => acc + item.numbercalls.length, 0)
         
         setCallData(filteredData)
+        onCallsCountChange?.(activeCallCount)
         
         // Automatically select the first inbound number if available
         if (filteredData?.data?.calllist?.[0]?.numbercalls?.[0]?.members) {
@@ -1309,7 +1312,7 @@ export function InquiryDialog({ open, onOpenChange }: InquiryDialogProps) {
                     </p>
                   </div>
                   <Button 
-                    onClick={fetchCallData} 
+                    onClick={() => fetchCallData()} 
                     variant="outline" 
                     className={`${isDarkMode ? 'border-gray-600 text-gray-300 hover:bg-[#1e293b]' : 'border-gray-300 text-gray-700 hover:bg-gray-100'}`}
                   >

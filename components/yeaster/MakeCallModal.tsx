@@ -37,6 +37,12 @@ interface Extension {
     registered?: boolean
 }
 
+interface AuthMeResponse {
+    user?: {
+        yeastarExt?: string | null
+    }
+}
+
 export default function MakeCallModal({
     open,
     onOpenChange,
@@ -58,16 +64,32 @@ export default function MakeCallModal({
 
     const fetchExtensions = async () => {
         try {
+            const me = await apiRequest<AuthMeResponse>('/auth/me')
+            const assignedExt = String(me.user?.yeastarExt || "").trim()
+
+            if (!assignedExt) {
+                setExtensions([])
+                setSelectedExtension("")
+                return
+            }
+
             const response = await apiRequest<{ success: boolean; data: Extension[] }>('/yeaster/extensions/db')
             if (response.success) {
-                // Filter only registered extensions
-                const registeredExtensions = (response.data || []).filter((ext) =>
-                    ext.registered === true || String(ext.status || "").toLowerCase() === "registered"
+                const assignedExtension = (response.data || []).find((ext) =>
+                    ext.extensionNumber === assignedExt
                 )
-                setExtensions(registeredExtensions)
 
-                if (registeredExtensions.length > 0) {
-                    setSelectedExtension(registeredExtensions[0].extensionNumber)
+                if (assignedExtension) {
+                    setExtensions([assignedExtension])
+                    setSelectedExtension(assignedExt)
+                } else {
+                    setExtensions([{
+                        extensionNumber: assignedExt,
+                        extensionName: assignedExt,
+                        status: "Unknown",
+                        registered: false
+                    }])
+                    setSelectedExtension(assignedExt)
                 }
             }
         } catch (error) {
@@ -172,7 +194,7 @@ export default function MakeCallModal({
                             </Select>
                             {extensions.length === 0 && (
                                 <p className="text-sm text-amber-600">
-                                    No registered extensions available. Please register an extension first.
+                                    No Yeastar extension is assigned to your user account.
                                 </p>
                             )}
                         </div>

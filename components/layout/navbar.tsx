@@ -14,6 +14,7 @@ import { NotificationsDropdown } from "@/components/layout/notifications-dropdow
 import { InquiryDialog } from "@/components/layout/inquery";
 import { BranchSwitcher } from "@/components/layout/branch-switcher";
 import { useAuth } from "@/contexts/AuthContext";
+import { apiRequest } from "@/lib/api";
 
 interface NavbarProps {
   onMenuClick: () => void;
@@ -53,10 +54,15 @@ export function Navbar({ onMenuClick }: NavbarProps) {
   useEffect(() => {
     const checkActiveCalls = async () => {
       try {
-        // const response = await apiRequest(`/yeaster/extensionQuery`, { method: 'GET' })
-        // if (response?.data?.calllist) setActiveCallsCount(response.data.calllist.length)
+        const response = await apiRequest<any>(`/yeaster/calls/my-extension`, { method: "GET" });
+        const count = (response?.data?.calllist || []).reduce(
+          (total: number, item: any) => total + (item.numbercalls?.length || 0),
+          0
+        );
+        setActiveCallsCount(count);
       } catch (error) {
         console.error("Failed to fetch active calls:", error);
+        setActiveCallsCount(0);
       }
     };
 
