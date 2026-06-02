@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select"
 import { toast } from "react-hot-toast"
 import { apiRequest } from "@/lib/api"
-import { Phone, User, PhoneCall } from "lucide-react"
+import { Phone, PhoneCall, UserCheck } from "lucide-react"
 
 interface MakeCallModalProps {
     open: boolean
@@ -50,10 +50,9 @@ export default function MakeCallModal({
     onSuccess
 }: MakeCallModalProps) {
     const [loading, setLoading] = useState(false)
-    const [extensions, setExtensions] = useState<Extension[]>([])
-    const [selectedExtension, setSelectedExtension] = useState("")
+    const [assignedExtension, setAssignedExtension] = useState<Extension | null>(null)
     const [targetNumber, setTargetNumber] = useState("")
-    const [autoAnswer, setAutoAnswer] = useState("no")
+    const [autoAnswer, setAutoAnswer] = useState("yes")
 
     // Fetch available extensions
     useEffect(() => {
@@ -68,8 +67,7 @@ export default function MakeCallModal({
             const assignedExt = String(me.user?.yeastarExt || "").trim()
 
             if (!assignedExt) {
-                setExtensions([])
-                setSelectedExtension("")
+                setAssignedExtension(null)
                 return
             }
 
@@ -80,16 +78,14 @@ export default function MakeCallModal({
                 )
 
                 if (assignedExtension) {
-                    setExtensions([assignedExtension])
-                    setSelectedExtension(assignedExt)
+                    setAssignedExtension(assignedExtension)
                 } else {
-                    setExtensions([{
+                    setAssignedExtension({
                         extensionNumber: assignedExt,
                         extensionName: assignedExt,
                         status: "Unknown",
                         registered: false
-                    }])
-                    setSelectedExtension(assignedExt)
+                    })
                 }
             }
         } catch (error) {
@@ -100,8 +96,8 @@ export default function MakeCallModal({
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
 
-        if (!selectedExtension) {
-            toast.error("Please select an extension")
+        if (!assignedExtension) {
+            toast.error("No Yeastar extension is assigned to your user account")
             return
         }
 
@@ -117,9 +113,9 @@ export default function MakeCallModal({
             const response = await apiRequest('/yeaster/calls/make', {
                 method: 'POST',
                 body: JSON.stringify({
-                    caller: selectedExtension,
+                    caller: assignedExtension.extensionNumber,
                     callee: targetNumber.trim(),
-                    extension: selectedExtension,
+                    extension: assignedExtension.extensionNumber,
                     number: targetNumber.trim(),
                     autoanswer: autoAnswer,
                     ispId: ispId
@@ -127,7 +123,7 @@ export default function MakeCallModal({
             })
 
             if (response.success) {
-                toast.success(`Call initiated from ${selectedExtension} to ${targetNumber}`)
+                toast.success(`Call initiated from ${assignedExtension.extensionNumber} to ${targetNumber}`)
                 onSuccess()
                 onOpenChange(false)
                 resetForm()
@@ -143,12 +139,12 @@ export default function MakeCallModal({
 
     const resetForm = () => {
         setTargetNumber("")
-        setAutoAnswer("no")
+        setAutoAnswer("yes")
     }
 
-    const getExtensionName = (extNumber: string) => {
-        const ext = extensions.find(e => e.extensionNumber === extNumber)
-        return ext ? `${ext.extensionNumber} - ${ext.extensionName}` : extNumber
+    const getExtensionName = () => {
+        if (!assignedExtension) return "Not assigned"
+        return `${assignedExtension.extensionNumber} - ${assignedExtension.extensionName || assignedExtension.extensionNumber}`
     }
 
     return (
@@ -166,33 +162,16 @@ export default function MakeCallModal({
                     <div className="space-y-4">
                         <div className="space-y-2">
                             <Label>From Extension</Label>
-                            <Select
-                                value={selectedExtension}
-                                onValueChange={setSelectedExtension}
-                                disabled={extensions.length === 0}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select extension">
-                                        {selectedExtension && getExtensionName(selectedExtension)}
-                                    </SelectValue>
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {extensions.map((ext) => (
-                                        <SelectItem key={ext.extensionNumber} value={ext.extensionNumber}>
-                                            <div className="flex items-center justify-between w-full">
-                                                <div className="flex items-center gap-2">
-                                                    <User className="h-4 w-4" />
-                                                    <span>{ext.extensionNumber} - {ext.extensionName}</span>
-                                                </div>
-                                                {ext.registered && (
-                                                    <div className="h-2 w-2 rounded-full bg-green-500" />
-                                                )}
-                                            </div>
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            {extensions.length === 0 && (
+                            <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                                <div className="flex items-center gap-2">
+                                    <UserCheck className="h-4 w-4 text-muted-foreground" />
+                                    <span className="font-medium">{getExtensionName()}</span>
+                                </div>
+                                {assignedExtension?.registered && (
+                                    <span className="h-2 w-2 rounded-full bg-green-500" />
+                                )}
+                            </div>
+                            {!assignedExtension && (
                                 <p className="text-sm text-amber-600">
                                     No Yeastar extension is assigned to your user account.
                                 </p>
@@ -238,7 +217,7 @@ export default function MakeCallModal({
                                 <div className="text-center">
                                     <p className="text-sm text-muted-foreground">From</p>
                                     <p className="text-lg font-semibold">
-                                        {selectedExtension ? getExtensionName(selectedExtension) : "Select extension"}
+                                        {getExtensionName()}
                                     </p>
                                 </div>
                                 <PhoneCall className="h-6 w-6 text-primary" />
@@ -266,7 +245,7 @@ export default function MakeCallModal({
                         </Button>
                         <Button
                             type="submit"
-                            disabled={loading || !selectedExtension || !targetNumber || extensions.length === 0}
+                            disabled={loading || !assignedExtension || !targetNumber}
                         >
                             <Phone className="mr-2 h-4 w-4" />
                             {loading ? "Initiating..." : "Make Call"}
