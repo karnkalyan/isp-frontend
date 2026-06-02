@@ -33,6 +33,7 @@ interface MakeCallModalProps {
 interface Extension {
     extensionNumber: string
     extensionName: string
+    status?: string
     registered?: boolean
 }
 
@@ -46,6 +47,7 @@ export default function MakeCallModal({
     const [extensions, setExtensions] = useState<Extension[]>([])
     const [selectedExtension, setSelectedExtension] = useState("")
     const [targetNumber, setTargetNumber] = useState("")
+    const [autoAnswer, setAutoAnswer] = useState("no")
 
     // Fetch available extensions
     useEffect(() => {
@@ -59,7 +61,9 @@ export default function MakeCallModal({
             const response = await apiRequest<{ success: boolean; data: Extension[] }>('/yeaster/extensions/db')
             if (response.success) {
                 // Filter only registered extensions
-                const registeredExtensions = (response.data || []).filter(ext => ext.registered)
+                const registeredExtensions = (response.data || []).filter((ext) =>
+                    ext.registered === true || String(ext.status || "").toLowerCase() === "registered"
+                )
                 setExtensions(registeredExtensions)
 
                 if (registeredExtensions.length > 0) {
@@ -91,8 +95,11 @@ export default function MakeCallModal({
             const response = await apiRequest('/yeaster/calls/make', {
                 method: 'POST',
                 body: JSON.stringify({
+                    caller: selectedExtension,
+                    callee: targetNumber.trim(),
                     extension: selectedExtension,
-                    number: targetNumber,
+                    number: targetNumber.trim(),
+                    autoanswer: autoAnswer,
                     ispId: ispId
                 })
             })
@@ -114,6 +121,7 @@ export default function MakeCallModal({
 
     const resetForm = () => {
         setTargetNumber("")
+        setAutoAnswer("no")
     }
 
     const getExtensionName = (extNumber: string) => {
@@ -187,6 +195,19 @@ export default function MakeCallModal({
                             <p className="text-xs text-muted-foreground">
                                 Enter extension number for internal call or full number for external call
                             </p>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label>Auto Answer</Label>
+                            <Select value={autoAnswer} onValueChange={setAutoAnswer}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Auto answer" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="no">No</SelectItem>
+                                    <SelectItem value="yes">Yes</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
 
                         {/* Preview */}
