@@ -90,12 +90,12 @@ export default function YeastarDashboard({
             setApiError(null)
             console.log('🔄 Fetching Yeastar status for ISP:', ispId)
 
-            const data = await apiRequest<YeastarStatus>('/yeaster/status')
+            const data = await apiRequest<YeastarStatus>('/yeaster/status', { suppressToast: true })
             console.log('✅ Status response:', data)
             setStatus(data)
             setServerDown(false)
 
-            if (data.error) {
+            if (data.error && data.configured) {
                 toast.error(data.error)
             }
         } catch (error: any) {

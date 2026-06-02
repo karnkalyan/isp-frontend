@@ -1,6 +1,10 @@
 // lib/api.ts
 import toast from "react-hot-toast";
 
+type ApiRequestInit = RequestInit & {
+  suppressToast?: boolean;
+};
+
 /**
  * Dynamically resolves the API base URL based on the current browser domain.
  * This allows one build to work on multiple domains.
@@ -88,8 +92,10 @@ let refreshPromise: Promise<boolean> | null = null;
 
 export async function apiRequest<T = any>(
   endpoint: string,
-  options: RequestInit = {}
+  options: ApiRequestInit = {}
 ): Promise<T> {
+  const suppressToast = options.suppressToast === true;
+  delete options.suppressToast;
   // Get the URL dynamically for every request
   const BASE_URL = getDynamicBaseUrl().replace(/\/+$/, "");
   const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
@@ -119,7 +125,7 @@ export async function apiRequest<T = any>(
     response = await fetch(url, options);
   } catch (err: any) {
     const msg = err?.message || "Network error";
-    if (isClient()) toast.error(msg);
+    if (isClient() && !suppressToast) toast.error(msg);
     throw new Error(msg);
   }
 
@@ -175,7 +181,7 @@ export async function apiRequest<T = any>(
       payloadStr = `${response.status} ${response.statusText}`;
     }
 
-    if (isClient()) toast.error(payloadStr);
+    if (isClient() && !suppressToast) toast.error(payloadStr);
     throw new Error(payloadStr);
   }
 

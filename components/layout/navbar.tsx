@@ -29,6 +29,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [inquiryDialogOpen, setInquiryDialogOpen] = useState(false);
   const [activeCallsCount, setActiveCallsCount] = useState(0);
+  const [yeastarConfigured, setYeastarConfigured] = useState(false);
   const { user } = useAuth();
   const { on } = useWebSocket();
   const roleName = typeof user?.role === "string" ? user.role : user?.role?.name;
@@ -55,9 +56,26 @@ export function Navbar({ onMenuClick }: NavbarProps) {
 
   // Check active calls and open inquiry on realtime call events
   useEffect(() => {
-    const checkActiveCalls = async () => {
+    let alive = true;
+    const checkYeastarStatus = async () => {
       try {
-        const response = await apiRequest<any>(`/yeaster/calls/my-extension`, { method: "GET" });
+        const status = await apiRequest<any>("/yeaster/status", { method: "GET", suppressToast: true });
+        const configured = Boolean(status?.configured || status?.isActive || status?.enabled);
+        if (alive) setYeastarConfigured(configured);
+        return configured;
+      } catch {
+        if (alive) setYeastarConfigured(false);
+        return false;
+      }
+    };
+
+    const checkActiveCalls = async (configured = yeastarConfigured) => {
+      if (!configured || !assignedExtension) {
+        setActiveCallsCount(0);
+        return;
+      }
+      try {
+        const response = await apiRequest<any>(`/yeaster/calls/my-extension`, { method: "GET", suppressToast: true });
         const count = (response?.data?.calllist || []).reduce(
           (total: number, item: any) => total + (item.numbercalls?.length || 0),
           0
@@ -69,7 +87,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
       }
     };
 
-    checkActiveCalls();
+    checkYeastarStatus().then((configured) => checkActiveCalls(configured));
 
     const handleCallEvent = (event: any) => {
       const eventType = String(event?.eventType || event?.data?.event || "").toLowerCase();
@@ -83,7 +101,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
         String(member.outbound?.from || "") === assignedExtension ||
         String(member.outbound?.to || "") === assignedExtension
       );
-      if (!isForMe) return;
+      if (!yeastarConfigured || !isForMe) return;
 
       const statuses = members.flatMap((member: any) => [
         member.ext?.memberstatus,
@@ -100,10 +118,11 @@ export function Navbar({ onMenuClick }: NavbarProps) {
     const unsubscribeEvent = on("yeastar.event", handleCallEvent);
 
     return () => {
+      alive = false;
       unsubscribeStatus();
       unsubscribeEvent();
     };
-  }, [on, assignedExtension]);
+  }, [on, assignedExtension, yeastarConfigured]);
 
   const handleOpenChange = (open: boolean) => {
     setSearchModalOpen(open);
@@ -177,24 +196,26 @@ export function Navbar({ onMenuClick }: NavbarProps) {
             )}
             
             {/* Inquiry Button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="hidden md:flex relative"
-              onClick={() => setInquiryDialogOpen(true)}
-              aria-label="Call Inquiry"
-              title="Call Inquiry"
-            >
-              <Headset className="h-5 w-5" />
-              {activeCallsCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-4 w-4">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-80" />
-                  <span className="relative inline-flex rounded-full h-4 w-4 bg-red-600 text-[9px] text-white items-center justify-center">
-                    {activeCallsCount > 9 ? "9+" : activeCallsCount}
+            {yeastarConfigured && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="hidden md:flex relative"
+                onClick={() => setInquiryDialogOpen(true)}
+                aria-label="Call Inquiry"
+                title="Call Inquiry"
+              >
+                <Headset className="h-5 w-5" />
+                {activeCallsCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-80" />
+                    <span className="relative inline-flex rounded-full h-4 w-4 bg-red-600 text-[9px] text-white items-center justify-center">
+                      {activeCallsCount > 9 ? "9+" : activeCallsCount}
+                    </span>
                   </span>
-                </span>
-              )}
-            </Button>
+                )}
+              </Button>
+            )}
 
             {/* Mobile search toggle */}
             <Button
@@ -217,11 +238,13 @@ export function Navbar({ onMenuClick }: NavbarProps) {
 
       <SearchModal open={searchModalOpen} onOpenChange={handleOpenChange} initialQuery={searchQuery} />
 
-      <InquiryDialog
-        open={inquiryDialogOpen}
-        onOpenChange={setInquiryDialogOpen}
-        onCallsCountChange={setActiveCallsCount}
-      />
+      {yeastarConfigured && (
+        <InquiryDialog
+          open={inquiryDialogOpen}
+          onOpenChange={setInquiryDialogOpen}
+          onCallsCountChange={setActiveCallsCount}
+        />
+      )}
     </>
   );
 }

@@ -339,6 +339,7 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
       
       const data = await apiRequest<InquiryResponse>("/yeaster/calls/my-extension", {
         method: "GET",
+        suppressToast: true,
       })
       
       if (data?.data?.calllist) {
@@ -409,6 +410,7 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
       setFetchingExtensions(true)
       const data = await apiRequest<ExtensionListResponse>("/yeaster/extensions/db", {
         method: "GET",
+        suppressToast: true,
       })
       if (data.success) {
         const extensions = Array.isArray(data.data) ? data.data : (data.data.extlist || [])
