@@ -25,14 +25,15 @@ import {
 import {
   Phone, User, Calendar, Clock, PhoneOff,
   PhoneIncoming, PhoneOutgoing, X, Mail,
-  MapPin, Wifi, UserCheck, RefreshCw,
+  MapPin, Wifi, UserCheck,
   Copy, ExternalLink, Star, Users,
   Briefcase, Building, PhoneCall, CheckCircle,
-  AlertCircle, Headphones, ArrowRight, Bell, PhoneForwarded, Circle
+  AlertCircle, Headphones, ArrowRight, Bell, PhoneForwarded
 } from "lucide-react"
 import { apiRequest } from "@/lib/api"
 import { toast } from "react-hot-toast"
 import { useRouter } from "next/navigation"
+import { useWebSocket } from "@/contexts/WebSocketContext"
 
 interface CallMember {
   inbound?: {
@@ -114,14 +115,16 @@ interface Lead {
 
 interface Extension {
   number: string
+  extensionNumber?: string
   status: string
   type: string
   username: string
+  extensionName?: string
 }
 
 interface ExtensionListResponse {
   success: boolean
-  data: {
+  data: Extension[] | {
     status: string
     extlist: Extension[]
   }
@@ -154,8 +157,8 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
     fromNumber: string
   } | null>(null)
   const [transferredCalls, setTransferredCalls] = useState<Set<string>>(new Set())
-  const [autoRefresh, setAutoRefresh] = useState(true)
   const [isDarkMode, setIsDarkMode] = useState(false)
+  const { on } = useWebSocket()
   
   const router = useRouter()
 
@@ -178,16 +181,6 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
     if (open) {
       fetchCallData()
       fetchExtensionList()
-      
-      if (autoRefresh) {
-        const intervalId = setInterval(() => {
-          if (!refreshing && !loading) {
-            fetchCallData(true)
-          }
-        }, 3000)
-
-        return () => clearInterval(intervalId)
-      }
     } else {
       setCallData(null)
       setSelectedFromNumber(null)
@@ -200,7 +193,27 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
       setSelectedTransferExtension("")
       setTransferredCalls(new Set())
     }
-  }, [open, autoRefresh])
+  }, [open])
+
+  useEffect(() => {
+    const handleCallEvent = (event: any) => {
+      const eventType = String(event?.eventType || event?.data?.event || "").toLowerCase()
+      if (!["callstatus", "newcdr", "forward", "tranfer", "transfer", "callfailed"].includes(eventType)) return
+
+      onOpenChange(true)
+      fetchCallData(true)
+    }
+
+    const unsubscribeStatus = on("yeastar.call.status", handleCallEvent)
+    const unsubscribeEvent = on("yeastar.event", handleCallEvent)
+    const unsubscribeCdr = on("yeastar.newcdr", handleCallEvent)
+
+    return () => {
+      unsubscribeStatus()
+      unsubscribeEvent()
+      unsubscribeCdr()
+    }
+  }, [on, onOpenChange])
 
   const fetchCallData = async (isRefresh = false) => {
     try {
@@ -263,7 +276,6 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
       }
     } catch (error: any) {
       console.error("Failed to fetch call data:", error)
-      toast.error(error.message || "Failed to fetch call information")
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -273,11 +285,16 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
   const fetchExtensionList = async () => {
     try {
       setFetchingExtensions(true)
-      const data = await apiRequest<ExtensionListResponse>("/services/yeastar/extensions", {
+      const data = await apiRequest<ExtensionListResponse>("/yeaster/extensions/db", {
         method: "GET",
       })
-      if (data.success && data.data.extlist) {
-        setExtensionList(data.data.extlist)
+      if (data.success) {
+        const extensions = Array.isArray(data.data) ? data.data : (data.data.extlist || [])
+        setExtensionList(extensions.map((extension) => ({
+          ...extension,
+          number: extension.number || extension.extensionNumber || "",
+          username: extension.username || extension.extensionName || extension.extensionNumber || ""
+        })))
       }
     } catch (error: any) {
       console.error("Failed to fetch extension list:", error)
@@ -497,7 +514,7 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
         number: selectedTransferExtension
       }
       
-      await apiRequest("/yeaster/callTransfer", {
+      await apiRequest("/yeaster/calls/transfer", {
         method: "POST",
         body: JSON.stringify(transferPayload)
       })
@@ -694,36 +711,7 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
                           <Phone className="h-5 w-5" />
                           Active Calls
                         </h3>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setAutoRefresh(!autoRefresh)}
-                            className={`h-8 ${isDarkMode ? 'text-slate-400 hover:text-white hover:bg-[#1e293b]' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
-                          >
-                            {autoRefresh ? (
-                              <>
-                                <Circle className="h-3 w-3 mr-2 text-green-500 fill-green-500" />
-                                Auto ON
-                              </>
-                            ) : (
-                              <>
-                                <Circle className="h-3 w-3 mr-2 text-red-500 fill-red-500" />
-                                Auto OFF
-                              </>
-                            )}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => fetchCallData(true)}
-                            disabled={refreshing}
-                            className={`h-8 ${isDarkMode ? 'text-slate-400 hover:text-white hover:bg-[#1e293b]' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
-                          >
-                            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-                            Refresh
-                          </Button>
-                        </div>
+                        <Badge variant="outline">Realtime</Badge>
                       </div>
 
                       {callData.data.calllist.length === 0 ? (
@@ -1128,9 +1116,10 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
                                         <Building className={`h-8 w-8 ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`} />
                                       </div>
                                       <div>
-                                        <p className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>No customer found</p>
+                                        <Badge variant="outline" className="mb-2">Info</Badge>
+                                        <p className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>No customer information found</p>
                                         <p className={`text-sm ${isDarkMode ? 'text-gray-500' : 'text-gray-500'} mt-1`}>
-                                          This number is not associated with any customer
+                                          {selectedFromNumber ? `${formatPhoneNumber(selectedFromNumber)} is not associated with any customer` : "This number is not associated with any customer"}
                                         </p>
                                       </div>
                                       <Button 
@@ -1311,14 +1300,6 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
                       There are currently no active calls in the system
                     </p>
                   </div>
-                  <Button 
-                    onClick={() => fetchCallData()} 
-                    variant="outline" 
-                    className={`${isDarkMode ? 'border-gray-600 text-gray-300 hover:bg-[#1e293b]' : 'border-gray-300 text-gray-700 hover:bg-gray-100'}`}
-                  >
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Check Again
-                  </Button>
                 </div>
               )}
 
@@ -1334,23 +1315,6 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
                     className={`${isDarkMode ? 'border-gray-600 text-gray-300 hover:bg-[#1e293b]' : 'border-gray-300 text-gray-700 hover:bg-gray-100'}`}
                   >
                     Close
-                  </Button>
-                  <Button
-                    onClick={() => fetchCallData(true)}
-                    disabled={refreshing || loading}
-                    className={`min-w-[100px] ${isDarkMode ? 'bg-[#1e293b] text-gray-300 hover:bg-[#334155]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                  >
-                    {refreshing ? (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                        Refreshing
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Refresh
-                      </>
-                    )}
                   </Button>
                 </div>
               </DialogFooter>

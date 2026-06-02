@@ -89,9 +89,8 @@ export default function TransferCallModal({
                 const response = await apiRequest('/yeaster/calls/transfer', {
                     method: 'POST',
                     body: JSON.stringify({
-                        channelId: call.channelId,
+                        channelid: call.channelId || call.channelid,
                         number: target,
-                        dialpermission: 'permit'
                     })
                 })
 
@@ -108,9 +107,8 @@ export default function TransferCallModal({
                 const response = await apiRequest('/yeaster/calls/attended-transfer', {
                     method: 'POST',
                     body: JSON.stringify({
-                        channelId: call.channelId,
+                        channelid: call.channelId || call.channelid,
                         tonumber: target,
-                        dialpermission: 'permit'
                     })
                 })
 

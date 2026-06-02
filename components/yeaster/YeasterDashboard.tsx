@@ -368,7 +368,7 @@ export default function YeastarDashboard({
         try {
             setIsListenerStarting(true)
             console.log('🚀 Starting listener...')
-            const success = await sendAuthenticatedCommand('yeastar.listener.start', { ispId })
+            const success = await sendAuthenticatedCommand('yeastar.listener.start')
             if (success) {
                 console.log('✅ Start listener command sent')
                 toast.success('Starting listener...')
@@ -389,7 +389,7 @@ export default function YeastarDashboard({
         try {
             setIsListenerStopping(true)
             console.log('🛑 Stopping listener...')
-            const success = await sendAuthenticatedCommand('yeastar.listener.stop', { ispId })
+            const success = await sendAuthenticatedCommand('yeastar.listener.stop')
             if (success) {
                 console.log('✅ Stop listener command sent')
                 toast.success('Stopping listener...')

@@ -14,6 +14,7 @@ import { NotificationsDropdown } from "@/components/layout/notifications-dropdow
 import { InquiryDialog } from "@/components/layout/inquery";
 import { BranchSwitcher } from "@/components/layout/branch-switcher";
 import { apiRequest } from "@/lib/api";
+import { useWebSocket } from "@/contexts/WebSocketContext";
 
 interface NavbarProps {
   onMenuClick: () => void;
@@ -27,6 +28,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [inquiryDialogOpen, setInquiryDialogOpen] = useState(false);
   const [activeCallsCount, setActiveCallsCount] = useState(0);
+  const { on } = useWebSocket();
 
   useEffect(() => {
     setMounted(true);
@@ -44,7 +46,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Periodically check for active calls
+  // Check active calls and open inquiry on realtime call events
   useEffect(() => {
     const checkActiveCalls = async () => {
       try {
@@ -61,11 +63,23 @@ export function Navbar({ onMenuClick }: NavbarProps) {
     };
 
     checkActiveCalls();
-    const interval = setInterval(() => {
-      if (!inquiryDialogOpen) checkActiveCalls();
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [inquiryDialogOpen]);
+
+    const handleCallEvent = (event: any) => {
+      const eventType = String(event?.eventType || event?.data?.event || "").toLowerCase();
+      if (!["callstatus", "newcdr", "forward", "tranfer", "transfer", "callfailed"].includes(eventType)) return;
+
+      setInquiryDialogOpen(true);
+      checkActiveCalls();
+    };
+
+    const unsubscribeStatus = on("yeastar.call.status", handleCallEvent);
+    const unsubscribeEvent = on("yeastar.event", handleCallEvent);
+
+    return () => {
+      unsubscribeStatus();
+      unsubscribeEvent();
+    };
+  }, [on]);
 
   const handleOpenChange = (open: boolean) => {
     setSearchModalOpen(open);
