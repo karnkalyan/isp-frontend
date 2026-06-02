@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import {
   Dialog,
   DialogContent,
@@ -48,6 +48,14 @@ interface CallMember {
     number: string
     channelid: string
     memberstatus: string
+  }
+  outbound?: {
+    from: string
+    to: string
+    trunkname: string
+    channelid: string
+    memberstatus: string
+    callpath: string
   }
 }
 
@@ -158,6 +166,7 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
   } | null>(null)
   const [transferredCalls, setTransferredCalls] = useState<Set<string>>(new Set())
   const [isDarkMode, setIsDarkMode] = useState(false)
+  const realtimeHoldUntilRef = useRef(0)
   const { on } = useWebSocket()
   
   const router = useRouter()
@@ -201,7 +210,8 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
       if (!["callstatus", "newcdr", "forward", "tranfer", "transfer", "callfailed"].includes(eventType)) return
 
       onOpenChange(true)
-      fetchCallData(true)
+      mergeRealtimeCallEvent(event)
+      window.setTimeout(() => fetchCallData(true), 1500)
     }
 
     const unsubscribeStatus = on("yeastar.call.status", handleCallEvent)
@@ -214,6 +224,79 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
       unsubscribeCdr()
     }
   }, [on, onOpenChange])
+
+  function mergeRealtimeCallEvent(event: any) {
+    const payload = event?.data || event
+    if (!payload?.callid || !Array.isArray(payload.members)) return
+
+    realtimeHoldUntilRef.current = Date.now() + 3000
+
+    const members = payload.members as CallMember[]
+    const extNumber = members.find(member => member.ext)?.ext?.number
+      || members.find(member => member.inbound)?.inbound?.to
+      || members.find(member => member.outbound)?.outbound?.from
+      || "Unknown"
+    const inboundFrom = members.find(member => member.inbound)?.inbound?.from
+    const memberStatuses = members.flatMap(member => [
+      member.ext?.memberstatus,
+      member.inbound?.memberstatus,
+      member.outbound?.memberstatus
+    ].filter(Boolean))
+    const hasEnded = memberStatuses.some(status => String(status).toUpperCase() === "BYE")
+
+    setCallData(prev => {
+      const current = prev || {
+        success: true,
+        data: {
+          status: "Success",
+          calllist: []
+        }
+      }
+
+      const calllist = current.data.calllist
+        .map(item => ({
+          ...item,
+          numbercalls: item.numbercalls.filter(call => call.callid !== payload.callid)
+        }))
+        .filter(item => item.numbercalls.length > 0)
+
+      if (!hasEnded && !transferredCalls.has(payload.callid)) {
+        const targetIndex = calllist.findIndex(item => String(item.number) === String(extNumber))
+        const realtimeCall = {
+          callid: payload.callid,
+          members
+        }
+
+        if (targetIndex >= 0) {
+          calllist[targetIndex] = {
+            ...calllist[targetIndex],
+            numbercalls: [realtimeCall, ...calllist[targetIndex].numbercalls]
+          }
+        } else {
+          calllist.unshift({
+            number: String(extNumber),
+            numbercalls: [realtimeCall]
+          })
+        }
+      }
+
+      onCallsCountChange?.(calllist.reduce((acc, item) => acc + item.numbercalls.length, 0))
+
+      return {
+        ...current,
+        data: {
+          ...current.data,
+          status: "Success",
+          calllist
+        }
+      }
+    })
+
+    if (inboundFrom) {
+      setSelectedFromNumber(inboundFrom)
+      fetchContactInfo(inboundFrom)
+    }
+  }
 
   const fetchCallData = async (isRefresh = false) => {
     try {
@@ -244,6 +327,10 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
           }
         }
         const activeCallCount = filteredCalllist.reduce((acc, item) => acc + item.numbercalls.length, 0)
+
+        if (filteredCalllist.length === 0 && Date.now() < realtimeHoldUntilRef.current) {
+          return
+        }
         
         setCallData(filteredData)
         onCallsCountChange?.(activeCallCount)
