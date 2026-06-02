@@ -345,8 +345,8 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
         // Filter out transferred calls from the response
         const filteredCalllist = data.data.calllist.map(extension => ({
           ...extension,
-          numbercalls: extension.numbercalls.filter(call => 
-            !transferredCalls.has(call.callid)
+          numbercalls: extension.numbercalls.filter(call =>
+            !transferredCalls.has(call.callid) && !isCallEnded(call)
           )
         })).filter(extension => extension.numbercalls.length > 0)
         
@@ -571,6 +571,7 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
       setAcceptingCall(callId)
       
       const acceptPayload = {
+        callid: callId,
         channelid: channelId,
         channelids: [channelId, fallbackChannelId].filter(Boolean),
         extnumber: assignedExtension
@@ -630,6 +631,7 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
     } catch (error: any) {
       console.error("Failed to accept call:", error)
       toast.error(error.message || "Failed to accept call")
+      fetchCallData(true)
     } finally {
       setAcceptingCall(null)
     }
@@ -770,6 +772,17 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
     return call.members.some(m => {
       const status = String(m.ext?.memberstatus || "").toUpperCase()
       return status === "ANSWER" || status === "ANSWERED"
+    })
+  }
+
+  const isCallEnded = (call: NumberCall) => {
+    return call.members.some(m => {
+      const statuses = [
+        m.ext?.memberstatus,
+        m.inbound?.memberstatus,
+        m.outbound?.memberstatus
+      ].map(status => String(status || "").toUpperCase())
+      return statuses.includes("BYE") || statuses.includes("ENDED") || statuses.includes("HANGUP")
     })
   }
 
@@ -925,12 +938,13 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
                                     {callItem.numbercalls.map((call, callIndex) => {
                                       const isRinging = isCallRinging(call)
                                       const isAnswered = isCallAnswered(call)
+                                      const isEnded = isCallEnded(call)
                                       const extChannelId = getExtensionChannelId(call)
                                       const inboundChannelId = getInboundChannelId(call)
                                       const inboundFrom = getInboundFromNumber(call)
                                       
-                                      // Skip if call is being transferred
-                                      if (transferredCalls.has(call.callid)) {
+                                      // Skip if call is being transferred or already ended
+                                      if (transferredCalls.has(call.callid) || isEnded) {
                                         return null
                                       }
                                       
@@ -1023,7 +1037,7 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
                                                     </div>
                                                     
                                                     {/* Show receive button while the assigned extension is ringing */}
-                                                    {isRinging && (inboundChannelId || extChannelId) && !isAnswered && (
+                                                    {isRinging && (inboundChannelId || extChannelId) && !isAnswered && !isEnded && (
                                                       <Button
                                                         size="sm"
                                                         onClick={() => handleAcceptCall(inboundChannelId || extChannelId!, call.callid, extChannelId)}
