@@ -68,6 +68,14 @@ export function Navbar({ onMenuClick }: NavbarProps) {
       const eventType = String(event?.eventType || event?.data?.event || "").toLowerCase();
       if (!["callstatus", "newcdr", "forward", "tranfer", "transfer", "callfailed"].includes(eventType)) return;
 
+      const members = event?.data?.members || [];
+      const statuses = members.flatMap((member: any) => [
+        member.ext?.memberstatus,
+        member.inbound?.memberstatus,
+        member.outbound?.memberstatus,
+      ].filter(Boolean));
+      const ended = eventType === "newcdr" || statuses.some((status: string) => String(status).toUpperCase() === "BYE");
+      setActiveCallsCount(prev => ended ? Math.max(0, prev - 1) : Math.max(1, prev));
       setInquiryDialogOpen(true);
       checkActiveCalls();
     };
@@ -160,9 +168,11 @@ export function Navbar({ onMenuClick }: NavbarProps) {
             >
               <Headset className="h-5 w-5" />
               {activeCallsCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
+                <span className="absolute -top-1 -right-1 flex h-4 w-4">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-80" />
+                  <span className="relative inline-flex rounded-full h-4 w-4 bg-red-600 text-[9px] text-white items-center justify-center">
+                    {activeCallsCount > 9 ? "9+" : activeCallsCount}
+                  </span>
                 </span>
               )}
             </Button>

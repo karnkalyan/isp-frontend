@@ -55,6 +55,20 @@ export default function CallLogsTable({ ispId }: CallLogsTableProps) {
     const [totalPages, setTotalPages] = useState(1)
     const limit = 20
 
+    const normalizeLog = (log: any): CallLog => ({
+        ...log,
+        id: String(log.id || log.callid || log.callId || `${log.startTime}-${log.channelid || ""}`),
+        callerId: String(log.callerId || log.caller || log.callfrom || "-"),
+        calledNumber: String(log.calledNumber || log.called || log.callto || "-"),
+        extension: log.extension ? String(log.extension) : "",
+        direction: log.direction || "internal",
+        status: log.status || log.memberstatus || "unknown",
+        startTime: log.startTime || log.createdAt || new Date().toISOString(),
+        endTime: log.endTime || log.updatedAt,
+        duration: Number(log.duration || 0),
+        recordingUrl: log.recordingUrl || log.recordingurl
+    })
+
     // Fetch call logs
     const fetchCallLogs = async () => {
         try {
@@ -103,8 +117,9 @@ export default function CallLogsTable({ ispId }: CallLogsTableProps) {
             }>(`/yeaster/calls/logs?${params}`)
 
             if (response.success) {
-                setLogs(response.data || [])
-                setFilteredLogs(response.data || [])
+                const normalized = (response.data || []).map(normalizeLog)
+                setLogs(normalized)
+                setFilteredLogs(normalized)
                 setTotalPages(Math.ceil(response.total / limit))
             }
         } catch (error: any) {

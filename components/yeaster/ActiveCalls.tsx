@@ -18,6 +18,7 @@ import { toast } from "react-hot-toast"
 import { apiRequest } from "@/lib/api"
 import { RealTimeApi } from "@/lib/real-time-api"
 import TransferCallModal from "./TransferCallModal"
+import { useWebSocket } from "@/contexts/WebSocketContext"
 
 interface ActiveCall {
     id?: string
@@ -47,6 +48,44 @@ export default function ActiveCalls({ ispId, realTimeApi }: ActiveCallsProps) {
     const [transferCall, setTransferCall] = useState<ActiveCall | null>(null)
     const [transferModalOpen, setTransferModalOpen] = useState(false)
     const [selectedCall, setSelectedCall] = useState<string | null>(null)
+    const { on } = useWebSocket()
+
+    const normalizeCall = (call: any): ActiveCall => ({
+        ...call,
+        id: String(call.id || call.callid || call.callId || call.channelid || call.channelId || ""),
+        channelId: String(call.channelId || call.channelid || ""),
+        callId: String(call.callId || call.callid || ""),
+        caller: String(call.caller || call.callerId || "-"),
+        called: String(call.called || call.calledNumber || "-"),
+        extension: call.extension ? String(call.extension) : "",
+        direction: call.direction || "internal",
+        status: call.status || "ringing",
+        startTime: call.startTime || call.createdAt || new Date().toISOString(),
+        duration: Number(call.duration || 0),
+        ispId: call.ispId || ispId
+    })
+
+    const callFromEvent = (event: any): ActiveCall | null => {
+        const payload = event?.data || event
+        if (!payload?.callid || !Array.isArray(payload.members)) return null
+
+        const inbound = payload.members.find((member: any) => member.inbound)?.inbound
+        const outbound = payload.members.find((member: any) => member.outbound)?.outbound
+        const ext = payload.members.find((member: any) => member.ext)?.ext
+        const status = ext?.memberstatus || inbound?.memberstatus || outbound?.memberstatus || "ringing"
+
+        return normalizeCall({
+            callid: payload.callid,
+            channelid: ext?.channelid || inbound?.channelid || outbound?.channelid || "",
+            caller: inbound?.from || outbound?.from || ext?.number || "-",
+            called: ext?.number || inbound?.to || outbound?.to || "-",
+            extension: ext?.number || inbound?.to || outbound?.from || "",
+            direction: inbound ? "inbound" : outbound ? "outbound" : "internal",
+            status: String(status).toLowerCase() === "bye" ? "ended" : status,
+            trunkname: inbound?.trunkname || outbound?.trunkname,
+            startTime: new Date().toISOString()
+        })
+    }
 
     // Fetch active calls
     const fetchActiveCalls = async () => {
@@ -54,8 +93,9 @@ export default function ActiveCalls({ ispId, realTimeApi }: ActiveCallsProps) {
             setLoading(true)
             const response = await apiRequest<{ success: boolean; data: ActiveCall[]; total: number }>('/yeaster/calls/active/db')
             if (response.success) {
-                setCalls(response.data || [])
-                setFilteredCalls(response.data || [])
+                const normalized = (response.data || []).map(normalizeCall)
+                setCalls(normalized)
+                setFilteredCalls(normalized)
             }
         } catch (error: any) {
             console.error("Error fetching active calls:", error)
@@ -65,36 +105,46 @@ export default function ActiveCalls({ ispId, realTimeApi }: ActiveCallsProps) {
         }
     }
 
-    // Initialize real-time updates
+    useEffect(() => {
+        fetchActiveCalls()
+    }, [])
+
     useEffect(() => {
         if (!realTimeApi) return
+        realTimeApi.initialize?.()
+        return () => realTimeApi.destroy?.()
+    }, [realTimeApi] )
 
-        fetchActiveCalls()
 
-        // Set up real-time event listeners
-        const unsubscribeCallStart = realTimeApi.on('call:start', (data) => {
-            setCalls(prev => [data, ...prev])
-            toast.success(`Call started: ${data.caller} → ${data.called}`)
-        })
+    useEffect(() => {
+        const handleCallEvent = (event: any) => {
+            const eventType = String(event?.eventType || event?.data?.event || "").toLowerCase()
+            if (!["callstatus", "incoming", "invite", "newcdr", "callfailed"].includes(eventType)) return
 
-        const unsubscribeCallEnd = realTimeApi.on('call:end', (data) => {
-            setCalls(prev => prev.filter(call => call.channelId !== data.channelId))
-            toast.info(`Call ended: ${data.caller} → ${data.called} (${data.duration}s)`)
-        })
+            const realtimeCall = callFromEvent(event)
+            if (!realtimeCall) return
 
-        const unsubscribeCallUpdate = realTimeApi.on('call:update', (data) => {
-            setCalls(prev => prev.map(call =>
-                call.channelId === data.channelId ? { ...call, ...data } : call
-            ))
-        })
+            if (String(realtimeCall.status).toUpperCase() === "BYE" || realtimeCall.status === "ended" || eventType === "newcdr") {
+                setCalls(prev => prev.filter(call => call.callId !== realtimeCall.callId))
+                return
+            }
 
-        // Clean up
-        return () => {
-            unsubscribeCallStart()
-            unsubscribeCallEnd()
-            unsubscribeCallUpdate()
+            setCalls(prev => {
+                const existing = prev.find(call => call.callId === realtimeCall.callId)
+                if (existing) {
+                    return prev.map(call => call.callId === realtimeCall.callId ? { ...call, ...realtimeCall } : call)
+                }
+                return [realtimeCall, ...prev]
+            })
         }
-    }, [realTimeApi])
+
+        const unsubscribeStatus = on("yeastar.call.status", handleCallEvent)
+        const unsubscribeEvent = on("yeastar.event", handleCallEvent)
+        return () => {
+            unsubscribeStatus()
+            unsubscribeEvent()
+        }
+    }, [on])
 
     // Filter calls based on search
     useEffect(() => {
