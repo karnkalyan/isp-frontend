@@ -34,6 +34,7 @@ import { apiRequest } from "@/lib/api"
 import { toast } from "react-hot-toast"
 import { useRouter } from "next/navigation"
 import { useWebSocket } from "@/contexts/WebSocketContext"
+import { useAuth } from "@/contexts/AuthContext"
 
 interface CallMember {
   inbound?: {
@@ -168,7 +169,11 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
   const [isDarkMode, setIsDarkMode] = useState(false)
   const realtimeHoldUntilRef = useRef(0)
   const callDataRef = useRef<InquiryResponse | null>(null)
+  const contactLookupRef = useRef<Record<string, { customer: Customer | null; lead: Lead | null }>>({})
+  const contactLookupInFlightRef = useRef<Set<string>>(new Set())
   const { on } = useWebSocket()
+  const { user } = useAuth()
+  const assignedExtension = String(user?.yeastarExt || user?.extId || "").trim()
   
   const router = useRouter()
 
@@ -213,6 +218,7 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
     const handleCallEvent = (event: any) => {
       const eventType = String(event?.eventType || event?.data?.event || "").toLowerCase()
       if (!["callstatus", "newcdr", "forward", "tranfer", "transfer", "callfailed"].includes(eventType)) return
+      if (!isEventForAssignedExtension(event)) return
 
       onOpenChange(true)
       mergeRealtimeCallEvent(event)
@@ -228,7 +234,24 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
       unsubscribeEvent()
       unsubscribeCdr()
     }
-  }, [on, onOpenChange])
+  }, [on, onOpenChange, assignedExtension])
+
+  function getEventMembers(event: any): CallMember[] {
+    const payload = event?.data || event
+    return Array.isArray(payload?.members) ? payload.members : []
+  }
+
+  function isEventForAssignedExtension(event: any) {
+    if (!assignedExtension) return false
+
+    return getEventMembers(event).some((member: any) =>
+      String(member.ext?.number || "") === assignedExtension ||
+      String(member.inbound?.to || "") === assignedExtension ||
+      String(member.inbound?.callpath || "") === assignedExtension ||
+      String(member.outbound?.from || "") === assignedExtension ||
+      String(member.outbound?.to || "") === assignedExtension
+    )
+  }
 
   function mergeRealtimeCallEvent(event: any) {
     const payload = event?.data || event
@@ -237,7 +260,10 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
     realtimeHoldUntilRef.current = Date.now() + 3000
 
     const members = payload.members as CallMember[]
-    const extNumber = members.find(member => member.ext)?.ext?.number
+    const extNumber = members.find(member => member.ext?.number === assignedExtension)?.ext?.number
+      || members.find(member => member.inbound?.to === assignedExtension)?.inbound?.to
+      || members.find(member => member.inbound?.callpath === assignedExtension)?.inbound?.callpath
+      || members.find(member => member.ext)?.ext?.number
       || members.find(member => member.inbound)?.inbound?.to
       || members.find(member => member.outbound)?.outbound?.from
       || "Unknown"
@@ -400,8 +426,24 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
   }
 
   const fetchContactInfo = async (phoneNumber: string) => {
+    const lookupKey = phoneNumber.replace(/\D/g, "")
+    if (!lookupKey) return
+
+    const cached = contactLookupRef.current[lookupKey]
+    if (cached) {
+      setCustomerInfo(cached.customer)
+      setLeadInfo(cached.lead)
+      setActiveTab(cached.customer ? "customer" : "lead")
+      return
+    }
+
+    if (contactLookupInFlightRef.current.has(lookupKey)) return
+    contactLookupInFlightRef.current.add(lookupKey)
+
     try {
       setFetchingInfo(true)
+      let nextCustomer: Customer | null = null
+      let nextLead: Lead | null = null
       
       try {
         const customerResponse = await apiRequest<Customer>("/customer/by-phone", {
@@ -410,32 +452,30 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
         })
         
         if (customerResponse) {
-          setCustomerInfo(customerResponse)
-          setActiveTab("customer")
-        } else {
-          setCustomerInfo(null)
+          nextCustomer = customerResponse
         }
       } catch (customerError: any) {
-        setCustomerInfo(null)
+        nextCustomer = null
       }
 
       try {
-        const leadsResponse = await apiRequest<{ data: Lead[] }>(`/lead?search=${phoneNumber}`)
+        const leadsResponse = await apiRequest<{ data: Lead[] }>(`/lead?search=${encodeURIComponent(phoneNumber)}`)
         
         if (leadsResponse?.data && Array.isArray(leadsResponse.data) && leadsResponse.data.length > 0) {
-          setLeadInfo(leadsResponse.data[0])
-          if (!customerInfo) {
-            setActiveTab("lead")
-          }
-        } else {
-          setLeadInfo(null)
+          nextLead = leadsResponse.data[0]
         }
       } catch (leadError: any) {
-        setLeadInfo(null)
+        nextLead = null
       }
+
+      contactLookupRef.current[lookupKey] = { customer: nextCustomer, lead: nextLead }
+      setCustomerInfo(nextCustomer)
+      setLeadInfo(nextLead)
+      setActiveTab(nextCustomer ? "customer" : "lead")
     } catch (error: any) {
       console.error("Failed to fetch contact info:", error)
     } finally {
+      contactLookupInFlightRef.current.delete(lookupKey)
       setFetchingInfo(false)
     }
   }

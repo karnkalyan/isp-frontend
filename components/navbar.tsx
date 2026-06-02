@@ -15,6 +15,7 @@ import { InquiryDialog } from "@/components/layout/inquery";
 import { BranchSwitcher } from "@/components/layout/branch-switcher";
 import { apiRequest } from "@/lib/api";
 import { useWebSocket } from "@/contexts/WebSocketContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface NavbarProps {
   onMenuClick: () => void;
@@ -29,6 +30,8 @@ export function Navbar({ onMenuClick }: NavbarProps) {
   const [inquiryDialogOpen, setInquiryDialogOpen] = useState(false);
   const [activeCallsCount, setActiveCallsCount] = useState(0);
   const { on } = useWebSocket();
+  const { user } = useAuth();
+  const assignedExtension = String(user?.yeastarExt || user?.extId || "").trim();
 
   useEffect(() => {
     setMounted(true);
@@ -69,6 +72,15 @@ export function Navbar({ onMenuClick }: NavbarProps) {
       if (!["callstatus", "newcdr", "forward", "tranfer", "transfer", "callfailed"].includes(eventType)) return;
 
       const members = event?.data?.members || [];
+      const isForMe = assignedExtension && members.some((member: any) =>
+        String(member.ext?.number || "") === assignedExtension ||
+        String(member.inbound?.to || "") === assignedExtension ||
+        String(member.inbound?.callpath || "") === assignedExtension ||
+        String(member.outbound?.from || "") === assignedExtension ||
+        String(member.outbound?.to || "") === assignedExtension
+      );
+      if (!isForMe) return;
+
       const statuses = members.flatMap((member: any) => [
         member.ext?.memberstatus,
         member.inbound?.memberstatus,
@@ -87,7 +99,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
       unsubscribeStatus();
       unsubscribeEvent();
     };
-  }, [on]);
+  }, [on, assignedExtension]);
 
   const handleOpenChange = (open: boolean) => {
     setSearchModalOpen(open);
