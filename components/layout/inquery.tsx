@@ -167,6 +167,7 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
   const [transferredCalls, setTransferredCalls] = useState<Set<string>>(new Set())
   const [isDarkMode, setIsDarkMode] = useState(false)
   const realtimeHoldUntilRef = useRef(0)
+  const callDataRef = useRef<InquiryResponse | null>(null)
   const { on } = useWebSocket()
   
   const router = useRouter()
@@ -185,6 +186,10 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
     observer.observe(document.documentElement, { attributes: true })
     return () => observer.disconnect()
   }, [])
+
+  useEffect(() => {
+    callDataRef.current = callData
+  }, [callData])
 
   useEffect(() => {
     if (open) {
@@ -327,6 +332,10 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
           }
         }
         const activeCallCount = filteredCalllist.reduce((acc, item) => acc + item.numbercalls.length, 0)
+
+        if (isRefresh && filteredCalllist.length === 0 && callDataRef.current?.data?.calllist?.length) {
+          return
+        }
 
         if (filteredCalllist.length === 0 && Date.now() < realtimeHoldUntilRef.current) {
           return
