@@ -566,12 +566,13 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
     }
   }
 
-  const handleAcceptCall = async (channelId: string, callId: string) => {
+  const handleAcceptCall = async (channelId: string, callId: string, fallbackChannelId?: string | null) => {
     try {
       setAcceptingCall(callId)
       
       const acceptPayload = {
-        channelid: channelId
+        channelid: channelId,
+        channelids: [channelId, fallbackChannelId].filter(Boolean)
       }
       
       const response = await apiRequest("/yeaster/calls/accept-inbound", {
@@ -772,6 +773,11 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
     return extMember?.ext?.channelid || null
   }
 
+  const getInboundChannelId = (call: NumberCall): string | null => {
+    const inboundMember = call.members.find(m => m.inbound)
+    return inboundMember?.inbound?.channelid || null
+  }
+
   const getInboundFromNumber = (call: NumberCall): string | null => {
     const inboundMember = call.members.find(m => m.inbound)
     return inboundMember?.inbound?.from || null
@@ -915,6 +921,7 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
                                       const isRinging = isCallRinging(call)
                                       const isAnswered = isCallAnswered(call)
                                       const extChannelId = getExtensionChannelId(call)
+                                      const inboundChannelId = getInboundChannelId(call)
                                       const inboundFrom = getInboundFromNumber(call)
                                       
                                       // Skip if call is being transferred
@@ -1011,10 +1018,10 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
                                                     </div>
                                                     
                                                     {/* Show receive button while the assigned extension is ringing */}
-                                                    {isRinging && extChannelId && !isAnswered && (
+                                                    {isRinging && (inboundChannelId || extChannelId) && !isAnswered && (
                                                       <Button
                                                         size="sm"
-                                                        onClick={() => handleAcceptCall(extChannelId, call.callid)}
+                                                        onClick={() => handleAcceptCall(inboundChannelId || extChannelId!, call.callid, extChannelId)}
                                                         disabled={acceptingCall === call.callid}
                                                         className={`mt-2 ${
                                                           acceptingCall === call.callid 
