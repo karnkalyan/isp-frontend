@@ -165,8 +165,8 @@ export function InternetPlansSettings() {
     loadIsp()
   }, [])
 
-  const ISP_TYPE_OPTIONS: Option<number>[] = ispTypes.map((t) => ({
-    value: t.id,
+  const ISP_TYPE_OPTIONS: Option[] = ispTypes.map((t) => ({
+    value: String(t.id),
     label: t.name,
   }))
 
@@ -456,7 +456,7 @@ export function InternetPlansSettings() {
               <SearchableSelect
                 options={PACKAGE_TYPES.map(t => ({ value: t, label: t }))}
                 value={newPlan.packageType}
-                onValueChange={(v) => setNewPlan({ ...newPlan, packageType: v })}
+                onValueChange={(v) => setNewPlan({ ...newPlan, packageType: Array.isArray(v) ? v[0] || "" : v })}
                 placeholder="Select Package Type"
               />
             </div>
@@ -498,10 +498,10 @@ export function InternetPlansSettings() {
             <div className="space-y-2">
               <Label htmlFor="connectionType">Connection Type</Label>
               <SearchableSelect
-                options={ISP_TYPE_OPTIONS.map(opt => ({ ...opt, value: String(opt.value) }))}
+                options={ISP_TYPE_OPTIONS}
                 value={String(newPlan.connectionType)}
                 onValueChange={(v) =>
-                  setNewPlan({ ...newPlan, connectionType: Number(v) })
+                  setNewPlan({ ...newPlan, connectionType: Number(Array.isArray(v) ? v[0] : v) })
                 }
                 placeholder="Select Connection Type"
               />

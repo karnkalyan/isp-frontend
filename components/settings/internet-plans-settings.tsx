@@ -66,6 +66,11 @@ const NAS_TYPES = ["cisco", "juniper", "mikrotik", "nokia"]
 const PACKAGE_TYPES = ["HOME", "BUSINESS", "CORPORATE", "ENTERPRISE", "STUDENT", "TRIAL"]
 const OP_OPTIONS = [":=", "=", "==", "+=", "!=", ">", ">=", "<", "<=", "=~", "!~", "=*", "!*"]
 
+const DEFAULT_VENDOR_PROFILE: Record<string, string> = {
+  juniper: "x-ppp-profile",
+  nokia: "",
+}
+
 const DEFAULT_PLAN: Omit<InternetPlan, "id"> = {
   name: "",
   code: "",
@@ -163,8 +168,8 @@ export function InternetPlansSettings() {
     loadIsp()
   }, [])
 
-  const ISP_TYPE_OPTIONS: Option<number>[] = ispTypes.map((t) => ({
-    value: t.id,
+  const ISP_TYPE_OPTIONS: Option[] = ispTypes.map((t) => ({
+    value: String(t.id),
     label: t.name,
   }))
 
@@ -191,7 +196,7 @@ export function InternetPlansSettings() {
         nasType: r.nasType || "",
         service: r.service || "",
         priority: r.priority || "",
-        juniperVariable: r.juniperVariable || "",
+        vendorProfiles: Array.isArray(r.vendorProfiles) ? r.vendorProfiles : [],
         packageType: r.packageType || "",
         allowRename: Boolean(r.allowRename),
         fupApply: r.fupApply !== undefined ? Boolean(r.fupApply) : true,
@@ -243,7 +248,7 @@ export function InternetPlansSettings() {
     nasType: newPlan.nasType || null,
     service: newPlan.service || null,
     priority: newPlan.priority || null,
-    juniperVariable: newPlan.juniperVariable || null,
+    vendorProfiles: (newPlan.vendorProfiles || []).filter(v => v.vendor && v.profile),
     packageType: newPlan.packageType || null,
     allowRename: newPlan.allowRename,
     fupApply: newPlan.fupApply,
@@ -324,10 +329,23 @@ export function InternetPlansSettings() {
   // NAS Type checkbox toggle
   const toggleNasType = (type: string) => {
     const current = newPlan.nasType ? newPlan.nasType.split(",").filter(Boolean) : []
-    const updated = current.includes(type)
+    const isRemoving = current.includes(type)
+    const updated = isRemoving
       ? current.filter((t) => t !== type)
       : [...current, type]
-    setNewPlan({ ...newPlan, nasType: updated.join(",") })
+
+    let vendorProfiles = newPlan.vendorProfiles || []
+    if (isRemoving) {
+      vendorProfiles = vendorProfiles.filter(v => v.vendor !== type)
+    } else if (type === "juniper" || type === "nokia") {
+      const defaultProfile = type === "nokia"
+        ? newPlan.code || `pkg-${newPlan.downloadSpeed || 0}mbps`
+        : DEFAULT_VENDOR_PROFILE[type]
+      const exists = vendorProfiles.some(v => v.vendor === type)
+      if (!exists) vendorProfiles = [...vendorProfiles, { vendor: type, profile: defaultProfile }]
+    }
+
+    setNewPlan({ ...newPlan, nasType: updated.join(","), vendorProfiles })
   }
 
   // Branch checkbox toggle
@@ -461,7 +479,7 @@ export function InternetPlansSettings() {
               <SearchableSelect
                 options={PACKAGE_TYPES.map(t => ({ value: t, label: t }))}
                 value={newPlan.packageType}
-                onValueChange={(v) => setNewPlan({ ...newPlan, packageType: v })}
+                onValueChange={(v) => setNewPlan({ ...newPlan, packageType: Array.isArray(v) ? v[0] || "" : v })}
                 placeholder="Select Package Type"
               />
             </div>
@@ -494,10 +512,10 @@ export function InternetPlansSettings() {
             <div className="space-y-2">
               <Label htmlFor="connectionType">Connection Type</Label>
               <SearchableSelect
-                options={ISP_TYPE_OPTIONS.map(opt => ({ ...opt, value: String(opt.value) }))}
+                options={ISP_TYPE_OPTIONS}
                 value={String(newPlan.connectionType)}
                 onValueChange={(v) =>
-                  setNewPlan({ ...newPlan, connectionType: Number(v) })
+                  setNewPlan({ ...newPlan, connectionType: Number(Array.isArray(v) ? v[0] : v) })
                 }
                 placeholder="Select Connection Type"
               />
@@ -738,13 +756,13 @@ export function InternetPlansSettings() {
                       <SearchableSelect
                         options={NAS_TYPES.map(t => ({ value: t, label: t.toUpperCase() }))}
                         value={vp.vendor}
-                        onValueChange={(v) => updateVendorProfile(index, "vendor", v)}
+                        onValueChange={(v) => updateVendorProfile(index, "vendor", Array.isArray(v) ? v[0] || "" : v)}
                         placeholder="Select Vendor"
                       />
                       <Input
                         value={vp.profile}
                         onChange={(e) => updateVendorProfile(index, "profile", e.target.value)}
-                        placeholder="e.g. PREMIUM-PPP or Default"
+                        placeholder={vp.vendor === "juniper" ? "x-ppp-profile" : vp.vendor === "nokia" ? "SLA profile, e.g. KSN-75-IPTV" : "Profile name"}
                       />
                       <Button
                         type="button"
