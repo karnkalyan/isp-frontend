@@ -550,14 +550,21 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
   }
 
   const handleCallBack = async (phoneNumber: string) => {
+    if (!assignedExtension) {
+      toast.error("No Yeastar extension is assigned to your user account")
+      return
+    }
+
     try {
-      const callPayload = {
-        destination: phoneNumber,
-      }
-      
-      await apiRequest(`/yeaster/makCalls`, {
+      await apiRequest(`/yeaster/calls/make`, {
         method: 'POST',
-        body: JSON.stringify(callPayload)
+        body: JSON.stringify({
+          extension: assignedExtension,
+          caller: assignedExtension,
+          callee: phoneNumber,
+          number: phoneNumber,
+          autoanswer: "yes",
+        })
       })
       
       toast.success(`Calling ${formatPhoneNumber(phoneNumber)}`)

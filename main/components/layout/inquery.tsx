@@ -397,7 +397,7 @@ export function InquiryDialog({ open, onOpenChange }: InquiryDialogProps) {
         destination: phoneNumber,
       }
       
-      await apiRequest(`/yeaster/makCalls`, {
+      await apiRequest(`/yeaster/calls/make`, {
         method: 'POST',
         body: JSON.stringify(callPayload)
       })

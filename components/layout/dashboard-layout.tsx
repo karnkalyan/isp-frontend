@@ -32,6 +32,8 @@ const pathPermissionMap: Record<string, string> = {
   "/finance/invoice-ranges": "billing_update",
   "/tasks": "tasks_read_self",
   "/tickets": "tickets_read_self",
+  "/mail/templates": "settings_read",
+  "/mail": "dashboard_view",
   "/dashboard/settings": "settings_read",
   "/master-settings": "settings_read",
   "/reports": "reports_read",

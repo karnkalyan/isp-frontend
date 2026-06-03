@@ -1519,11 +1519,11 @@ export function LeadManagement() {
     };
 
     if (phoneNumber) {
-      await apiRequest(`/yeaster/call/make`, {
+      await apiRequest(`/yeaster/calls/make`, {
         method: 'POST',
         body: JSON.stringify({
           callee: phoneNumber,
-          autoAnswer: true
+          autoanswer: "yes"
         })
       })
       toast.success("Calling " + phoneNumber)

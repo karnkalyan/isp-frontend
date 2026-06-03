@@ -339,6 +339,8 @@ const menuCategories: MenuCategory[] = [
         permission: "dashboard_view",
         submenu: [
           { title: "Messaging", href: "/messages", permission: "dashboard_view" },
+          { title: "Webmail", href: "/mail", permission: "dashboard_view" },
+          { title: "Mail & SMS Templates", href: "/mail/templates", permission: "settings_read" },
           { title: "Notifications", href: "/notifications", permission: "dashboard_view" },
           { title: "Notices", href: "/notices", permission: "dashboard_view" },
         ],

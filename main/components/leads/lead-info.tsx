@@ -1034,7 +1034,7 @@ export default function LeadDetailsPage() {
     }
 
     try {
-      await apiRequest(`/yeaster/makeCalls`, {
+      await apiRequest(`/yeaster/calls/make`, {
         method: 'POST',
         body: JSON.stringify({ destination: phoneNumber })
       });

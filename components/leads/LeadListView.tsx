@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "react-hot-toast"
+import { useAuth } from "@/contexts/AuthContext"
 import {
     Search,
     Eye,
@@ -435,6 +436,7 @@ export function ActiveLeads({
     onConvertLead,
     onStatusChange
 }: ActiveLeadsProps) {
+    const { user } = useAuth()
     const [leads, setLeads] = useState<Lead[]>([])
     const [loading, setLoading] = useState(false)
     const [searchQuery, setSearchQuery] = useState("")
@@ -756,10 +758,21 @@ export function ActiveLeads({
             toast.error("Phone number is not available")
             return
         }
+        const extension = String(user?.yeastarExt || user?.extId || "").trim()
+        if (!extension) {
+            toast.error("No Yeastar extension is assigned to your user account")
+            return
+        }
         try {
-            await apiRequest(`/yeaster/makeCalls`, {
+            await apiRequest(`/yeaster/calls/make`, {
                 method: 'POST',
-                body: JSON.stringify({ destination: phoneNumber })
+                body: JSON.stringify({
+                    extension,
+                    caller: extension,
+                    callee: phoneNumber,
+                    number: phoneNumber,
+                    autoanswer: "yes",
+                })
             })
             toast.success("Calling " + phoneNumber)
         } catch (error: any) {
@@ -1658,9 +1671,14 @@ export function ActiveLeads({
                                                     )}
                                                 </div>
                                                 {viewLead.secondaryContactNumber && (
-                                                    <div>
-                                                        <Label className="text-sm text-muted-foreground mb-1 block">Secondary Phone</Label>
-                                                        <p className="font-medium">{viewLead.secondaryContactNumber}</p>
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex-1">
+                                                            <Label className="text-sm text-muted-foreground mb-1 block">Secondary Phone</Label>
+                                                            <p className="font-medium">{viewLead.secondaryContactNumber}</p>
+                                                        </div>
+                                                        <Button variant="ghost" size="sm" onClick={() => handleOutboundcalls(viewLead.secondaryContactNumber!)} className="ml-2 text-green-600 hover:text-green-700">
+                                                            <Phone className="h-4 w-4" />
+                                                        </Button>
                                                     </div>
                                                 )}
                                             </div>
@@ -2012,7 +2030,10 @@ export function ActiveLeads({
                                                         </div>
                                                         {lead.secondaryContactNumber && (
                                                             <div className="flex items-center gap-1 text-sm">
-                                                                <PhoneIcon className="h-3 w-3" />
+                                                                <PhoneIcon
+                                                                    className="h-3 w-3 cursor-pointer text-green-600 hover:text-blue-800"
+                                                                    onClick={() => handleOutboundcalls(lead.secondaryContactNumber!)}
+                                                                />
                                                                 {lead.secondaryContactNumber}
                                                             </div>
                                                         )}

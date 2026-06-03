@@ -6,6 +6,7 @@ import { toast } from "react-hot-toast"
 import { useConfirmToast } from "@/hooks/use-confirm-toast"
 import { apiRequest } from "@/lib/api"
 import { useRouter } from "next/navigation"
+import { useAuth } from "@/contexts/AuthContext"
 import { FollowUpDialog } from "./FollowUpDialog"
 import {
     Edit,
@@ -26,6 +27,7 @@ interface LeadActionsProps {
 
 export function LeadActions({ lead, onDelete, onConvert, onFollowUp, users = [] }: LeadActionsProps) {
     const router = useRouter()
+    const { user } = useAuth()
     const { confirm } = useConfirmToast()
     const [showFollowUpDialog, setShowFollowUpDialog] = useState(false)
 
@@ -49,18 +51,25 @@ export function LeadActions({ lead, onDelete, onConvert, onFollowUp, users = [] 
         }
     }
 
-    const handleCall = () => {
-        if (lead.phoneNumber) {
-            // Implement call functionality
-            const callPayload = {
-                destination: lead.phoneNumber,
-            };
+    const handleCall = (phoneNumber = lead.phoneNumber) => {
+        if (phoneNumber) {
+            const extension = String(user?.yeastarExt || user?.extId || "").trim()
+            if (!extension) {
+                toast.error("No Yeastar extension is assigned to your user account")
+                return
+            }
 
-            apiRequest(`/yeaster/makeCalls`, {
+            apiRequest(`/yeaster/calls/make`, {
                 method: 'POST',
-                body: JSON.stringify(callPayload)
+                body: JSON.stringify({
+                    extension,
+                    caller: extension,
+                    callee: phoneNumber,
+                    number: phoneNumber,
+                    autoanswer: "yes",
+                })
             })
-                .then(() => toast.success("Calling " + lead.phoneNumber))
+                .then(() => toast.success("Calling " + phoneNumber))
                 .catch(() => toast.error("Failed to make call"))
         } else {
             toast.error("Phone number is not available")
@@ -132,6 +141,18 @@ export function LeadActions({ lead, onDelete, onConvert, onFollowUp, users = [] 
                         onClick={handleCall}
                         className="h-8 w-8 hover:bg-blue-100"
                         title="Call"
+                    >
+                        <Phone className="h-4 w-4 text-blue-600" />
+                    </Button>
+                )}
+
+                {lead.secondaryContactNumber && (
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleCall(lead.secondaryContactNumber)}
+                        className="h-8 w-8 hover:bg-blue-100"
+                        title="Call Secondary"
                     >
                         <Phone className="h-4 w-4 text-blue-600" />
                     </Button>

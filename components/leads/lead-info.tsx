@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "react-hot-toast"
+import { useAuth } from "@/contexts/AuthContext"
 import {
   Loader2,
   ArrowLeft,
@@ -657,6 +658,7 @@ const getPackageDisplayName = (pkg: any): string => {
 export default function LeadDetailsPage() {
   const params = useParams();
   const router = useRouter();
+  const { user } = useAuth();
   const { confirm, ConfirmDialog } = useConfirmToast();
 
   const [lead, setLead] = useState<Lead | null>(null);
@@ -1032,11 +1034,22 @@ export default function LeadDetailsPage() {
       toast.error("Phone number is not available");
       return;
     }
+    const extension = String(user?.yeastarExt || user?.extId || "").trim();
+    if (!extension) {
+      toast.error("No Yeastar extension is assigned to your user account");
+      return;
+    }
 
     try {
-      await apiRequest(`/yeaster/makeCalls`, {
+      await apiRequest(`/yeaster/calls/make`, {
         method: 'POST',
-        body: JSON.stringify({ destination: phoneNumber })
+        body: JSON.stringify({
+          extension,
+          caller: extension,
+          callee: phoneNumber,
+          number: phoneNumber,
+          autoanswer: "yes",
+        })
       });
       toast.success(`Calling ${phoneNumber}`);
     } catch (error: any) {
@@ -1739,9 +1752,19 @@ export default function LeadDetailsPage() {
                       <Label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Secondary Phone
                       </Label>
-                      <p className="font-medium text-gray-900 dark:text-gray-100 text-sm">
-                        {lead.secondaryContactNumber}
-                      </p>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-medium text-gray-900 dark:text-gray-100 text-sm">
+                          {lead.secondaryContactNumber}
+                        </p>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleOutboundCall(lead.secondaryContactNumber!)}
+                          className="h-7 w-7 p-0 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/20"
+                        >
+                          <Phone className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2417,6 +2440,19 @@ export default function LeadDetailsPage() {
                         <Phone className="h-5 w-5 text-green-600 dark:text-green-400" />
                       </div>
                       <span className="font-medium text-sm">Call Lead</span>
+                    </Button>
+                  )}
+
+                  {lead.secondaryContactNumber && (
+                    <Button
+                      variant="outline"
+                      onClick={() => handleOutboundCall(lead.secondaryContactNumber!)}
+                      className="h-auto py-4 flex flex-col items-center justify-center gap-2 border-gray-300 dark:border-gray-700 hover:bg-green-50 dark:hover:bg-green-900/20"
+                    >
+                      <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/30">
+                        <PhoneCall className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      </div>
+                      <span className="font-medium text-sm">Call Secondary</span>
                     </Button>
                   )}
 

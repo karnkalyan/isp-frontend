@@ -1,7 +1,7 @@
 "use client"
 import React, { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { MoreHorizontal, ChevronDown, Check, User, FileText, Wifi, AlertTriangle, Ban, Loader2 } from "lucide-react"
+import { MoreHorizontal, ChevronDown, Check, User, FileText, Wifi, AlertTriangle, Ban, Loader2, Phone } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge"
 import { CardContainer } from "@/components/ui/card-container"
 import { toast } from "react-hot-toast"
 import { apiRequest } from "@/lib/api"
+import { useAuth } from "@/contexts/AuthContext"
 
 // Updated interface to match actual API response
 interface Customer {
@@ -157,6 +158,7 @@ interface CustomersResponse {
 }
 
 export function CustomersList() {
+  const { user } = useAuth()
   const [selectedCustomers, setSelectedCustomers] = useState<string[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
@@ -168,6 +170,34 @@ export function CustomersList() {
     totalPages: 1
   })
   const router = useRouter()
+
+  const handleOutboundCall = async (phoneNumber?: string) => {
+    if (!phoneNumber) {
+      toast.error("Phone number is not available")
+      return
+    }
+    const extension = String(user?.yeastarExt || user?.extId || "").trim()
+    if (!extension) {
+      toast.error("No Yeastar extension is assigned to your user account")
+      return
+    }
+
+    try {
+      await apiRequest(`/yeaster/calls/make`, {
+        method: "POST",
+        body: JSON.stringify({
+          extension,
+          caller: extension,
+          callee: phoneNumber,
+          number: phoneNumber,
+          autoanswer: "yes",
+        })
+      })
+      toast.success(`Calling ${phoneNumber}`)
+    } catch (error: any) {
+      toast.error(error.message || "Failed to initiate call")
+    }
+  }
 
   const fetchCustomers = async (page: number = 1, limit: number = 10) => {
     try {
@@ -402,7 +432,30 @@ export function CustomersList() {
                             <div>
                               <div className="font-medium">{fullName}</div>
                               <div className="text-xs text-muted-foreground">{customer.email}</div>
-                              <div className="text-xs text-muted-foreground">{customer.phoneNumber}</div>
+                              <button
+                                type="button"
+                                className="text-xs text-muted-foreground hover:text-green-600"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleOutboundCall(customer.phoneNumber)
+                                }}
+                              >
+                                <Phone className="inline h-3 w-3 mr-1" />
+                                {customer.phoneNumber}
+                              </button>
+                              {customer.secondaryPhone && (
+                                <button
+                                  type="button"
+                                  className="block text-xs text-muted-foreground hover:text-green-600"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleOutboundCall(customer.secondaryPhone)
+                                  }}
+                                >
+                                  <Phone className="inline h-3 w-3 mr-1" />
+                                  {customer.secondaryPhone}
+                                </button>
+                              )}
                             </div>
                           </div>
                         </td>

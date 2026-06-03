@@ -1409,7 +1409,7 @@ export function LeadManagement() {
         };
 
         if (phoneNumber) {
-            await apiRequest(`/yeaster/makeCalls`, {
+            await apiRequest(`/yeaster/calls/make`, {
                 method: 'POST',
                 body: JSON.stringify(callPayload)
             })

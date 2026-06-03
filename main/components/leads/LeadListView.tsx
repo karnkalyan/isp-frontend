@@ -757,7 +757,7 @@ export function ActiveLeads({
             return
         }
         try {
-            await apiRequest(`/yeaster/makeCalls`, {
+            await apiRequest(`/yeaster/calls/make`, {
                 method: 'POST',
                 body: JSON.stringify({ destination: phoneNumber })
             })

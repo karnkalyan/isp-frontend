@@ -54,6 +54,7 @@ import {
   Check
 } from "lucide-react"
 import { apiRequest, getDynamicBaseUrl } from "@/lib/api"
+import { useAuth } from "@/contexts/AuthContext"
 
 // TR-069 components
 import { TR069DeviceDetails } from "@/components/tr069/device-details"
@@ -794,6 +795,7 @@ function DataUsageHistory({ usernames }: DataUsageHistoryProps) {
 
 // ========== Main Component ==========
 export function CustomerProfile() {
+  const { user } = useAuth()
   const [activeTab, setActiveTab] = useState("overview")
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [loading, setLoading] = useState(true)
@@ -805,6 +807,8 @@ export function CustomerProfile() {
   // Additional service details
   const [tshulDetails, setTshulDetails] = useState<any>(null)
   const [nettvDetails, setNettvDetails] = useState<any>(null)
+  const [tshulMessage, setTshulMessage] = useState("")
+  const [nettvMessage, setNettvMessage] = useState("")
   const [loadingTshul, setLoadingTshul] = useState(false)
   const [loadingNettv, setLoadingNettv] = useState(false)
 
@@ -825,6 +829,34 @@ export function CustomerProfile() {
   const [hardwareSearch, setHardwareSearch] = useState("")
   const [availableStock, setAvailableStock] = useState<any[]>([])
   const [selectedHardwareId, setSelectedHardwareId] = useState<number | null>(null)
+
+  const handleOutboundCall = async (phoneNumber?: string | null) => {
+    if (!phoneNumber) {
+      toast({ title: "Phone number is not available", variant: "destructive" })
+      return
+    }
+    const extension = String(user?.yeastarExt || user?.extId || "").trim()
+    if (!extension) {
+      toast({ title: "No Yeastar extension is assigned to your user account", variant: "destructive" })
+      return
+    }
+
+    try {
+      await apiRequest(`/yeaster/calls/make`, {
+        method: "POST",
+        body: JSON.stringify({
+          extension,
+          caller: extension,
+          callee: phoneNumber,
+          number: phoneNumber,
+          autoanswer: "yes",
+        })
+      })
+      toast({ title: `Calling ${phoneNumber}` })
+    } catch (error: any) {
+      toast({ title: "Failed to initiate call", description: error.message, variant: "destructive" })
+    }
+  }
   const [stockLoading, setStockLoading] = useState(false)
 
   const fetchAvailableStock = async () => {
@@ -932,9 +964,16 @@ export function CustomerProfile() {
         setLoadingTshul(true)
         try {
           const res = await apiRequest(`/services/tshul/customers/${customer.customerUniqueId}`)
-          if (res.success) setTshulDetails(res.data)
-        } catch (error) {
-          console.error("Failed to fetch TSHUL details:", error)
+          if (res.configured === false) {
+            setTshulDetails(null)
+            setTshulMessage(res.message || "TSHUL service is not configured.")
+          } else if (res.success) {
+            setTshulDetails(res.data)
+            setTshulMessage("")
+          }
+        } catch (error: any) {
+          setTshulDetails(null)
+          setTshulMessage(error.message || "TSHUL service is not configured.")
         } finally {
           setLoadingTshul(false)
         }
@@ -949,9 +988,16 @@ export function CustomerProfile() {
         setLoadingNettv(true)
         try {
           const res = await apiRequest(`/services/nettv/subscribers/${customer.customerUniqueId}`)
-          if (res.success) setNettvDetails(res.data)
-        } catch (error) {
-          console.error("Failed to fetch NETTV details:", error)
+          if (res.configured === false) {
+            setNettvDetails(null)
+            setNettvMessage(res.message || "NetTV service is not configured.")
+          } else if (res.success) {
+            setNettvDetails(res.data)
+            setNettvMessage("")
+          }
+        } catch (error: any) {
+          setNettvDetails(null)
+          setNettvMessage(error.message || "NetTV service is not configured.")
         } finally {
           setLoadingNettv(false)
         }
@@ -1439,7 +1485,14 @@ export function CustomerProfile() {
               </div>
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 text-sm text-muted-foreground mt-1">
                 <div className="flex items-center"><Shield className="mr-1 h-4 w-4" /> ID Number: {customer.idNumber || "N/A"}</div>
-                <div className="flex items-center"><Phone className="mr-1 h-4 w-4" /> Mobile: {customer.phoneNumber}</div>
+                <button type="button" className="flex items-center hover:text-green-600" onClick={() => handleOutboundCall(customer.phoneNumber)}>
+                  <Phone className="mr-1 h-4 w-4" /> Mobile: {customer.phoneNumber}
+                </button>
+                {customer.secondaryPhone && (
+                  <button type="button" className="flex items-center hover:text-green-600" onClick={() => handleOutboundCall(customer.secondaryPhone)}>
+                    <Phone className="mr-1 h-4 w-4" /> Secondary: {customer.secondaryPhone}
+                  </button>
+                )}
                 <div className="flex items-center"><Mail className="mr-1 h-4 w-4" /> Email: {customer.email}</div>
                 <div className="flex items-center"><Calendar className="mr-1 h-4 w-4" /> Member Since: {formatDate(customer.createdAt)}</div>
               </div>
@@ -1508,8 +1561,14 @@ export function CustomerProfile() {
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Phone Number:</span>
-                    <span className="font-medium">{customer.phoneNumber}</span>
+                    <button type="button" className="font-medium hover:text-green-600" onClick={() => handleOutboundCall(customer.phoneNumber)}>{customer.phoneNumber}</button>
                   </div>
+                  {customer.secondaryPhone && (
+                    <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                      <span className="text-muted-foreground">Secondary Phone:</span>
+                      <button type="button" className="font-medium hover:text-green-600" onClick={() => handleOutboundCall(customer.secondaryPhone)}>{customer.secondaryPhone}</button>
+                    </div>
+                  )}
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Account Status:</span>
                     <span className="font-medium">{getStatusBadge(customer.status)}</span>
@@ -1868,6 +1927,11 @@ export function CustomerProfile() {
                 </div>
 
                 {/* TSHUL Details */}
+                {tshulMessage && !tshulDetails && (
+                  <div className="mt-4 p-4 border rounded-lg bg-amber-50 dark:bg-amber-900/20 text-sm text-amber-800 dark:text-amber-200">
+                    {tshulMessage}
+                  </div>
+                )}
                 {tshulDetails && (
                   <div className="mt-4 p-4 border rounded-lg bg-blue-50 dark:bg-blue-900/20">
                     <h4 className="font-medium mb-2 flex items-center gap-2"><Box className="h-4 w-4" /> TSHUL Customer Details</h4>
@@ -1888,6 +1952,11 @@ export function CustomerProfile() {
                 )}
 
                 {/* NETTV Details */}
+                {nettvMessage && !nettvDetails && (
+                  <div className="mt-4 p-4 border rounded-lg bg-amber-50 dark:bg-amber-900/20 text-sm text-amber-800 dark:text-amber-200">
+                    {nettvMessage}
+                  </div>
+                )}
                 {nettvDetails && (
                   <div className="mt-4 p-4 border rounded-lg bg-green-50 dark:bg-green-900/20">
                     <h4 className="font-medium mb-2 flex items-center gap-2"><Box className="h-4 w-4" /> NETTV Subscriber Details</h4>

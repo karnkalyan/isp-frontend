@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { toast } from "react-hot-toast"
 import { useRouter } from "next/navigation"
+import { useAuth } from "@/contexts/AuthContext"
 
 import {
   Save,
@@ -541,6 +542,7 @@ const SplitterMarker = ({ splitter }: { splitter: Splitter }) => {
 
 export function LeadManagement() {
   const router = useRouter()
+  const { user } = useAuth()
   const [activeTab, setActiveTab] = useState("list")
   const [leads, setLeads] = useState<Lead[]>([])
   const [convertedLeads, setConvertedLeads] = useState<Lead[]>([])
@@ -1548,21 +1550,31 @@ export function LeadManagement() {
   }
 
   const handleOutboundcalls = async (phoneNumber: string) => {
-    const callPayload = {
-      destination: phoneNumber,
-    };
+    if (!phoneNumber) {
+      toast.error("Phone number is not available")
+      return
+    }
+    const extension = String(user?.yeastarExt || user?.extId || "").trim()
+    if (!extension) {
+      toast.error("No Yeastar extension is assigned to your user account")
+      return
+    }
 
-    if (phoneNumber) {
-      await apiRequest(`/yeaster/call/make`, {
+    try {
+      await apiRequest(`/yeaster/calls/make`, {
         method: 'POST',
         body: JSON.stringify({
+          extension,
+          caller: extension,
           callee: phoneNumber,
-          autoAnswer: true
+          number: phoneNumber,
+          autoanswer: "yes",
         })
       })
       toast.success("Calling " + phoneNumber)
-    } else {
-      toast.error("Phone number is not available")
+    } catch (error: any) {
+      console.error("Call error:", error)
+      toast.error(error.message || "Failed to initiate call")
     }
   }
 
@@ -2882,7 +2894,10 @@ export function LeadManagement() {
 
                                 {lead.secondaryContactNumber && (
                                   <div className="flex items-center gap-1 text-sm">
-                                    <PhoneIcon className="h-3 w-3" />
+                                    <PhoneIcon
+                                      className="h-3 w-3 cursor-pointer text-green-600 hover:text-blue-800"
+                                      onClick={() => handleOutboundcalls(lead.secondaryContactNumber!)}
+                                    />
                                     {lead.secondaryContactNumber}
                                   </div>
                                 )}
@@ -3582,9 +3597,19 @@ export function LeadManagement() {
                             )}
                           </div>
                           {viewLead.secondaryContactNumber && (
-                            <div>
-                              <Label className="text-sm text-muted-foreground mb-1 block">Secondary Phone</Label>
-                              <p className="font-medium">{viewLead.secondaryContactNumber}</p>
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <Label className="text-sm text-muted-foreground mb-1 block">Secondary Phone</Label>
+                                <p className="font-medium">{viewLead.secondaryContactNumber}</p>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleOutboundcalls(viewLead.secondaryContactNumber!)}
+                                className="ml-2 text-green-600 hover:text-green-700"
+                              >
+                                <Phone className="h-4 w-4" />
+                              </Button>
                             </div>
                           )}
                         </div>

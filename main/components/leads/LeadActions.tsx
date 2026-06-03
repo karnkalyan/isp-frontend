@@ -56,7 +56,7 @@ export function LeadActions({ lead, onDelete, onConvert, onFollowUp, users = [] 
                 destination: lead.phoneNumber,
             };
 
-            apiRequest(`/yeaster/makeCalls`, {
+            apiRequest(`/yeaster/calls/make`, {
                 method: 'POST',
                 body: JSON.stringify(callPayload)
             })

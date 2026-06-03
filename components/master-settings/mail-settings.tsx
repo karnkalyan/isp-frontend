@@ -17,6 +17,14 @@ export function MailSettings() {
     smtpPass: "",
     smtpFrom: "",
     smtpSecure: false,
+    enableEmailService: true,
+    enableMailNotifications: true,
+    enableSmsService: true,
+    imapHost: "",
+    imapPort: "993",
+    imapUser: "",
+    imapPass: "",
+    imapSecure: true,
   })
   const [saving, setSaving] = useState(false)
 
@@ -33,6 +41,14 @@ export function MailSettings() {
             smtpPass: data.smtpPass || prev.smtpPass,
             smtpFrom: data.smtpFrom || prev.smtpFrom,
             smtpSecure: data.smtpSecure === 'true',
+            enableEmailService: data.enableEmailService !== 'false',
+            enableMailNotifications: data.enableMailNotifications === 'true',
+            enableSmsService: data.enableSmsService !== 'false',
+            imapHost: data.imapHost || prev.imapHost,
+            imapPort: data.imapPort || prev.imapPort,
+            imapUser: data.imapUser || prev.imapUser,
+            imapPass: data.imapPass || prev.imapPass,
+            imapSecure: data.imapSecure !== 'false',
           }))
         }
       } catch (e) {
@@ -80,6 +96,32 @@ export function MailSettings() {
         </Button>
       </div>
 
+      <CardContainer title="Communication Services" description="Enable or disable outgoing communication services">
+        <div className="grid gap-5 md:grid-cols-3">
+          <div className="flex items-center justify-between rounded-md border p-4">
+            <div className="space-y-0.5">
+              <Label>Email Service</Label>
+              <div className="text-sm text-muted-foreground">Master SMTP on/off switch</div>
+            </div>
+            <Switch checked={settings.enableEmailService} onCheckedChange={checked => updateSetting("enableEmailService", checked)} />
+          </div>
+          <div className="flex items-center justify-between rounded-md border p-4">
+            <div className="space-y-0.5">
+              <Label>Email Notifications</Label>
+              <div className="text-sm text-muted-foreground">Allow optional notification emails</div>
+            </div>
+            <Switch checked={settings.enableMailNotifications} onCheckedChange={checked => updateSetting("enableMailNotifications", checked)} />
+          </div>
+          <div className="flex items-center justify-between rounded-md border p-4">
+            <div className="space-y-0.5">
+              <Label>SMS Service</Label>
+              <div className="text-sm text-muted-foreground">Master SMS gateway on/off switch</div>
+            </div>
+            <Switch checked={settings.enableSmsService} onCheckedChange={checked => updateSetting("enableSmsService", checked)} />
+          </div>
+        </div>
+      </CardContainer>
+
       <CardContainer title="SMTP Configuration" description="Provide your email server credentials">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
@@ -112,6 +154,34 @@ export function MailSettings() {
             <div className="text-sm text-muted-foreground">Enable secure connection</div>
           </div>
           <Switch checked={settings.smtpSecure} onCheckedChange={checked => updateSetting("smtpSecure", checked)} />
+        </div>
+      </CardContainer>
+
+      <CardContainer title="IMAP Inbox Configuration" description="Provide your mailbox credentials for incoming mail">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>IMAP Host</Label>
+            <Input value={settings.imapHost} onChange={e => updateSetting("imapHost", e.target.value)} placeholder="imap.gmail.com" />
+          </div>
+          <div className="space-y-2">
+            <Label>IMAP Port</Label>
+            <Input value={settings.imapPort} onChange={e => updateSetting("imapPort", e.target.value)} placeholder="993" />
+          </div>
+          <div className="space-y-2">
+            <Label>IMAP User</Label>
+            <Input value={settings.imapUser} onChange={e => updateSetting("imapUser", e.target.value)} placeholder="user@company.com" />
+          </div>
+          <div className="space-y-2">
+            <Label>IMAP Password</Label>
+            <Input type="password" value={settings.imapPass} onChange={e => updateSetting("imapPass", e.target.value)} placeholder="********" />
+          </div>
+        </div>
+        <div className="flex items-center justify-between mt-6 max-w-sm">
+          <div className="space-y-0.5">
+            <Label>Use IMAP SSL/TLS</Label>
+            <div className="text-sm text-muted-foreground">Most inboxes use SSL on port 993</div>
+          </div>
+          <Switch checked={settings.imapSecure} onCheckedChange={checked => updateSetting("imapSecure", checked)} />
         </div>
       </CardContainer>
     </div>
