@@ -21,6 +21,8 @@ import {
   GitBranch,
   MapPin,
   ScanLine,
+  Clock,
+  XCircle,
 } from "lucide-react"
 import {
   Select,
@@ -32,6 +34,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "sonner"
 import { apiRequest } from "@/lib/api"
 import { SearchableSelect } from "@/components/ui/searchable-select"
@@ -57,6 +60,11 @@ export function SmsCampaign() {
   const [credit, setCredit] = useState<any>(null)
   const [smsProviders, setSmsProviders] = useState<any[]>([])
   const [selectedProvider, setSelectedProvider] = useState<string>("")
+  const [includeAllMatching, setIncludeAllMatching] = useState(true)
+  const [campaigns, setCampaigns] = useState<any[]>([])
+  const [campaignLogs, setCampaignLogs] = useState<any[]>([])
+  const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null)
+  const [logsLoading, setLogsLoading] = useState(false)
 
   // Derive hierarchy: Head Office (parentId null) -> Branches -> Sub-Branches
   const headOffices = React.useMemo(() => allBranchData.filter((b: any) => b.parentId === null), [allBranchData])
@@ -138,12 +146,25 @@ export function SmsCampaign() {
     fetchOlts()
     fetchSplitters()
     fetchSmsProviders()
+    fetchCampaigns()
   }, [])
 
   // Fetch recipients when filters change
   useEffect(() => {
     fetchRecipients()
   }, [recipientType, filters, selectedHeadOffices, selectedBranches, selectedSubBranches])
+
+  useEffect(() => {
+    const hasActiveCampaign = campaigns.some((campaign) => ["queued", "processing"].includes(campaign.status))
+    if (!hasActiveCampaign) return
+
+    const interval = window.setInterval(() => {
+      fetchCampaigns()
+      if (selectedCampaignId) fetchCampaignLogs(selectedCampaignId)
+    }, 5000)
+
+    return () => window.clearInterval(interval)
+  }, [campaigns, selectedCampaignId])
 
   const fetchBranches = async () => {
     try {
@@ -190,6 +211,33 @@ export function SmsCampaign() {
       }
     } catch (err) {
       console.error("Failed to fetch SMS providers")
+    }
+  }
+
+  const fetchCampaigns = async () => {
+    try {
+      const res = await apiRequest<any>("/service/sms/campaigns?limit=10")
+      const list = Array.isArray(res) ? res : (res?.data || [])
+      setCampaigns(list)
+      const active = list.find((campaign: any) => ["queued", "processing"].includes(campaign.status))
+      if (active) {
+        setSelectedCampaignId(active.id)
+        fetchCampaignLogs(active.id)
+      }
+    } catch (err) {
+      console.error("Failed to fetch SMS campaigns")
+    }
+  }
+
+  const fetchCampaignLogs = async (campaignId: number) => {
+    setLogsLoading(true)
+    try {
+      const res = await apiRequest<any>(`/service/sms/campaigns/${campaignId}/logs?limit=100`)
+      setCampaignLogs(res?.data || [])
+    } catch (err) {
+      console.error("Failed to fetch SMS campaign logs")
+    } finally {
+      setLogsLoading(false)
     }
   }
 
@@ -263,7 +311,7 @@ export function SmsCampaign() {
       toast.error("Please write a message before sending.")
       return
     }
-    if (recipients.length === 0) {
+    if (!includeAllMatching && recipients.length === 0) {
       toast.error("No recipients found with valid phone numbers.")
       return
     }
@@ -275,20 +323,37 @@ export function SmsCampaign() {
     setSending(true)
     try {
       const phones = recipients.map(r => r.phone)
-      await apiRequest("/service/sms/send-bulk", {
+      const scopedBranchIds = Array.from(getSelectedBranchScope())
+      const campaignFilters: any = {
+        status: filters.status,
+        area: filters.area,
+        branchIds: scopedBranchIds,
+      }
+
+      if (recipientType === "customer") {
+        campaignFilters.oltId = filters.oltId
+        campaignFilters.splitterId = filters.splitterId
+      }
+
+      const res = await apiRequest<any>("/service/sms/campaigns", {
         method: "POST",
         body: JSON.stringify({
           to: phones,
           text: message,
           type: recipientType,
-          provider: selectedProvider
+          provider: selectedProvider,
+          selectAll: includeAllMatching,
+          filters: campaignFilters,
         })
       })
-      toast.success(`Successfully sent SMS to ${recipients.length} recipients.`)
+      const queued = res?.data?.queuedCount || 0
+      const skipped = res?.data?.skippedCount || 0
+      toast.success(`SMS campaign queued for ${queued} recipients${skipped ? `, ${skipped} skipped` : ""}.`)
       setMessage("")
       fetchCredit(selectedProvider)
+      fetchCampaigns()
     } catch (err: any) {
-      toast.error(err.message || "Failed to send bulk SMS")
+      toast.error(err.message || "Failed to queue SMS campaign")
     } finally {
       setSending(false)
     }
@@ -314,6 +379,8 @@ export function SmsCampaign() {
     filters.area !== "",
     filters.status !== "all",
   ].filter(Boolean).length
+
+  const activeCampaign = campaigns.find((campaign) => selectedCampaignId ? campaign.id === selectedCampaignId : ["queued", "processing"].includes(campaign.status))
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-10">
@@ -550,7 +617,7 @@ export function SmsCampaign() {
                 </Badge>
               </div>
               <p className="text-[10px] text-muted-foreground italic">
-                Only recipients with valid mobile numbers will be targeted.
+                {includeAllMatching ? "Preview is limited, but campaign will target every matching valid mobile number." : "Only loaded recipients with valid mobile numbers will be targeted."}
               </p>
               <Button variant="ghost" size="sm" className="w-full mt-2 h-7 text-xs gap-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={fetchRecipients} disabled={loading}>
                 <RefreshCw className="h-3 w-3" />
@@ -633,10 +700,26 @@ export function SmsCampaign() {
             </div>
 
             <div className="pt-6 border-t border-border mt-auto">
+              <div className="flex items-start gap-3 rounded-md border border-border bg-muted/30 p-3 mb-4">
+                <Checkbox
+                  id="include-all-matching"
+                  checked={includeAllMatching}
+                  onCheckedChange={(checked) => setIncludeAllMatching(checked === true)}
+                  className="mt-0.5"
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="include-all-matching" className="text-sm font-medium">
+                    Select every matching recipient
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Sends to all leads/customers matching these filters, not only the loaded preview.
+                  </p>
+                </div>
+              </div>
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
                 <div className="flex items-center gap-2 text-amber-600 bg-amber-500/5 px-3 py-1.5 rounded-full border border-amber-500/10">
                   <AlertCircle className="h-4 w-4" />
-                  <span className="text-xs font-medium">Estimated Cost: {recipients.length} Credits</span>
+                  <span className="text-xs font-medium">Estimated Cost: {includeAllMatching ? "All matching recipients" : `${recipients.length} Credits`}</span>
                 </div>
                 <div className="flex items-center gap-2 text-emerald-600 bg-emerald-500/5 px-3 py-1.5 rounded-full border border-emerald-500/10">
                   <CheckCircle2 className="h-4 w-4" />
@@ -646,17 +729,17 @@ export function SmsCampaign() {
               <Button
                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12 shadow-lg shadow-emerald-600/20 transition-all active:scale-[0.98]"
                 onClick={handleSend}
-                disabled={sending || loading || recipients.length === 0 || !message.trim()}
+                disabled={sending || loading || (!includeAllMatching && recipients.length === 0) || !message.trim()}
               >
                 {sending ? (
                   <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Dispatching Messages...
+                    Queueing Campaign...
                   </>
                 ) : (
                   <>
                     <Send className="mr-2 h-5 w-5" />
-                    Launch SMS Campaign ({recipients.length} recipients)
+                    Queue SMS Campaign ({includeAllMatching ? "all matching" : `${recipients.length} recipients`})
                   </>
                 )}
               </Button>
@@ -664,6 +747,103 @@ export function SmsCampaign() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="bg-card border-border shadow-sm">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <CardTitle className="text-foreground flex items-center gap-2 text-base">
+                <Clock className="h-5 w-5 text-indigo-500" />
+                Campaign Queue & Logs
+              </CardTitle>
+              <CardDescription>Track queued, sent, failed, and skipped campaign recipients.</CardDescription>
+            </div>
+            <Button variant="outline" size="sm" onClick={fetchCampaigns} className="gap-1.5">
+              <RefreshCw className="h-3.5 w-3.5" />
+              Refresh
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {campaigns.length === 0 ? (
+            <div className="text-sm text-muted-foreground border border-dashed rounded-md p-4">
+              No SMS campaigns found yet.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                {campaigns.map((campaign) => (
+                  <button
+                    key={campaign.id}
+                    type="button"
+                    className={`w-full text-left rounded-md border p-3 transition-colors ${selectedCampaignId === campaign.id || (!selectedCampaignId && activeCampaign?.id === campaign.id) ? "border-indigo-500 bg-indigo-500/5" : "border-border hover:bg-muted/50"}`}
+                    onClick={() => {
+                      setSelectedCampaignId(campaign.id)
+                      fetchCampaignLogs(campaign.id)
+                    }}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium">Campaign #{campaign.id}</span>
+                      <Badge variant={campaign.status === "completed" ? "default" : campaign.status === "failed" ? "destructive" : "secondary"}>
+                        {campaign.status}
+                      </Badge>
+                    </div>
+                    <div className="mt-2 grid grid-cols-4 gap-2 text-[11px] text-muted-foreground">
+                      <span>Q {campaign.queuedCount}</span>
+                      <span className="text-emerald-600">S {campaign.sentCount}</span>
+                      <span className="text-red-600">F {campaign.failedCount}</span>
+                      <span>Skip {campaign.skippedCount}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <div className="lg:col-span-2 border rounded-md overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Error</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {logsLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                          <Loader2 className="mx-auto h-5 w-5 animate-spin" />
+                        </TableCell>
+                      </TableRow>
+                    ) : campaignLogs.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                          Select a campaign to view logs.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      campaignLogs.map((log) => (
+                        <TableRow key={log.id}>
+                          <TableCell className="font-mono text-xs">{log.phone}</TableCell>
+                          <TableCell className="text-xs">{log.name || "-"}</TableCell>
+                          <TableCell>
+                            <Badge variant={log.status === "sent" ? "default" : log.status === "failed" ? "destructive" : "secondary"} className="gap-1">
+                              {log.status === "sent" && <CheckCircle2 className="h-3 w-3" />}
+                              {log.status === "failed" && <XCircle className="h-3 w-3" />}
+                              {log.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="max-w-[260px] truncate text-xs text-muted-foreground">{log.errorMessage || "-"}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
