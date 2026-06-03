@@ -261,7 +261,7 @@ export function SmsCampaign() {
     setLoading(true)
     try {
       const endpoint = recipientType === "customer" ? "/customer" : "/lead"
-      const params = new URLSearchParams({ limit: "2000" })
+      const params = new URLSearchParams({ limit: "all" })
       if (filters.status !== "all") params.append("status", filters.status)
       if (recipientType === "customer") {
         if (filters.oltId !== "all") params.append("oltId", filters.oltId)
@@ -617,7 +617,7 @@ export function SmsCampaign() {
                 </Badge>
               </div>
               <p className="text-[10px] text-muted-foreground italic">
-                {includeAllMatching ? "Preview is limited, but campaign will target every matching valid mobile number." : "Only loaded recipients with valid mobile numbers will be targeted."}
+                {includeAllMatching ? "All matching valid mobile numbers will be targeted." : "Only loaded recipients with valid mobile numbers will be targeted."}
               </p>
               <Button variant="ghost" size="sm" className="w-full mt-2 h-7 text-xs gap-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={fetchRecipients} disabled={loading}>
                 <RefreshCw className="h-3 w-3" />
