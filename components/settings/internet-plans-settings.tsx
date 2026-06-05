@@ -35,6 +35,8 @@ export type InternetPlan = {
   packageType: string
   allowRename: boolean
   fupApply: boolean
+  fupLimitGb: number
+  fupPenaltyPlanId: number
   isFupPackage: boolean
   onlyRenewal: boolean
   applyFramedPool: boolean
@@ -93,6 +95,8 @@ const DEFAULT_PLAN: Omit<InternetPlan, "id"> = {
   packageType: "",
   allowRename: false,
   fupApply: true,
+  fupLimitGb: 0,
+  fupPenaltyPlanId: 0,
   isFupPackage: false,
   onlyRenewal: false,
   applyFramedPool: false,
@@ -200,6 +204,8 @@ export function InternetPlansSettings() {
         packageType: r.packageType || "",
         allowRename: Boolean(r.allowRename),
         fupApply: r.fupApply !== undefined ? Boolean(r.fupApply) : true,
+        fupLimitGb: Number(r.fupLimitGb ?? 0),
+        fupPenaltyPlanId: Number(r.fupPenaltyPlanId ?? 0),
         isFupPackage: Boolean(r.isFupPackage),
         onlyRenewal: Boolean(r.onlyRenewal),
         applyFramedPool: Boolean(r.applyFramedPool),
@@ -252,6 +258,8 @@ export function InternetPlansSettings() {
     packageType: newPlan.packageType || null,
     allowRename: newPlan.allowRename,
     fupApply: newPlan.fupApply,
+    fupLimitGb: newPlan.fupApply && !newPlan.isFupPackage ? newPlan.fupLimitGb || null : null,
+    fupPenaltyPlanId: newPlan.fupApply && !newPlan.isFupPackage ? newPlan.fupPenaltyPlanId || null : null,
     isFupPackage: newPlan.isFupPackage,
     onlyRenewal: newPlan.onlyRenewal,
     applyFramedPool: newPlan.applyFramedPool,
@@ -325,6 +333,13 @@ export function InternetPlansSettings() {
   const selectedType = useMemo(() => {
     return ispTypes.find((t) => t.id === newPlan.connectionType)
   }, [ispTypes, newPlan.connectionType])
+
+  const fupPenaltyPlanOptions: Option[] = internetPlans
+    .filter((plan) => plan.isFupPackage && plan.id !== editingId)
+    .map((plan) => ({
+      value: plan.id,
+      label: `${plan.name} (${plan.downloadSpeed}/${plan.uploadSpeed} Mbps)`,
+    }))
 
   // NAS Type checkbox toggle
   const toggleNasType = (type: string) => {
@@ -711,6 +726,31 @@ export function InternetPlansSettings() {
               <Label htmlFor="highPriority" className="text-sm">High Priority</Label>
             </div>
           </div>
+
+          {newPlan.fupApply && !newPlan.isFupPackage && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+              <div className="space-y-2">
+                <Label htmlFor="fupLimitGb">FUP Limit (GB)</Label>
+                <Input
+                  id="fupLimitGb"
+                  type="number"
+                  min={0}
+                  value={String(newPlan.fupLimitGb)}
+                  onChange={(e) => setNewPlan({ ...newPlan, fupLimitGb: +e.target.value || 0 })}
+                  placeholder="e.g., 1000"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="fupPenaltyPlanId">FUP Penalty Plan</Label>
+                <SearchableSelect
+                  options={fupPenaltyPlanOptions}
+                  value={newPlan.fupPenaltyPlanId ? String(newPlan.fupPenaltyPlanId) : ""}
+                  onValueChange={(v) => setNewPlan({ ...newPlan, fupPenaltyPlanId: Number(Array.isArray(v) ? v[0] : v) || 0 })}
+                  placeholder="Select FUP Package"
+                />
+              </div>
+            </div>
+          )}
 
           {/* ===== Framed Pool ===== */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
