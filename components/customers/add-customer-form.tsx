@@ -297,6 +297,8 @@ interface Package {
   id: number
   packageName: string
   price: number
+  initialTotalWithTax?: number | null
+  renewAmountWithTax?: number | null
   packageDuration: string
   isTrial: boolean
   referenceId: string
@@ -1173,7 +1175,6 @@ export function AddCustomerForm() {
 
   const [serviceDetails, setServiceDetails] = useState({
     connectionType: "fiber", // fiber, wireless
-    assignedPkg: "",
     subscribedPkgId: "",
   })
 
@@ -2024,6 +2025,11 @@ export function AddCustomerForm() {
       isValid = false
     }
 
+    if (!serviceDetails.subscribedPkgId) {
+      newErrors.subscribedPkgId = "Please select a subscribed package"
+      isValid = false
+    }
+
     // For fiber, require that a discovered ONT is selected and matched
     if (serviceDetails.connectionType === "fiber" && provisionDetails.splitterId) {
       if (!selectedDiscoveredOnt) {
@@ -2046,7 +2052,7 @@ export function AddCustomerForm() {
 
     setErrors(newErrors)
     return isValid
-  }, [selectedLead, serviceDetails.connectionType, provisionDetails.splitterId, selectedDiscoveredOnt, matchedDeviceForOnt, wirelessCredentials])
+  }, [selectedLead, serviceDetails.connectionType, serviceDetails.subscribedPkgId, provisionDetails.splitterId, selectedDiscoveredOnt, matchedDeviceForOnt, wirelessCredentials])
 
   const handleTabChange = useCallback((newTab: string) => {
     setActiveTab(newTab)
@@ -2093,7 +2099,6 @@ export function AddCustomerForm() {
       }
       formData.append("serviceConnection", JSON.stringify(serviceConnection))
 
-      if (serviceDetails.assignedPkg) formData.append("assignedPkg", serviceDetails.assignedPkg)
       if (serviceDetails.subscribedPkgId) formData.append("subscribedPkgId", serviceDetails.subscribedPkgId)
 
       if (referenceDetails.membershipId) formData.append("membershipId", referenceDetails.membershipId)
@@ -2308,7 +2313,6 @@ export function AddCustomerForm() {
     setMapPosition([27.7172, 85.3240])
     setServiceDetails({
       connectionType: "fiber",
-      assignedPkg: "",
       subscribedPkgId: "",
     })
     setProvisionDetails({
@@ -3433,6 +3437,7 @@ export function AddCustomerForm() {
                         placeholder={loading.packages ? "Loading packages..." : "Select subscribed package"}
                         disabled={loading.packages}
                       />
+                      {errors.subscribedPkgId && <p className="text-sm text-red-500">{errors.subscribedPkgId}</p>}
                     </div>
                   </div>
 

@@ -76,6 +76,14 @@ export default function RechargePage() {
     }
   }
 
+  const getRechargeAmount = (pkg: any, customer = selectedCustomer) => {
+    if (!pkg) return 0
+    if (customer?.isRechargeable) {
+      return pkg.renewAmountWithTax ?? pkg.price ?? 0
+    }
+    return pkg.initialTotalWithTax ?? pkg.price ?? 0
+  }
+
   const handleRecharge = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedCustomer) {
@@ -99,7 +107,7 @@ export default function RechargePage() {
           customerId: selectedCustomer.id,
           packageId: selectedPackage.id,
           invoiceId: invoiceId,
-          amount: selectedPackage.price
+          amount: getRechargeAmount(selectedPackage)
         })
       })
 
@@ -200,9 +208,9 @@ export default function RechargePage() {
                         <SelectValue placeholder="Choose a package plan..." />
                       </SelectTrigger>
                       <SelectContent className="bg-slate-900 border-slate-800 text-white">
-                        {packages.map((pkg) => (
+                        {packages.filter((pkg) => !pkg.isTrial).map((pkg) => (
                           <SelectItem key={pkg.id} value={String(pkg.id)}>
-                            {pkg.packagePlanDetails?.planName || "Package"} - {pkg.price} NPR ({pkg.packageDuration} Days)
+                            {pkg.packagePlanDetails?.planName || "Package"} - {getRechargeAmount(pkg)} NPR ({pkg.packageDuration})
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -226,15 +234,18 @@ export default function RechargePage() {
                     <div className="space-y-2">
                       <Label className="text-slate-300">Recharge Amount (NPR)</Label>
                       <Input
-                        value={selectedPackage ? selectedPackage.price : ""}
+                        value={selectedPackage ? getRechargeAmount(selectedPackage) : ""}
                         disabled
                         className="bg-slate-950 border-slate-800 text-slate-400 font-semibold"
                       />
+                      <p className="text-[10px] text-slate-500">
+                        {selectedCustomer?.isRechargeable ? "Renewal amount for this package." : "New package amount for first payment."}
+                      </p>
                     </div>
                   </div>
 
                   <Button type="submit" disabled={processing} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-11 rounded-lg">
-                    {processing ? "Processing Recharge..." : `Confirm & Process Recharge of ${selectedPackage ? selectedPackage.price : 0} NPR`}
+                    {processing ? "Processing Recharge..." : `Confirm & Process Recharge of ${selectedPackage ? getRechargeAmount(selectedPackage) : 0} NPR`}
                   </Button>
                 </form>
               </CardContainer>
