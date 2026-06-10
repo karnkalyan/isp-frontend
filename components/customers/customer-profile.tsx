@@ -75,6 +75,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -817,6 +818,8 @@ export function CustomerProfile() {
   const [changePackageOpen, setChangePackageOpen] = useState(false)
   const [resetMacOpen, setResetMacOpen] = useState(false)
   const [renewPackageOpen, setRenewPackageOpen] = useState(false)
+  const [deleteCustomerOpen, setDeleteCustomerOpen] = useState(false)
+  const [returnHardwareOpen, setReturnHardwareOpen] = useState(false)
 
   // Form states
   const [newUsername, setNewUsername] = useState("")
@@ -829,6 +832,7 @@ export function CustomerProfile() {
   const [hardwareSearch, setHardwareSearch] = useState("")
   const [availableStock, setAvailableStock] = useState<any[]>([])
   const [selectedHardwareId, setSelectedHardwareId] = useState<number | null>(null)
+  const [returnHardwareItem, setReturnHardwareItem] = useState<any | null>(null)
 
   const handleOutboundCall = async (phoneNumber?: string | null) => {
     if (!phoneNumber) {
@@ -862,9 +866,14 @@ export function CustomerProfile() {
   const fetchAvailableStock = async () => {
     setStockLoading(true)
     try {
-      const query = hardwareSearch ? `&search=${hardwareSearch}` : `&branchId=${customer?.branchId}&status=ASSIGNED_TO_BRANCH`
-      const data = await apiRequest<any>(`/inventory?status=IN_STOCK${query}`)
-      setAvailableStock(Array.isArray(data) ? data : (data?.data || []))
+      const params = new URLSearchParams()
+      if (hardwareSearch) params.set("search", hardwareSearch)
+      if (!hardwareSearch && customer?.branchId) params.set("branchId", customer.branchId.toString())
+      const queryString = params.toString()
+      const data = await apiRequest<any>(`/inventory${queryString ? `?${queryString}` : ""}`)
+      const rows = Array.isArray(data) ? data : (data?.data || [])
+      const assignableStatuses = new Set(["IN_STOCK", "ASSIGNED_TO_BRANCH", "ASSIGNED_TO_USER", "ASSIGNED_TO_ROLE", "RETURNED"])
+      setAvailableStock(rows.filter((item: any) => assignableStatuses.has(item.status) && !item.customerId && (item.availableQty ?? 1) > 0))
     } catch (e) {
       console.error(e)
     } finally {
@@ -1186,10 +1195,10 @@ export function CustomerProfile() {
   }
 
   const handleDeleteCustomer = async () => {
-    if (!confirm("Are you sure you want to delete this customer? This action cannot be undone.")) {
-      return
-    }
+    setDeleteCustomerOpen(true)
+  }
 
+  const confirmDeleteCustomer = async () => {
     try {
       setActionLoading(true)
       await apiRequest(`/customer/${customerId}`, {
@@ -1209,6 +1218,27 @@ export function CustomerProfile() {
         description: error.message || "Failed to delete customer",
         variant: "destructive",
       })
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const confirmReturnHardware = async (note: string, isFaulty: boolean) => {
+    if (!returnHardwareItem) return
+    try {
+      setActionLoading(true)
+      await apiRequest(`/inventory/${returnHardwareItem.id}/return`, {
+        method: "PUT",
+        body: JSON.stringify({
+          status: isFaulty ? "FAULTY" : "IN_STOCK",
+          note: note || `Returned from customer ${customer?.customerUniqueId || customerId}`,
+        }),
+      })
+      toast({ title: "Success", description: "Hardware returned successfully" })
+      setReturnHardwareItem(null)
+      fetchCustomerData()
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to return hardware", variant: "destructive" })
     } finally {
       setActionLoading(false)
     }
@@ -1457,6 +1487,35 @@ export function CustomerProfile() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={deleteCustomerOpen}
+        onOpenChange={setDeleteCustomerOpen}
+        title="Delete customer?"
+        description="This will revert the customer back to a qualified lead. Customers with assigned hardware cannot be deleted until devices are returned to stock, office, or staff."
+        confirmLabel="Delete Customer"
+        cancelLabel="Cancel"
+        variant="destructive"
+        onConfirm={confirmDeleteCustomer}
+      />
+
+      <ConfirmDialog
+        open={returnHardwareOpen}
+        onOpenChange={(open) => {
+          setReturnHardwareOpen(open)
+          if (!open) setReturnHardwareItem(null)
+        }}
+        title="Return hardware?"
+        description={`Return ${returnHardwareItem?.serialNumber || returnHardwareItem?.name || "this hardware"} from this customer before deleting or reassigning it.`}
+        confirmLabel="Return Hardware"
+        cancelLabel="Cancel"
+        showInput
+        inputLabel="Return note"
+        inputPlaceholder="Reason or office/staff return note"
+        showCheckbox
+        checkboxLabel="Mark device as faulty"
+        onConfirm={confirmReturnHardware}
+      />
 
       <CardContainer title="Customer Information" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -2260,16 +2319,9 @@ export function CustomerProfile() {
                              variant="outline" 
                              size="sm" 
                              className="bg-rose-50 text-rose-600 border-rose-100 hover:bg-rose-100 h-8 gap-1"
-                             onClick={async () => {
-                               if(confirm(`Process return for device ${item.serialNumber}?`)) {
-                                 const isFaulty = confirm("Is this device faulty?")
-                                 const note = prompt("Additional notes?")
-                                 try {
-                                   await apiRequest(`/inventory/${item.id}/return`, { method: "PUT", body: JSON.stringify({ status: isFaulty ? 'FAULTY' : 'IN_STOCK', note }) })
-                                   toast({ title: "Success", description: "Hardware returned to stock" })
-                                   fetchCustomerData()
-                                 } catch(e:any) { toast({title: "Error", description: e.message, variant: "destructive"}) }
-                               }
+                             onClick={() => {
+                               setReturnHardwareItem(item)
+                               setReturnHardwareOpen(true)
                              }}
                           >
                             <ArrowRightLeft className="h-3 w-3" /> Return

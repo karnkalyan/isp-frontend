@@ -32,11 +32,12 @@ export function InventoryLifecycle() {
   const { selectedBranchId } = useBranch()
 
   useEffect(() => {
-    if (!selectedBranchId) return
     const fetchLifecycle = async () => {
       setLoading(true)
       try {
-        const response = await apiRequest(`/inventory?branchId=${selectedBranchId}&includeLogs=true`)
+        const params = new URLSearchParams({ includeLogs: "true" })
+        if (selectedBranchId) params.set("branchId", String(selectedBranchId))
+        const response = await apiRequest(`/inventory?${params.toString()}`)
         if (response.success) {
           setItems(response.data)
         }
@@ -49,24 +50,35 @@ export function InventoryLifecycle() {
     fetchLifecycle()
   }, [selectedBranchId])
 
-  const filteredItems = items.filter(item => 
-    item.name?.toLowerCase().includes(search.toLowerCase()) || 
-    item.serialNumber?.toLowerCase().includes(search.toLowerCase()) ||
-    item.macAddress?.toLowerCase().includes(search.toLowerCase()) ||
-    item.type?.toLowerCase().includes(search.toLowerCase())
-  )
+  const normalizeIdentifier = (value: any) => String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "")
+  const searchTerm = search.toLowerCase().trim()
+  const identifierSearch = normalizeIdentifier(search)
+  const filteredItems = items.filter(item => {
+    if (!searchTerm) return true
+    const customerName = `${item.customer?.lead?.firstName || ""} ${item.customer?.lead?.lastName || ""}`.trim()
+    const searchable = [
+      item.name,
+      item.serialNumber,
+      item.ponSerialNumber,
+      item.macAddress,
+      item.type,
+      item.status,
+      item.customer?.customerUniqueId,
+      customerName,
+      item.user?.name,
+      item.user?.email,
+      item.branch?.name,
+    ].filter(Boolean).join(" ").toLowerCase()
+
+    return searchable.includes(searchTerm)
+      || normalizeIdentifier(item.serialNumber).includes(identifierSearch)
+      || normalizeIdentifier(item.ponSerialNumber).includes(identifierSearch)
+      || normalizeIdentifier(item.macAddress).includes(identifierSearch)
+  })
 
   const handleOpenHistory = (item: any) => {
     setSelectedItem(item)
     setDialogOpen(true)
-  }
-
-  if (!selectedBranchId) {
-    return (
-      <div className="text-center p-8 text-muted-foreground border-2 border-dashed rounded-xl">
-        Please select a branch to view inventory lifecycle.
-      </div>
-    )
   }
 
   return (
@@ -109,8 +121,8 @@ export function InventoryLifecycle() {
             <TableHeader>
               <TableRow>
                 <TableHead>Device / Type</TableHead>
-                <TableHead>Serial Number</TableHead>
-                <TableHead>MAC Address</TableHead>
+                <TableHead>Identifiers</TableHead>
+                <TableHead>Current Location</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -128,16 +140,37 @@ export function InventoryLifecycle() {
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell className="font-mono text-sm">
-                    {item.serialNumber || "-"}
+                  <TableCell className="font-mono text-xs">
+                    <div>SN: {item.serialNumber || "-"}</div>
+                    {item.ponSerialNumber && <div>PON: {item.ponSerialNumber}</div>}
+                    {item.macAddress && <div>MAC: {item.macAddress}</div>}
                   </TableCell>
-                  <TableCell className="font-mono text-sm">
-                    {item.macAddress || "-"}
+                  <TableCell className="text-sm">
+                    {item.customer ? (
+                      <div>
+                        <div className="font-medium">{item.customer.customerUniqueId || `Customer #${item.customer.id}`}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {`${item.customer.lead?.firstName || ""} ${item.customer.lead?.lastName || ""}`.trim() || "Customer Assigned"}
+                        </div>
+                      </div>
+                    ) : item.user ? (
+                      <div>
+                        <div className="font-medium">{item.user.name || item.user.email}</div>
+                        <div className="text-xs text-muted-foreground">Staff/User</div>
+                      </div>
+                    ) : item.branch ? (
+                      <div>
+                        <div className="font-medium">{item.branch.name}</div>
+                        <div className="text-xs text-muted-foreground">Branch</div>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">Head office / stock</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Badge variant={
                       item.status === 'IN_STOCK' ? 'success' : 
-                      item.status === 'ASSIGNED' ? 'default' : 
+                      item.status?.startsWith('ASSIGNED_') || item.status === 'INSTALLED_AT_CUSTOMER' ? 'default' : 
                       item.status === 'FAULTY' ? 'destructive' : 'secondary'
                     }>
                       {(item.status || '').replace(/_/g, ' ')}
@@ -182,7 +215,7 @@ export function InventoryLifecycle() {
                       <span className="w-1.5 h-1.5 rounded-full bg-background" />
                     </div>
                     <div className="flex items-center justify-between gap-4">
-                      <span className="font-bold text-sm">{(log.action || '').replace(/_/g, ' ')}</span>
+                      <span className="font-bold text-sm">{(log.toStatus || log.action || '').replace(/_/g, ' ').toLowerCase()}</span>
                       <time className="text-[10px] text-muted-foreground">
                         {new Date(log.createdAt).toLocaleString()}
                       </time>

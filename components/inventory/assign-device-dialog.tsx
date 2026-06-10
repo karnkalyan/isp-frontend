@@ -21,8 +21,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Loader2, UserCheck, Building2 } from "lucide-react"
+import { AlertTriangle, Loader2, UserCheck, Building2 } from "lucide-react"
 import toast from "react-hot-toast"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface AssignDeviceDialogProps {
   open: boolean
@@ -41,6 +42,7 @@ export function AssignDeviceDialog({ open, onOpenChange, item, onSuccess }: Assi
   const [qtyToAssign, setQtyToAssign] = useState("1")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loading, setLoading] = useState(false)
+  const isAssignedToCustomer = item?.status === "ASSIGNED_TO_CUSTOMER" || Boolean(item?.customerId)
 
   useEffect(() => {
     if (open && item) {
@@ -89,6 +91,11 @@ export function AssignDeviceDialog({ open, onOpenChange, item, onSuccess }: Assi
   const handleSubmit = async () => {
     if (!selectedId) {
       toast.error("Please select an assignment target")
+      return
+    }
+
+    if (isAssignedToCustomer) {
+      toast.error("Return this hardware from the customer before assigning it again")
       return
     }
 
@@ -166,6 +173,15 @@ export function AssignDeviceDialog({ open, onOpenChange, item, onSuccess }: Assi
           </DialogDescription>
         </DialogHeader>
 
+        {isAssignedToCustomer && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              This hardware is already assigned to a customer. Return it to stock, branch, or staff before assigning it again.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {item && (
           <div className="rounded-lg bg-muted/50 p-3 text-sm space-y-1">
             <div className="flex justify-between">
@@ -188,7 +204,7 @@ export function AssignDeviceDialog({ open, onOpenChange, item, onSuccess }: Assi
         <div className="space-y-4 py-2">
           <div className="space-y-2">
             <Label>Assign To</Label>
-            <Select value={assignType} onValueChange={(v: any) => { setAssignType(v); setSelectedId(""); }}>
+            <Select value={assignType} onValueChange={(v: any) => { setAssignType(v); setSelectedId(""); }} disabled={isAssignedToCustomer}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -216,7 +232,7 @@ export function AssignDeviceDialog({ open, onOpenChange, item, onSuccess }: Assi
             <Label>
               {assignType === "branch" ? "Select Branch" : assignType === "user" ? "Select User" : "Select Customer"}
             </Label>
-            <Select value={selectedId} onValueChange={setSelectedId} disabled={loading}>
+            <Select value={selectedId} onValueChange={setSelectedId} disabled={loading || isAssignedToCustomer}>
               <SelectTrigger>
                 <SelectValue placeholder={`Choose a ${assignType}...`} />
               </SelectTrigger>
@@ -277,7 +293,7 @@ export function AssignDeviceDialog({ open, onOpenChange, item, onSuccess }: Assi
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting || !selectedId}>
+          <Button onClick={handleSubmit} disabled={isSubmitting || !selectedId || isAssignedToCustomer}>
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Assigning...

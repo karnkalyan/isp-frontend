@@ -1225,6 +1225,10 @@ export function AddCustomerForm() {
   const [wirelessCredentials, setWirelessCredentials] = useState<Array<{ username: string; password: string }>>([
     { username: "", password: "" },
   ])
+  const [customerLogin, setCustomerLogin] = useState({
+    username: "",
+    password: "",
+  })
 
   // Add‑on services selection (after customer creation)
   const [selectedAddonServices, setSelectedAddonServices] = useState<Set<string>>(new Set()) // "TSHUL", "RADIUS", "NETTV"
@@ -2138,6 +2142,8 @@ export function AddCustomerForm() {
       // Wireless Credentials (filter out empty)
       const validCredentials = wirelessCredentials.filter(c => c.username && c.password)
       formData.append("wirelessCredentials", JSON.stringify(validCredentials))
+      if (customerLogin.username.trim()) formData.append("customerLoginUsername", customerLogin.username.trim())
+      if (customerLogin.password.trim()) formData.append("customerLoginPassword", customerLogin.password.trim())
 
       const serviceConnection = {
         oltId: provisionDetails.oltId,
@@ -2182,6 +2188,9 @@ export function AddCustomerForm() {
         setCreatedCustomer(response.customer)
         setProvisionResult({ ...response, customer: response.customer, subscription: response.subscription, order: response.order })
         setShowProvisionSection(true)
+        if (response.customerLogin) {
+          toast.success(`Customer login: ${response.customerLogin.username} / ${response.customerLogin.password}`)
+        }
         toast.success("Customer created successfully in draft status!")
       } else {
         throw new Error(response.error || "Failed to create customer")
@@ -2192,7 +2201,7 @@ export function AddCustomerForm() {
     } finally {
       setIsSubmitting(false)
     }
-  }, [validateForm, formValues.idNumber, formValues.panNumber, devices, wirelessCredentials, provisionDetails, serviceDetails, referenceDetails, documents, matchedDeviceForOnt, selectedDiscoveredOnt])
+  }, [validateForm, formValues.idNumber, formValues.panNumber, devices, wirelessCredentials, customerLogin, provisionDetails, serviceDetails, referenceDetails, documents, matchedDeviceForOnt, selectedDiscoveredOnt])
 
   // Provision (activation) – now sends selected services to backend
   const handleProvisionCustomer = useCallback(async () => {
@@ -2390,6 +2399,7 @@ export function AddCustomerForm() {
     })
     setDevices([])
     setWirelessCredentials([{ username: "", password: "" }])
+    setCustomerLogin({ username: "", password: "" })
     setSelectedAddonServices(new Set())
     setNettvData(null)
     setDocuments(documents.map((doc) => ({ ...doc, file: null })))
@@ -3915,6 +3925,36 @@ export function AddCustomerForm() {
                       )}
                     </>
                   )}
+
+                  <div className="space-y-4 rounded-lg border p-4">
+                    <div className="space-y-1">
+                      <Label>Customer Login</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Portal login for the subscriber. Leave username blank to use the customer ID and password blank to auto-generate one.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label htmlFor="customerLoginUsername">Username</Label>
+                        <Input
+                          id="customerLoginUsername"
+                          placeholder="Auto from customer ID"
+                          value={customerLogin.username}
+                          onChange={(e) => setCustomerLogin((prev) => ({ ...prev, username: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="customerLoginPassword">Password</Label>
+                        <Input
+                          id="customerLoginPassword"
+                          type="password"
+                          placeholder="Auto-generate if blank"
+                          value={customerLogin.password}
+                          onChange={(e) => setCustomerLogin((prev) => ({ ...prev, password: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                  </div>
 
                   {/* User Credentials Section - Available for both fiber and wireless */}
                   <div className="space-y-4">

@@ -15,6 +15,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { CardContainer } from "@/components/ui/card-container"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { toast } from "react-hot-toast"
 import { apiRequest } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
@@ -163,6 +164,9 @@ export function CustomersList() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false)
+  const [pendingDeleteCustomerId, setPendingDeleteCustomerId] = useState<string | null>(null)
   const [pagination, setPagination] = useState<PaginationInfo>({
     page: 1,
     limit: 10,
@@ -256,22 +260,45 @@ export function CustomersList() {
     toast.loading("Checking connection status...", { duration: 2000 })
   }
 
-  const handleDeleteCustomer = async (customerId: string) => {
-    if (!confirm("Are you sure you want to delete this customer?")) {
-      return
-    }
+  const handleDeleteCustomer = (customerId: string) => {
+    setPendingDeleteCustomerId(customerId)
+    setDeleteDialogOpen(true)
+  }
 
+  const confirmDeleteCustomer = async () => {
+    if (!pendingDeleteCustomerId) return
     try {
-      await apiRequest(`/customer/${customerId}`, {
+      await apiRequest(`/customer/${pendingDeleteCustomerId}`, {
         method: 'DELETE',
       })
 
       toast.success("Customer deleted successfully")
       fetchCustomers(pagination.page, pagination.limit)
-      setSelectedCustomers(selectedCustomers.filter(id => id !== customerId))
+      setSelectedCustomers(selectedCustomers.filter(id => id !== pendingDeleteCustomerId))
     } catch (error: any) {
       console.error("Error deleting customer:", error)
       toast.error(error.message || "Failed to delete customer")
+    } finally {
+      setPendingDeleteCustomerId(null)
+    }
+  }
+
+  const confirmBulkDelete = async () => {
+    const ids = [...selectedCustomers]
+    const loadingToast = toast.loading(`Deleting ${ids.length} customers...`)
+    try {
+      let deleted = 0
+      for (const id of ids) {
+        await apiRequest(`/customer/${id}`, { method: 'DELETE' })
+        deleted += 1
+      }
+      toast.dismiss(loadingToast)
+      toast.success(`${deleted} customers deleted successfully`)
+      setSelectedCustomers([])
+      fetchCustomers(pagination.page, pagination.limit)
+    } catch (error: any) {
+      toast.dismiss(loadingToast)
+      toast.error(error.message || "Failed to delete selected customers")
     }
   }
 
@@ -365,6 +392,27 @@ export function CustomersList() {
   }
 
   return (
+    <>
+    <ConfirmDialog
+      open={deleteDialogOpen}
+      onOpenChange={setDeleteDialogOpen}
+      title="Delete customer?"
+      description="This will revert the customer to a qualified lead. Customers with assigned hardware must return devices before deletion."
+      confirmLabel="Delete Customer"
+      cancelLabel="Cancel"
+      variant="destructive"
+      onConfirm={confirmDeleteCustomer}
+    />
+    <ConfirmDialog
+      open={bulkDeleteDialogOpen}
+      onOpenChange={setBulkDeleteDialogOpen}
+      title="Delete selected customers?"
+      description="Each selected customer will be reverted to a qualified lead. Any customer with assigned hardware will be rejected by the server until devices are returned."
+      confirmLabel="Delete Selected"
+      cancelLabel="Cancel"
+      variant="destructive"
+      onConfirm={confirmBulkDelete}
+    />
     <CardContainer title="Customers" description="All registered customers">
       <div className="rounded-md border">
         <div className="relative w-full overflow-auto">
@@ -607,11 +655,7 @@ export function CustomersList() {
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-red-600"
-                onClick={() => {
-                  if (confirm(`Delete ${selectedCustomers.length} customers?`)) {
-                    toast.loading(`Deleting...`)
-                  }
-                }}
+                onClick={() => setBulkDeleteDialogOpen(true)}
               >
                 Delete Selected
               </DropdownMenuItem>
@@ -620,5 +664,6 @@ export function CustomersList() {
         </div>
       )}
     </CardContainer>
+    </>
   )
 }
