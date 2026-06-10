@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Badge } from "@/components/ui/badge"
 import { apiRequest } from "@/lib/api"
 import { toast } from "react-hot-toast"
 
@@ -29,6 +31,7 @@ export default function EditCustomerPage() {
   const [users, setUsers] = useState<OptionRecord[]>([])
   const [packages, setPackages] = useState<OptionRecord[]>([])
   const [existingISPs, setExistingISPs] = useState<OptionRecord[]>([])
+  const [uploadingDocument, setUploadingDocument] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -118,6 +121,26 @@ export default function EditCustomerPage() {
     }
   }
 
+  const uploadDocument = async (file: File | null, fieldName = "otherDocuments") => {
+    if (!file) return
+    const data = new FormData()
+    data.append(fieldName, file)
+    setUploadingDocument(true)
+    try {
+      await apiRequest(`/customer/${id}/documents`, {
+        method: "POST",
+        body: data,
+      })
+      const refreshed = await apiRequest(`/customer/${id}`)
+      setCustomer(refreshed)
+      toast.success("Document uploaded")
+    } catch (error: any) {
+      toast.error(error.message || "Failed to upload document")
+    } finally {
+      setUploadingDocument(false)
+    }
+  }
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -138,15 +161,26 @@ export default function EditCustomerPage() {
           </Alert>
         )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Customer Information</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="text-sm text-muted-foreground">Loading customer...</div>
-            ) : (
-              <form onSubmit={save} className="space-y-6">
+        {loading ? (
+          <Card>
+            <CardContent className="py-8 text-sm text-muted-foreground">Loading customer...</CardContent>
+          </Card>
+        ) : (
+          <Tabs defaultValue="profile" className="space-y-4">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="profile">Profile</TabsTrigger>
+              <TabsTrigger value="service">Service</TabsTrigger>
+              <TabsTrigger value="documents">Documents</TabsTrigger>
+              <TabsTrigger value="hardware">Hardware</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="profile">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Profile & References</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={save} className="space-y-6">
                 <div className="grid gap-4 md:grid-cols-3">
                   {["firstName", "middleName", "lastName", "email", "phoneNumber", "secondaryPhone", "streetAddress", "city", "district", "state", "zipCode", "idNumber", "panNumber"].map((field) => (
                     <div className="space-y-2" key={field}>
@@ -208,10 +242,122 @@ export default function EditCustomerPage() {
                   <Button type="button" variant="outline" onClick={() => router.push(`/customers/${id}`)}>Cancel</Button>
                   <Button type="submit" disabled={saving}>{saving ? "Saving..." : "Save Changes"}</Button>
                 </div>
-              </form>
-            )}
-          </CardContent>
-        </Card>
+                  </form>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="service">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Service Configuration</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="rounded-md border p-4">
+                      <div className="text-sm text-muted-foreground">Current Package</div>
+                      <div className="font-medium">{customer?.subscribedPkg?.packageName || customer?.subscribedPkg?.packagePlanDetails?.planName || "Not selected"}</div>
+                      <div className="text-xs text-muted-foreground">{customer?.subscribedPkg?.packageDuration || ""}</div>
+                    </div>
+                    <div className="rounded-md border p-4">
+                      <div className="text-sm text-muted-foreground">Status</div>
+                      <Badge variant="outline">{customer?.status || "unknown"}</Badge>
+                      <div className="mt-1 text-xs text-muted-foreground">{customer?.onboardStatus || ""}</div>
+                    </div>
+                  </div>
+                  <div className="rounded-md border p-4">
+                    <div className="mb-2 text-sm font-medium">Connection Details</div>
+                    {(customer?.serviceDetails || []).length > 0 ? (
+                      <div className="space-y-2 text-sm">
+                        {customer.serviceDetails.map((service: any) => (
+                          <div key={service.id} className="grid gap-2 md:grid-cols-4">
+                            <span>Type: {service.connectionType || "N/A"}</span>
+                            <span>OLT: {service.olt?.name || service.oltId || "N/A"}</span>
+                            <span>Splitter: {service.splitter?.name || service.splitterId || "N/A"}</span>
+                            <span>VLAN: {service.vlanId || "N/A"}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-muted-foreground">No connection details saved yet.</div>
+                    )}
+                  </div>
+                  <div className="flex justify-end">
+                    <Button type="button" onClick={() => router.push(`/customers/${id}`)}>Open Full Provisioning View</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="documents">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Documents</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {(customer?.documents || []).length > 0 ? customer.documents.map((doc: any) => (
+                      <div key={doc.id} className="rounded-md border p-3 text-sm">
+                        <div className="font-medium">{doc.documentType || "Document"}</div>
+                        <div className="text-xs text-muted-foreground">{doc.fileName}</div>
+                      </div>
+                    )) : <div className="text-sm text-muted-foreground">No documents uploaded yet.</div>}
+                  </div>
+                  <div className="rounded-md border p-4">
+                    <Label htmlFor="editDocumentUpload">Upload Document</Label>
+                    <Input
+                      id="editDocumentUpload"
+                      type="file"
+                      className="mt-2"
+                      disabled={uploadingDocument}
+                      accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                      onChange={(event) => uploadDocument(event.target.files?.[0] || null)}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="hardware">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Hardware & Devices</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <div className="mb-2 text-sm font-medium">Inventory Hardware</div>
+                    {(customer?.inventoryItems || []).length > 0 ? (
+                      <div className="grid gap-3 md:grid-cols-2">
+                        {customer.inventoryItems.map((item: any) => (
+                          <div key={item.id} className="rounded-md border p-3 text-sm">
+                            <div className="font-medium">{item.name || item.type} <Badge variant="outline">{item.status}</Badge></div>
+                            <div className="text-xs text-muted-foreground">SN: {item.serialNumber || "N/A"}</div>
+                            <div className="text-xs text-muted-foreground">MAC: {item.macAddress || "N/A"}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : <div className="text-sm text-muted-foreground">No inventory hardware assigned.</div>}
+                  </div>
+                  <div>
+                    <div className="mb-2 text-sm font-medium">Provisioned Devices</div>
+                    {(customer?.devices || []).length > 0 ? (
+                      <div className="grid gap-3 md:grid-cols-2">
+                        {customer.devices.map((device: any) => (
+                          <div key={device.id} className="rounded-md border p-3 text-sm">
+                            <div className="font-medium">{device.brand || device.deviceType} {device.model || ""}</div>
+                            <div className="text-xs text-muted-foreground">SN: {device.serialNumber || "N/A"}</div>
+                            <div className="text-xs text-muted-foreground">PON SN: {device.ponSerial || "N/A"}</div>
+                            <div className="text-xs text-muted-foreground">MAC: {device.macAddress || "N/A"}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : <div className="text-sm text-muted-foreground">No provisioned devices saved.</div>}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        )}
       </div>
     </DashboardLayout>
   )

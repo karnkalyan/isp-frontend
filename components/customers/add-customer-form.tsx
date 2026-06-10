@@ -1959,27 +1959,37 @@ export function AddCustomerForm() {
       return false
     }
 
-    // Get ultimate OLT and board port
-    const ultimateOlt = findUltimateOltForSplitter(provisionDetails.splitterId)
-    if (!ultimateOlt) {
-      toast.error("Could not determine ultimate OLT")
+    const selectedOlt = olts.find(o => o.id.toString() === provisionDetails.oltId)
+    if (!selectedOlt) {
+      toast.error("Please select a valid OLT")
       return false
     }
 
-    // Get board port from splitter path
-    const path = getSplitterPath(provisionDetails.splitterId)
-    const lastSplitter = path[path.length - 1]
-    const boardPortStr = lastSplitter?.connectedServiceBoard?.boardPort || ""
+    let boardPortStr = provisionDetails.oltPort || ""
+    let boardType = selectedOlt.serviceBoards?.[0]?.type
+
+    if (provisionDetails.useSplitter) {
+      const ultimateOlt = findUltimateOltForSplitter(provisionDetails.splitterId)
+      if (!ultimateOlt) {
+        toast.error("Could not determine OLT from selected splitter. Check splitter service-board mapping or use Direct OLT.")
+        return false
+      }
+
+      const path = getSplitterPath(provisionDetails.splitterId)
+      const lastSplitter = path[path.length - 1]
+      boardPortStr = lastSplitter?.connectedServiceBoard?.boardPort || ""
+      const selectedSplitter = splitters.find(s => s.id.toString() === provisionDetails.splitterId)
+      boardType = selectedSplitter?.connectedServiceBoard?.boardType || ultimateOlt.serviceBoards?.[0]?.type
+    }
+
     // boardPortStr format like "0/0/1"
     const [frame, slot, port] = boardPortStr.split('/').map(Number)
-    if (frame === undefined || slot === undefined || port === undefined) {
-      toast.error("Invalid board port format")
+    if ([frame, slot, port].some(part => Number.isNaN(part) || part === undefined)) {
+      toast.error("Invalid OLT port format. Use frame/slot/port, for example 0/0/1.")
       return false
     }
 
     // Determine board type
-    const selectedSplitter = splitters.find(s => s.id.toString() === provisionDetails.splitterId)
-    const boardType = selectedSplitter?.connectedServiceBoard?.boardType || ultimateOlt.serviceBoards?.[0]?.type
     const isEpon = boardType?.toUpperCase().includes("EPON")
 
     // Build serial
@@ -1990,7 +2000,6 @@ export function AddCustomerForm() {
     }
 
     // Get VLANs
-    const selectedOlt = olts.find(o => o.id.toString() === provisionDetails.oltId)
     const vlans = provisionDetails.selectedVlanIds
       .map(vlanId => {
         const vlan = selectedOlt?.vlans?.find(v => v.id === vlanId)
@@ -2101,7 +2110,13 @@ export function AddCustomerForm() {
     e.preventDefault()
 
     if (!validateForm()) {
-      toast.error("Please fix validation errors before creating customer")
+      setTimeout(() => {
+        setErrors((currentErrors) => {
+          const messages = Object.values(currentErrors).filter(Boolean)
+          toast.error(messages.length ? messages.join("\n") : "Please fix validation errors before creating customer")
+          return currentErrors
+        })
+      }, 0)
       return
     }
 
@@ -3951,7 +3966,7 @@ export function AddCustomerForm() {
                       Previous
                     </Button>
                     <Button type="submit" disabled={isSubmitting}>
-                      {isSubmitting ? "Saving Draft..." : "Save as Draft"}
+                      {isSubmitting ? "Creating Customer..." : "Create Customer"}
                     </Button>
                   </div>
                 </CardContent>
