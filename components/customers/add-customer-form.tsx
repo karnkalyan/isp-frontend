@@ -326,6 +326,11 @@ interface ExistingISP {
   type?: string
 }
 
+interface CustomerType {
+  id: number
+  name: string
+}
+
 interface OLT {
   id: number
   name: string
@@ -533,6 +538,10 @@ function formatMacAddress(value: string): string {
   return groups.join('.')
 }
 
+function normalizeIdentifier(value?: string | null): string {
+  return (value || "").replace(/[^a-fA-F0-9]/g, "").toLowerCase()
+}
+
 function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps) {
   const { user } = useAuth()
   const [formData, setFormData] = useState<CustomerDevice & { ponSerial?: string }>({
@@ -572,7 +581,7 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
   useEffect(() => {
     if (open && user?.id) {
       setLoadingInventory(true)
-      apiRequest(`/inventory?type=${formData.deviceType}&status=ASSIGNED_TO_USER&userId=${user.id}`)
+      apiRequest(`/inventory?type=${encodeURIComponent(formData.deviceType)}&status=ASSIGNED_TO_USER&userId=${user.id}`)
         .then(data => {
            const available = (data || []).filter((item: any) => 
                item.status === "ASSIGNED_TO_USER" && Number(item.userId) === Number(user.id) && !item.customerId
@@ -590,7 +599,13 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
 
   const handleInventorySelect = (value: string | string[]) => {
     const serialNumber = Array.isArray(value) ? value[0] : value
-    const item = inventoryItems.find(i => i.serialNumber === serialNumber)
+    const selectedIdentifier = normalizeIdentifier(serialNumber)
+    const item = inventoryItems.find(i =>
+      i.serialNumber === serialNumber ||
+      normalizeIdentifier(i.serialNumber) === selectedIdentifier ||
+      normalizeIdentifier(i.ponSerialNumber) === selectedIdentifier ||
+      normalizeIdentifier(i.macAddress) === selectedIdentifier
+    )
     if (item) {
       setFormData(prev => ({
         ...prev,
@@ -727,8 +742,8 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSubmit}>Save Device</Button>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button type="button" onClick={handleSubmit}>Save Device</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1099,8 +1114,8 @@ function NetTVDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleConfirm}>Confirm</Button>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button type="button" onClick={handleConfirm}>Confirm</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1128,6 +1143,7 @@ export function AddCustomerForm() {
   const [users, setUsers] = useState<User[]>([])
   const [memberships, setMemberships] = useState<Membership[]>([])
   const [existingISPs, setExistingISPs] = useState<ExistingISP[]>([])
+  const [customerTypes, setCustomerTypes] = useState<CustomerType[]>([])
   const [olts, setOlts] = useState<OLT[]>([])
   const [splitters, setSplitters] = useState<Splitter[]>([])
   const [servicesCatalog, setServicesCatalog] = useState<ServiceCatalogItem[]>([])
@@ -1137,6 +1153,7 @@ export function AddCustomerForm() {
     users: true,
     memberships: true,
     existingISPs: true,
+    customerTypes: true,
     olts: true,
     splitters: true,
     services: true,
@@ -1192,6 +1209,7 @@ export function AddCustomerForm() {
   const [referenceDetails, setReferenceDetails] = useState({
     membershipId: "",
     installedById: "",
+    customerTypeId: "",
     isReferenced: false,
     referencedById: "",
     existingISPId: "",
@@ -1300,6 +1318,7 @@ export function AddCustomerForm() {
           users: true,
           memberships: true,
           existingISPs: true,
+          customerTypes: true,
           olts: true,
           splitters: true,
           services: true,
@@ -1320,12 +1339,13 @@ export function AddCustomerForm() {
           }
         }
 
-        const [packagesData, usersData, membershipsData, existingISPsData, oltsData, splittersData, servicesData] =
+        const [packagesData, usersData, membershipsData, existingISPsData, customerTypesData, oltsData, splittersData, servicesData] =
           await Promise.all([
             apiRequest("/package-price").catch(() => []),
             apiRequest("/users").catch(() => []),
             apiRequest("/membership").catch(() => []),
             fetchExistingISPs(),
+            apiRequest("/customer-types").catch(() => []),
             apiRequest("/olt").catch(() => []),
             apiRequest("/splitters").catch(() => []),
             apiRequest("/services/catalog").catch(() => []),
@@ -1335,6 +1355,7 @@ export function AddCustomerForm() {
         setUsers(Array.isArray(usersData) ? usersData : [])
         setMemberships(Array.isArray(membershipsData) ? membershipsData : [])
         setExistingISPs(Array.isArray(existingISPsData) ? existingISPsData : [])
+        setCustomerTypes(Array.isArray(customerTypesData) ? customerTypesData : (Array.isArray(customerTypesData?.data) ? customerTypesData.data : []))
         setOlts(Array.isArray(oltsData?.data) ? oltsData.data : [])
         setSplitters(Array.isArray(splittersData?.data) ? splittersData.data : [])
         setServicesCatalog(Array.isArray(servicesData?.data) ? servicesData.data : [])
@@ -1346,6 +1367,7 @@ export function AddCustomerForm() {
           users: false,
           memberships: false,
           existingISPs: false,
+          customerTypes: false,
           olts: false,
           splitters: false,
           services: false,
@@ -1864,15 +1886,32 @@ export function AddCustomerForm() {
     const isEpon = boardType?.toUpperCase().includes("EPON")
 
     const ontIdentifier = ont.ont_id_details  // e.g., "414C434CB2C804B0" for GPON
+    const normalizedOnt = normalizeIdentifier(ontIdentifier)
 
     // Try to match with any added ONT device
     for (const device of devices) {
       if (device.deviceType !== "ONT") continue
 
+      const candidateIdentifiers = [
+        device.macAddress,
+        device.serialNumber,
+        device.ponSerial,
+        convertToPonHex(device.serialNumber || ""),
+        convertToPonHex(device.ponSerial || ""),
+      ]
+        .map(normalizeIdentifier)
+        .filter(Boolean)
+
+      if (candidateIdentifiers.includes(normalizedOnt)) {
+        setMatchedDeviceForOnt(device)
+        setSelectedDiscoveredOnt(prev => ({ ...prev, ont_id: ont.ont_id }))
+        toast.success(`Matched with device: ${device.brand} ${device.model}`)
+        return
+      }
+
       if (isEpon) {
         // EPON: match by MAC
-        const normalizedMac = device.macAddress?.replace(/[^a-fA-F0-9]/g, '').toLowerCase()
-        const normalizedOnt = ontIdentifier.replace(/[^a-fA-F0-9]/g, '').toLowerCase()
+        const normalizedMac = normalizeIdentifier(device.macAddress)
         if (normalizedMac && normalizedMac === normalizedOnt) {
           setMatchedDeviceForOnt(device)
           setSelectedDiscoveredOnt(prev => ({ ...prev, ont_id: ont.ont_id }))
@@ -2030,15 +2069,14 @@ export function AddCustomerForm() {
       isValid = false
     }
 
-    // For fiber, require that a discovered ONT is selected and matched
-    if (serviceDetails.connectionType === "fiber" && provisionDetails.splitterId) {
-      if (!selectedDiscoveredOnt) {
-        newErrors.ont = "Please select a discovered ONT"
-        isValid = false
-      } else if (!matchedDeviceForOnt) {
-        newErrors.ont = "Selected ONT does not match any added device"
-        isValid = false
-      }
+    if (!referenceDetails.customerTypeId) {
+      newErrors.customerTypeId = "Please select a customer type"
+      isValid = false
+    }
+
+    // Draft save is allowed without a matched ONT. Provisioning remains strict.
+    if (serviceDetails.connectionType === "fiber" && selectedDiscoveredOnt && !matchedDeviceForOnt) {
+      newErrors.ont = "Autofound ONT and selected device are not matched. Save as draft and update the device before provisioning."
     }
 
     // For wireless, require at least one valid credential set
@@ -2052,7 +2090,7 @@ export function AddCustomerForm() {
 
     setErrors(newErrors)
     return isValid
-  }, [selectedLead, serviceDetails.connectionType, serviceDetails.subscribedPkgId, provisionDetails.splitterId, selectedDiscoveredOnt, matchedDeviceForOnt, wirelessCredentials])
+  }, [selectedLead, serviceDetails.connectionType, serviceDetails.subscribedPkgId, referenceDetails.customerTypeId, provisionDetails.splitterId, selectedDiscoveredOnt, matchedDeviceForOnt, wirelessCredentials])
 
   const handleTabChange = useCallback((newTab: string) => {
     setActiveTab(newTab)
@@ -2103,6 +2141,7 @@ export function AddCustomerForm() {
 
       if (referenceDetails.membershipId) formData.append("membershipId", referenceDetails.membershipId)
       if (referenceDetails.installedById) formData.append("installedById", referenceDetails.installedById)
+      if (referenceDetails.customerTypeId) formData.append("customerTypeId", referenceDetails.customerTypeId)
       formData.append("isReferenced", referenceDetails.isReferenced.toString())
       if (referenceDetails.referencedById) formData.append("referencedById", referenceDetails.referencedById)
       if (referenceDetails.existingISPId) formData.append("existingISPId", referenceDetails.existingISPId)
@@ -2328,6 +2367,7 @@ export function AddCustomerForm() {
     setReferenceDetails({
       membershipId: "",
       installedById: "",
+      customerTypeId: "",
       isReferenced: false,
       referencedById: "",
       existingISPId: "",
@@ -2415,7 +2455,7 @@ export function AddCustomerForm() {
                         </div>
                         {result.message && <p className="text-sm mt-1">{result.message}</p>}
                         {!result.success && (
-                          <Button size="sm" variant="outline" className="mt-2" onClick={() => handleRetryService(result.service)}>
+                          <Button type="button" size="sm" variant="outline" className="mt-2" onClick={() => handleRetryService(result.service)}>
                             Retry
                           </Button>
                         )}
@@ -2432,7 +2472,7 @@ export function AddCustomerForm() {
                 <Button asChild>
                   <a href="/customers/all">View All Customers</a>
                 </Button>
-                <Button variant="outline" onClick={handleAddAnotherCustomer}>
+                <Button type="button" variant="outline" onClick={handleAddAnotherCustomer}>
                   Add Another Customer
                 </Button>
               </div>
@@ -2551,7 +2591,7 @@ export function AddCustomerForm() {
                     <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />
                   )}
                 </div>
-                <Button variant="outline" onClick={() => setLeadSearchQuery("")}>
+                <Button type="button" variant="outline" onClick={() => setLeadSearchQuery("")}>
                   Clear
                 </Button>
               </div>
@@ -2573,7 +2613,7 @@ export function AddCustomerForm() {
                         </p>
                         {lead.city && <p className="text-xs text-muted-foreground">{lead.city}</p>}
                       </div>
-                      <Button size="sm" variant="ghost">
+                      <Button type="button" size="sm" variant="ghost">
                         Select
                       </Button>
                     </div>
@@ -2592,7 +2632,7 @@ export function AddCustomerForm() {
               Using lead: <strong>{selectedLead.firstName} {selectedLead.lastName}</strong> (ID: {selectedLead.id}) - Status: <Badge variant="default" className="ml-1">Qualified</Badge>
               {loadingLeadDetails && <Loader2 className="ml-2 h-4 w-4 animate-spin inline" />}
             </span>
-            <Button variant="ghost" size="sm" onClick={() => setSelectedLead(null)}>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedLead(null)}>
               Change Lead
             </Button>
           </AlertDescription>
@@ -2700,6 +2740,7 @@ export function AddCustomerForm() {
 
             <div className="flex flex-col sm:flex-row gap-3 pt-4">
               <Button
+                type="button"
                 onClick={handleProvisionCustomer}
                 disabled={isProvisioning || createdCustomer.status === "active"}
                 className="flex items-center gap-2"
@@ -2708,6 +2749,7 @@ export function AddCustomerForm() {
                 {isProvisioning ? "Activating..." : "Activate Customer Now"}
               </Button>
               <Button
+                type="button"
                 variant="outline"
                 onClick={() => {
                   setIsSuccess(true)
@@ -2716,7 +2758,7 @@ export function AddCustomerForm() {
               >
                 Skip for Now
               </Button>
-              <Button variant="ghost" onClick={() => setShowProvisionSection(false)}>
+              <Button type="button" variant="ghost" onClick={() => setShowProvisionSection(false)}>
                 Back to Form
               </Button>
             </div>
@@ -2959,6 +3001,7 @@ export function AddCustomerForm() {
                             />
                           </div>
                           <Button
+                            type="button"
                             onClick={() => searchLocation(searchQuery)}
                             disabled={searching || !searchQuery.trim() || !!selectedLead}
                           >
@@ -3314,6 +3357,21 @@ export function AddCustomerForm() {
                     />
                   </div>
 
+                  <div className="space-y-2">
+                    <Label htmlFor="customerTypeId">Customer Type *</Label>
+                    <SearchableSelect
+                      options={customerTypes.map((type) => ({
+                        value: type.id.toString(),
+                        label: type.name,
+                      }))}
+                      value={referenceDetails.customerTypeId}
+                      onValueChange={(value) => handleReferenceChange("customerTypeId", Array.isArray(value) ? value[0] : value)}
+                      placeholder={loading.customerTypes ? "Loading customer types..." : "Select customer type"}
+                      disabled={loading.customerTypes}
+                    />
+                    {errors.customerTypeId && <p className="text-sm text-red-500">{errors.customerTypeId}</p>}
+                  </div>
+
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <Label htmlFor="isReferenced">
@@ -3363,13 +3421,18 @@ export function AddCustomerForm() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="leadId">
+                    <Label htmlFor="leadSummary">
                       <div className="flex items-center gap-2">
                         <Target className="h-4 w-4" />
-                        Lead ID
+                        Lead Relation
                       </div>
                     </Label>
-                    <Input id="leadId" value={referenceDetails.leadId} readOnly className="bg-muted" />
+                    <Input
+                      id="leadSummary"
+                      value={selectedLead ? `${selectedLead.firstName || ""} ${selectedLead.lastName || ""}`.trim() + ` - ${selectedLead.status}` : "No lead selected"}
+                      readOnly
+                      className="bg-muted"
+                    />
                   </div>
 
                   <div className="flex justify-between">
@@ -3738,10 +3801,10 @@ export function AddCustomerForm() {
                                   {device.notes && <div className="text-xs text-gray-500 mt-1">{device.notes}</div>}
                                 </div>
                                 <div className="flex gap-2">
-                                  <Button variant="ghost" size="sm" onClick={() => openDeviceDialogForEdit(index)}>
+                                  <Button type="button" variant="ghost" size="sm" onClick={() => openDeviceDialogForEdit(index)}>
                                     Edit
                                   </Button>
-                                  <Button variant="ghost" size="sm" onClick={() => removeDevice(index)}>
+                                  <Button type="button" variant="ghost" size="sm" onClick={() => removeDevice(index)}>
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
                                 </div>
@@ -3888,7 +3951,7 @@ export function AddCustomerForm() {
                       Previous
                     </Button>
                     <Button type="submit" disabled={isSubmitting}>
-                      {isSubmitting ? "Creating Customer..." : "Create Customer"}
+                      {isSubmitting ? "Saving Draft..." : "Save as Draft"}
                     </Button>
                   </div>
                 </CardContent>

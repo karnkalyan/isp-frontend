@@ -1631,6 +1631,7 @@ export function LeadManagement() {
       } else {
         toast.success(`Lead status changed to ${newStatus}`);
         fetchLeads(1); // Refresh to first page
+        setShowStatusChangeDialog(false);
       }
     } catch (error: any) {
       console.error("Change status error:", error);
