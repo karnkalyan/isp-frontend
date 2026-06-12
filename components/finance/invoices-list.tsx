@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { CardContainer } from "@/components/ui/card-container"
 import { StatusBadge } from "@/components/ui/status-badge"
-import { MoreHorizontal, FileText, Loader2, Search } from "lucide-react"
+import { MoreHorizontal, FileText, Loader2, Printer, Search } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,8 +15,142 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { apiRequest } from "@/lib/api"
 import { toast } from "react-hot-toast"
+
+const numberToWords = (amount: number) => {
+  const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"]
+  const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"]
+  const toWords = (n: number): string => {
+    if (n < 20) return ones[n]
+    if (n < 100) return `${tens[Math.floor(n / 10)]} ${ones[n % 10]}`.trim()
+    if (n < 1000) return `${ones[Math.floor(n / 100)]} Hundred ${toWords(n % 100)}`.trim()
+    if (n < 100000) return `${toWords(Math.floor(n / 1000))} Thousand ${toWords(n % 1000)}`.trim()
+    if (n < 10000000) return `${toWords(Math.floor(n / 100000))} Lakh ${toWords(n % 100000)}`.trim()
+    return `${toWords(Math.floor(n / 10000000))} Crore ${toWords(n % 10000000)}`.trim()
+  }
+  return `${toWords(Math.round(amount)) || "Zero"} Only`
+}
+
+function PrintableInvoice({ invoice, isp }: { invoice: any, isp: any }) {
+  const subtotal = Number(invoice?.amount || 0)
+  const taxableAmount = subtotal
+  const vat = Math.round(taxableAmount * 0.13 * 100) / 100
+  const total = Math.round((taxableAmount + vat) * 100) / 100
+  const items = invoice?.items?.length ? invoice.items : [{ itemName: invoice?.packageName || "Internet Package", itemPrice: subtotal }]
+  const printedAt = new Date()
+
+  return (
+    <div id="printable-invoice" className="printable-invoice relative mx-auto bg-white p-5 text-black">
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden">
+        <div className="-rotate-45 text-6xl font-bold tracking-widest text-slate-300/50">COPY OF ORIGINAL</div>
+      </div>
+      <div className="relative border-2 border-black p-3">
+        <div className="grid grid-cols-[1fr_auto] gap-4">
+          <div className="text-center">
+            <div className="text-xl font-bold">{isp?.companyName || isp?.name || "ISP"}</div>
+            <div className="text-sm font-semibold">{isp?.address || "Address"}</div>
+            <div className="text-sm font-semibold">
+              Tel: {isp?.phoneNumber || "-"} {isp?.masterEmail ? ` Email: ${isp.masterEmail}` : ""}
+            </div>
+          </div>
+          <div className="text-right text-sm">
+            <div>Transaction Date:</div>
+            <div>{new Date(invoice?.date || Date.now()).toLocaleString()}</div>
+            <div className="mt-4">Copy of Original 1</div>
+            <div className="mt-4">Reprint Date:</div>
+            <div>{printedAt.toLocaleString()}</div>
+          </div>
+        </div>
+
+        <div className="mt-5 grid grid-cols-3 items-start">
+          <div>
+            <div className="font-bold">TPIN</div>
+            <div className="mt-1 inline-flex border border-black font-mono text-sm">
+              {String(isp?.panNo || "000000000").split("").map((digit: string, index: number) => (
+                <span key={index} className="border-r border-black px-1 last:border-r-0">{digit}</span>
+              ))}
+            </div>
+          </div>
+          <div className="text-center text-3xl font-bold">INVOICE</div>
+          <div className="text-right text-xl">Invoice No.: <span className="text-2xl font-semibold">{invoice?.invoiceId}</span></div>
+        </div>
+
+        <div className="mt-8 grid grid-cols-2 gap-6 text-sm">
+          <div className="grid grid-cols-[110px_1fr] gap-y-2">
+            <div className="font-bold">Username:</div><div>{invoice?.customerId || "-"}</div>
+            <div className="font-bold">Address:</div><div>{invoice?.customerAddress || "-"}</div>
+            <div className="font-bold">TPIN</div><div>{invoice?.customerPan || "-"}</div>
+          </div>
+          <div className="grid grid-cols-[160px_1fr] gap-y-2">
+            <div className="font-bold">Subscriber&apos;s Name:</div><div>{invoice?.customer || "-"}</div>
+            <div className="font-bold">Tel:</div><div>{invoice?.customerPhone || "-"}</div>
+          </div>
+        </div>
+
+        <table className="mt-8 w-full border-collapse text-sm">
+          <thead>
+            <tr>
+              {["S.N", "HS Code", "Particulars", "Description", "Qty", "Rate", "Amount (Rs.)"].map((head) => (
+                <th key={head} className="border border-black p-1 text-left">{head}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item: any, index: number) => {
+              const price = Number(item.itemPrice || item.amount || subtotal / items.length || 0)
+              return (
+                <tr key={item.id || index}>
+                  <td className="border-x border-black p-1 align-top">{index + 1}</td>
+                  <td className="border-x border-black p-1 align-top"></td>
+                  <td className="border-x border-black p-1 align-top">{item.itemName || invoice?.packageName || "Internet"}</td>
+                  <td className="border-x border-black p-1 align-top">{item.description || invoice?.packageName || "Internet service package"}</td>
+                  <td className="border-x border-black p-1 align-top">1</td>
+                  <td className="border-x border-black p-1 text-right align-top">{price.toFixed(2)}</td>
+                  <td className="border-x border-black p-1 text-right align-top">{price.toFixed(2)}</td>
+                </tr>
+              )
+            })}
+            <tr><td colSpan={7} className="h-10 border-x border-b border-black"></td></tr>
+          </tbody>
+        </table>
+
+        <div className="grid grid-cols-[1fr_1.6fr]">
+          <div className="border-x border-b border-black p-5">
+            <div className="font-bold underline">Payment Mode#</div>
+            <div className="mt-3 font-semibold">{invoice?.status === "paid" ? "Paid" : "Unpaid"}</div>
+          </div>
+          <table className="border-collapse text-sm">
+            <tbody>
+              {[
+                ["Total", subtotal],
+                ["Discount", 0],
+                ["Taxable Amount", taxableAmount],
+                ["Vat 13 %", vat],
+                ["Total Amount", total],
+              ].map(([label, value]) => (
+                <tr key={String(label)}>
+                  <td className="border-b border-r border-black p-1 text-right">{label}</td>
+                  <td className="w-36 border-b border-r border-black p-1 text-right">{Number(value).toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-8 flex items-end justify-between text-sm">
+          <div>In Words : {numberToWords(total)}</div>
+          <div className="w-72 text-center">
+            <div className="border-b border-slate-400 pb-1">{invoice?.paymentMethod || "khalti"}</div>
+            <div className="mt-1">For {isp?.companyName || isp?.name || "ISP"}</div>
+          </div>
+        </div>
+        <div className="mt-8 text-sm">Note: This is a pdf copy of computer generated invoice.</div>
+      </div>
+    </div>
+  )
+}
 
 export function InvoicesList() {
   const [loading, setLoading] = useState(true)
@@ -25,6 +159,8 @@ export function InvoicesList() {
   const [status, setStatus] = useState("all")
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [selectedInvoice, setSelectedInvoice] = useState<any>(null)
+  const [isp, setIsp] = useState<any>(null)
 
   const fetchInvoices = useCallback(async () => {
     setLoading(true)
@@ -50,6 +186,12 @@ export function InvoicesList() {
     fetchInvoices()
   }, [fetchInvoices])
 
+  useEffect(() => {
+    apiRequest<any>("/isp/active")
+      .then((response) => setIsp(response?.data || response?.isp || response))
+      .catch(() => setIsp(null))
+  }, [])
+
   const handleMarkPaid = async (orderId: number, amount: number) => {
     const invId = prompt("Enter Invoice Number to mark as paid:")
     if (!invId) return
@@ -73,6 +215,10 @@ export function InvoicesList() {
 
   const formatNpr = (val: number) => {
     return new Intl.NumberFormat("en-NP", { style: "currency", currency: "NPR", maximumFractionDigits: 0 }).format(val)
+  }
+
+  const printInvoice = () => {
+    window.print()
   }
 
   return (
@@ -160,7 +306,7 @@ export function InvoicesList() {
                       <DropdownMenuContent align="end" className="w-[160px] bg-popover border-border text-popover-foreground">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuSeparator className="bg-border" />
-                        <DropdownMenuItem className="cursor-pointer" onClick={() => toast.success(`Invoice: ${invoice.invoiceId}`)}>
+                        <DropdownMenuItem className="cursor-pointer" onClick={() => setSelectedInvoice(invoice)}>
                           View details
                         </DropdownMenuItem>
                         {invoice.status !== "paid" && (
@@ -202,6 +348,21 @@ export function InvoicesList() {
           </Button>
         </div>
       )}
+
+      <Dialog open={!!selectedInvoice} onOpenChange={(open) => !open && setSelectedInvoice(null)}>
+        <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
+          <DialogHeader className="print:hidden">
+            <div className="flex items-center justify-between gap-3">
+              <DialogTitle>Invoice {selectedInvoice?.invoiceId}</DialogTitle>
+              <Button onClick={printInvoice} className="gap-2">
+                <Printer className="h-4 w-4" />
+                Print Invoice
+              </Button>
+            </div>
+          </DialogHeader>
+          {selectedInvoice && <PrintableInvoice invoice={selectedInvoice} isp={isp} />}
+        </DialogContent>
+      </Dialog>
     </CardContainer>
   )
 }

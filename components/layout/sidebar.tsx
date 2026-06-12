@@ -255,6 +255,9 @@ const menuCategories: MenuCategory[] = [
           { title: "Add Service", href: "/services/add", permission: "services_manage" },
           { title: "NetTV Service", href: "/nettv", permission: "services_read" },
           { title: "Radius Service", href: "/radius", permission: "services_read" },
+          { title: "Aakash SMS", href: "/services/aakashsms", permission: "services_read" },
+          { title: "Yeastar PBX", href: "/yeaster", permission: "yeaster_read" },
+          { title: "Asterisk PBX", href: "/asterisk", permission: "asterisk_read" },
         ],
       },
     ],
@@ -271,14 +274,6 @@ const menuCategories: MenuCategory[] = [
           { title: "Invoice Ranges", href: "/finance/invoice-ranges", permission: "billing_update" },
           { title: "Recharge", href: "/finance/recharge", permission: "billing_read_self" },
           { title: "Renewal", href: "/finance/renew", permission: "billing_read_self" },
-        ],
-      },
-      {
-        title: "Tariff Management",
-        icon: Coins,
-        permission: "package_plans_read",
-        submenu: [
-          { title: "Tariff Catalog", href: "/tariffs/catalog", permission: "package_plans_read" },
         ],
       },
     ],
@@ -345,15 +340,6 @@ const menuCategories: MenuCategory[] = [
           { title: "Mail & SMS Templates", href: "/mail/templates", permission: "settings_read" },
           { title: "Notifications", href: "/notifications", permission: "dashboard_view" },
           { title: "Notices", href: "/notices", permission: "dashboard_view" },
-        ],
-      },
-      {
-        title: "VoIP Integration",
-        icon: Phone,
-        permission: "yeaster_read",
-        submenu: [
-          { title: "Yeastar PBX", href: "/yeaster", permission: "yeaster_read" },
-          { title: "Asterisk PBX", href: "/asterisk", permission: "asterisk_read" },
         ],
       },
       {

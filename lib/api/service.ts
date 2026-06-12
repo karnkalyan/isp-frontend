@@ -375,6 +375,12 @@ export const ServicesAPI = {
         return apiRequest<{ success: boolean; data: any }>('/services/radius/stats');
     },
 
+    async getRadiusTable(table: string, limit = 500, offset = 0) {
+        return apiRequest<{ success: boolean; data: any }>(
+            `/services/radius/tables/${encodeURIComponent(table)}?limit=${limit}&offset=${offset}`
+        );
+    },
+
     async sendRadiusCoA(username: string, payload: any) {
         return apiRequest<{ success: boolean; data: any }>(
             `/services/radius/users/${username}/coa`,

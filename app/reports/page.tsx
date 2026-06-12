@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "react-hot-toast"
-import { FileSpreadsheet, FileText, Download, Loader2, Calendar } from "lucide-react"
+import { FileSpreadsheet, FileText, Loader2, BarChart3, Users, UserPlus, Package, Ticket, ListChecks } from "lucide-react"
 import { apiRequest, getDynamicBaseUrl } from "@/lib/api"
 
 type Branch = {
@@ -21,6 +21,7 @@ type Branch = {
 export default function ReportsPage() {
   const [branches, setBranches] = useState<Branch[]>([])
   const [loadingBranches, setLoadingBranches] = useState(true)
+  const [overview, setOverview] = useState<any>(null)
 
   // Filters for each report
   const [taskFilters, setTaskFilters] = useState({ startDate: "", endDate: "", status: "ALL", branchId: "ALL" })
@@ -43,7 +44,17 @@ export default function ReportsPage() {
       }
     }
     fetchBranches()
+    fetchOverview()
   }, [])
+
+  const fetchOverview = async () => {
+    try {
+      const res = await apiRequest<any>("/reports/overview")
+      setOverview(res)
+    } catch (err) {
+      console.error("Failed to load report overview", err)
+    }
+  }
 
   const triggerDownload = async (reportType: string, format: string, params: Record<string, string>) => {
     const loaderId = `${reportType}_${format}`
@@ -101,8 +112,26 @@ export default function ReportsPage() {
       <div className="w-full px-4 py-6 space-y-6">
         <PageHeader
           title="Reporting & Exports Hub"
-          description="Download system-wide audits, performance logs, and inventory statuses in Excel, CSV, or PDF format"
+          description={`${overview?.isp?.companyName || overview?.isp?.name || "ISP"} reporting, audits, performance logs, and inventory exports`}
         />
+
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {[
+            { label: "Total Leads", value: overview?.data?.totalLeads ?? 0, icon: UserPlus, color: "text-cyan-600" },
+            { label: "Total Customers", value: overview?.data?.totalCustomers ?? 0, icon: Users, color: "text-emerald-600" },
+            { label: "Inactive / Expired", value: overview?.data?.inactiveCustomers ?? 0, icon: BarChart3, color: "text-amber-600" },
+            { label: "Inventory Devices", value: overview?.data?.inventoryItems ?? 0, icon: Package, color: "text-indigo-600" },
+            { label: "Open Tickets", value: overview?.data?.openTickets ?? 0, icon: Ticket, color: "text-rose-600" },
+            { label: "Pending Tasks", value: overview?.data?.pendingTasks ?? 0, icon: ListChecks, color: "text-blue-600" },
+          ].map((item) => (
+            <CardContainer key={item.label} title={item.label}>
+              <div className="flex items-center gap-3 py-1">
+                <item.icon className={`h-7 w-7 ${item.color}`} />
+                <div className="text-2xl font-bold">{item.value}</div>
+              </div>
+            </CardContainer>
+          ))}
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Tasks Report Card */}

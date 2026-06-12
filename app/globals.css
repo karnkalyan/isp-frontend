@@ -986,27 +986,6 @@ html.dark .glass-card {
   @apply bg-primary;
 }
 
-/* Add these CSS rules to ensure text colors are preserved in dark mode */
-
-/* Add this at the end of the file */
-/* Preserve text colors in dark mode for status indicators */
-.dark .text-green-500,
-.dark .text-amber-500,
-.dark .text-red-500,
-.dark .text-blue-500,
-.dark .text-purple-500 {
-  color: inherit;
-}
-
-/* Ensure icon colors match text in dark mode */
-.dark .text-green-500 svg,
-.dark .text-amber-500 svg,
-.dark .text-red-500 svg,
-.dark .text-blue-500 svg,
-.dark .text-purple-500 svg {
-  color: inherit;
-}
-
 /* Ensure background colors for indicators are visible in dark mode */
 .dark .bg-green-500,
 .dark .bg-blue-500,
@@ -1014,4 +993,50 @@ html.dark .glass-card {
 .dark .bg-amber-500,
 .dark .bg-gray-500 {
   opacity: 0.9;
+}
+
+html:not(.dark) .bg-card,
+html:not(.dark) .card,
+html:not(.dark) [data-radix-popper-content-wrapper] {
+  background-color: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+}
+
+html.dark .bg-card,
+html.dark .card,
+html.dark [data-radix-popper-content-wrapper] {
+  background-color: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+}
+
+.printable-invoice {
+  width: min(100%, 1050px);
+  min-height: 720px;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  #printable-invoice,
+  #printable-invoice * {
+    visibility: visible !important;
+  }
+
+  #printable-invoice {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
 }

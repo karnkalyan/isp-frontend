@@ -320,8 +320,16 @@ export default function EditCustomerPage() {
 
             <TabsContent value="hardware">
               <Card>
-                <CardHeader>
+                <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <CardTitle>Hardware & Devices</CardTitle>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={() => router.push(`/inventory?customerId=${id}`)}>
+                      Assign Hardware
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" onClick={() => router.push("/tr069")}>
+                      ACS Devices
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>

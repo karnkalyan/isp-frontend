@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "react-hot-toast"
 
 const unwrapUsers = (payload: any): any[] => {
@@ -55,6 +56,97 @@ function AttributeTable({ title, rows }: { title: string; rows: any[] }) {
           ))}
         </TableBody>
       </Table>
+    </div>
+  )
+}
+
+const radiusTables = [
+  { key: "radcheck", label: "Radcheck" },
+  { key: "radreply", label: "Radreply" },
+  { key: "radusergroup", label: "Radusergroup" },
+  { key: "radgroupreply", label: "Groupreply" },
+  { key: "radgroupcheck", label: "Groupcheck" },
+  { key: "nas", label: "NAS" },
+  { key: "radacct", label: "Accounting" },
+]
+
+function RawRadiusTable({ table, search }: { table: string; search: string }) {
+  const [rows, setRows] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const fetchRows = async () => {
+    setLoading(true)
+    try {
+      const response = await ServicesAPI.getRadiusTable(table, table === "radacct" ? 1000 : 2000, 0)
+      setRows(response.data?.rows || [])
+    } catch (error: any) {
+      toast.error(error.message || `Failed to load ${table}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchRows()
+  }, [table])
+
+  const filteredRows = useMemo(() => {
+    const term = search.toLowerCase().trim()
+    if (!term) return rows
+    return rows.filter((row) => JSON.stringify(row).toLowerCase().includes(term))
+  }, [rows, search])
+
+  const columns = useMemo(() => {
+    const keys = new Set<string>()
+    filteredRows.slice(0, 50).forEach((row) => {
+      Object.keys(row || {}).forEach((key) => {
+        if (!["createdAt", "updatedAt"].includes(key)) keys.add(key)
+      })
+    })
+    return Array.from(keys).slice(0, 9)
+  }, [filteredRows])
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between text-sm text-muted-foreground">
+        <span>{filteredRows.length} rows</span>
+        <Button variant="outline" size="sm" onClick={fetchRows} disabled={loading}>
+          {loading ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-2 h-3.5 w-3.5" />}
+          Refresh
+        </Button>
+      </div>
+      <div className="max-h-[520px] overflow-auto rounded-lg border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              {columns.map((column) => <TableHead key={column} className="whitespace-nowrap">{column}</TableHead>)}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              Array.from({ length: 6 }).map((_, index) => (
+                <TableRow key={index}>
+                  <TableCell colSpan={Math.max(columns.length, 1)}><Skeleton className="h-7 w-full" /></TableCell>
+                </TableRow>
+              ))
+            ) : filteredRows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={Math.max(columns.length, 1)} className="h-24 text-center text-muted-foreground">No records found.</TableCell>
+              </TableRow>
+            ) : (
+              filteredRows.slice(0, 300).map((row, rowIndex) => (
+                <TableRow key={`${table}-${row?.id || rowIndex}`}>
+                  {columns.map((column) => (
+                    <TableCell key={column} className="max-w-[240px] truncate font-mono text-xs" title={String(row?.[column] ?? "")}>
+                      {String(row?.[column] ?? "") || "-"}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   )
 }
@@ -296,6 +388,31 @@ export function RadiusDashboard() {
         </div>
       </CardContainer>
 
+      <CardContainer
+        title="Radius Database Tables"
+        description="Inspect Radius radcheck, radreply, user groups, group replies, NAS, and accounting records"
+        gradientColor="#0ea5e9"
+      >
+        <Tabs defaultValue="radreply" className="space-y-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <TabsList className="h-auto flex-wrap justify-start">
+              {radiusTables.map((item) => (
+                <TabsTrigger key={item.key} value={item.key}>{item.label}</TabsTrigger>
+              ))}
+            </TabsList>
+            <div className="relative w-full lg:w-80">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search any table value" className="pl-9" />
+            </div>
+          </div>
+          {radiusTables.map((item) => (
+            <TabsContent key={item.key} value={item.key}>
+              <RawRadiusTable table={item.key} search={search} />
+            </TabsContent>
+          ))}
+        </Tabs>
+      </CardContainer>
+
       <Dialog open={!!selectedUser} onOpenChange={(open) => { if (!open) setSelectedUser(null) }}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-[950px]">
           <DialogHeader>
@@ -313,7 +430,8 @@ export function RadiusDashboard() {
               </div>
               <AttributeTable title="Radcheck" rows={selectedUser?.radcheck || []} />
               <AttributeTable title="Radreply" rows={selectedUser?.radreply || []} />
-              <AttributeTable title="Groups" rows={selectedUser?.radusergroup || []} />
+              <AttributeTable title="Radusergroup" rows={selectedUser?.radusergroup || []} />
+              <AttributeTable title="Groupreply" rows={selectedUser?.radgroupreply || []} />
               <AttributeTable title="Recent Accounting" rows={selectedUser?.radacct || accounting || []} />
             </div>
           )}
