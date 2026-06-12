@@ -253,6 +253,8 @@ const menuCategories: MenuCategory[] = [
           { title: "Service Catalog", href: "/services", permission: "services_read" },
           { title: "Service Settings", href: "/services/settings", permission: "services_manage" },
           { title: "Add Service", href: "/services/add", permission: "services_manage" },
+          { title: "NetTV Service", href: "/nettv", permission: "services_read" },
+          { title: "Radius Service", href: "/radius", permission: "services_read" },
         ],
       },
     ],

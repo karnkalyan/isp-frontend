@@ -70,6 +70,12 @@ type ApiResponse = {
   success: boolean
   total: number
   devices: Device[]
+  pagination?: {
+    page: number
+    limit: number
+    total: number
+    totalPages: number
+  }
 }
 
 type FilterOptions = {
@@ -92,6 +98,7 @@ type SignalInfo = {
 export function TR069DeviceList() {
   const [searchQuery, setSearchQuery] = useState("")
   const [devices, setDevices] = useState<Device[]>([])
+  const [totalDevices, setTotalDevices] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
   const [rebootInProgress, setRebootInProgress] = useState<string | null>(null)
@@ -125,9 +132,24 @@ export function TR069DeviceList() {
   const fetchDevices = useCallback(async () => {
     try {
       setIsLoading(true)
-      const data = await apiRequest<ApiResponse>("/tr069-devices")
+      const fetchLimit = 500
+      const firstPage = await apiRequest<ApiResponse>(`/tr069-devices?page=1&limit=${fetchLimit}`)
+      const totalPages = firstPage.pagination?.totalPages || 1
+      const remainingPages = totalPages > 1
+        ? await Promise.all(
+            Array.from({ length: totalPages - 1 }, (_, index) =>
+              apiRequest<ApiResponse>(`/tr069-devices?page=${index + 2}&limit=${fetchLimit}`)
+            )
+          )
+        : []
+      const data: ApiResponse = {
+        ...firstPage,
+        total: firstPage.total,
+        devices: [firstPage, ...remainingPages].flatMap(page => page.devices || [])
+      }
       if (data.success) {
         setDevices(data.devices)
+        setTotalDevices(data.total || data.devices.length)
 
         // Extract available filter options
         const manufacturers = Array.from(new Set(data.devices.map(d => d.Manufacturer).filter(Boolean)))
@@ -232,6 +254,7 @@ export function TR069DeviceList() {
       if (response.success) {
         toast.success(response.message || "Device deleted")
         setDevices(prev => prev.filter(item => item.SerialNumber !== device.SerialNumber))
+        setTotalDevices(prev => Math.max(0, prev - 1))
       } else {
         toast.error(response.error || response.message || "Failed to delete device")
       }
@@ -294,13 +317,15 @@ export function TR069DeviceList() {
   }
 
   const filteredDevices = devices.filter(d => {
-    if (searchQuery && !d.device.toLowerCase().includes(searchQuery.toLowerCase()) && 
-        !d.SerialNumber.toLowerCase().includes(searchQuery.toLowerCase()) && 
-        !d.ipAddress.includes(searchQuery) && 
-        !(d.username || "").toLowerCase().includes(searchQuery.toLowerCase()) &&
-        !d.ProductClass.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        !d.lead?.firstName.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        !d.lead?.lastName.toLowerCase().includes(searchQuery.toLowerCase())
+    const search = searchQuery.toLowerCase()
+    if (searchQuery && !(d.device || "").toLowerCase().includes(search) && 
+        !(d.SerialNumber || "").toLowerCase().includes(search) && 
+        !(d.ipAddress || "").toLowerCase().includes(search) && 
+        !(d.username || "").toLowerCase().includes(search) &&
+        !(d.ProductClass || "").toLowerCase().includes(search) &&
+        !(d.Manufacturer || "").toLowerCase().includes(search) &&
+        !(d.lead?.firstName || "").toLowerCase().includes(search) &&
+        !(d.lead?.lastName || "").toLowerCase().includes(search)
     ) return false
 
     if (filters.status.length > 0 && !filters.status.includes(d.status)) return false
@@ -316,6 +341,12 @@ export function TR069DeviceList() {
 
   const totalPages = Math.ceil(filteredDevices.length / itemsPerPage)
   const paginatedDevices = filteredDevices.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
 
   return (
     <TooltipProvider>
@@ -408,7 +439,7 @@ export function TR069DeviceList() {
               <div className="h-8 w-[1px] bg-slate-200 mx-2 hidden lg:block" />
               <div className="text-right">
                 <p className="text-xs font-medium text-slate-500">Total Devices</p>
-                <p className="text-sm font-bold text-slate-900">{filteredDevices.length} <span className="text-[10px] font-normal text-slate-400">of {devices.length}</span></p>
+                <p className="text-sm font-bold text-slate-900">{filteredDevices.length} <span className="text-[10px] font-normal text-slate-400">of {totalDevices}</span></p>
               </div>
             </div>
           </div>

@@ -275,6 +275,29 @@ export const ServicesAPI = {
         });
     },
 
+    async getNetTVPackages(page = 1, perPage = 20) {
+        const params = new URLSearchParams({
+            page: page.toString(),
+            perPage: perPage.toString(),
+        });
+
+        return apiRequest<{ success: boolean; data: any }>(
+            `/services/nettv/packages?${params.toString()}`
+        );
+    },
+
+    async getNetTVSTBs(page = 1, perPage = 20, subscriberId?: string) {
+        const params = new URLSearchParams({
+            page: page.toString(),
+            perPage: perPage.toString(),
+        });
+        if (subscriberId) params.append('subscriberId', subscriberId);
+
+        return apiRequest<{ success: boolean; data: any }>(
+            `/services/nettv/stbs?${params.toString()}`
+        );
+    },
+
     // Mikrotik Operations
     async getMikrotikResources() {
         return apiRequest<{ success: boolean; data: any }>('/services/mikrotik/resources');
@@ -333,6 +356,32 @@ export const ServicesAPI = {
         return apiRequest<{ success: boolean; data: any }>(
             `/services/radius/users/${username}`,
             { method: 'DELETE' }
+        );
+    },
+
+    async getRadiusUser(username: string) {
+        return apiRequest<{ success: boolean; data: any }>(
+            `/services/radius/users/${username}`
+        );
+    },
+
+    async getRadiusAccounting(username: string) {
+        return apiRequest<{ success: boolean; data: any }>(
+            `/services/radius/act/${username}`
+        );
+    },
+
+    async getRadiusStats() {
+        return apiRequest<{ success: boolean; data: any }>('/services/radius/stats');
+    },
+
+    async sendRadiusCoA(username: string, payload: any) {
+        return apiRequest<{ success: boolean; data: any }>(
+            `/services/radius/users/${username}/coa`,
+            {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            }
         );
     },
 

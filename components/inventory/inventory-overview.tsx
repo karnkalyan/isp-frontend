@@ -17,7 +17,10 @@ import {
     User,
     Building2,
     HardDrive,
-    Users
+    Users,
+    Pencil,
+    Trash2,
+    Loader2
 } from "lucide-react"
 import { apiRequest } from "@/lib/api"
 import { toast } from "@/hooks/use-toast"
@@ -53,6 +56,13 @@ type InventoryGroup = {
     availableQty: number
     lastUpdated: string
 }
+
+const formatEponMacAddress = (value: string) => {
+    const hex = value.replace(/[^a-fA-F0-9]/g, "").slice(0, 12).toLowerCase()
+    return hex.match(/.{1,4}/g)?.join(".") || ""
+}
+
+const serializedTypes = new Set(["ONT", "OLT", "ROUTE", "SWITCH"])
 
 const getRootSerial = (serial?: string | null) => {
     if (!serial) return ""
@@ -96,6 +106,21 @@ export function InventoryOverview() {
     const [historyLogs, setHistoryLogs] = useState<any[]>([])
     const [loadingLogs, setLoadingLogs] = useState(false)
     const [detailsGroup, setDetailsGroup] = useState<InventoryGroup | null>(null)
+    const [editingItem, setEditingItem] = useState<any>(null)
+    const [editForm, setEditForm] = useState({
+        type: "ONT",
+        name: "",
+        model: "",
+        serialNumber: "",
+        ponSerialNumber: "",
+        macAddress: "",
+        branchId: "none",
+        qty: "1",
+        condition: "Good"
+    })
+    const [savingEdit, setSavingEdit] = useState(false)
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+    const [deleteItemObj, setDeleteItemObj] = useState<any>(null)
 
     const fetchInventory = async () => {
         setLoading(true)
@@ -138,6 +163,73 @@ export function InventoryOverview() {
             toast({ title: "Error", description: "Failed to fetch item history logs", variant: "destructive" })
         } finally {
             setLoadingLogs(false)
+        }
+    }
+
+    const openEditDialog = (item: any) => {
+        setEditingItem(item)
+        setEditForm({
+            type: item.type || "ONT",
+            name: item.name || "",
+            model: item.model || "",
+            serialNumber: item.serialNumber || "",
+            ponSerialNumber: item.ponSerialNumber || "",
+            macAddress: item.macAddress || "",
+            branchId: item.branchId ? String(item.branchId) : "none",
+            qty: String(item.qty || 1),
+            condition: item.condition || "Good"
+        })
+    }
+
+    const updateEditForm = (field: string, value: string) => {
+        setEditForm(prev => ({
+            ...prev,
+            [field]: field === "macAddress" ? formatEponMacAddress(value) : value
+        }))
+    }
+
+    const submitEdit = async () => {
+        if (!editingItem) return
+        const isSerialized = serializedTypes.has(editForm.type)
+        setSavingEdit(true)
+        try {
+            await apiRequest(`/inventory/${editingItem.id}`, {
+                method: "PUT",
+                body: JSON.stringify({
+                    ...editForm,
+                    branchId: editForm.branchId === "none" ? null : editForm.branchId,
+                    qty: isSerialized ? 1 : parseInt(editForm.qty) || 1
+                })
+            })
+            toast({ title: "Success", description: "Inventory item updated successfully" })
+            setEditingItem(null)
+            fetchInventory()
+        } catch (err: any) {
+            toast({ title: "Error", description: err.message || "Failed to update inventory item", variant: "destructive" })
+        } finally {
+            setSavingEdit(false)
+        }
+    }
+
+    const confirmDeleteItem = (item: any) => {
+        setDeleteItemObj(item)
+        setDeleteDialogOpen(true)
+    }
+
+    const deleteInventoryItem = async () => {
+        if (!deleteItemObj) return
+        try {
+            await apiRequest(`/inventory/${deleteItemObj.id}`, { method: "DELETE" })
+            toast({ title: "Success", description: "Inventory item deleted successfully" })
+            setSelectedIds(prev => {
+                const next = new Set(prev)
+                next.delete(deleteItemObj.id)
+                return next
+            })
+            setDeleteItemObj(null)
+            fetchInventory()
+        } catch (err: any) {
+            toast({ title: "Error", description: err.message || "Failed to delete inventory item", variant: "destructive" })
         }
     }
 
@@ -437,6 +529,12 @@ export function InventoryOverview() {
                                                     >
                                                         <HardDrive className="h-4 w-4" /> View Details
                                                     </DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                        className="gap-2 cursor-pointer"
+                                                        onClick={() => openEditDialog(item)}
+                                                    >
+                                                        <Pencil className="h-4 w-4" /> Edit Item
+                                                    </DropdownMenuItem>
                                                     <DropdownMenuItem 
                                                         className="gap-2 cursor-pointer"
                                                         onClick={() => setAssignItem(item)}
@@ -474,6 +572,12 @@ export function InventoryOverview() {
                                                     >
                                                         <AlertCircle className="h-4 w-4" /> Mark Faulty
                                                     </DropdownMenuItem>
+                                                    <DropdownMenuItem 
+                                                        className="text-destructive gap-2 cursor-pointer"
+                                                        onClick={() => confirmDeleteItem(item)}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" /> Delete Item
+                                                    </DropdownMenuItem>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
                                         </TableCell>
@@ -485,6 +589,100 @@ export function InventoryOverview() {
                     </Table>
                 </div>
             </CardContainer>
+
+            {/* Edit Inventory Item */}
+            <Dialog open={!!editingItem} onOpenChange={(open) => { if (!open) setEditingItem(null) }}>
+                <DialogContent className="sm:max-w-[620px]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Pencil className="h-5 w-5 text-indigo-500" />
+                            Edit Inventory Item
+                        </DialogTitle>
+                        <DialogDescription>
+                            Update item details, identifiers, MAC address, and stock location.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
+                        <div className="space-y-2">
+                            <Label>Item Type</Label>
+                            <select
+                                value={editForm.type}
+                                onChange={(e) => updateEditForm("type", e.target.value)}
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            >
+                                <option value="ONT">ONT</option>
+                                <option value="OLT">OLT</option>
+                                <option value="DROPWIRE">Drop Wire / Cable</option>
+                                <option value="ROUTE">Router</option>
+                                <option value="SWITCH">Switch</option>
+                                <option value="STB">STB</option>
+                                <option value="OTHER">Other</option>
+                            </select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Item Name</Label>
+                            <Input value={editForm.name} onChange={(e) => updateEditForm("name", e.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Model</Label>
+                            <Input value={editForm.model} onChange={(e) => updateEditForm("model", e.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Serial Number</Label>
+                            <Input value={editForm.serialNumber} onChange={(e) => updateEditForm("serialNumber", e.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>PON Serial Number</Label>
+                            <Input value={editForm.ponSerialNumber} onChange={(e) => updateEditForm("ponSerialNumber", e.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>MAC Address</Label>
+                            <Input
+                                value={editForm.macAddress}
+                                onChange={(e) => updateEditForm("macAddress", e.target.value)}
+                                placeholder="d05f.af07.c908"
+                                className="font-mono lowercase"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Branch</Label>
+                            <select
+                                value={editForm.branchId}
+                                onChange={(e) => updateEditForm("branchId", e.target.value)}
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            >
+                                <option value="none">Head Office</option>
+                                {branches.map(branch => (
+                                    <option key={branch.id} value={String(branch.id)}>{branch.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Quantity</Label>
+                            <Input
+                                type="number"
+                                min="1"
+                                value={serializedTypes.has(editForm.type) ? "1" : editForm.qty}
+                                onChange={(e) => updateEditForm("qty", e.target.value)}
+                                disabled={serializedTypes.has(editForm.type)}
+                            />
+                        </div>
+                        <div className="space-y-2 md:col-span-2">
+                            <Label>Condition</Label>
+                            <Input value={editForm.condition} onChange={(e) => updateEditForm("condition", e.target.value)} />
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setEditingItem(null)}>Cancel</Button>
+                        <Button onClick={submitEdit} disabled={savingEdit}>
+                            {savingEdit && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Save Changes
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Grouped Assignment Details */}
             <Dialog open={!!detailsGroup} onOpenChange={(open) => { if (!open) setDetailsGroup(null) }}>
@@ -530,7 +728,7 @@ export function InventoryOverview() {
                                             <TableHead>Status</TableHead>
                                             <TableHead>Qty</TableHead>
                                             <TableHead>Last Activity</TableHead>
-                                            <TableHead className="w-[80px]">Action</TableHead>
+                                            <TableHead className="w-[120px]">Action</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -561,18 +759,35 @@ export function InventoryOverview() {
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => {
-                                                            setHistoryItemObj(record)
-                                                            setHistoryLogs([])
-                                                            setHistoryOpen(true)
-                                                            fetchItemLogs(record.id)
-                                                        }}
-                                                    >
-                                                        <History className="h-3.5 w-3.5" />
-                                                    </Button>
+                                                    <div className="flex items-center gap-1">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => openEditDialog(record)}
+                                                        >
+                                                            <Pencil className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => {
+                                                                setHistoryItemObj(record)
+                                                                setHistoryLogs([])
+                                                                setHistoryOpen(true)
+                                                                fetchItemLogs(record.id)
+                                                            }}
+                                                        >
+                                                            <History className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="text-destructive hover:text-destructive"
+                                                            onClick={() => confirmDeleteItem(record)}
+                                                        >
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    </div>
                                                 </TableCell>
                                             </TableRow>
                                         ))}
@@ -678,6 +893,16 @@ export function InventoryOverview() {
                         toast({ title: "Error", description: err.message, variant: "destructive" })
                     }
                 }}
+            />
+
+            <ConfirmDialog
+                open={deleteDialogOpen}
+                onOpenChange={setDeleteDialogOpen}
+                title="Delete Inventory Item"
+                description={`Delete "${deleteItemObj?.name || 'this item'}" from inventory? This also removes its lifecycle history.`}
+                variant="destructive"
+                confirmLabel="Delete"
+                onConfirm={deleteInventoryItem}
             />
 
             {/* View History Slide-over (Sheet) */}

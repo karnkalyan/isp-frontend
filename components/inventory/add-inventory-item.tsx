@@ -18,6 +18,11 @@ import {
 import { useToast } from "@/components/ui/use-toast"
 import { Loader2, Package, Tag, Hash, Command } from "lucide-react"
 
+const formatEponMacAddress = (value: string) => {
+  const hex = value.replace(/[^a-fA-F0-9]/g, "").slice(0, 12).toLowerCase()
+  return hex.match(/.{1,4}/g)?.join(".") || ""
+}
+
 export function AddInventoryItem() {
   const router = useRouter()
   const { toast } = useToast()
@@ -57,7 +62,7 @@ export function AddInventoryItem() {
   }, [])
 
   const handleChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
+    setFormData((prev) => ({ ...prev, [field]: field === "macAddress" ? formatEponMacAddress(value) : value }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -183,8 +188,8 @@ export function AddInventoryItem() {
               <div className="relative">
                 <Command className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="00:11:22:33:44:55"
-                  className="pl-9 bg-white dark:bg-slate-950 uppercase"
+                  placeholder="d05f.af07.c908"
+                  className="pl-9 bg-white dark:bg-slate-950 lowercase font-mono"
                   value={formData.macAddress}
                   onChange={(e) => handleChange("macAddress", e.target.value)}
                 />
