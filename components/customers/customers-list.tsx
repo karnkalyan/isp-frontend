@@ -167,6 +167,7 @@ export function CustomersList() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false)
   const [pendingDeleteCustomerId, setPendingDeleteCustomerId] = useState<string | null>(null)
+  const [voipEnabled, setVoipEnabled] = useState(false)
   const [pagination, setPagination] = useState<PaginationInfo>({
     page: 1,
     limit: 10,
@@ -176,6 +177,10 @@ export function CustomersList() {
   const router = useRouter()
 
   const handleOutboundCall = async (phoneNumber?: string) => {
+    if (!voipEnabled) {
+      toast.error("Calling is disabled because no VOIP service is enabled")
+      return
+    }
     if (!phoneNumber) {
       toast.error("Phone number is not available")
       return
@@ -201,6 +206,15 @@ export function CustomersList() {
     } catch (error: any) {
       toast.error(error.message || "Failed to initiate call")
     }
+  }
+
+  const fetchVoipStatus = async () => {
+    const [yeastar, asterisk] = await Promise.all([
+      apiRequest<any>("/services/isp/status/YEASTAR", { suppressToast: true }).catch(() => null),
+      apiRequest<any>("/services/isp/status/ASTERISK", { suppressToast: true }).catch(() => null),
+    ])
+    const statuses = [yeastar?.data, asterisk?.data]
+    setVoipEnabled(statuses.some((status) => status?.enabled === true && status?.configured === true))
   }
 
   const fetchCustomers = async (page: number = 1, limit: number = 10) => {
@@ -230,6 +244,7 @@ export function CustomersList() {
 
   useEffect(() => {
     fetchCustomers(pagination.page, pagination.limit)
+    fetchVoipStatus()
   }, [pagination.page])
 
   const toggleSelectAll = () => {
@@ -482,7 +497,8 @@ export function CustomersList() {
                               <div className="text-xs text-muted-foreground">{customer.email}</div>
                               <button
                                 type="button"
-                                className="text-xs text-muted-foreground hover:text-green-600"
+                                disabled={!voipEnabled}
+                                className="text-xs text-muted-foreground hover:text-green-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted-foreground"
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   handleOutboundCall(customer.phoneNumber)
@@ -494,7 +510,8 @@ export function CustomersList() {
                               {customer.secondaryPhone && (
                                 <button
                                   type="button"
-                                  className="block text-xs text-muted-foreground hover:text-green-600"
+                                  disabled={!voipEnabled}
+                                  className="block text-xs text-muted-foreground hover:text-green-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted-foreground"
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     handleOutboundCall(customer.secondaryPhone)

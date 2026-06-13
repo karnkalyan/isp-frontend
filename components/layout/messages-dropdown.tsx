@@ -38,7 +38,10 @@ export function MessagesDropdown({ className }: MessagesDropdownProps) {
   }
 
   useEffect(() => {
-      if (open) fetchMessages()
+      if (open) {
+        fetchMessages()
+        markAllAsRead()
+      }
   }, [open])
 
   useEffect(() => {
@@ -46,6 +49,26 @@ export function MessagesDropdown({ className }: MessagesDropdownProps) {
   }, [])
 
   const unreadCount = messages.filter((msg) => !msg.isRead).length
+
+  const markAllAsRead = async () => {
+      const hasUnread = messages.some((msg) => !msg.isRead)
+      if (!hasUnread) return
+      try {
+          await apiRequest("/messages/read-all", { method: "PUT", suppressToast: true })
+          setMessages((prev) => prev.map((msg) => ({ ...msg, isRead: true })))
+      } catch (e) {
+          console.error(e)
+      }
+  }
+
+  const markOneAsRead = async (id: number | string) => {
+      setMessages((prev) => prev.map((msg) => msg.id === id ? { ...msg, isRead: true } : msg))
+      try {
+          await apiRequest(`/messages/${id}/read`, { method: "PUT", suppressToast: true })
+      } catch (e) {
+          console.error(e)
+      }
+  }
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -82,7 +105,7 @@ export function MessagesDropdown({ className }: MessagesDropdownProps) {
               </span>
             )}
           </div>
-          <Button variant="ghost" size="sm" className="h-7 text-xs font-normal">
+          <Button variant="ghost" size="sm" className="h-7 text-xs font-normal" onClick={markAllAsRead}>
             Mark all as read
           </Button>
         </DropdownMenuLabel>
@@ -90,7 +113,7 @@ export function MessagesDropdown({ className }: MessagesDropdownProps) {
           {messages.length === 0 ? (
               <div className="p-4 text-center text-sm text-muted-foreground">No messages</div>
           ) : messages.slice(0, 5).map((message) => (
-            <DropdownMenuItem key={message.id} className="focus:bg-transparent">
+            <DropdownMenuItem key={message.id} className="focus:bg-transparent" onSelect={() => markOneAsRead(message.id)}>
               <div
                 className={cn(
                   "flex items-start w-full p-2 rounded-md cursor-pointer transition-all duration-200",

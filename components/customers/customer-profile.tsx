@@ -833,8 +833,13 @@ export function CustomerProfile() {
   const [availableStock, setAvailableStock] = useState<any[]>([])
   const [selectedHardwareId, setSelectedHardwareId] = useState<number | null>(null)
   const [returnHardwareItem, setReturnHardwareItem] = useState<any | null>(null)
+  const [voipEnabled, setVoipEnabled] = useState(false)
 
   const handleOutboundCall = async (phoneNumber?: string | null) => {
+    if (!voipEnabled) {
+      toast({ title: "Calling is disabled because no VOIP service is enabled", variant: "destructive" })
+      return
+    }
     if (!phoneNumber) {
       toast({ title: "Phone number is not available", variant: "destructive" })
       return
@@ -861,6 +866,19 @@ export function CustomerProfile() {
       toast({ title: "Failed to initiate call", description: error.message, variant: "destructive" })
     }
   }
+
+  const fetchVoipStatus = useCallback(async () => {
+    const [yeastar, asterisk] = await Promise.all([
+      apiRequest<any>("/services/isp/status/YEASTAR", { suppressToast: true }).catch(() => null),
+      apiRequest<any>("/services/isp/status/ASTERISK", { suppressToast: true }).catch(() => null),
+    ])
+    const statuses = [yeastar?.data, asterisk?.data]
+    setVoipEnabled(statuses.some((status) => status?.enabled === true && status?.configured === true))
+  }, [])
+
+  useEffect(() => {
+    fetchVoipStatus()
+  }, [fetchVoipStatus])
   const [stockLoading, setStockLoading] = useState(false)
 
   const fetchAvailableStock = async () => {
@@ -1544,11 +1562,11 @@ export function CustomerProfile() {
               </div>
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 text-sm text-muted-foreground mt-1">
                 <div className="flex items-center"><Shield className="mr-1 h-4 w-4" /> ID Number: {customer.idNumber || "N/A"}</div>
-                <button type="button" className="flex items-center hover:text-green-600" onClick={() => handleOutboundCall(customer.phoneNumber)}>
+                <button type="button" disabled={!voipEnabled} className="flex items-center hover:text-green-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted-foreground" onClick={() => handleOutboundCall(customer.phoneNumber)}>
                   <Phone className="mr-1 h-4 w-4" /> Mobile: {customer.phoneNumber}
                 </button>
                 {customer.secondaryPhone && (
-                  <button type="button" className="flex items-center hover:text-green-600" onClick={() => handleOutboundCall(customer.secondaryPhone)}>
+                  <button type="button" disabled={!voipEnabled} className="flex items-center hover:text-green-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted-foreground" onClick={() => handleOutboundCall(customer.secondaryPhone)}>
                     <Phone className="mr-1 h-4 w-4" /> Secondary: {customer.secondaryPhone}
                   </button>
                 )}
@@ -1620,12 +1638,12 @@ export function CustomerProfile() {
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Phone Number:</span>
-                    <button type="button" className="font-medium hover:text-green-600" onClick={() => handleOutboundCall(customer.phoneNumber)}>{customer.phoneNumber}</button>
+                    <button type="button" disabled={!voipEnabled} className="font-medium hover:text-green-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted-foreground" onClick={() => handleOutboundCall(customer.phoneNumber)}>{customer.phoneNumber}</button>
                   </div>
                   {customer.secondaryPhone && (
                     <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                       <span className="text-muted-foreground">Secondary Phone:</span>
-                      <button type="button" className="font-medium hover:text-green-600" onClick={() => handleOutboundCall(customer.secondaryPhone)}>{customer.secondaryPhone}</button>
+                      <button type="button" disabled={!voipEnabled} className="font-medium hover:text-green-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted-foreground" onClick={() => handleOutboundCall(customer.secondaryPhone)}>{customer.secondaryPhone}</button>
                     </div>
                   )}
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">

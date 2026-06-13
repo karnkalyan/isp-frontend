@@ -8,8 +8,8 @@ export default function AakashSmsServicePage() {
     <DashboardLayout>
       <div className="space-y-6">
         <PageHeader
-          title="Aakash SMS"
-          description="Send SMS campaigns, check provider credit, and review campaign delivery logs"
+          title="Aakash SMS Setup"
+          description="Configure Aakash SMS, check provider credit, and review SMS feature delivery logs"
           icon={MessageSquare}
           actions={[
             { label: "Configure Service", href: "/services", variant: "outline" },

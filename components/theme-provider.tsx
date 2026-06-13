@@ -10,13 +10,17 @@ function ThemeSyncer() {
   const { resolvedTheme } = useTheme();
 
   useEffect(() => {
+    if (!resolvedTheme) return;
+    
     const isDark = resolvedTheme === "dark";
     const root = document.documentElement;
 
     root.classList.add("js-loaded");
     root.classList.remove("no-js");
 
+    // Remove and add dark class to trigger all dark: CSS updates
     if (isDark) {
+      root.classList.add("dark");
       root.style.colorScheme = "dark";
       root.style.setProperty("--theme-bg", "#0b1120");
       root.style.setProperty("--theme-text", "#f9fafb");
@@ -28,6 +32,7 @@ function ThemeSyncer() {
       document.body.style.backgroundColor = "#0b1120";
       document.body.style.color = "#f9fafb";
     } else {
+      root.classList.remove("dark");
       root.style.colorScheme = "light";
       root.style.setProperty("--theme-bg", "#f9fafb");
       root.style.setProperty("--theme-text", "#111827");
@@ -39,6 +44,10 @@ function ThemeSyncer() {
       document.body.style.backgroundColor = "#f9fafb";
       document.body.style.color = "#111827";
     }
+    
+    // Trigger a re-render of all components that depend on theme
+    // by dispatching a custom event
+    window.dispatchEvent(new CustomEvent('themechange', { detail: { theme: resolvedTheme } }));
   }, [resolvedTheme]);
 
   return null;

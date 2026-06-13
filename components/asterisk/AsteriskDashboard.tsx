@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { 
-  AlertCircle, Phone, Users, BarChart3, RefreshCw, Activity, Wifi, 
-  Clock, Server, Shield, Search, MoreVertical, Trash2, Sliders, Globe, PhoneCall
+import {
+  AlertCircle, RefreshCw, Activity, Wifi,
+  Server, Search, Globe, PhoneCall
 } from "lucide-react"
 import { toast } from "react-hot-toast"
 import { apiRequest } from "@/lib/api"
@@ -25,6 +25,7 @@ interface AsteriskStatus {
   amiConnected: boolean
   apiError?: string | null
   lastUpdated: string
+  message?: string
 }
 
 interface Extension {
@@ -221,11 +222,15 @@ export default function AsteriskDashboard({ ispId }: AsteriskDashboardProps) {
 
   useEffect(() => {
     fetchStatus()
+  }, [fetchStatus])
+
+  useEffect(() => {
+    if (!status?.configured || !status?.isActive) return
     fetchExtensions()
     fetchTrunks()
     fetchActiveCalls()
     fetchCallLogs()
-  }, [fetchStatus, fetchExtensions, fetchTrunks, fetchActiveCalls, fetchCallLogs])
+  }, [status?.configured, status?.isActive, fetchExtensions, fetchTrunks, fetchActiveCalls, fetchCallLogs])
 
   // Filtered Extensions based on Search
   const filteredExtensions = extensions.filter(ext =>
@@ -248,6 +253,27 @@ export default function AsteriskDashboard({ ispId }: AsteriskDashboardProps) {
           <p className="text-sm text-muted-foreground">Loading Asterisk integration status...</p>
         </div>
       </div>
+    )
+  }
+
+  if (!status?.configured || !status?.isActive) {
+    return (
+      <CardContainer title="Asterisk Service" description="Asterisk service not configured for ISP">
+        <div className="flex flex-col gap-4 py-6 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="mt-0.5 h-5 w-5 text-amber-500" />
+            <div>
+              <p className="font-medium">Asterisk service not configured for ISP</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Configure and enable the Asterisk PBX service before extensions, trunks, calls, and logs are shown.
+              </p>
+            </div>
+          </div>
+          <Button variant="outline" asChild>
+            <a href="/services">Configure Service</a>
+          </Button>
+        </div>
+      </CardContainer>
     )
   }
 

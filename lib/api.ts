@@ -99,6 +99,8 @@ async function parseResponsePayload(res: Response) {
 // Global state for token refresh mutex
 let isRefreshing = false;
 let refreshPromise: Promise<boolean> | null = null;
+const lastGetRequestAt = new Map<string, number>();
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function apiRequest<T = any>(
   endpoint: string,
@@ -110,10 +112,13 @@ export async function apiRequest<T = any>(
   const BASE_URL = getDynamicBaseUrl().replace(/\/+$/, "");
   const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
   const url = `${BASE_URL}${cleanEndpoint}`;
+  const method = (options.method || "GET").toUpperCase();
+  const canCoalesce = method === "GET" && !options.body;
 
   options.credentials = "include";
 
   const selectedBranchId = isClient() ? localStorage.getItem("selected-branch-id") : null;
+  const throttleKey = canCoalesce ? `${url}:${selectedBranchId || ""}` : "";
 
   if (!(options.body instanceof FormData)) {
     options.headers = {
@@ -128,6 +133,15 @@ export async function apiRequest<T = any>(
     } as Record<string, any>;
     delete newHeaders["Content-Type"];
     options.headers = newHeaders;
+  }
+
+  if (throttleKey) {
+    const previous = lastGetRequestAt.get(throttleKey) || 0;
+    const elapsed = Date.now() - previous;
+    if (elapsed < 120) {
+      await sleep(120 - elapsed);
+    }
+    lastGetRequestAt.set(throttleKey, Date.now());
   }
 
   let response: Response;

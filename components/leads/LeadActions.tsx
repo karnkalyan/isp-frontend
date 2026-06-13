@@ -30,6 +30,19 @@ export function LeadActions({ lead, onDelete, onConvert, onFollowUp, users = [] 
     const { user } = useAuth()
     const { confirm } = useConfirmToast()
     const [showFollowUpDialog, setShowFollowUpDialog] = useState(false)
+    const [voipEnabled, setVoipEnabled] = useState(false)
+
+    React.useEffect(() => {
+        const fetchVoipStatus = async () => {
+            const [yeastar, asterisk] = await Promise.all([
+                apiRequest<any>("/services/isp/status/YEASTAR", { suppressToast: true }).catch(() => null),
+                apiRequest<any>("/services/isp/status/ASTERISK", { suppressToast: true }).catch(() => null),
+            ])
+            const statuses = [yeastar?.data, asterisk?.data]
+            setVoipEnabled(statuses.some((status) => status?.enabled === true && status?.configured === true))
+        }
+        fetchVoipStatus()
+    }, [])
 
     const handleDelete = async () => {
         const isConfirmed = await confirm({
@@ -52,6 +65,10 @@ export function LeadActions({ lead, onDelete, onConvert, onFollowUp, users = [] 
     }
 
     const handleCall = (phoneNumber = lead.phoneNumber) => {
+        if (!voipEnabled) {
+            toast.error("Calling is disabled because no VOIP service is enabled")
+            return
+        }
         if (phoneNumber) {
             const extension = String(user?.yeastarExt || user?.extId || "").trim()
             if (!extension) {
@@ -139,8 +156,9 @@ export function LeadActions({ lead, onDelete, onConvert, onFollowUp, users = [] 
                         variant="ghost"
                         size="icon"
                         onClick={handleCall}
-                        className="h-8 w-8 hover:bg-blue-100"
-                        title="Call"
+                        disabled={!voipEnabled}
+                        className={`h-8 w-8 ${voipEnabled ? "hover:bg-blue-100" : "opacity-50 cursor-not-allowed"}`}
+                        title={voipEnabled ? "Call" : "Call disabled - no VOIP service enabled"}
                     >
                         <Phone className="h-4 w-4 text-blue-600" />
                     </Button>

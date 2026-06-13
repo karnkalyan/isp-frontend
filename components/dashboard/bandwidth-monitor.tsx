@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { useTheme } from "next-themes"
 import { CardContainer } from "@/components/ui/card-container"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { apiRequest } from "@/lib/api"
 import { Line } from "react-chartjs-2"
 import {
   Chart as ChartJS,
@@ -30,82 +31,46 @@ export function BandwidthMonitor() {
 
   const isDarkMode = !mounted ? true : resolvedTheme === "dark"
 
+  const fetchTraffic = async () => {
+    try {
+      const response = await apiRequest(`/dashboard/traffic?range=${timeRange}`, { suppressToast: true })
+      const payload = response?.data || response
+      const labels = Array.isArray(payload?.labels) ? payload.labels : []
+      const downloadData = Array.isArray(payload?.download) ? payload.download : []
+      const uploadData = Array.isArray(payload?.upload) ? payload.upload : []
+
+      setData({
+        labels,
+        datasets: [
+          {
+            label: "Download",
+            data: downloadData,
+            borderColor: "rgb(59, 130, 246)",
+            backgroundColor: "rgba(59, 130, 246, 0.1)",
+            fill: true,
+            tension: 0.4,
+          },
+          {
+            label: "Upload",
+            data: uploadData,
+            borderColor: "rgb(16, 185, 129)",
+            backgroundColor: "rgba(16, 185, 129, 0.1)",
+            fill: true,
+            tension: 0.4,
+          },
+        ],
+      })
+    } catch (error) {
+      console.error("Failed to fetch traffic data:", error)
+      setData(null)
+    }
+  }
+
   useEffect(() => {
-    generateData()
-    const interval = setInterval(updateData, 5000)
+    fetchTraffic()
+    const interval = setInterval(fetchTraffic, 5000)
     return () => clearInterval(interval)
   }, [timeRange, isDarkMode])
-
-  const generateData = () => {
-    const labels: string[] = []
-    const downloadData: number[] = []
-    const uploadData: number[] = []
-
-    const now = new Date()
-    const pointCount = timeRange === "1h" ? 60 : timeRange === "24h" ? 24 : 7
-
-    for (let i = pointCount - 1; i >= 0; i--) {
-      const time = new Date(now)
-      if (timeRange === "1h") {
-        time.setMinutes(now.getMinutes() - i)
-        labels.push(`${time.getHours().toString().padStart(2, "0")}:${time.getMinutes().toString().padStart(2, "0")}`)
-      } else if (timeRange === "24h") {
-        time.setHours(now.getHours() - i)
-        labels.push(`${time.getHours().toString().padStart(2, "0")}:00`)
-      } else {
-        time.setDate(now.getDate() - i)
-        labels.push(time.toLocaleDateString("en-US", { weekday: "short" }))
-      }
-
-      downloadData.push(Math.floor(800 + Math.random() * 400))
-      uploadData.push(Math.floor(300 + Math.random() * 200))
-    }
-
-    setData({
-      labels,
-      datasets: [
-        {
-          label: "Download",
-          data: downloadData,
-          borderColor: "rgb(59, 130, 246)",
-          backgroundColor: "rgba(59, 130, 246, 0.1)",
-          fill: true,
-          tension: 0.4,
-        },
-        {
-          label: "Upload",
-          data: uploadData,
-          borderColor: "rgb(16, 185, 129)",
-          backgroundColor: "rgba(16, 185, 129, 0.1)",
-          fill: true,
-          tension: 0.4,
-        },
-      ],
-    })
-  }
-
-  const updateData = () => {
-    if (!chartRef.current) return
-    const chart = chartRef.current
-    const newDownload = Math.floor(800 + Math.random() * 400)
-    const newUpload = Math.floor(300 + Math.random() * 200)
-
-    chart.data.datasets[0].data.shift()
-    chart.data.datasets[0].data.push(newDownload)
-    chart.data.datasets[1].data.shift()
-    chart.data.datasets[1].data.push(newUpload)
-
-    const now = new Date()
-    chart.data.labels.shift()
-    if (timeRange === "1h") {
-      chart.data.labels.push(`${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`)
-    } else if (timeRange === "24h") {
-      chart.data.labels.push(`${now.getHours().toString().padStart(2, "0")}:00`)
-    } else {
-      chart.data.labels.push(now.toLocaleDateString("en-US", { weekday: "short" }))
-    }
-    chart.update()
-  }
 
   const options = {
     responsive: true,
@@ -149,7 +114,7 @@ export function BandwidthMonitor() {
   }
 
   return (
-    <CardContainer title="Bandwidth Usage" description="Real-time network traffic monitoring" forceDarkMode={!mounted}>
+    <CardContainer title="Server Interface Traffic" description="Live Radius session throughput" forceDarkMode={!mounted}>
       <div className="flex justify-end mb-4">
         <Select value={timeRange} onValueChange={setTimeRange}>
           <SelectTrigger className={`w-[120px] ${isDarkMode ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-white border-slate-200 text-slate-700"}`}>
@@ -162,7 +127,15 @@ export function BandwidthMonitor() {
           </SelectContent>
         </Select>
       </div>
-      <div className="h-[350px]">{data && <Line ref={chartRef} options={options} data={data} />}</div>
+      <div className="h-[350px]">
+        {data?.labels?.length ? (
+          <Line ref={chartRef} options={options} data={data} />
+        ) : (
+          <div className="flex h-full items-center justify-center text-center text-sm text-muted-foreground">
+            No realtime traffic data available. Enable and configure Radius accounting to populate this chart.
+          </div>
+        )}
+      </div>
     </CardContainer>
   )
 }

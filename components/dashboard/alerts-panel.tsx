@@ -7,74 +7,37 @@ import { StatusBadge } from "@/components/ui/status-badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AlertTriangle, AlertCircle, Clock, Bell } from "lucide-react"
-
-// Mock data for alerts
-const alerts = [
-  {
-    id: "ALERT-001",
-    title: "High CPU Usage",
-    description: "RADIUS server CPU usage exceeded 80% for more than 5 minutes",
-    timestamp: "10 minutes ago",
-    severity: "critical",
-    status: "active",
-  },
-  {
-    id: "ALERT-002",
-    title: "Authentication Failures",
-    description: "Multiple failed authentication attempts detected from IP 192.168.1.45",
-    timestamp: "15 minutes ago",
-    severity: "warning",
-    status: "active",
-  },
-  {
-    id: "ALERT-003",
-    title: "Bandwidth Threshold Exceeded",
-    description: "User john.doe@example.com exceeded 90% of monthly bandwidth allocation",
-    timestamp: "30 minutes ago",
-    severity: "warning",
-    status: "active",
-  },
-  {
-    id: "ALERT-004",
-    title: "Network Switch Offline",
-    description: "Switch SW-002 is not responding to ping requests",
-    timestamp: "45 minutes ago",
-    severity: "critical",
-    status: "acknowledged",
-  },
-  {
-    id: "ALERT-005",
-    title: "Database Backup Failed",
-    description: "Scheduled backup of RADIUS database failed to complete",
-    timestamp: "1 hour ago",
-    severity: "warning",
-    status: "acknowledged",
-  },
-  {
-    id: "ALERT-006",
-    title: "SSL Certificate Expiring",
-    description: "RADIUS server SSL certificate will expire in 7 days",
-    timestamp: "2 hours ago",
-    severity: "info",
-    status: "active",
-  },
-  {
-    id: "ALERT-007",
-    title: "System Update Available",
-    description: "New security update available for RADIUS server",
-    timestamp: "3 hours ago",
-    severity: "info",
-    status: "resolved",
-  },
-]
+import { apiRequest } from "@/lib/api"
 
 export function AlertsPanel() {
   const { resolvedTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [activeTab, setActiveTab] = useState("active")
+  const [alerts, setAlerts] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
   // After mounting, we have access to the theme
   useEffect(() => setMounted(true), [])
+
+  const fetchAlerts = async () => {
+    try {
+      setLoading(true)
+      const response = await apiRequest("/dashboard/alerts", { suppressToast: true })
+      const rows = response?.data || response
+      setAlerts(Array.isArray(rows) ? rows : [])
+    } catch (error) {
+      console.error("Failed to fetch system alerts:", error)
+      setAlerts([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchAlerts()
+    const interval = setInterval(fetchAlerts, 60000)
+    return () => clearInterval(interval)
+  }, [])
 
   const isDarkMode = !mounted ? true : resolvedTheme === "dark"
 
@@ -129,7 +92,7 @@ export function AlertsPanel() {
                   <div className="flex items-center justify-between mt-2">
                     <div className={`flex items-center text-xs ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>
                       <Clock className="h-3 w-3 mr-1" />
-                      {alert.timestamp}
+                      {alert.timestamp ? new Date(alert.timestamp).toLocaleString() : "Unknown time"}
                     </div>
                     <div className="flex gap-2">
                       {alert.status === "active" && (
@@ -174,6 +137,11 @@ export function AlertsPanel() {
                 </div>
               </div>
             ))}
+            {!loading && filteredAlerts.length === 0 && (
+              <div className="py-12 text-center text-sm text-muted-foreground">
+                No {activeTab === "all" ? "" : activeTab} system alerts found.
+              </div>
+            )}
           </div>
         </TabsContent>
       </Tabs>

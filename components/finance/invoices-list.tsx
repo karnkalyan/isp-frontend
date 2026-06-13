@@ -160,6 +160,9 @@ export function InvoicesList() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null)
+  const [paymentInvoice, setPaymentInvoice] = useState<any>(null)
+  const [paymentInvoiceNumber, setPaymentInvoiceNumber] = useState("")
+  const [paymentSubmitting, setPaymentSubmitting] = useState(false)
   const [isp, setIsp] = useState<any>(null)
 
   const fetchInvoices = useCallback(async () => {
@@ -192,24 +195,36 @@ export function InvoicesList() {
       .catch(() => setIsp(null))
   }, [])
 
-  const handleMarkPaid = async (orderId: number, amount: number) => {
-    const invId = prompt("Enter Invoice Number to mark as paid:")
-    if (!invId) return
+  const openMarkPaid = (invoice: any) => {
+    setPaymentInvoice(invoice)
+    setPaymentInvoiceNumber(invoice.invoiceId?.startsWith("INV-") ? "" : invoice.invoiceId || "")
+  }
+
+  const handleMarkPaid = async () => {
+    if (!paymentInvoice || !paymentInvoiceNumber.trim()) {
+      toast.error("Invoice number is required")
+      return
+    }
     try {
+      setPaymentSubmitting(true)
       toast.loading("Processing payment...", { id: "payment" })
       await apiRequest("/billing/pay", {
         method: "POST",
         body: JSON.stringify({
-          orderId,
-          invoiceId: invId,
-          amount,
+          orderId: paymentInvoice.id,
+          invoiceId: paymentInvoiceNumber.trim(),
+          amount: paymentInvoice.amount,
           paymentMethod: "CASH"
         })
       })
       toast.success("Payment recorded successfully", { id: "payment" })
+      setPaymentInvoice(null)
+      setPaymentInvoiceNumber("")
       fetchInvoices()
     } catch (err: any) {
       toast.error(err.message || "Failed to record payment", { id: "payment" })
+    } finally {
+      setPaymentSubmitting(false)
     }
   }
 
@@ -312,7 +327,7 @@ export function InvoicesList() {
                         {invoice.status !== "paid" && (
                           <>
                             <DropdownMenuSeparator className="bg-border" />
-                            <DropdownMenuItem className="text-green-600 focus:text-green-600 focus:bg-green-50 dark:focus:bg-green-950 cursor-pointer" onClick={() => handleMarkPaid(invoice.id, invoice.amount)}>
+                            <DropdownMenuItem className="text-green-600 focus:text-green-600 focus:bg-green-50 dark:focus:bg-green-950 cursor-pointer" onClick={() => openMarkPaid(invoice)}>
                               Mark as paid
                             </DropdownMenuItem>
                           </>
@@ -348,6 +363,32 @@ export function InvoicesList() {
           </Button>
         </div>
       )}
+
+      <Dialog open={!!paymentInvoice} onOpenChange={(open) => { if (!open) setPaymentInvoice(null) }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Mark Invoice as Paid</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="text-sm text-muted-foreground">
+              Record payment for {paymentInvoice?.customer || "customer"} totaling {formatNpr(Number(paymentInvoice?.amount || 0))}.
+            </div>
+            <Input
+              value={paymentInvoiceNumber}
+              onChange={(event) => setPaymentInvoiceNumber(event.target.value)}
+              placeholder="Enter invoice number"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setPaymentInvoice(null)} disabled={paymentSubmitting}>Cancel</Button>
+              <Button onClick={handleMarkPaid} disabled={paymentSubmitting || !paymentInvoiceNumber.trim()}>
+                {paymentSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Record Payment
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!selectedInvoice} onOpenChange={(open) => !open && setSelectedInvoice(null)}>
         <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">

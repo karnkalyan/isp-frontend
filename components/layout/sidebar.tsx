@@ -19,7 +19,6 @@ import {
   Cpu,
   MessageSquare,
   Server,
-  Plug,
   Cable,
   Receipt,
   Coins,
@@ -94,7 +93,6 @@ const menuCategories: MenuCategory[] = [
         submenu: [
           { title: "Overview", href: "/dashboard/overview", permission: "dashboard_view" },
           { title: "Real-Time Monitoring", href: "/dashboard/real-time", permission: "dashboard_view" },
-          { title: "Settings", href: "/dashboard/settings", permission: "settings_read" },
         ],
       },
     ],
@@ -177,10 +175,10 @@ const menuCategories: MenuCategory[] = [
         ],
       },
       {
-        title: "SMS Campaign",
+        title: "Aakash SMS Setup",
         icon: MessageSquare,
         permission: "services_manage",
-        href: "/sms-campaign",
+        href: "/services/aakashsms",
       },
     ],
   },
@@ -313,7 +311,8 @@ const menuCategories: MenuCategory[] = [
         icon: Settings,
         permission: "settings_read",
         submenu: [
-          { title: "Master Settings", href: "/master-settings", permission: "settings_read" },
+          { title: "System Settings", href: "/master-settings", permission: "settings_read" },
+          { title: "Package Settings", href: "/dashboard/settings", permission: "settings_read" },
         ],
       },
       {
@@ -340,14 +339,6 @@ const menuCategories: MenuCategory[] = [
           { title: "Mail & SMS Templates", href: "/mail/templates", permission: "settings_read" },
           { title: "Notifications", href: "/notifications", permission: "dashboard_view" },
           { title: "Notices", href: "/notices", permission: "dashboard_view" },
-        ],
-      },
-      {
-        title: "ISP Registration",
-        icon: Plug,
-        permission: "isp_read",
-        submenu: [
-          { title: "Register ISP", href: "/register-isp", permission: "isp_read" },
         ],
       },
     ],
@@ -420,8 +411,6 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
       ...category,
       items: category.items.map(item => {
         if (item.title === "Inventory Management" && !canSeeInventory) return null
-        if (item.title === "ISP Registration" && !isGlobal) return null
-
         if (item.submenu) {
           const filteredSubmenu = item.submenu.filter(sub => {
             const isCustomerView = sub.href.startsWith("/customer/")

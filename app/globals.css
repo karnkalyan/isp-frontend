@@ -802,56 +802,15 @@ html.dark .glass-card {
   animation: none !important;
 }
 
-/* Ensure all components respect theme variables */
+/* Keep shared surfaces theme-aware without overriding every component class. */
 .card,
-.glass-card,
-[class*="tr069-"],
-[class*="device-"],
-[class*="dashboard-"],
-[class*="sidebar-"],
-[class*="navbar-"],
-[class*="content-"],
-[class*="speed-test"],
-[class*="status-"],
-[class*="table-"],
-[class*="chart-"] {
-  transition: none !important;
-  background-color: var(--theme-card);
-  color: var(--theme-card-foreground);
-  border-color: var(--theme-border);
-}
-
-/* Force immediate theme application for all components */
-html.dark .card,
-html.dark .glass-card,
-html.dark [class*="tr069-"],
-html.dark [class*="device-"],
-html.dark [class*="dashboard-"],
-html.dark [class*="sidebar-"],
-html.dark [class*="navbar-"],
-html.dark [class*="content-"],
-html.dark [class*="speed-test"],
-html.dark [class*="status-"],
-html.dark [class*="table-"],
-html.dark [class*="chart-"] {
-  background-color: var(--theme-card);
-  color: var(--theme-card-foreground);
-  border-color: var(--theme-border);
+.glass-card {
+  background-color: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  border-color: hsl(var(--border));
 }
 
 /* Ensure all text respects theme */
-html.dark p,
-html.dark h1,
-html.dark h2,
-html.dark h3,
-html.dark h4,
-html.dark h5,
-html.dark h6,
-html.dark span,
-html.dark div {
-  color: var(--theme-text);
-}
-
 /* Ensure background colors are applied */
 html.dark,
 html.dark body,

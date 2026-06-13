@@ -83,6 +83,32 @@ export default function MessagesPage() {
     }
   }
 
+  const markMessagesAsRead = async (fromUserId: number) => {
+    if (!myId) return
+    try {
+      // Mark all messages from this user as read
+      const unreadMessages = messages.filter(msg => 
+        msg.senderId === fromUserId && msg.receiverId === myId && !msg.isRead
+      )
+      
+      for (const msg of unreadMessages) {
+        await apiRequest(`/messages/${msg.id}/read`, {
+          method: "PUT",
+          suppressToast: true
+        })
+      }
+      
+      // Update local state to reflect read status
+      setMessages(messages.map(msg => 
+        (msg.senderId === fromUserId && msg.receiverId === myId && !msg.isRead)
+          ? { ...msg, isRead: true }
+          : msg
+      ))
+    } catch (error) {
+      console.error("Failed to mark messages as read:", error)
+    }
+  }
+
   // Set myId from AuthContext first, then fallback to /auth/me
   useEffect(() => {
     if (authUser?.id) {
@@ -107,6 +133,13 @@ export default function MessagesPage() {
       fetchTeamMembers()
     }
   }, [newChatOpen, myId])
+
+  // Mark messages as read when a conversation is selected
+  useEffect(() => {
+    if (selectedUserId && myId) {
+      markMessagesAsRead(selectedUserId)
+    }
+  }, [selectedUserId, myId])
 
   // Group messages by conversation
   const conversations = useMemo(() => {

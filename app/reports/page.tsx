@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "react-hot-toast"
-import { FileSpreadsheet, FileText, Loader2, BarChart3, Users, UserPlus, Package, Ticket, ListChecks } from "lucide-react"
+import { FileSpreadsheet, FileText, Loader2, BarChart3, Users, UserPlus, Package, Ticket, ListChecks, Phone, MessageSquare } from "lucide-react"
 import { apiRequest, getDynamicBaseUrl } from "@/lib/api"
 
 type Branch = {
@@ -132,6 +132,39 @@ export default function ReportsPage() {
             </CardContainer>
           ))}
         </div>
+
+        <CardContainer title="Operational Reports" description="Quick exports for customers, leads, PBX logs, and SMS delivery logs">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+            {[
+              { key: "leads", label: "Leads", icon: UserPlus },
+              { key: "customers", label: "Customers", icon: Users },
+              { key: "yeastar-logs", label: "Yeastar Logs", icon: Phone },
+              { key: "asterisk-logs", label: "Asterisk Logs", icon: Phone },
+              { key: "sms-logs", label: "SMS Logs", icon: MessageSquare },
+            ].map((report) => (
+              <div key={report.key} className="rounded-md border p-3">
+                <div className="mb-3 flex items-center gap-2 text-sm font-medium">
+                  <report.icon className="h-4 w-4 text-primary" />
+                  {report.label}
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {["csv", "excel", "pdf"].map((format) => (
+                    <Button
+                      key={format}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => triggerDownload(report.key, format, {})}
+                      disabled={downloading !== null}
+                      className="h-8 px-2 text-xs"
+                    >
+                      {downloading === `${report.key}_${format}` ? <Loader2 className="h-3 w-3 animate-spin" /> : format.toUpperCase()}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContainer>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Tasks Report Card */}

@@ -7,19 +7,6 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Toolti
 import { motion, AnimatePresence } from "framer-motion"
 import { Loader2 } from "lucide-react"
 
-const quarterlyData = [
-  { month: "Jan", revenue: 45000, expenses: 32000 },
-  { month: "Feb", revenue: 52000, expenses: 34000 },
-  { month: "Mar", revenue: 48000, expenses: 33000 },
-]
-
-const yearlyData = [
-  { month: "Q1", revenue: 145000, expenses: 99000 },
-  { month: "Q2", revenue: 165000, expenses: 105000 },
-  { month: "Q3", revenue: 155000, expenses: 102000 },
-  { month: "Q4", revenue: 172000, expenses: 110000 },
-]
-
 export function RevenueChart() {
   const [billingData, setBillingData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -32,8 +19,9 @@ export function RevenueChart() {
     async function fetchBillingStats() {
       try {
         const { apiRequest } = await import("@/lib/api")
-        const data = await apiRequest('/billing/stats')
-        setBillingData(Array.isArray(data) ? data : [])
+        const response = await apiRequest('/dashboard/revenue-overview')
+        const rows = response?.data || response
+        setBillingData(Array.isArray(rows) ? rows : [])
       } catch (error) {
         console.error("Failed to fetch billing stats:", error)
       } finally {
@@ -68,10 +56,8 @@ export function RevenueChart() {
     )
   }
 
-  const getChartData = () => {
-    // If we only have monthly data, we'll use it for both for now, or just show the actual data
-    return Array.isArray(billingData) && billingData.length > 0 ? billingData : quarterlyData
-  }
+  const chartData = Array.isArray(billingData) ? billingData : []
+  const hasRevenueData = chartData.some((item) => Number(item.revenue || 0) > 0)
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5, delay: 0.1 }}>
@@ -97,7 +83,7 @@ export function RevenueChart() {
         <CardHeader className={`pb-2 ${isDarkMode ? "border-[#1e293b]" : "border-gray-200"} border-b relative z-10`}>
           <CardTitle className={isDarkMode ? "text-white" : "text-gray-900"}>Revenue Overview</CardTitle>
           <CardDescription className={isDarkMode ? "text-slate-400" : "text-gray-500"}>
-            Financial performance
+            Collected payments in Nepali rupees
           </CardDescription>
         </CardHeader>
         <CardContent className="p-4 relative z-10">
@@ -114,16 +100,6 @@ export function RevenueChart() {
                 >
                   Quarterly
                 </TabsTrigger>
-                <TabsTrigger
-                  value="yearly"
-                  className={
-                    isDarkMode
-                      ? "data-[state=active]:bg-[#2d3748] text-slate-300 data-[state=active]:text-white"
-                      : "data-[state=active]:bg-white text-gray-500 data-[state=active]:text-gray-900"
-                  }
-                >
-                  Yearly
-                </TabsTrigger>
               </TabsList>
             </div>
             <AnimatePresence mode="wait">
@@ -135,8 +111,9 @@ export function RevenueChart() {
                 transition={{ duration: 0.3 }}
                 className={`h-[300px] mt-4 ${isDarkMode ? "bg-[#1e293b]" : "bg-gray-50"} p-4 rounded-lg`}
               >
+                {hasRevenueData ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={getChartData()} margin={{ top: 20, right: 0, left: 0, bottom: 0 }}>
+                  <BarChart data={chartData} margin={{ top: 20, right: 0, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id={`revenueGradient-${activeTab}`} x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="#EF4444" stopOpacity={1} />
@@ -168,7 +145,7 @@ export function RevenueChart() {
                           : "0 10px 25px -5px rgba(0, 0, 0, 0.1)",
                         color: isDarkMode ? "rgba(255, 255, 255, 0.9)" : "rgba(0, 0, 0, 0.9)",
                       }}
-                      formatter={(value) => [`$${value.toLocaleString()}`, undefined]}
+                      formatter={(value: any) => [`Nrs ${Number(value || 0).toLocaleString()}`, undefined]}
                     />
                     <Bar
                       dataKey="revenue"
@@ -177,16 +154,13 @@ export function RevenueChart() {
                       animationDuration={1000}
                       name="Revenue"
                     />
-                    <Bar
-                      dataKey="expenses"
-                      fill={`url(#expensesGradient-${activeTab})`}
-                      radius={[4, 4, 0, 0]}
-                      animationDuration={1000}
-                      animationBegin={300}
-                      name="Expenses"
-                    />
                   </BarChart>
                 </ResponsiveContainer>
+                ) : (
+                  <div className={`flex h-full items-center justify-center text-sm ${isDarkMode ? "text-slate-400" : "text-gray-500"}`}>
+                    No paid revenue found for the selected period.
+                  </div>
+                )}
               </motion.div>
             </AnimatePresence>
           </Tabs>

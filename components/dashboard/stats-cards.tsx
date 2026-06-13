@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState, useEffect } from "react"
 
-import { Users, Wifi, CreditCard, ShoppingCart } from "lucide-react"
+import { Users, Wifi, CreditCard, ShoppingCart, Headphones, Receipt } from "lucide-react"
 import { motion } from "framer-motion"
 import { apiRequest } from "@/lib/api"
 import { Loader2 } from "lucide-react"
@@ -15,8 +15,8 @@ export function StatsCards() {
   useEffect(() => {
     async function fetchStats() {
       try {
-        const data = await apiRequest('/branches/stats/overall/optimized')
-        setStatsData(data)
+        const response = await apiRequest('/dashboard/summary')
+        setStatsData(response?.data || response)
       } catch (error) {
         console.error("Failed to fetch overall stats:", error)
       } finally {
@@ -43,7 +43,7 @@ export function StatsCards() {
     {
       title: "Active Customers",
       value: (statsData?.activeCustomers || 0).toLocaleString(),
-      change: "Active Subscriptions",
+      change: `${totalCustomers.toLocaleString()} total customers`,
       icon: Users,
       iconBg: "#3B82F6",
       gradientFrom: "#3B82F6",
@@ -68,6 +68,24 @@ export function StatsCards() {
       gradientTo: "#3B82F6",
     },
     {
+      title: "Open Tickets",
+      value: (statsData?.openTickets || 0).toLocaleString(),
+      change: "Support items needing action",
+      icon: Headphones,
+      iconBg: "#8B5CF6",
+      gradientFrom: "#8B5CF6",
+      gradientTo: "#3B82F6",
+    },
+    {
+      title: "Pending Invoices",
+      value: (statsData?.pendingInvoices || 0).toLocaleString(),
+      change: "Awaiting payment",
+      icon: Receipt,
+      iconBg: "#06B6D4",
+      gradientFrom: "#06B6D4",
+      gradientTo: "#10B981",
+    },
+    {
       title: "Expired Users",
       value: (statsData?.expiredUsers || 0).toLocaleString(),
       change: `${statsData?.expiredUsers || 0} disconnected`,
@@ -79,7 +97,7 @@ export function StatsCards() {
   ]
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
       {stats.map((stat, index) => (
         <motion.div
           key={stat.title}
@@ -142,11 +160,8 @@ function StatCard({ title, value, change, icon: Icon, iconBg, gradientFrom, grad
       </div>
       <div className="mt-2">
         <div className={`text-2xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>{value}</div>
-        <p
-          className={`text-xs font-medium mt-1 ${isPositive ? "text-green-500" : "text-red-500"}`}
-          aria-label={`${change} from last month`}
-        >
-          {change} from last month
+        <p className={`text-xs font-medium mt-1 ${isPositive ? "text-green-500" : "text-red-500"}`}>
+          {change}
         </p>
       </div>
     </div>

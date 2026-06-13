@@ -1,50 +1,108 @@
 "use client"
 
 import type React from "react"
-
-import { ArrowUpRight, Users, Wifi, CreditCard } from "lucide-react"
+import { useState, useEffect } from "react"
+import { ArrowUpRight, Users, Wifi, CreditCard, Loader2 } from "lucide-react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
+import { apiRequest } from "@/lib/api"
 
-const stats = [
-  {
-    title: "Total Users",
-    value: "12,345",
-    change: "+12%",
-    icon: Users,
-    gradientFrom: "#10B981",
-    gradientTo: "#3B82F6",
-  },
-  {
-    title: "Active Connections",
-    value: "10,432",
-    change: "+8%",
-    icon: Wifi,
-    gradientFrom: "#3B82F6",
-    gradientTo: "#10B981",
-  },
-  {
-    title: "Monthly Revenue",
-    value: "$234,567",
-    change: "+15%",
-    icon: CreditCard,
-    gradientFrom: "#EF4444",
-    gradientTo: "#10B981",
-  },
-  {
-    title: "Bandwidth Usage",
-    value: "432 TB",
-    change: "+23%",
-    icon: ArrowUpRight,
-    gradientFrom: "#3B82F6",
-    gradientTo: "#EF4444",
-  },
-]
+interface StatsData {
+  totalCustomers: number
+  activeCustomers: number
+  inactiveCustomers: number
+  totalLeads: number
+  openTickets: number
+  pendingInvoices: number
+  totalRevenue: number
+  expiringThisWeek: number
+  expiringThisMonth: number
+  expiredUsers: number
+}
 
 export function StatsCards() {
+  const [stats, setStats] = useState<StatsData | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        setLoading(true)
+        const response = await apiRequest<{ success: boolean; data: StatsData }>("/dashboard/summary", { suppressToast: true })
+        if (response?.data) {
+          setStats(response.data)
+        }
+      } catch (error) {
+        console.error("Failed to fetch dashboard stats:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchStats()
+    const interval = setInterval(fetchStats, 60000) // Refresh every minute
+    return () => clearInterval(interval)
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {[1, 2, 3, 4].map((i) => (
+          <Card key={i} className="overflow-hidden">
+            <CardHeader className="pb-2">
+              <div className="h-4 bg-muted rounded animate-pulse"></div>
+            </CardHeader>
+            <CardContent>
+              <div className="h-8 bg-muted rounded animate-pulse"></div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    )
+  }
+
+  if (!stats) {
+    return <div className="text-muted-foreground">Unable to load dashboard statistics</div>
+  }
+
+  const statItems = [
+    {
+      title: "Total Customers",
+      value: stats.totalCustomers.toLocaleString(),
+      change: `${stats.activeCustomers} active`,
+      icon: Users,
+      gradientFrom: "#10B981",
+      gradientTo: "#3B82F6",
+    },
+    {
+      title: "Active Connections",
+      value: stats.activeCustomers.toLocaleString(),
+      change: `${stats.inactiveCustomers} inactive`,
+      icon: Wifi,
+      gradientFrom: "#3B82F6",
+      gradientTo: "#10B981",
+    },
+    {
+      title: "Total Revenue",
+      value: `NRS ${(stats.totalRevenue || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}`,
+      change: `${stats.pendingInvoices} pending`,
+      icon: CreditCard,
+      gradientFrom: "#EF4444",
+      gradientTo: "#10B981",
+    },
+    {
+      title: "Open Tickets",
+      value: stats.openTickets.toLocaleString(),
+      change: `${stats.expiringThisWeek} expiring this week`,
+      icon: ArrowUpRight,
+      gradientFrom: "#3B82F6",
+      gradientTo: "#EF4444",
+    },
+  ]
+
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      {stats.map((stat) => (
+      {statItems.map((stat) => (
         <StatCard key={stat.title} {...stat} />
       ))}
     </div>
