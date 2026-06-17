@@ -101,6 +101,7 @@ export function PackageCreationSettings() {
   const [isAdding, setIsAdding] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isSyncing, setIsSyncing] = useState(false)
 
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
@@ -247,6 +248,22 @@ export function PackageCreationSettings() {
     }
 
     return null
+  }
+
+  const handleSyncWithAccount = async () => {
+    try {
+      setIsSyncing(true)
+      const res = await apiRequest<{ success: boolean; message: string }>("/package-price/resync", {
+        method: "POST"
+      })
+      toast.success(res.message || "Synced successfully with Account")
+      await fetchPackages()
+    } catch (err: any) {
+      console.error("Sync failed:", err)
+      toast.error(err.message || "Failed to sync with Account")
+    } finally {
+      setIsSyncing(false)
+    }
   }
 
   // Load packages
@@ -733,9 +750,18 @@ export function PackageCreationSettings() {
       )}
 
       {!isAdding && editingId === null && (
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center mb-6">
           <Button onClick={() => setIsAdding(true)} className="bg-primary hover:bg-primary/95 text-white">
             <Plus className="mr-2 h-4 w-4" /> Config Package Prices
+          </Button>
+          <Button
+            onClick={handleSyncWithAccount}
+            disabled={isSyncing}
+            variant="outline"
+            className="border-slate-200 dark:border-slate-800"
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+            {isSyncing ? "Syncing..." : "Sync with Account"}
           </Button>
         </div>
       )}

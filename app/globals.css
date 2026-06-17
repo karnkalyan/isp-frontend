@@ -977,8 +977,18 @@ html.dark [data-radix-popper-content-wrapper] {
 
 @media print {
   @page {
-    size: A4 portrait;
+    size: A4 landscape;
     margin: 8mm;
+  }
+
+  /* Hide close button and dialog headers */
+  .print\:hidden,
+  button[class*="absolute"],
+  div[data-state="open"] > button,
+  button[aria-label="Close"],
+  .backdrop-blur {
+    display: none !important;
+    visibility: hidden !important;
   }
 
   body * {
@@ -994,6 +1004,10 @@ html.dark [data-radix-popper-content-wrapper] {
     max-height: none !important;
     position: static !important;
     width: auto !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
 
   #printable-invoice,
@@ -1010,5 +1024,6 @@ html.dark [data-radix-popper-content-wrapper] {
     margin: 0 !important;
     padding: 0 !important;
     box-shadow: none !important;
+    border: none !important;
   }
 }

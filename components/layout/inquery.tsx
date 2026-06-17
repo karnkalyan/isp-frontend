@@ -765,7 +765,7 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
     if (type === "customer") {
       router.push(`/customers/new?phone=${phoneNumber}`)
     } else {
-      router.push(`/leads/new?phone=${phoneNumber}`)
+      router.push(`/leads/create?phone=${phoneNumber}`)
     }
     onOpenChange(false)
   }

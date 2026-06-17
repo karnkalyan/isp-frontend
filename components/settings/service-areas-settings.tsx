@@ -202,11 +202,11 @@ export function ServiceAreasSettings() {
     try {
       setIsResyncing(true)
       const res = await apiRequest<{ message: string }>("/package-price/resync", { method: "POST" })
-      toast.success(res?.message || "Package prices resynced successfully from TSHUL")
+      toast.success(res?.message || "Package prices synced successfully with Account")
       await fetchPrices()
     } catch (err: any) {
       console.error("Resync failed:", err)
-      toast.error(err?.message || "Failed to resync package prices")
+      toast.error(err?.message || "Failed to sync package prices")
     } finally {
       setIsResyncing(false)
     }
@@ -295,7 +295,7 @@ export function ServiceAreasSettings() {
             disabled={isResyncing}
           >
             <RefreshCw className={`mr-2 h-4 w-4 ${isResyncing ? 'animate-spin' : ''}`} />
-            {isResyncing ? "Resyncing..." : "Resync with TSHUL"}
+            {isResyncing ? "Syncing..." : "Sync with Account"}
           </Button>
         </div>
       )}

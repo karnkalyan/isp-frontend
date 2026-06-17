@@ -8,7 +8,8 @@ import { ExtraChargesSettings } from "@/components/settings/billing-cycles-setti
 import { PaymentMethodsSettings } from "@/components/settings/payment-methods-settings"
 import { ServiceAreasSettings } from "@/components/settings/service-areas-settings"
 import { PackageCreationSettings } from "@/components/settings/package-creation-settings"
-import { Building, Globe, MapPin, Calendar, Settings as SettingsIcon, PlusCircle } from "lucide-react"
+import { ServicesSyncSettings } from "@/components/settings/services-sync-settings"
+import { Building, Globe, MapPin, Calendar, Settings as SettingsIcon, PlusCircle, RefreshCw } from "lucide-react"
 import { CardContainer } from "@/components/ui/card-container"
 
 export function SettingsTabs() {
@@ -51,6 +52,13 @@ export function SettingsTabs() {
         >
           <Calendar className="h-4 w-4" />
          Package Addon Charges
+        </TabsTrigger>
+        <TabsTrigger
+          value="services-sync"
+          className="flex items-center gap-2 rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-primary data-[state=active]:bg-transparent"
+        >
+          <RefreshCw className="h-4 w-4" />
+          Services Sync
         </TabsTrigger>
       </TabsList>
 
@@ -101,6 +109,15 @@ export function SettingsTabs() {
           gradientColor="#10b981"
         >
           <ExtraChargesSettings  />
+        </CardContainer>
+      </TabsContent>
+      <TabsContent value="services-sync" className="mt-6">
+        <CardContainer
+          title="Services Sync Manager"
+          description="Sync packages, plans, devices, and VoIP log integrations across services"
+          gradientColor="#f59e0b"
+        >
+          <ServicesSyncSettings />
         </CardContainer>
       </TabsContent>
     </Tabs>

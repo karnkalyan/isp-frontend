@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils"
 import { usePathname } from "next/navigation"
 import { motion } from "framer-motion"
 import { useAuth } from "@/contexts/AuthContext"
+import Link from "next/link"
 
 const navItems = [
   {
@@ -56,7 +57,7 @@ export function BottomNav() {
         {visibleItems.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
           return (
-            <a
+            <Link
               key={item.title}
               href={item.href}
               className="flex flex-1 flex-col items-center justify-center gap-1"
@@ -79,7 +80,7 @@ export function BottomNav() {
               <span className={cn("text-[10px]", isActive ? "text-primary" : "text-muted-foreground")}>
                 {item.title}
               </span>
-            </a>
+            </Link>
           )
         })}
       </nav>

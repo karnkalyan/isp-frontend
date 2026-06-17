@@ -92,11 +92,11 @@ export function ExtraChargesSettings() {
       const res = await apiRequest<{ success: boolean; message: string }>("/extra-charges/sync", {
         method: "POST"
       })
-      toast.success(res.message || "Synced successfully with T-Shul")
+      toast.success(res.message || "Synced successfully with Account")
       await fetchExtraCharges()
     } catch (err: any) {
       console.error("Sync failed:", err)
-      toast.error(err.message || "Failed to sync with T-Shul")
+      toast.error(err.message || "Failed to sync with Account")
     } finally {
       setIsSyncing(false)
     }
@@ -355,7 +355,7 @@ export function ExtraChargesSettings() {
             variant="outline"
             className="border-slate-200 dark:border-slate-800"
           >
-            <RefreshCw className={`mr-2 h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} /> Sync with T-Shul
+            <RefreshCw className={`mr-2 h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} /> Sync with Account
           </Button>
         </div>
       )}
