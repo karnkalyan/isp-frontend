@@ -1128,6 +1128,7 @@ import { TR069DeviceWanConnections } from "@/components/tr069/device-wan-connect
 // ==================== Main Component ====================
 export function AddCustomerForm() {
   const router = useRouter()
+  const { user } = useAuth()
   const [isMounted, setIsMounted] = useState(false)
 
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -1137,6 +1138,13 @@ export function AddCustomerForm() {
   const [createdCustomer, setCreatedCustomer] = useState<any>(null)
   const [provisionResult, setProvisionResult] = useState<ProvisionResult | null>(null)
   const [activeTab, setActiveTab] = useState("personal")
+
+  const [isFree, setIsFree] = useState(false)
+  const [freeCustomerSecretKey, setFreeCustomerSecretKey] = useState("")
+
+  const roleStr = typeof user?.role === 'string' ? user.role : (user?.role?.name || '')
+  const normalizedRole = roleStr.toLowerCase()
+  const isAdmin = normalizedRole === "admin" || normalizedRole === "isp_admin" || normalizedRole === "administrator" || normalizedRole.startsWith("global ");
 
   // ========== Data State ==========
   const [packages, setPackages] = useState<Package[]>([])
@@ -2167,6 +2175,11 @@ export function AddCustomerForm() {
       if (referenceDetails.referencedById) formData.append("referencedById", referenceDetails.referencedById)
       if (referenceDetails.existingISPId) formData.append("existingISPId", referenceDetails.existingISPId)
 
+      formData.append("isFree", isFree.toString())
+      if (isFree) {
+        formData.append("freeCustomerSecretKey", freeCustomerSecretKey)
+      }
+
       // No add‑on services here – they will be handled after provisioning
 
       documents.forEach((doc) => {
@@ -2400,6 +2413,8 @@ export function AddCustomerForm() {
     setDevices([])
     setWirelessCredentials([{ username: "", password: "" }])
     setCustomerLogin({ username: "", password: "" })
+    setIsFree(false)
+    setFreeCustomerSecretKey("")
     setSelectedAddonServices(new Set())
     setNettvData(null)
     setDocuments(documents.map((doc) => ({ ...doc, file: null })))
@@ -3528,6 +3543,34 @@ export function AddCustomerForm() {
                       {errors.subscribedPkgId && <p className="text-sm text-red-500">{errors.subscribedPkgId}</p>}
                     </div>
                   </div>
+
+                  {/* Free Customer Section (only for admins) */}
+                  {isAdmin && (
+                    <div className="space-y-4 p-4 border rounded-lg bg-purple-50/50 dark:bg-purple-900/10 border-purple-100 dark:border-purple-900/30">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label className="text-purple-800 dark:text-purple-400 font-medium">Free Customer</Label>
+                          <p className="text-xs text-muted-foreground">Enable this to override the package price and addons to 0.</p>
+                        </div>
+                        <Switch
+                          checked={isFree}
+                          onCheckedChange={setIsFree}
+                        />
+                      </div>
+                      {isFree && (
+                        <div className="space-y-2">
+                          <Label htmlFor="freeCustomerSecretKey">Secret Verification Key *</Label>
+                          <Input
+                            id="freeCustomerSecretKey"
+                            type="password"
+                            placeholder="Enter secret verification key"
+                            value={freeCustomerSecretKey}
+                            onChange={(e) => setFreeCustomerSecretKey(e.target.value)}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="flex justify-between">
                     <Button type="button" variant="outline" onClick={() => setActiveTab("references")}>

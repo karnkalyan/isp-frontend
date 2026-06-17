@@ -103,6 +103,8 @@ export function SystemSettings() {
     trialDurationDays: 3,
     maxStaffGraceDays: 3,
     allowStaffCompensation: false,
+    tscPercentage: 10,
+    freeCustomerSecretKey: "admin123",
     // NEW: global discount settings for members
     newMemberDiscount: {
       enabled: true,
@@ -220,6 +222,8 @@ export function SystemSettings() {
             trialDurationDays: parseInt(data.trialDurationDays || '3'),
             maxStaffGraceDays: parseInt(data.maxStaffGraceDays || '3'),
             allowStaffCompensation: data.allowStaffCompensation === 'true',
+            tscPercentage: parseInt(data.tscPercentage || '10'),
+            freeCustomerSecretKey: data.freeCustomerSecretKey || 'admin123',
             newMemberDiscount: data.newMemberDiscount ? JSON.parse(data.newMemberDiscount) : prev.newMemberDiscount,
             renewalDiscount: data.renewalDiscount ? JSON.parse(data.renewalDiscount) : prev.renewalDiscount,
           }))
@@ -802,6 +806,38 @@ export function SystemSettings() {
                        onCheckedChange={(checked) => updateSetting("allowStaffCompensation", checked)}
                     />
                  </div>
+               </div>
+            </div>
+
+            <div className="p-4 border rounded-lg bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-900/30">
+               <h4 className="font-medium mb-1 text-blue-800 dark:text-blue-400">TSC Configuration</h4>
+               <p className="text-xs text-muted-foreground mb-4">Configure the Telecommunication Service Charge (TSC) percentage applied to packages.</p>
+               <div className="space-y-2">
+                 <Label htmlFor="tscPercentage">TSC Percentage (%)</Label>
+                 <Input
+                   id="tscPercentage"
+                   type="number"
+                   min={0}
+                   max={100}
+                   value={settings.tscPercentage ?? 10}
+                   onChange={(e) => updateSetting("tscPercentage", Number(e.target.value))}
+                 />
+                 <p className="text-[10px] text-muted-foreground">Applied to packages with 'TSC Applicable' checked.</p>
+               </div>
+            </div>
+
+            <div className="p-4 border rounded-lg bg-purple-50/50 dark:bg-purple-900/10 border-purple-100 dark:border-purple-900/30">
+               <h4 className="font-medium mb-1 text-purple-800 dark:text-purple-400">Free Customer Settings</h4>
+               <p className="text-xs text-muted-foreground mb-4">Configure the secret key required to register/update a customer as 'Free'.</p>
+               <div className="space-y-2">
+                 <Label htmlFor="freeCustomerSecretKey">Free Customer Secret Key</Label>
+                 <Input
+                   id="freeCustomerSecretKey"
+                   type="text"
+                   value={settings.freeCustomerSecretKey ?? "admin123"}
+                   onChange={(e) => updateSetting("freeCustomerSecretKey", e.target.value)}
+                 />
+                 <p className="text-[10px] text-muted-foreground">Only administrators can toggle a customer as free with this key.</p>
                </div>
             </div>
           </div>

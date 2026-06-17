@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { CardContainer } from "@/components/ui/card-container"
 import { StatusBadge } from "@/components/ui/status-badge"
-import { MoreHorizontal, FileText, Loader2, Printer, Search } from "lucide-react"
+import { MoreHorizontal, FileText, Loader2, Printer, Search, Trash, Plus } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -164,6 +164,10 @@ export function InvoicesList() {
   const [paymentInvoiceNumber, setPaymentInvoiceNumber] = useState("")
   const [paymentSubmitting, setPaymentSubmitting] = useState(false)
   const [isp, setIsp] = useState<any>(null)
+  const [adjustingInvoice, setAdjustingInvoice] = useState<any>(null)
+  const [newItemName, setNewItemName] = useState("")
+  const [newItemPrice, setNewItemPrice] = useState("")
+  const [adjustmentSubmitting, setAdjustmentSubmitting] = useState(false)
 
   const fetchInvoices = useCallback(async () => {
     setLoading(true)
@@ -234,6 +238,69 @@ export function InvoicesList() {
 
   const printInvoice = () => {
     window.print()
+  }
+
+  const handleAddAdjustment = async () => {
+    if (!adjustingInvoice || !newItemName.trim() || !newItemPrice.trim()) {
+      toast.error("Item name and price are required")
+      return
+    }
+    const priceNum = parseFloat(newItemPrice)
+    if (isNaN(priceNum)) {
+      toast.error("Price must be a number")
+      return
+    }
+    try {
+      setAdjustmentSubmitting(true)
+      const res = await apiRequest("/billing/adjustments/add", {
+        method: "POST",
+        body: JSON.stringify({
+          orderId: adjustingInvoice.id,
+          itemName: newItemName.trim(),
+          itemPrice: priceNum
+        })
+      })
+      toast.success("Adjustment added successfully")
+      
+      // Update adjustingInvoice details
+      setAdjustingInvoice((prev: any) => ({
+        ...prev,
+        amount: res.totalAmount,
+        items: res.items
+      }))
+      setNewItemName("")
+      setNewItemPrice("")
+      fetchInvoices()
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add adjustment")
+    } finally {
+      setAdjustmentSubmitting(false)
+    }
+  }
+
+  const handleRemoveAdjustment = async (detailId: number) => {
+    try {
+      setAdjustmentSubmitting(true)
+      const res = await apiRequest("/billing/adjustments/remove", {
+        method: "POST",
+        body: JSON.stringify({
+          detailId
+        })
+      })
+      toast.success("Adjustment removed successfully")
+      
+      // Update adjustingInvoice details
+      setAdjustingInvoice((prev: any) => ({
+        ...prev,
+        amount: res.totalAmount,
+        items: res.items
+      }))
+      fetchInvoices()
+    } catch (err: any) {
+      toast.error(err.message || "Failed to remove adjustment")
+    } finally {
+      setAdjustmentSubmitting(false)
+    }
   }
 
   return (
@@ -327,6 +394,10 @@ export function InvoicesList() {
                         {invoice.status !== "paid" && (
                           <>
                             <DropdownMenuSeparator className="bg-border" />
+                            <DropdownMenuItem className="text-blue-600 focus:text-blue-600 dark:focus:bg-blue-950 cursor-pointer" onClick={() => setAdjustingInvoice(invoice)}>
+                              Adjust
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator className="bg-border" />
                             <DropdownMenuItem className="text-green-600 focus:text-green-600 focus:bg-green-50 dark:focus:bg-green-950 cursor-pointer" onClick={() => openMarkPaid(invoice)}>
                               Mark as paid
                             </DropdownMenuItem>
@@ -384,6 +455,93 @@ export function InvoicesList() {
               <Button onClick={handleMarkPaid} disabled={paymentSubmitting || !paymentInvoiceNumber.trim()}>
                 {paymentSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Record Payment
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!adjustingInvoice} onOpenChange={(open) => { if (!open) { setAdjustingInvoice(null); setNewItemName(""); setNewItemPrice(""); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Adjust Invoice: {adjustingInvoice?.invoiceId}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 my-2">
+            <div>
+              <h4 className="text-sm font-semibold mb-2 text-foreground">Current Items</h4>
+              {adjustingInvoice?.items && adjustingInvoice.items.length > 0 ? (
+                <div className="border border-border rounded-lg divide-y divide-border overflow-hidden bg-background max-h-48 overflow-y-auto">
+                  {adjustingInvoice.items.map((item: any) => (
+                    <div key={item.id} className="flex justify-between items-center p-3 text-sm">
+                      <div className="flex-1 min-w-0 pr-4">
+                        <p className="font-medium text-foreground truncate">{item.itemName}</p>
+                        <p className="text-xs text-muted-foreground">Price: {formatNpr(item.itemPrice)}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={adjustmentSubmitting}
+                        onClick={() => handleRemoveAdjustment(item.id)}
+                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash className="h-4 w-4" />
+                        <span className="sr-only">Delete</span>
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground italic bg-muted/40 p-4 rounded-lg text-center">No items on this invoice.</p>
+              )}
+            </div>
+
+            <div className="border-t border-border pt-4">
+              <h4 className="text-sm font-semibold mb-3 text-foreground">Add Custom Adjustment</h4>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Item Name</label>
+                  <Input
+                    placeholder="e.g. Discount, Router Charge"
+                    value={newItemName}
+                    onChange={(e) => setNewItemName(e.target.value)}
+                    disabled={adjustmentSubmitting}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Amount (NPR)</label>
+                  <Input
+                    type="number"
+                    placeholder="e.g. 150 or -200"
+                    value={newItemPrice}
+                    onChange={(e) => setNewItemPrice(e.target.value)}
+                    disabled={adjustmentSubmitting}
+                  />
+                </div>
+              </div>
+              <Button
+                onClick={handleAddAdjustment}
+                disabled={adjustmentSubmitting || !newItemName.trim() || !newItemPrice.trim()}
+                className="w-full gap-2"
+              >
+                {adjustmentSubmitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
+                Add Item
+              </Button>
+            </div>
+
+            <div className="border-t border-border pt-4 flex justify-between items-center text-sm font-semibold">
+              <span className="text-foreground">Updated Total (Excl. VAT):</span>
+              <span className="text-primary text-base">
+                {adjustingInvoice && formatNpr(Number(adjustingInvoice.amount))}
+              </span>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <Button variant="outline" onClick={() => setAdjustingInvoice(null)}>
+                Close
               </Button>
             </div>
           </div>
