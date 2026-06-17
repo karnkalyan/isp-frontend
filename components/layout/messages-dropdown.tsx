@@ -48,6 +48,14 @@ export function MessagesDropdown({ className }: MessagesDropdownProps) {
       fetchMessages() 
   }, [])
 
+  useEffect(() => {
+    const handleUpdate = () => {
+      fetchMessages()
+    }
+    window.addEventListener("messages-updated", handleUpdate)
+    return () => window.removeEventListener("messages-updated", handleUpdate)
+  }, [])
+
   const unreadCount = messages.filter((msg) => !msg.isRead).length
 
   const markAllAsRead = async () => {

@@ -80,6 +80,20 @@ export function NotificationsDropdown({ className }: NotificationsDropdownProps)
     }
   }, [subscribe, on])
 
+  useEffect(() => {
+    if (open) {
+      fetchNotifications()
+    }
+  }, [open])
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      fetchNotifications()
+    }
+    window.addEventListener("notifications-updated", handleUpdate)
+    return () => window.removeEventListener("notifications-updated", handleUpdate)
+  }, [])
+
   const handleMarkRead = async (id: number) => {
     try {
       await apiRequest(`/notifications/${id}/read`, { method: "PUT" })

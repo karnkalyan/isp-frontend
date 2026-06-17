@@ -30,6 +30,7 @@ import {
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { usePathname } from "next/navigation"
+import Link from "next/link"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { apiRequest, buildApiAssetUrl } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
@@ -769,7 +770,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
                                   {item.submenu?.map((subitem) => {
                                     const isSubActive = pathname === subitem.href
                                     return (
-                                      <a
+                                      <Link
                                         key={subitem.title}
                                         href={subitem.href}
                                         className={cn(
@@ -782,7 +783,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
                                       >
                                         <span className="submenu-bullet"></span>
                                         {subitem.title}
-                                      </a>
+                                      </Link>
                                     )
                                   })}
                                 </div>
@@ -794,8 +795,8 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
 
                       return !open ? (
                         <div key={item.title} className="relative w-full">
-                          <a
-                            href={item.href}
+                          <Link
+                            href={item.href!}
                             className={cn(
                               "flex items-center justify-center rounded-md p-2 text-sm font-medium transition-colors",
                               isActive
@@ -816,7 +817,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
                               <item.icon aria-hidden="true" />
                             </div>
                             <span className="sr-only">{item.title}</span>
-                          </a>
+                          </Link>
                           {/* Simple tooltip */}
                           {showTooltip && (
                             <div className="absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2">
@@ -827,9 +828,9 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
                           )}
                         </div>
                       ) : (
-                        <a
+                        <Link
                           key={item.title}
-                          href={item.href}
+                          href={item.href!}
                           className={cn(
                             "flex items-center justify-start gap-3 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors",
                             isActive
@@ -849,7 +850,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
                             <item.icon aria-hidden="true" />
                           </div>
                           <span className="truncate text-left">{item.title}</span>
-                        </a>
+                        </Link>
                       )
                     })}
                   </div>
@@ -911,7 +912,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
               ?.submenu?.map((subitem) => {
                 const isSubActive = pathname === subitem.href
                 return (
-                  <a
+                  <Link
                     key={subitem.title}
                     href={subitem.href}
                     className={cn(
@@ -922,7 +923,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
                   >
                     <span className="submenu-bullet"></span>
                     {subitem.title}
-                  </a>
+                  </Link>
                 )
               })}
           </div>

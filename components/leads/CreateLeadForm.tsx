@@ -72,6 +72,7 @@ interface GeocodingResult {
     address?: {
         road?: string
         county?: string
+        district?: string
         state_district?: string
         state?: string
         country?: string
@@ -1878,33 +1879,33 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
 
                                     {/* Search Results Dropdown */}
                                     {searchResults.length > 0 && (
-                                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-xl max-h-80 overflow-y-auto z-[9999]">
-                                            <div className="sticky top-0 p-3 border-b bg-gray-50">
-                                                <div className="text-sm font-medium text-gray-700">
+                                        <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-800 rounded-lg shadow-xl max-h-80 overflow-y-auto z-[9999]">
+                                            <div className="sticky top-0 p-3 border-b border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950">
+                                                <div className="text-sm font-medium text-gray-700 dark:text-slate-300">
                                                     Found {searchResults.length} location{searchResults.length > 1 ? 's' : ''}
                                                 </div>
-                                                <div className="text-xs text-gray-500 mt-1">
+                                                <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">
                                                     Click on a result to set the location
                                                 </div>
                                             </div>
 
-                                            <div className="divide-y">
+                                            <div className="divide-y divide-gray-100 dark:divide-slate-800">
                                                 {searchResults.map((result) => (
                                                     <button
                                                         key={result.place_id}
                                                         onClick={() => handleSelectSearchResult(result)}
-                                                        className="w-full text-left p-4 hover:bg-blue-50 transition-colors duration-150"
+                                                        className="w-full text-left p-4 hover:bg-blue-50 dark:hover:bg-slate-800/50 transition-colors duration-150"
                                                     >
                                                         <div className="flex items-start gap-3">
                                                             <MapPin className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
                                                             <div className="flex-1 min-w-0">
-                                                                <div className="font-medium text-sm text-gray-900 mb-1">
+                                                                <div className="font-medium text-sm text-gray-900 dark:text-slate-100 mb-1">
                                                                     {result.name || result.display_name.split(',')[0]}
                                                                 </div>
-                                                                <div className="text-xs text-gray-600 mb-2 line-clamp-2">
+                                                                <div className="text-xs text-gray-600 dark:text-slate-400 mb-2 line-clamp-2">
                                                                     {result.display_name}
                                                                 </div>
-                                                                <div className="flex items-center gap-2 text-xs text-gray-400">
+                                                                <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-slate-500">
                                                                     <span className="flex items-center gap-1">
                                                                         <span>📍</span>
                                                                         <span>{parseFloat(result.lat).toFixed(6)}, {parseFloat(result.lon).toFixed(6)}</span>
@@ -1919,7 +1920,7 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                                                 ))}
                                             </div>
 
-                                            <div className="sticky bottom-0 p-3 border-t bg-gray-50">
+                                            <div className="sticky bottom-0 p-3 border-t border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950">
                                                 <div className="flex items-center gap-2 text-xs text-gray-500">
                                                     <MapPin className="h-3 w-3" />
                                                     <span>Data from OpenStreetMap</span>
@@ -1991,7 +1992,7 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                                                     address={formData.fullAddress || formData.address}
                                                     serviceAvailable={leadServiceAvailable}
                                                     nearestSplitter={leadNearestSplitters[0] ? {
-                                                        distance: leadNearestSplitters[0].distance,
+                                                        distance: leadNearestSplitters[0].distance ?? 0,
                                                         name: leadNearestSplitters[0].name
                                                     } : null}
                                                 />
@@ -2028,11 +2029,11 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                                 )}
 
                                 {/* Map Instructions */}
-                                <p className="text-sm text-blue-800">
+                                <p className="text-sm text-blue-800 dark:text-blue-400">
                                     <strong>Instructions:</strong>
                                 </p>
 
-                                <ul className="list-disc pl-5 mt-1 space-y-1 text-sm text-blue-800">
+                                <ul className="list-disc pl-5 mt-1 space-y-1 text-sm text-blue-800 dark:text-blue-400">
                                     <li>Search for a location or click on the map to set position</li>
                                     <li>Drag the marker to adjust location</li>
                                     <li>Click "Use My Location" to get your current position</li>
@@ -2085,7 +2086,7 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                                             }}
                                             className="w-full"
                                         />
-                                        <div className="flex justify-between text-sm text-gray-600">
+                                        <div className="flex justify-between text-sm text-gray-600 dark:text-slate-400">
                                             <span>50 m</span>
                                             <span>{formatDistance(leadServiceRadius)}</span>
                                             <span>10 km</span>
@@ -2094,29 +2095,29 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                                 </div>
 
                                 {/* Current Location Info */}
-                                <div className="p-3 bg-gray-50 border rounded-lg">
+                                <div className="p-3 bg-gray-50 dark:bg-slate-800/40 border border-gray-200 dark:border-slate-800 rounded-lg">
                                     <h4 className="font-medium mb-2">📍 Current Location Info</h4>
                                     <div className="space-y-2 text-sm">
                                         <div className="flex justify-between">
-                                            <span className="text-gray-600">Map Coordinates:</span>
-                                            <span className="font-mono">
+                                            <span className="text-gray-600 dark:text-slate-400">Map Coordinates:</span>
+                                            <span className="font-mono text-gray-900 dark:text-slate-100">
                                                 {leadMapPosition[0].toFixed(6)}, {leadMapPosition[1].toFixed(6)}
                                             </span>
                                         </div>
 
                                         <div>
-                                            <div className="text-gray-600 mb-1">Location Address:</div>
+                                            <div className="text-gray-600 dark:text-slate-400 mb-1">Location Address:</div>
                                             {reverseGeocodingLoading ? (
-                                                <div className="flex items-center gap-1 text-blue-600 py-1">
+                                                <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400 py-1">
                                                     <Loader2 className="h-3 w-3 animate-spin" />
                                                     <span>Getting address...</span>
                                                 </div>
                                             ) : currentLocationAddress ? (
-                                                <div className="text-xs bg-white p-2 rounded border break-words min-h-[40px] max-h-[100px] overflow-y-auto">
+                                                <div className="text-xs bg-white dark:bg-slate-900 p-2 rounded border border-gray-200 dark:border-slate-800 dark:text-slate-200 break-words min-h-[40px] max-h-[100px] overflow-y-auto">
                                                     {currentLocationAddress}
                                                 </div>
                                             ) : (
-                                                <div className="text-gray-400 italic p-2">Not set on map</div>
+                                                <div className="text-gray-400 dark:text-slate-500 italic p-2">Not set on map</div>
                                             )}
                                         </div>
                                     </div>
@@ -2126,21 +2127,21 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                                 {leadServiceAvailable !== null && (
                                     <div className="mt-4">
                                         {leadServiceAvailable ? (
-                                            <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
-                                                <CheckCircle className="h-5 w-5 text-green-600" />
+                                            <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900/30 rounded-lg">
+                                                <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
                                                 <div>
-                                                    <p className="font-medium text-green-800">Service Available</p>
-                                                    <p className="text-sm text-green-600">
+                                                    <p className="font-medium text-green-800 dark:text-green-300">Service Available</p>
+                                                    <p className="text-sm text-green-600 dark:text-green-400">
                                                         Nearest splitter is {formatDistance(leadNearestSplitters[0]?.distance || 0)} away
                                                     </p>
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-                                                <AlertTriangle className="h-5 w-5 text-red-600" />
+                                            <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-lg">
+                                                <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
                                                 <div>
-                                                    <p className="font-medium text-red-800">Service Not Available</p>
-                                                    <p className="text-sm text-red-600">
+                                                    <p className="font-medium text-red-800 dark:text-red-300">Service Not Available</p>
+                                                    <p className="text-sm text-red-600 dark:text-red-400">
                                                         No splitters within service range ({formatDistance(leadServiceRadius)})
                                                     </p>
                                                 </div>
@@ -2155,37 +2156,37 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                                         <h4 className="font-medium mb-2">Nearest Splitters (within {formatDistance(leadServiceRadius)})</h4>
                                         <div className="space-y-2 max-h-48 overflow-y-auto">
                                             {leadNearestSplitters.map((splitter, index) => (
-                                                <div key={splitter.id} className="p-3 border rounded-lg hover:bg-gray-50">
+                                                <div key={splitter.id} className="p-3 border border-gray-200 dark:border-slate-800 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800/40">
                                                     <div className="flex justify-between items-start">
                                                         <div>
-                                                            <div className="font-medium">{splitter.name}</div>
-                                                            <div className="text-sm text-gray-500">
+                                                            <div className="font-medium text-gray-900 dark:text-slate-100">{splitter.name}</div>
+                                                            <div className="text-sm text-gray-500 dark:text-slate-400">
                                                                 ID: {splitter.splitterId} • Ratio: {splitter.splitRatio}
                                                             </div>
-                                                            <div className="text-xs text-gray-500 mt-1">
+                                                            <div className="text-xs text-gray-500 dark:text-slate-500 mt-1">
                                                                 {splitter.location.site || 'No site specified'}
                                                             </div>
                                                         </div>
                                                         <div className="text-right">
-                                                            <div className="font-medium">
+                                                            <div className="font-medium text-gray-900 dark:text-slate-100">
                                                                 {formatDistance(splitter.distance || 0)}
                                                             </div>
-                                                            <Badge className={`mt-1 ${splitter.distance <= leadServiceRadius
-                                                                ? 'bg-green-100 text-green-800'
-                                                                : 'bg-yellow-100 text-yellow-800'
+                                                            <Badge className={`mt-1 ${(splitter.distance ?? 0) <= leadServiceRadius
+                                                                ? 'bg-green-100 dark:bg-green-950/30 text-green-800 dark:text-green-400'
+                                                                : 'bg-yellow-100 dark:bg-yellow-950/30 text-yellow-800 dark:text-yellow-400'
                                                                 }`}>
-                                                                {splitter.distance <= leadServiceRadius ? 'Within range' : 'Out of range'}
+                                                                {(splitter.distance ?? 0) <= leadServiceRadius ? 'Within range' : 'Out of range'}
                                                             </Badge>
                                                         </div>
                                                     </div>
-                                                    <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                                                    <div className="flex items-center gap-2 mt-2 text-xs text-gray-500 dark:text-slate-400">
                                                         <span>Available Ports: {splitter.availablePorts}/{splitter.portCount}</span>
                                                         <span>•</span>
                                                         <span>Type: {splitter.splitterType}</span>
                                                         <span>•</span>
                                                         <span className={`px-2 py-0.5 rounded ${splitter.status === 'active'
-                                                            ? 'bg-green-100 text-green-800'
-                                                            : 'bg-red-100 text-red-800'
+                                                            ? 'bg-green-100 dark:bg-green-950/30 text-green-800 dark:text-green-400'
+                                                            : 'bg-red-100 dark:bg-red-950/30 text-red-800 dark:text-red-400'
                                                             }`}>
                                                             {splitter.status}
                                                         </span>
@@ -2197,12 +2198,12 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                                 )}
 
                                 {leadNearestSplitters.length === 0 && formData.latitude && formData.longitude && (
-                                    <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                    <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900/30 rounded-lg">
                                         <div className="flex items-center gap-2">
-                                            <AlertTriangle className="h-5 w-5 text-yellow-600" />
+                                            <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
                                             <div>
-                                                <p className="font-medium text-yellow-800">No Splitters Found</p>
-                                                <p className="text-sm text-yellow-600">
+                                                <p className="font-medium text-yellow-800 dark:text-yellow-300">No Splitters Found</p>
+                                                <p className="text-sm text-yellow-600 dark:text-yellow-400">
                                                     No splitters found within {formatDistance(leadServiceRadius)} radius. Service may not be available at this location.
                                                 </p>
                                             </div>
@@ -2240,9 +2241,9 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                             </div>
 
                             {(!Array.isArray(leadFollowUps) || leadFollowUps.length === 0) ? (
-                                <div className="text-center py-8 border rounded-lg">
-                                    <MessageSquare className="h-12 w-12 mx-auto text-gray-300" />
-                                    <p className="text-gray-500 mt-2">No follow-ups yet</p>
+                                <div className="text-center py-8 border border-gray-200 dark:border-slate-800 rounded-lg">
+                                    <MessageSquare className="h-12 w-12 mx-auto text-gray-300 dark:text-slate-700" />
+                                    <p className="text-gray-500 dark:text-slate-400 mt-2">No follow-ups yet</p>
                                     <Button
                                         variant="outline"
                                         size="sm"
@@ -2255,16 +2256,16 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                             ) : (
                                 <div className="space-y-3">
                                     {leadFollowUps.map((followUp) => (
-                                        <div key={followUp.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                                        <div key={followUp.id} className="border border-gray-200 dark:border-slate-800 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-slate-800/40">
                                             <div className="flex justify-between items-start">
                                                 <div className="space-y-2">
                                                     <div className="flex items-center gap-2">
                                                         {getFollowUpTypeIcon(followUp.type)}
-                                                        <h4 className="font-medium">{followUp.title}</h4>
+                                                        <h4 className="font-medium text-gray-900 dark:text-slate-100">{followUp.title}</h4>
                                                         {getFollowUpStatusBadge(followUp.status)}
                                                     </div>
-                                                    <p className="text-sm text-gray-600">{followUp.description}</p>
-                                                    <div className="flex items-center gap-4 text-sm">
+                                                    <p className="text-sm text-gray-600 dark:text-slate-300">{followUp.description}</p>
+                                                    <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-slate-400">
                                                         <div className="flex items-center gap-1">
                                                             <CalendarDays className="h-3 w-3" />
                                                             <span>{formatDate(followUp.scheduledAt)}</span>

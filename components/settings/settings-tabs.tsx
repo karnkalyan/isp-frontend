@@ -7,7 +7,6 @@ import { InternetPlansSettings } from "@/components/settings/internet-plans-sett
 import { ExtraChargesSettings } from "@/components/settings/billing-cycles-settings"
 import { PaymentMethodsSettings } from "@/components/settings/payment-methods-settings"
 import { ServiceAreasSettings } from "@/components/settings/service-areas-settings"
-import { SystemSettings } from "@/components/settings/system-settings"
 import { PackageCreationSettings } from "@/components/settings/package-creation-settings"
 import { Building, Globe, MapPin, Calendar, Settings as SettingsIcon, PlusCircle } from "lucide-react"
 import { CardContainer } from "@/components/ui/card-container"
@@ -52,13 +51,6 @@ export function SettingsTabs() {
         >
           <Calendar className="h-4 w-4" />
          Package Addon Charges
-        </TabsTrigger>
-        <TabsTrigger
-          value="system-settings"
-          className="flex items-center gap-2 rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-primary data-[state=active]:bg-transparent"
-        >
-          <SettingsIcon className="h-4 w-4" />
-          System Settings
         </TabsTrigger>
       </TabsList>
 
@@ -109,16 +101,6 @@ export function SettingsTabs() {
           gradientColor="#10b981"
         >
           <ExtraChargesSettings  />
-        </CardContainer>
-      </TabsContent>
-
-      <TabsContent value="system-settings" className="mt-6">
-        <CardContainer
-          title="System Settings"
-          description="Configure mail server and system features"
-          gradientColor="#0ea5e9"
-        >
-          <SystemSettings />
         </CardContainer>
       </TabsContent>
     </Tabs>

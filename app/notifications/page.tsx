@@ -52,6 +52,7 @@ export default function NotificationsPage() {
       await apiRequest(`/notifications/${id}/read`, { method: "PUT" })
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n))
       setUnreadCount(prev => Math.max(0, prev - 1))
+      window.dispatchEvent(new CustomEvent("notifications-updated"))
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" })
     }
@@ -62,6 +63,7 @@ export default function NotificationsPage() {
       await apiRequest("/notifications/read-all", { method: "PUT" })
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })))
       setUnreadCount(0)
+      window.dispatchEvent(new CustomEvent("notifications-updated"))
       toast({ title: "All notifications marked as read" })
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" })

@@ -104,6 +104,10 @@ export default function MessagesPage() {
           ? { ...msg, isRead: true }
           : msg
       ))
+
+      if (unreadMessages.length > 0) {
+        window.dispatchEvent(new CustomEvent("messages-updated"))
+      }
     } catch (error) {
       console.error("Failed to mark messages as read:", error)
     }
