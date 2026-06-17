@@ -29,6 +29,9 @@ export default function AakashSmsServicePage() {
   const [campaignLogs, setCampaignLogs] = useState<any[]>([])
   const [logsLoading, setLogsLoading] = useState(false)
 
+  const [serviceStatus, setServiceStatus] = useState<any>(null)
+  const [statusLoading, setStatusLoading] = useState(true)
+
   const fetchCredit = async () => {
     setCreditLoading(true)
     try {
@@ -68,9 +71,28 @@ export default function AakashSmsServicePage() {
     }
   }
 
+  const fetchServiceStatus = async () => {
+    setStatusLoading(true)
+    try {
+      const res = await apiRequest<any>("/services/isp/status/AAKASHSMS", { suppressToast: true })
+      const statusData = res?.data || res
+      setServiceStatus(statusData)
+      if (statusData?.enabled && statusData?.configured) {
+        await Promise.all([
+          fetchCredit(),
+          fetchCampaigns()
+        ])
+      }
+    } catch (err) {
+      console.error("Failed to check Aakash SMS status:", err)
+      setServiceStatus({ enabled: false, configured: false })
+    } finally {
+      setStatusLoading(false)
+    }
+  }
+
   useEffect(() => {
-    fetchCredit()
-    fetchCampaigns()
+    fetchServiceStatus()
   }, [])
 
   const handleCampaignClick = (campaign: any) => {
@@ -85,6 +107,55 @@ export default function AakashSmsServicePage() {
   const creditDisplay = typeof credit === 'object' 
     ? (credit?.credit !== undefined ? credit.credit : JSON.stringify(credit))
     : (credit !== null && credit !== undefined ? credit : "Not Configured")
+
+  if (statusLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex justify-center items-center py-20">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">Loading SMS integration status...</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  if (!serviceStatus?.enabled || !serviceStatus?.configured) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <PageHeader
+            title="Aakash SMS Setup"
+            description="Configure Aakash SMS, check provider credit, and review SMS feature delivery logs"
+            icon={MessageSquare}
+          />
+          <Card className="glass-card shadow-depth">
+            <CardHeader>
+              <CardTitle>Aakash SMS Service</CardTitle>
+              <CardDescription>Aakash SMS service not configured or enabled for ISP</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-4 py-6 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-start gap-3">
+                  <Coins className="mt-0.5 h-5 w-5 text-amber-500" />
+                  <div>
+                    <p className="font-medium text-foreground">Aakash SMS service is not enabled</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Configure credentials and enable the Aakash SMS service before checking credits, campaigns, and delivery logs.
+                    </p>
+                  </div>
+                </div>
+                <Button variant="outline" asChild>
+                  <a href="/services">Configure Service</a>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    )
+  }
 
   return (
     <DashboardLayout>

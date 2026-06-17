@@ -63,16 +63,16 @@ const Circle = dynamic(() => import('react-leaflet').then(mod => mod.Circle), { 
 // Custom icon factory function (only runs on client)
 const getCustomIcon = () => {
   if (typeof window === 'undefined') return null
-  
+
   const L = require('leaflet')
-  
+
   delete (L.Icon.Default.prototype as any)._getIconUrl
   L.Icon.Default.mergeOptions({
     iconRetinaUrl: "/leaflet/images/marker-icon-2x.png",
     iconUrl: "/leaflet/images/marker-icon.png",
     shadowUrl: "/leaflet/images/marker-shadow.png",
   })
-  
+
   return new L.Icon({
     iconUrl: "/leaflet/images/marker-icon.png",
     iconRetinaUrl: "/leaflet/images/marker-icon-2x.png",
@@ -209,20 +209,20 @@ const LocationMarker = ({
 const SplitterMarker = ({ splitter }: { splitter: Splitter }) => {
   const [isClient, setIsClient] = useState(false)
   const [splitterIcon, setSplitterIcon] = useState<any>(null)
-  
+
   const lat = splitter.location?.latitude
   const lng = splitter.location?.longitude
 
   useEffect(() => {
     setIsClient(true)
-    
+
     if (typeof window !== 'undefined') {
       const L = require('leaflet')
       const icon = new L.DivIcon({
         html: `
           <div class="relative">
             <div class="w-6 h-6 rounded-full ${splitter.isMaster ? "bg-purple-500" : "bg-blue-500"
-        } border-2 border-white shadow-lg flex items-center justify-center">
+          } border-2 border-white shadow-lg flex items-center justify-center">
               <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
               </svg>
@@ -553,7 +553,7 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
     ponSerial: "",
     notes: "",
   })
-  
+
   const [inventoryItems, setInventoryItems] = useState<any[]>([])
   const [loadingInventory, setLoadingInventory] = useState(false)
 
@@ -583,10 +583,10 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
       setLoadingInventory(true)
       apiRequest(`/inventory?type=${encodeURIComponent(formData.deviceType)}&status=ASSIGNED_TO_USER&userId=${user.id}`)
         .then(data => {
-           const available = (data || []).filter((item: any) => 
-               item.status === "ASSIGNED_TO_USER" && Number(item.userId) === Number(user.id) && !item.customerId
-           )
-           setInventoryItems(available)
+          const available = (data || []).filter((item: any) =>
+            item.status === "ASSIGNED_TO_USER" && Number(item.userId) === Number(user.id) && !item.customerId
+          )
+          setInventoryItems(available)
         })
         .catch(console.error)
         .finally(() => setLoadingInventory(false))
@@ -1141,10 +1141,52 @@ export function AddCustomerForm() {
 
   const [isFree, setIsFree] = useState(false)
   const [freeCustomerSecretKey, setFreeCustomerSecretKey] = useState("")
+  const [showSecretModal, setShowSecretModal] = useState(false)
+  const [typedSecretKey, setTypedSecretKey] = useState("")
+  const [systemSecretKey, setSystemSecretKey] = useState("admin123")
+  const [freeCustomerUnlocked, setFreeCustomerUnlocked] = useState(false)
 
   const roleStr = typeof user?.role === 'string' ? user.role : (user?.role?.name || '')
   const normalizedRole = roleStr.toLowerCase()
   const isAdmin = normalizedRole === "admin" || normalizedRole === "isp_admin" || normalizedRole === "administrator" || normalizedRole.startsWith("global ");
+
+  const handleVerifySecretKey = useCallback(() => {
+    if (typedSecretKey === systemSecretKey) {
+      setFreeCustomerSecretKey(typedSecretKey)
+      setFreeCustomerUnlocked(true)
+      setIsFree(true)
+      setShowSecretModal(false)
+      toast.success("Free Customer feature unlocked!")
+    } else {
+      toast.error("Invalid verification key.")
+    }
+  }, [typedSecretKey, systemSecretKey])
+
+  // Listen to keyboard shortcut (Ctrl + Z) or (Ctrl + Alt + F) to toggle the secret modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey && (e.key === "z" || e.key === "Z")) ||
+          (e.ctrlKey && e.altKey && (e.key === "f" || e.key === "F"))) {
+        e.preventDefault()
+        setShowSecretModal(true)
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [])
+
+  // Load the free customer secret key from settings if the user is admin
+  useEffect(() => {
+    if (isAdmin) {
+      apiRequest<Record<string, string>>("/settings")
+        .then((data) => {
+          if (data && data.freeCustomerSecretKey) {
+            setSystemSecretKey(data.freeCustomerSecretKey)
+          }
+        })
+        .catch((err) => console.warn("Failed to load settings secret key:", err))
+    }
+  }, [isAdmin])
 
   // ========== Data State ==========
   const [packages, setPackages] = useState<Package[]>([])
@@ -1863,7 +1905,7 @@ export function AddCustomerForm() {
       setIsAutoFinding(false);
     }
   }, [provisionDetails.oltId, provisionDetails.useSplitter, provisionDetails.splitterId, provisionDetails.oltPort, splitters, findUltimateOltForSplitter, getSplitterPath]);
-  
+
   // Helper to convert a serial (e.g., "ALCLB2C804B0") to hex format ("414C434CB2C804B0")
   const convertToPonHex = useCallback((serial: string): string => {
     if (!serial) return ""
@@ -2363,7 +2405,7 @@ export function AddCustomerForm() {
     // For TSHUL or RADIUS, we can just re-send with same data
     // We'll collect failed services and call a dedicated retry endpoint or just call provision again with selected services.
     // This is left as an exercise; for now we'll just show the idea.
-    toast.info(`Retry logic for ${service} not fully implemented.`)
+    toast(`Retry logic for ${service} not fully implemented.`)
   }, [])
 
   const handleAddAnotherCustomer = useCallback(() => {
@@ -2583,6 +2625,43 @@ export function AddCustomerForm() {
 
   return (
     <div className="space-y-6">
+      {/* Secret Unlock Dialog for Free Customer feature */}
+      <Dialog open={showSecretModal} onOpenChange={setShowSecretModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Unlock Free Customer Option</DialogTitle>
+            <DialogDescription>
+              Enter the secret verification key to enable the "Free Customer" pricing override feature.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="secretKeyInput">Secret Verification Key *</Label>
+              <Input
+                id="secretKeyInput"
+                type="password"
+                placeholder="Enter secret key"
+                value={typedSecretKey}
+                onChange={(e) => setTypedSecretKey(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleVerifySecretKey()
+                  }
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter className="sm:justify-end gap-2">
+            <Button variant="outline" type="button" onClick={() => setShowSecretModal(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleVerifySecretKey} className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-650 hover:to-indigo-700 text-white">
+              Verify & Unlock
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Device Dialog */}
       <DeviceDialog
         open={deviceDialogOpen}
@@ -3544,8 +3623,8 @@ export function AddCustomerForm() {
                     </div>
                   </div>
 
-                  {/* Free Customer Section (only for admins) */}
-                  {isAdmin && (
+                  {/* Free Customer Section (only for admins, and only if unlocked via secret key) */}
+                  {isAdmin && freeCustomerUnlocked && (
                     <div className="space-y-4 p-4 border rounded-lg bg-purple-50/50 dark:bg-purple-900/10 border-purple-100 dark:border-purple-900/30">
                       <div className="flex items-center justify-between">
                         <div className="space-y-0.5">

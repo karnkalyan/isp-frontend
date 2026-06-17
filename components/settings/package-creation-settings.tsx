@@ -32,8 +32,10 @@ export type AddonCharge = {
   id: number
   name: string
   code: string
+  referenceId?: string | null
   amount: number
   isTaxable: boolean
+  isTscApplicable: boolean
   forPackageCreation: boolean
   description: string | null
 }
@@ -126,15 +128,22 @@ export function PackageCreationSettings() {
     selectedAddonIds: number[],
     customAddons: Record<number, number>
   ) => {
-    const tscAmount = isTsc ? (basePrice * tscPercentage) / 100 : 0
+    const tscAmountOnBase = isTsc ? (basePrice * tscPercentage) / 100 : 0
+    const activeAddons = addonCharges.filter(charge => selectedAddonIds.includes(charge.id))
+    const tscAmountOnAddons = activeAddons.filter(a => a.isTscApplicable).reduce((sum, item) => {
+      const customVal = customAddons[item.id]
+      const val = customVal !== undefined ? customVal : (item.amount || 0)
+      return sum + (val * tscPercentage) / 100
+    }, 0)
     
+    const totalTscAmount = tscAmountOnBase + tscAmountOnAddons
+
     // Renew total: base package + tsc (if applicable) + 13% VAT
-    const renewTaxable = basePrice + tscAmount
+    const renewTaxable = basePrice + tscAmountOnBase
     const renewVat = renewTaxable * 0.13
     const renewTotal = Math.round((renewTaxable + renewVat) * 100) / 100
 
-    // Initial total: base package + tsc + taxable addons + 13% VAT + non-taxable addons
-    const activeAddons = addonCharges.filter(charge => selectedAddonIds.includes(charge.id))
+    // Initial total: base package + totalTscAmount + addonsSum + 13% VAT
     const addonsSum = activeAddons.reduce((sum, item) => {
       const customVal = customAddons[item.id]
       const val = customVal !== undefined ? customVal : (item.amount || 0)
@@ -146,9 +155,9 @@ export function PackageCreationSettings() {
       return sum + val
     }, 0)
     
-    const initialTaxable = basePrice + tscAmount + taxableAddonsSum
+    const initialTaxable = basePrice + totalTscAmount + taxableAddonsSum
     const initialVat = initialTaxable * 0.13
-    const initialTotal = Math.round((basePrice + tscAmount + addonsSum + initialVat) * 100) / 100
+    const initialTotal = Math.round((basePrice + totalTscAmount + addonsSum + initialVat) * 100) / 100
 
     setInitialTotalWithTax(prev => ({ ...prev, [dur]: initialTotal }))
     setRenewAmountWithTax(prev => ({ ...prev, [dur]: renewTotal }))
@@ -156,23 +165,29 @@ export function PackageCreationSettings() {
 
   // Master addon lookup helper using exact ID, prefix code matching, or name substring matching
   const findMasterAddon = (customCharge: any, masterAddons: AddonCharge[]) => {
-    let match = masterAddons.find(m => m.id === customCharge.id)
+    if (customCharge.forPackageCreation) {
+      return customCharge;
+    }
+    
+    const templates = masterAddons.filter(m => m.forPackageCreation);
+
+    let match = templates.find(m => m.id === customCharge.id)
     if (match) return match
 
     if (customCharge.code) {
-      const sortedMasters = [...masterAddons].sort((a, b) => b.code.length - a.code.length)
-      match = sortedMasters.find(m => customCharge.code.startsWith(m.code))
+      const sortedTemplates = [...templates].sort((a, b) => b.code.length - a.code.length)
+      match = sortedTemplates.find(m => customCharge.code.startsWith(m.code))
       if (match) return match
     }
 
     if (customCharge.referenceId) {
-      const sortedMasters = [...masterAddons].sort((a, b) => (b.referenceId || '').length - (a.referenceId || '').length)
-      match = sortedMasters.find(m => m.referenceId && customCharge.referenceId.startsWith(m.referenceId))
+      const sortedTemplates = [...templates].sort((a, b) => (b.referenceId || '').length - (a.referenceId || '').length)
+      match = sortedTemplates.find(m => m.referenceId && customCharge.referenceId.startsWith(m.referenceId))
       if (match) return match
     }
 
     if (customCharge.name) {
-      match = masterAddons.find(m => customCharge.name.toLowerCase().includes(m.name.toLowerCase()) || m.name.toLowerCase().includes(customCharge.name.toLowerCase()))
+      match = templates.find(m => customCharge.name.toLowerCase().includes(m.name.toLowerCase()) || m.name.toLowerCase().includes(customCharge.name.toLowerCase()))
       if (match) return match
     }
 
@@ -232,7 +247,7 @@ export function PackageCreationSettings() {
   const getDurationTotal = (dur: string) => {
     const price = durationPrices[dur] || 0
     const isTsc = durationTsc[dur] || false
-    const tscAmount = isTsc ? (price * tscPercentage) / 100 : 0
+    const tscAmountOnBase = isTsc ? (price * tscPercentage) / 100 : 0
     const selected = durationAddons[dur] || []
     const activeAddons = addonCharges.filter(charge => selected.includes(charge.id))
     const addonsSum = activeAddons.reduce((sum, item) => {
@@ -241,14 +256,24 @@ export function PackageCreationSettings() {
       return sum + val
     }, 0)
     
-    // Tax calculation (13% default)
-    const taxableBase = price + tscAmount + activeAddons.filter(a => a.isTaxable).reduce((sum, item) => {
+    const tscAmountOnAddons = activeAddons.filter(a => a.isTscApplicable).reduce((sum, item) => {
+      const customVal = customAddonPrices[dur]?.[item.id]
+      const val = customVal !== undefined ? customVal : (item.amount || 0)
+      return sum + (val * tscPercentage) / 100
+    }, 0)
+
+    const totalTscAmount = tscAmountOnBase + tscAmountOnAddons
+
+    const taxableAddonsSum = activeAddons.filter(a => a.isTaxable).reduce((sum, item) => {
       const customVal = customAddonPrices[dur]?.[item.id]
       const val = customVal !== undefined ? customVal : (item.amount || 0)
       return sum + val
     }, 0)
+
+    // Tax calculation (13% default)
+    const taxableBase = price + totalTscAmount + taxableAddonsSum
     const taxAmount = (taxableBase * 13) / 100
-    const grandTotal = price + tscAmount + addonsSum + taxAmount
+    const grandTotal = price + totalTscAmount + addonsSum + taxAmount
 
     return Math.round(grandTotal * 100) / 100
   }
@@ -620,8 +645,18 @@ export function PackageCreationSettings() {
                     </div>
                     {durationTsc[dur] && (
                       <div className="flex justify-between text-blue-600 dark:text-blue-400">
-                        <span>TSC ({tscPercentage}%):</span>
+                        <span>Base TSC ({tscPercentage}%):</span>
                         <span>Rs. {Math.round(((durationPrices[dur] || 0) * tscPercentage / 100) * 100) / 100}</span>
+                      </div>
+                    )}
+                    {addonCharges.filter(c => (durationAddons[dur] || []).includes(c.id) && c.isTscApplicable).length > 0 && (
+                      <div className="flex justify-between text-blue-600 dark:text-blue-400">
+                        <span>Addons TSC ({tscPercentage}%):</span>
+                        <span>Rs. {Math.round(addonCharges.filter(c => (durationAddons[dur] || []).includes(c.id) && c.isTscApplicable).reduce((sum, item) => {
+                          const customVal = customAddonPrices[dur]?.[item.id]
+                          const val = customVal !== undefined ? customVal : (item.amount || 0)
+                          return sum + (val * tscPercentage) / 100
+                        }, 0) * 100) / 100}</span>
                       </div>
                     )}
                     <div className="flex justify-between">

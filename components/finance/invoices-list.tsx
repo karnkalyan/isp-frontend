@@ -33,12 +33,104 @@ const numberToWords = (amount: number) => {
   return `${toWords(Math.round(amount)) || "Zero"} Only`
 }
 
-function PrintableInvoice({ invoice, isp }: { invoice: any, isp: any }) {
-  const subtotal = Number(invoice?.amount || 0)
-  const taxableAmount = subtotal
-  const vat = Math.round(taxableAmount * 0.13 * 100) / 100
-  const total = Math.round((taxableAmount + vat) * 100) / 100
-  const items = invoice?.items?.length ? invoice.items : [{ itemName: invoice?.packageName || "Internet Package", itemPrice: subtotal }]
+function PrintableInvoice({
+  invoice,
+  isp,
+  addonCharges = [],
+  tscPercentage = 10
+}: {
+  invoice: any
+  isp: any
+  addonCharges?: any[]
+  tscPercentage?: number
+}) {
+  const tscPct = Number(tscPercentage || 10)
+  const items = invoice?.items?.length 
+    ? invoice.items 
+    : [{ itemName: invoice?.packageName || "Internet Package", referenceId: null, itemPrice: Number(invoice?.amount || 0) }]
+  
+  const itemsSum = items.reduce((sum: number, item: any) => sum + Number(item.itemPrice || 0), 0)
+  const invoiceTotalAmount = Number(invoice?.amount || 0)
+
+  let subtotal = 0
+  let totalTsc = 0
+  let taxableAmount = 0
+  let vat = 0
+  let total = 0
+  let displayItems: any[] = []
+
+  const findAddonConfig = (refId: string) => {
+    if (!refId) return null
+    let found = addonCharges.find(a => a.referenceId === refId)
+    if (found) return found
+    const cleanCode = refId.startsWith('INT-') ? refId.substring(4) : refId
+    found = addonCharges.find(a => a.forPackageCreation && cleanCode.startsWith(a.code))
+    return found || null
+  }
+
+  const isLegacy = Math.abs(itemsSum - invoiceTotalAmount) < 1
+
+  if (isLegacy) {
+    total = invoiceTotalAmount
+    const tscFactor = invoice?.isTscApplicable ? (tscPct / 100) : 0
+    const baseAmount = total / ((1 + tscFactor) * 1.13)
+    totalTsc = Math.round(baseAmount * tscFactor * 100) / 100
+    taxableAmount = Math.round(baseAmount * (1 + tscFactor) * 100) / 100
+    vat = Math.round(taxableAmount * 0.13 * 100) / 100
+    subtotal = Math.round((total - totalTsc - vat) * 100) / 100
+
+    displayItems = items.map((item: any) => {
+      const itemPrice = Number(item.itemPrice || 0)
+      const itemTscFactor = (item.referenceId ? findAddonConfig(item.referenceId)?.isTscApplicable : invoice?.isTscApplicable) ? (tscPct / 100) : 0
+      const itemPreTax = itemPrice / ((1 + itemTscFactor) * 1.13)
+      return {
+        ...item,
+        preTaxPrice: itemPreTax
+      }
+    })
+  } else {
+    displayItems = items.map((item: any) => {
+      const price = Number(item.itemPrice || 0)
+      let isTaxable = true
+      let isTscApplicable = false
+
+      if (item.referenceId) {
+        const addon = findAddonConfig(item.referenceId)
+        if (addon) {
+          isTaxable = addon.isTaxable
+          isTscApplicable = addon.isTscApplicable
+        } else {
+          isTaxable = true
+          isTscApplicable = invoice?.isTscApplicable || false
+        }
+      } else {
+        isTaxable = true
+        isTscApplicable = false
+      }
+
+      const itemTsc = isTscApplicable ? (price * tscPct) / 100 : 0
+
+      return {
+        ...item,
+        preTaxPrice: price,
+        isTaxable,
+        isTscApplicable,
+        itemTsc
+      }
+    })
+
+    subtotal = displayItems.reduce((sum: number, item: any) => sum + item.preTaxPrice, 0)
+    totalTsc = displayItems.reduce((sum: number, item: any) => sum + item.itemTsc, 0)
+    taxableAmount = displayItems.reduce((sum: number, item: any) => {
+      if (item.isTaxable) {
+        return sum + item.preTaxPrice + item.itemTsc
+      }
+      return sum
+    }, 0)
+    vat = Math.round(taxableAmount * 0.13 * 100) / 100
+    total = Math.round((subtotal + totalTsc + vat) * 100) / 100
+  }
+
   const printedAt = new Date()
 
   return (
@@ -98,8 +190,8 @@ function PrintableInvoice({ invoice, isp }: { invoice: any, isp: any }) {
             </tr>
           </thead>
           <tbody>
-            {items.map((item: any, index: number) => {
-              const price = Number(item.itemPrice || item.amount || subtotal / items.length || 0)
+            {displayItems.map((item: any, index: number) => {
+              const price = item.preTaxPrice
               return (
                 <tr key={item.id || index}>
                   <td className="border-x border-black p-1 align-top">{index + 1}</td>
@@ -126,6 +218,7 @@ function PrintableInvoice({ invoice, isp }: { invoice: any, isp: any }) {
               {[
                 ["Total", subtotal],
                 ["Discount", 0],
+                ["TSC", totalTsc],
                 ["Taxable Amount", taxableAmount],
                 ["Vat 13 %", vat],
                 ["Total Amount", total],
@@ -168,6 +261,8 @@ export function InvoicesList() {
   const [newItemName, setNewItemName] = useState("")
   const [newItemPrice, setNewItemPrice] = useState("")
   const [adjustmentSubmitting, setAdjustmentSubmitting] = useState(false)
+  const [addonCharges, setAddonCharges] = useState<any[]>([])
+  const [tscPercentage, setTscPercentage] = useState(10)
 
   const fetchInvoices = useCallback(async () => {
     setLoading(true)
@@ -197,6 +292,18 @@ export function InvoicesList() {
     apiRequest<any>("/isp/active")
       .then((response) => setIsp(response?.data || response?.isp || response))
       .catch(() => setIsp(null))
+
+    apiRequest<any[]>("/extra-charges")
+      .then((data) => setAddonCharges(Array.isArray(data) ? data : []))
+      .catch((err) => console.error("Failed to load extra charges:", err))
+
+    apiRequest<Record<string, string>>("/settings")
+      .then((data) => {
+        if (data && data.tscPercentage) {
+          setTscPercentage(Number(data.tscPercentage))
+        }
+      })
+      .catch((err) => console.error("Failed to load settings:", err))
   }, [])
 
   const openMarkPaid = (invoice: any) => {
@@ -559,7 +666,14 @@ export function InvoicesList() {
               </Button>
             </div>
           </DialogHeader>
-          {selectedInvoice && <PrintableInvoice invoice={selectedInvoice} isp={isp} />}
+          {selectedInvoice && (
+            <PrintableInvoice 
+              invoice={selectedInvoice} 
+              isp={isp} 
+              addonCharges={addonCharges} 
+              tscPercentage={tscPercentage} 
+            />
+          )}
         </DialogContent>
       </Dialog>
     </CardContainer>

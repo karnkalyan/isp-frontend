@@ -16,6 +16,7 @@ type ExtraCharge = {
   name: string
   code: string
   isTaxable: boolean
+  isTscApplicable: boolean
   amount: number | null
   forPackageCreation: boolean
   description: string | null
@@ -28,6 +29,7 @@ type FormItem = {
   name: string
   code: string
   isTaxable: boolean
+  isTscApplicable: boolean
   amount: number
   forPackageCreation: boolean
   description: string
@@ -47,6 +49,7 @@ export function ExtraChargesSettings() {
     name: "",
     code: "",
     isTaxable: false,
+    isTscApplicable: false,
     amount: 0,
     forPackageCreation: false,
     description: "",
@@ -56,6 +59,11 @@ export function ExtraChargesSettings() {
   const [items, setItems] = useState<FormItem>(initialItems)
 
   const IS_TAXABLE: Option[] = [
+    { value: "false", label: "False" },
+    { value: "true", label: "True" },
+  ]
+
+  const IS_TSC_APPLICABLE: Option[] = [
     { value: "false", label: "False" },
     { value: "true", label: "True" },
   ]
@@ -150,9 +158,9 @@ export function ExtraChargesSettings() {
       code: charge.code,
       amount: charge.amount || 0,
       isTaxable: charge.isTaxable,
+      isTscApplicable: charge.isTscApplicable || false,
       forPackageCreation: charge.forPackageCreation || false,
       description: charge.description || "",
-      // FIX #2: Use p.id to correctly populate the form state.
       applicablePackageIds: charge.applicablePackages.map(p => p.id),
     })
     setIsAdding(false) // Ensure "add" mode is off
@@ -245,7 +253,7 @@ export function ExtraChargesSettings() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 mb-4">
             <div className="space-y-2">
               <Label htmlFor="amount">Amount</Label>
               <Input
@@ -267,6 +275,17 @@ export function ExtraChargesSettings() {
                   setItems((prev) => ({ ...prev, isTaxable: v === "true" }))
                 }
                 placeholder="Select taxable status"
+              />
+            </div>
+            <div>
+              <Label htmlFor="isTscApplicable">Is TSC Applicable</Label>
+              <SearchableSelect
+                options={IS_TSC_APPLICABLE}
+                value={String(items.isTscApplicable)}
+                onValueChange={(v) =>
+                  setItems((prev) => ({ ...prev, isTscApplicable: v === "true" }))
+                }
+                placeholder="Select TSC status"
               />
             </div>
             <div>
@@ -349,6 +368,7 @@ export function ExtraChargesSettings() {
                 <TableHead>Name / Code</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Taxable</TableHead>
+                <TableHead>TSC Applicable</TableHead>
                 <TableHead>Applicable Packages</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -387,6 +407,9 @@ export function ExtraChargesSettings() {
                     </TableCell>
                     <TableCell>
                       {charge.isTaxable ? "Yes" : "No"}
+                    </TableCell>
+                    <TableCell>
+                      {charge.isTscApplicable ? "Yes" : "No"}
                     </TableCell>
                     <TableCell>
                       {charge.applicablePackages.length > 0
