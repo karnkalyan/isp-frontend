@@ -1424,8 +1424,14 @@ export function LeadManagement() {
 
   const checkSmsConfig = async () => {
     try {
-      await apiRequest("/service/sms/credit")
-      setSmsConfigured(true)
+      const res = await apiRequest<any[]>("/service/isp?includeInactive=true")
+      const list = Array.isArray(res) ? res : ((res as any)?.data || [])
+      const hasActiveSms = list.some((s: any) => 
+        (s.service?.code === "AAKASHSMS" || s.service?.code === "SPARROWSMS") && 
+        s.isActive && 
+        s.credentials?.some((c: any) => c.key === "auth_token" && c.value)
+      )
+      setSmsConfigured(hasActiveSms)
     } catch (err) {
       console.warn("SMS service configuration check failed:", err)
       setSmsConfigured(false)
