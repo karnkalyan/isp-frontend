@@ -2982,20 +2982,25 @@ export function LeadManagement() {
                             </TableCell>
                             <TableCell>
                               <div className="space-y-1">
-                                {lead.district && (
-                                  <div className="flex items-center gap-1 text-sm">
-                                    <MapPin className="h-3 w-3" />
-                                    {lead.district}
-                                  </div>
-                                )}
-                                {lead.province && (
-                                  <div className="text-xs text-muted-foreground">
-                                    {lead.province}
-                                  </div>
+                                {(lead.address || lead.street || lead.district || lead.province) ? (
+                                  <>
+                                    {(lead.address || lead.street) && (
+                                      <div className="flex items-center gap-1 text-sm font-medium">
+                                        <MapPin className="h-3 w-3 text-gray-500" />
+                                        <span>{[lead.street, lead.address].filter(Boolean).join(", ")}</span>
+                                      </div>
+                                    )}
+                                    {(lead.district || lead.province) && (
+                                      <div className="text-xs text-muted-foreground pl-4">
+                                        {[lead.district, lead.province].filter(Boolean).join(", ")}
+                                      </div>
+                                    )}
+                                  </>
+                                ) : (
+                                  <span className="text-muted-foreground text-sm">-</span>
                                 )}
                                 {lead.metadata?.latitude && lead.metadata?.longitude && (
-                                  <div className="text-xs text-blue-600">
-                                    <MapPinIcon className="inline h-3 w-3 mr-1" />
+                                  <div className="text-xs text-blue-600 pl-4">
                                     Coordinates set
                                   </div>
                                 )}
@@ -3213,15 +3218,26 @@ export function LeadManagement() {
                           </TableCell>
                           <TableCell>
                             <div className="space-y-1">
-                              {lead.district && (
-                                <div className="flex items-center gap-1 text-sm">
-                                  <MapPin className="h-3 w-3" />
-                                  {lead.district}
-                                </div>
+                              {(lead.address || lead.street || lead.district || lead.province) ? (
+                                <>
+                                  {(lead.address || lead.street) && (
+                                    <div className="flex items-center gap-1 text-sm font-medium">
+                                      <MapPin className="h-3 w-3 text-gray-500" />
+                                      <span>{[lead.street, lead.address].filter(Boolean).join(", ")}</span>
+                                    </div>
+                                  )}
+                                  {(lead.district || lead.province) && (
+                                    <div className="text-xs text-muted-foreground pl-4">
+                                      {[lead.district, lead.province].filter(Boolean).join(", ")}
+                                    </div>
+                                  )}
+                                </>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">-</span>
                               )}
-                              {lead.province && (
-                                <div className="text-xs text-muted-foreground">
-                                  {lead.province}
+                              {lead.metadata?.latitude && lead.metadata?.longitude && (
+                                <div className="text-xs text-blue-600 pl-4">
+                                  Coordinates set
                                 </div>
                               )}
                             </div>
@@ -3394,15 +3410,26 @@ export function LeadManagement() {
                           </TableCell>
                           <TableCell>
                             <div className="space-y-1">
-                              {lead.district && (
-                                <div className="flex items-center gap-1 text-sm">
-                                  <MapPin className="h-3 w-3" />
-                                  {lead.district}
-                                </div>
+                              {(lead.address || lead.street || lead.district || lead.province) ? (
+                                <>
+                                  {(lead.address || lead.street) && (
+                                    <div className="flex items-center gap-1 text-sm font-medium">
+                                      <MapPin className="h-3 w-3 text-gray-500" />
+                                      <span>{[lead.street, lead.address].filter(Boolean).join(", ")}</span>
+                                    </div>
+                                  )}
+                                  {(lead.district || lead.province) && (
+                                    <div className="text-xs text-muted-foreground pl-4">
+                                      {[lead.district, lead.province].filter(Boolean).join(", ")}
+                                    </div>
+                                  )}
+                                </>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">-</span>
                               )}
-                              {lead.province && (
-                                <div className="text-xs text-muted-foreground">
-                                  {lead.province}
+                              {lead.metadata?.latitude && lead.metadata?.longitude && (
+                                <div className="text-xs text-blue-600 pl-4">
+                                  Coordinates set
                                 </div>
                               )}
                             </div>

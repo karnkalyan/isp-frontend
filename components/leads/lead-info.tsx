@@ -41,7 +41,6 @@ import {
   AlertCircle,
   ExternalLink,
   Star,
-  Circle,
   Navigation,
   Target,
   Ruler,
@@ -122,6 +121,18 @@ interface Lead {
   notes?: string
   memberShipId?: string
   membership?: {
+    id: string
+    name: string
+    code: string
+  }
+  branchId?: string
+  branch?: {
+    id: string
+    name: string
+    code: string
+  }
+  subBranchId?: string
+  subBranch?: {
     id: string
     name: string
     code: string
@@ -485,7 +496,7 @@ const ServiceAreaCircle = ({ center, radius, serviceAvailable }: {
         color: serviceAvailable ? '#059669' : '#dc2626',
         fillOpacity: 0.15,
         weight: 2,
-        dashArray: serviceAvailable ? null : '10, 5',
+        dashArray: serviceAvailable ? undefined : '10, 5',
         opacity: 0.8
       }}
       eventHandlers={{
@@ -770,7 +781,7 @@ export default function LeadDetailsPage() {
 
     // Check if any splitter is within service radius
     const isAvailable = nearestSplitters.length > 0 &&
-      nearestSplitters.some(splitter => splitter.distance <= serviceRadius);
+      nearestSplitters.some(splitter => splitter.distance !== undefined && splitter.distance <= serviceRadius);
     setServiceAvailable(isAvailable);
 
     // Update lead's metadata with nearest splitters if not already present
@@ -833,6 +844,16 @@ export default function LeadDetailsPage() {
         membership: data.membership ? {
           ...data.membership,
           id: String(data.membership.id)
+        } : undefined,
+        branchId: data.branchId ? String(data.branchId) : "",
+        subBranchId: data.subBranchId ? String(data.subBranchId) : "",
+        branch: data.branch ? {
+          ...data.branch,
+          id: String(data.branch.id)
+        } : undefined,
+        subBranch: data.subBranch ? {
+          ...data.subBranch,
+          id: String(data.subBranch.id)
         } : undefined,
         assignedUser: data.assignedUser ? {
           ...data.assignedUser,
@@ -1690,6 +1711,26 @@ export default function LeadDetailsPage() {
                     {lead.membership ? `${lead.membership.name} (${lead.membership.code})` : "None"}
                   </p>
                 </div>
+                {lead.branch && (
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Branch
+                    </Label>
+                    <p className="font-medium text-gray-900 dark:text-gray-100 text-sm">
+                      {lead.branch.name} ({lead.branch.code})
+                    </p>
+                  </div>
+                )}
+                {lead.subBranch && (
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Sub-Branch
+                    </Label>
+                    <p className="font-medium text-gray-900 dark:text-gray-100 text-sm">
+                      {lead.subBranch.name} ({lead.subBranch.code})
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -1776,6 +1817,84 @@ export default function LeadDetailsPage() {
                     {lead.source?.replace('_', ' ') || "Not specified"}
                   </p>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Address Details Card */}
+            <Card className="rounded-xl border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-950 shadow-sm relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-32 h-32 bg-gradient-to-br from-amber-500/10 to-transparent rounded-full -translate-x-16 -translate-y-16"></div>
+              <div className="absolute bottom-0 right-0 w-32 h-32 bg-gradient-to-tl from-yellow-500/10 to-transparent rounded-full translate-x-16 translate-y-16"></div>
+              <CardHeader className="relative z-10 pb-3">
+                <CardTitle className="flex items-center gap-2 text-lg text-gray-900 dark:text-gray-100">
+                  <MapPinIcon className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                  Address Details
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="relative z-10 pt-2 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Province
+                    </Label>
+                    <p className="font-medium text-gray-900 dark:text-gray-100 text-sm">
+                      {lead.province || "Not provided"}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      District
+                    </Label>
+                    <p className="font-medium text-gray-900 dark:text-gray-100 text-sm">
+                      {lead.district || "Not provided"}
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Street
+                    </Label>
+                    <p className="font-medium text-gray-900 dark:text-gray-100 text-sm">
+                      {lead.street || "Not provided"}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Address / Ward
+                    </Label>
+                    <p className="font-medium text-gray-900 dark:text-gray-100 text-sm">
+                      {lead.address || "Not provided"}
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Full Address
+                  </Label>
+                  <p className="font-medium text-gray-900 dark:text-gray-100 text-sm">
+                    {lead.metadata?.fullAddress || "Not provided"}
+                  </p>
+                </div>
+                {lead.metadata?.latitude && lead.metadata?.longitude && (
+                  <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100 dark:border-gray-800">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Latitude
+                      </Label>
+                      <p className="font-mono text-gray-900 dark:text-gray-100 text-xs font-medium">
+                        {parseFloat(lead.metadata.latitude.toString()).toFixed(6)}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Longitude
+                      </Label>
+                      <p className="font-mono text-gray-900 dark:text-gray-100 text-xs font-medium">
+                        {parseFloat(lead.metadata.longitude.toString()).toFixed(6)}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
