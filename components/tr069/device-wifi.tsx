@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "react-hot-toast";
-import { Wifi, WifiOff, Save, RefreshCw, Signal, Shield, Lock, Download, Upload, Activity } from "lucide-react";
+import { Wifi, WifiOff, Save, RefreshCw, Signal, Shield, Lock, Download, Upload, Activity, Eye, EyeOff } from "lucide-react";
 import { SSID } from "@/types/tr069";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { apiRequest } from "@/lib/api";
@@ -32,6 +32,7 @@ export function TR069DeviceWifi({ deviceId }: TR069DeviceWifiProps) {
     mode: "",
     txPower: "",
   });
+  const [showPassword, setShowPassword] = useState(false);
 
   const [stats, setStats] = useState({
     bytesReceived: 0,
@@ -413,14 +414,33 @@ export function TR069DeviceWifi({ deviceId }: TR069DeviceWifiProps) {
 
                 <div className="space-y-2">
                   <Label>Password</Label>
-                  <Input
-                    type="password"
-                    value={settings.password}
-                    onChange={(e) => setSettings({ ...settings, password: e.target.value })}
-                    disabled={isSaving}
-                    className={!settings.enabled ? "bg-muted" : ""}
-                    placeholder={settings.enabled ? "Enter new password to change" : ""}
-                  />
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      value={settings.password}
+                      onChange={(e) => setSettings({ ...settings, password: e.target.value })}
+                      disabled={isSaving}
+                      className={`pr-10 ${!settings.enabled ? "bg-muted" : ""}`}
+                      placeholder={settings.enabled ? "Enter new password to change" : ""}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent text-muted-foreground hover:text-foreground"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      disabled={isSaving}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                      <span className="sr-only">
+                        {showPassword ? "Hide password" : "Show password"}
+                      </span>
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -505,7 +525,7 @@ export function TR069DeviceWifi({ deviceId }: TR069DeviceWifiProps) {
                         ))}
                       </Pie>
                       <Tooltip
-                        formatter={(value: number) => formatBytes(value)}
+                        formatter={(value: any) => formatBytes(Number(value || 0))}
                         contentStyle={{
                           backgroundColor: "hsl(var(--background))",
                           border: "1px solid hsl(var(--border))",
@@ -554,7 +574,7 @@ export function TR069DeviceWifi({ deviceId }: TR069DeviceWifiProps) {
                         ))}
                       </Pie>
                       <Tooltip
-                        formatter={(value: number) => formatNumber(value)}
+                        formatter={(value: any) => formatNumber(Number(value || 0))}
                         contentStyle={{
                           backgroundColor: "hsl(var(--background))",
                           border: "1px solid hsl(var(--border))",

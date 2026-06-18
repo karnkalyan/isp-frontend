@@ -574,6 +574,7 @@ export function LeadManagement() {
   const [smsLead, setSmsLead] = useState<Lead | null>(null)
   const [smsMessage, setSmsMessage] = useState("")
   const [sendingSms, setSendingSms] = useState(false)
+  const [smsConfigured, setSmsConfigured] = useState<boolean | null>(null)
 
   // Pagination and filter states
   const [searchQuery, setSearchQuery] = useState("")
@@ -730,6 +731,7 @@ export function LeadManagement() {
     fetchMemberships()
     fetchExistingISPs()
     fetchSplitters()
+    checkSmsConfig()
   }, [])
 
   // Fetch leads when active tab or filters change
@@ -1420,7 +1422,21 @@ export function LeadManagement() {
     }
   }
 
+  const checkSmsConfig = async () => {
+    try {
+      await apiRequest("/service/sms/credit")
+      setSmsConfigured(true)
+    } catch (err) {
+      console.warn("SMS service configuration check failed:", err)
+      setSmsConfigured(false)
+    }
+  }
+
   const openSmsDialog = (lead: Lead) => {
+    if (smsConfigured === false) {
+      toast.error("SMS service is not configured. Please enable Aakash SMS or Sparrow SMS in settings.")
+      return
+    }
     setSelectedLead(lead)
     setSmsLead(lead)
     setSmsMessage("")
@@ -1754,7 +1770,7 @@ export function LeadManagement() {
       const response = await apiRequest("/lead/template", {
         method: 'GET',
         responseType: 'blob' // Make sure your apiRequest handles this
-      });
+      } as any);
 
       // Check if response is already a blob
       if (response instanceof Blob) {
@@ -2633,11 +2649,11 @@ export function LeadManagement() {
                                     <div className="font-medium">
                                       {formatDistance(splitter.distance || 0)}
                                     </div>
-                                    <Badge className={`mt-1 ${splitter.distance <= leadServiceRadius
+                                    <Badge className={`mt-1 ${(splitter.distance ?? 0) <= leadServiceRadius
                                       ? 'bg-green-100/10 text-green-800'
                                       : 'bg-yellow-100/10 text-yellow-800'
                                       }`}>
-                                      {splitter.distance <= leadServiceRadius ? 'Within range' : 'Out of range'}
+                                      {(splitter.distance ?? 0) <= leadServiceRadius ? 'Within range' : 'Out of range'}
                                     </Badge>
                                   </div>
                                 </div>

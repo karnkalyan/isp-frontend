@@ -58,25 +58,20 @@ export function SmsCampaign() {
   const [sending, setSending] = useState(false)
   const [recipients, setRecipients] = useState<any[]>([])
   const [selectedRecipients, setSelectedRecipients] = useState<any[]>([])
-  const [recipientSearchQuery, setRecipientSearchQuery] = useState("")
+  const [targetingScope, setTargetingScope] = useState<"all" | "select">("all")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [searching, setSearching] = useState(false)
+  const [recipientsCount, setRecipientsCount] = useState(0)
+
+  // Restored states to fix TypeScript compilation
   const [credit, setCredit] = useState<any>(null)
   const [smsProviders, setSmsProviders] = useState<any[]>([])
   const [selectedProvider, setSelectedProvider] = useState<string>("")
-  const [includeAllMatching, setIncludeAllMatching] = useState(true)
   const [campaigns, setCampaigns] = useState<any[]>([])
   const [campaignLogs, setCampaignLogs] = useState<any[]>([])
   const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null)
   const [logsLoading, setLogsLoading] = useState(false)
-
-  const filteredRecipients = React.useMemo(() => {
-    const query = recipientSearchQuery.trim().toLowerCase()
-    if (!query) return recipients
-    return recipients.filter(
-      (r) =>
-        (r.name && r.name.toLowerCase().includes(query)) ||
-        (r.phone && r.phone.toLowerCase().includes(query))
-    )
-  }, [recipients, recipientSearchQuery])
 
   // Derive hierarchy: Head Office (parentId null) -> Branches -> Sub-Branches
   const headOffices = React.useMemo(() => allBranchData.filter((b: any) => b.parentId === null), [allBranchData])
@@ -161,10 +156,83 @@ export function SmsCampaign() {
     fetchCampaigns()
   }, [])
 
-  // Fetch recipients when filters change
+  // Fetch recipients count when filters change and targeting scope is "all"
   useEffect(() => {
-    fetchRecipients()
-  }, [recipientType, filters, selectedHeadOffices, selectedBranches, selectedSubBranches])
+    if (targetingScope === "all") {
+      fetchRecipients()
+    }
+  }, [recipientType, filters, selectedHeadOffices, selectedBranches, selectedSubBranches, targetingScope])
+
+  // Debounced search for manual recipient selection
+  useEffect(() => {
+    if (!searchQuery.trim() || targetingScope !== "select") {
+      setSearchResults([])
+      return
+    }
+
+    const delayDebounceFn = setTimeout(async () => {
+      setSearching(true)
+      try {
+        const endpoint = recipientType === "customer" ? "/customer" : "/lead"
+        const params = new URLSearchParams({
+          search: searchQuery,
+          limit: "20"
+        })
+
+        if (filters.status !== "all") params.append("status", filters.status)
+        if (recipientType === "customer") {
+          if (filters.oltId !== "all") params.append("oltId", filters.oltId)
+          if (filters.splitterId !== "all") params.append("splitterId", filters.splitterId)
+          if (filters.area) params.append("area", filters.area)
+        } else {
+          if (filters.area) params.append("area", filters.area)
+        }
+
+        // Add subBranch/branch filters to search query if a single sub-branch or branch is selected
+        if (selectedSubBranches.length === 1) {
+          params.append("subBranchId", String(selectedSubBranches[0]))
+        } else if (selectedBranches.length === 1) {
+          params.append("branchId", String(selectedBranches[0]))
+        }
+
+        const res = await apiRequest<any>(`${endpoint}?${params.toString()}`)
+        const raw = Array.isArray(res) ? res : (res?.data || [])
+
+        // Filter locally so Head Office selection includes every nested branch below it.
+        let filteredRaw = raw
+        const scopedBranchIds = getSelectedBranchScope()
+
+        if (scopedBranchIds.size > 0) {
+          filteredRaw = filteredRaw.filter((item: any) => {
+            const itemBranchId = Number(item.branchId || item.branch?.id || item.lead?.branchId || item.lead?.branch?.id || 0)
+            const itemSubBranchId = Number(item.subBranchId || item.subBranch?.id || item.lead?.subBranchId || item.lead?.subBranch?.id || 0)
+
+            return scopedBranchIds.has(itemBranchId) || scopedBranchIds.has(itemSubBranchId)
+          })
+        }
+
+        const data = recipientType === "customer"
+          ? filteredRaw.map((c: any) => ({
+              recipientId: c.id,
+              name: c.firstName ? `${c.firstName} ${c.lastName || ""}`.trim() : `${c.lead?.firstName || ""} ${c.lead?.lastName || ""}`.trim(),
+              phone: c.phoneNumber || c.lead?.phoneNumber
+            }))
+          : filteredRaw.map((l: any) => ({
+              recipientId: l.id,
+              name: `${l.firstName || ""} ${l.lastName || ""}`.trim(),
+              phone: l.phoneNumber
+            }))
+
+        setSearchResults(data.filter((r: any) => r.phone))
+      } catch (err) {
+        console.error("Failed to search recipients", err)
+      } finally {
+        setSearching(false)
+      }
+    }, 400)
+
+    return () => clearTimeout(delayDebounceFn)
+  }, [searchQuery, recipientType, filters, targetingScope, selectedBranches, selectedSubBranches, getSelectedBranchScope])
 
   useEffect(() => {
     const hasActiveCampaign = campaigns.some((campaign) => ["queued", "processing"].includes(campaign.status))
@@ -327,21 +395,24 @@ export function SmsCampaign() {
       return
     }
 
-    const hasManualSelection = selectedRecipients.length > 0
-    const finalRecipients = hasManualSelection ? selectedRecipients : recipients
-
-    if (!hasManualSelection && !includeAllMatching && recipients.length === 0) {
-      toast.error("No recipients found with valid phone numbers.")
-      return
-    }
     if (!selectedProvider) {
       toast.error("No SMS provider selected.")
       return
     }
 
+    if (targetingScope === "select" && selectedRecipients.length === 0) {
+      toast.error("Please select at least one recipient.")
+      return
+    }
+
+    if (targetingScope === "all" && recipientsCount === 0) {
+      toast.error("No recipients found with valid phone numbers matching current filters.")
+      return
+    }
+
     setSending(true)
     try {
-      const recipientData = finalRecipients.map(r => ({
+      const recipientData = selectedRecipients.map(r => ({
         phone: r.phone,
         recipientId: r.recipientId,
         name: r.name
@@ -361,11 +432,11 @@ export function SmsCampaign() {
       const res = await apiRequest<any>("/service/sms/campaigns", {
         method: "POST",
         body: JSON.stringify({
-          to: recipientData,
+          to: targetingScope === "select" ? recipientData : [],
           text: message,
           type: recipientType,
           provider: selectedProvider,
-          selectAll: hasManualSelection ? false : includeAllMatching,
+          selectAll: targetingScope === "all",
           filters: campaignFilters,
         })
       })
@@ -632,111 +703,172 @@ export function SmsCampaign() {
               </Select>
             </div>
 
-            {/* Manual Recipient Selection */}
-            <div className="space-y-2 pt-2 border-t border-border/50">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-semibold text-foreground/70 uppercase tracking-wider">
-                  Select Recipients Manually
-                </Label>
-                <Badge variant="outline" className="text-[10px] bg-slate-500/10">
-                  {selectedRecipients.length > 0 ? `${selectedRecipients.length} selected` : "All (Auto)"}
-                </Badge>
+            {/* Targeting Scope Selection */}
+            <div className="space-y-1.5 pt-2 border-t border-border/50">
+              <Label className="text-xs font-semibold text-foreground/70 uppercase tracking-wider">
+                Targeting Scope
+              </Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant={targetingScope === "all" ? "default" : "outline"}
+                  className="text-xs h-8 px-3"
+                  onClick={() => {
+                    setTargetingScope("all");
+                    setSelectedRecipients([]);
+                  }}
+                >
+                  All Matching
+                </Button>
+                <Button
+                  type="button"
+                  variant={targetingScope === "select" ? "default" : "outline"}
+                  className="text-xs h-8 px-3"
+                  onClick={() => {
+                    setTargetingScope("select");
+                    setSearchQuery("");
+                    setSearchResults([]);
+                  }}
+                >
+                  Specific Select
+                </Button>
               </div>
-              
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  placeholder={`Search ${recipientType === 'customer' ? 'customers' : 'leads'}...`}
-                  className="pl-8 h-8 text-xs bg-background border-input"
-                  value={recipientSearchQuery}
-                  onChange={(e) => setRecipientSearchQuery(e.target.value)}
-                />
-              </div>
+            </div>
 
-              <div className="border border-border rounded-md max-h-[180px] overflow-y-auto divide-y divide-border/50 bg-background/50">
-                {loading ? (
-                  <div className="p-3 text-xs text-center text-muted-foreground flex items-center justify-center gap-1.5">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading list...
+            {targetingScope === "all" ? (
+              /* All Matching Summary Card */
+              <div className="p-4 rounded-lg bg-blue-600/5 border border-blue-600/20 mt-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm text-muted-foreground font-medium">Matching Recipients</span>
+                  <Badge variant="outline" className="bg-blue-600/10 text-blue-600 border-blue-600/20 font-bold">
+                    {loading ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      `${recipientsCount} Total`
+                    )}
+                  </Badge>
+                </div>
+                <p className="text-[10px] text-muted-foreground italic">
+                  Broadcasts to all valid phone numbers matching the current filters.
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full mt-2 h-7 text-xs gap-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                  onClick={fetchRecipients}
+                  disabled={loading}
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  Refresh Count
+                </Button>
+              </div>
+            ) : (
+              /* Specific Selection UI */
+              <div className="space-y-3 pt-2">
+                {/* Search Bar */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-foreground/70 uppercase tracking-wider">
+                    Search & Add Recipients
+                  </Label>
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder={`Search ${recipientType === 'customer' ? 'customers' : 'leads'} by name or phone...`}
+                      className="pl-8 h-8 text-xs bg-background border-input"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                    {searching && (
+                      <Loader2 className="absolute right-2.5 top-2.5 h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                    )}
                   </div>
-                ) : filteredRecipients.length === 0 ? (
-                  <div className="p-3 text-xs text-center text-muted-foreground">
-                    No recipients found
-                  </div>
-                ) : (
-                  filteredRecipients.map((rec) => {
-                    const isChecked = selectedRecipients.some(r => r.phone === rec.phone);
-                    return (
-                      <div key={rec.phone} className="flex items-center gap-2.5 px-3 py-2 hover:bg-muted/40 transition-colors">
-                        <Checkbox
-                          id={`rec-${rec.phone}`}
-                          checked={isChecked}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
+                </div>
+
+                {/* Search Results Dropdown */}
+                {searchResults.length > 0 && (
+                  <div className="border border-border rounded-md max-h-[180px] overflow-y-auto divide-y divide-border/50 bg-popover text-popover-foreground shadow-md">
+                    {searchResults.map((rec) => {
+                      const isAlreadySelected = selectedRecipients.some(r => r.phone === rec.phone);
+                      return (
+                        <button
+                          key={rec.phone}
+                          type="button"
+                          className="w-full flex items-center justify-between px-3 py-2 hover:bg-muted/60 transition-colors text-left"
+                          onClick={() => {
+                            if (!isAlreadySelected) {
                               setSelectedRecipients(prev => [...prev, rec]);
-                            } else {
-                              setSelectedRecipients(prev => prev.filter(r => r.phone !== rec.phone));
                             }
+                            setSearchQuery("");
+                            setSearchResults([]);
                           }}
-                          className="h-3.5 w-3.5"
-                        />
-                        <Label htmlFor={`rec-${rec.phone}`} className="flex-1 flex flex-col cursor-pointer select-none text-left">
-                          <span className="text-xs font-medium text-foreground">{rec.name || "Unnamed"}</span>
-                          <span className="text-[10px] text-muted-foreground">{rec.phone}</span>
-                        </Label>
-                      </div>
-                    );
-                  })
+                        >
+                          <div className="flex flex-col">
+                            <span className="text-xs font-medium">{rec.name || "Unnamed"}</span>
+                            <span className="text-[10px] text-muted-foreground">{rec.phone}</span>
+                          </div>
+                          {isAlreadySelected ? (
+                            <Badge variant="secondary" className="text-[9px] px-1.5 py-0">Added</Badge>
+                          ) : (
+                            <span className="text-[10px] text-primary font-medium">+ Add</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
-              </div>
 
-              <div className="flex gap-2 justify-end">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-[10px] h-6 px-2 text-muted-foreground hover:bg-muted"
-                  onClick={() => setSelectedRecipients(recipients)}
-                  disabled={recipients.length === 0 || loading}
-                >
-                  Select All loaded
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-[10px] h-6 px-2 text-muted-foreground hover:bg-muted"
-                  onClick={() => setSelectedRecipients([])}
-                  disabled={selectedRecipients.length === 0 || loading}
-                >
-                  Deselect All
-                </Button>
-              </div>
-            </div>
+                {/* Selected Recipients Checklist */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold text-foreground/70 uppercase tracking-wider">
+                      Selected List
+                    </Label>
+                    <Badge variant="outline" className="text-[10px] bg-slate-500/10">
+                      {selectedRecipients.length} selected
+                    </Badge>
+                  </div>
 
-            {/* Recipients Summary */}
-            <div className="p-4 rounded-lg bg-blue-600/5 border border-blue-600/20 mt-2">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm text-muted-foreground font-medium">Recipients Status</span>
-                <Badge variant="outline" className="bg-blue-600/10 text-blue-600 border-blue-600/20 font-bold">
-                  {loading ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : selectedRecipients.length > 0 ? (
-                    `${selectedRecipients.length} Selected`
-                  ) : (
-                    `${recipients.length} Matching`
+                  <div className="border border-border rounded-md max-h-[180px] overflow-y-auto divide-y divide-border/50 bg-background/50">
+                    {selectedRecipients.length === 0 ? (
+                      <div className="p-4 text-xs text-center text-muted-foreground italic">
+                        Use the search bar above to find and add recipients.
+                      </div>
+                    ) : (
+                      selectedRecipients.map((rec) => (
+                        <div key={rec.phone} className="flex items-center justify-between px-3 py-1.5 hover:bg-muted/40 transition-colors">
+                          <div className="flex flex-col text-left">
+                            <span className="text-xs font-medium text-foreground">{rec.name || "Unnamed"}</span>
+                            <span className="text-[10px] text-muted-foreground">{rec.phone}</span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
+                            onClick={() => setSelectedRecipients(prev => prev.filter(r => r.phone !== rec.phone))}
+                          >
+                            <span className="text-xs font-bold">×</span>
+                          </Button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {selectedRecipients.length > 0 && (
+                    <div className="flex gap-2 justify-end">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-[10px] h-6 px-2 text-muted-foreground hover:bg-muted"
+                        onClick={() => setSelectedRecipients([])}
+                      >
+                        Clear List
+                      </Button>
+                    </div>
                   )}
-                </Badge>
+                </div>
               </div>
-              <p className="text-[10px] text-muted-foreground italic">
-                {selectedRecipients.length > 0
-                  ? "Targeting ONLY the manually selected recipients above."
-                  : includeAllMatching
-                    ? "Targeting ALL matching valid mobile numbers."
-                    : "Targeting all loaded preview recipients."}
-              </p>
-              <Button variant="ghost" size="sm" className="w-full mt-2 h-7 text-xs gap-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={fetchRecipients} disabled={loading}>
-                <RefreshCw className="h-3 w-3" />
-                Refresh List
-              </Button>
-            </div>
+            )}
           </CardContent>
         </Card>
 
@@ -813,26 +945,12 @@ export function SmsCampaign() {
             </div>
 
             <div className="pt-6 border-t border-border mt-auto">
-              <div className="flex items-start gap-3 rounded-md border border-border bg-muted/30 p-3 mb-4">
-                <Checkbox
-                  id="include-all-matching"
-                  checked={includeAllMatching}
-                  onCheckedChange={(checked) => setIncludeAllMatching(checked === true)}
-                  className="mt-0.5"
-                />
-                <div className="space-y-1">
-                  <Label htmlFor="include-all-matching" className="text-sm font-medium">
-                    Select every matching recipient
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Sends to all leads/customers matching these filters, not only the loaded preview.
-                  </p>
-                </div>
-              </div>
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
                 <div className="flex items-center gap-2 text-amber-600 bg-amber-500/5 px-3 py-1.5 rounded-full border border-amber-500/10">
                   <AlertCircle className="h-4 w-4" />
-                  <span className="text-xs font-medium">Estimated Cost: {includeAllMatching ? "All matching recipients" : `${recipients.length} Credits`}</span>
+                  <span className="text-xs font-medium">
+                    Estimated Cost: {targetingScope === "all" ? `${recipientsCount} Credits` : `${selectedRecipients.length} Credits`}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2 text-emerald-600 bg-emerald-500/5 px-3 py-1.5 rounded-full border border-emerald-500/10">
                   <CheckCircle2 className="h-4 w-4" />
@@ -842,7 +960,7 @@ export function SmsCampaign() {
               <Button
                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12 shadow-lg shadow-emerald-600/20 transition-all active:scale-[0.98]"
                 onClick={handleSend}
-                disabled={sending || loading || (!includeAllMatching && recipients.length === 0) || !message.trim()}
+                disabled={sending || loading || (targetingScope === "all" ? recipientsCount === 0 : selectedRecipients.length === 0) || !message.trim()}
               >
                 {sending ? (
                   <>
@@ -852,7 +970,7 @@ export function SmsCampaign() {
                 ) : (
                   <>
                     <Send className="mr-2 h-5 w-5" />
-                    Queue SMS Campaign ({includeAllMatching ? "all matching" : `${recipients.length} recipients`})
+                    Queue SMS Campaign ({targetingScope === "all" ? `${recipientsCount} recipients` : `${selectedRecipients.length} recipients`})
                   </>
                 )}
               </Button>
