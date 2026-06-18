@@ -23,6 +23,7 @@ import {
   ScanLine,
   Clock,
   XCircle,
+  X,
 } from "lucide-react"
 import {
   Select,
@@ -72,6 +73,12 @@ export function SmsCampaign() {
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [searching, setSearching] = useState(false)
   const [recipientsCount, setRecipientsCount] = useState(0)
+  const [areaInput, setAreaInput] = useState("")
+  const [selectedAreas, setSelectedAreas] = useState<string[]>([])
+
+  useEffect(() => {
+    setFilters(prev => ({ ...prev, area: selectedAreas.join(",") }))
+  }, [selectedAreas])
 
   // Restored states to fix TypeScript compilation
   const [credit, setCredit] = useState<any>(null)
@@ -165,12 +172,10 @@ export function SmsCampaign() {
     fetchCampaigns()
   }, [])
 
-  // Fetch recipients count when filters change and targeting scope is "all"
+  // Fetch recipients count when filters or recipientType change
   useEffect(() => {
-    if (targetingScope === "all") {
-      fetchRecipients()
-    }
-  }, [recipientType, filters, selectedHeadOffices, selectedBranches, selectedSubBranches, targetingScope])
+    fetchRecipients()
+  }, [recipientType, filters, selectedHeadOffices, selectedBranches, selectedSubBranches])
 
   // Debounced search for manual recipient selection
   useEffect(() => {
@@ -390,7 +395,9 @@ export function SmsCampaign() {
             phone: l.phoneNumber
           }))
 
-      setRecipients(data.filter((r: any) => r.phone))
+      const validRecipients = data.filter((r: any) => r.phone)
+      setRecipients(validRecipients)
+      setRecipientsCount(validRecipients.length)
     } catch (err) {
       console.error("Failed to fetch recipients")
     } finally {
@@ -675,15 +682,69 @@ export function SmsCampaign() {
               <Label className="text-xs font-semibold text-foreground/70 uppercase tracking-wider flex items-center gap-1.5">
                 <MapPin className="h-3 w-3" /> Area / Location
               </Label>
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="City, district or street..."
-                  className="pl-9 bg-background border-input"
-                  value={filters.area}
-                  onChange={(e) => updateFilter("area", e.target.value)}
-                />
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Type area (e.g. Kathmandu) & press Enter..."
+                    className="pl-9 bg-background border-input"
+                    value={areaInput}
+                    onChange={(e) => setAreaInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (areaInput.trim() && !selectedAreas.includes(areaInput.trim())) {
+                          setSelectedAreas(prev => [...prev, areaInput.trim()]);
+                          setAreaInput("");
+                        }
+                      }
+                    }}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    if (areaInput.trim() && !selectedAreas.includes(areaInput.trim())) {
+                      setSelectedAreas(prev => [...prev, areaInput.trim()]);
+                      setAreaInput("");
+                    }
+                  }}
+                  className="h-10 px-3 bg-muted/30 hover:bg-muted"
+                >
+                  Add
+                </Button>
               </div>
+
+              {/* Render Area Badges */}
+              {selectedAreas.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2 p-2 rounded-md bg-muted/40 border border-border">
+                  {selectedAreas.map((area) => (
+                    <Badge
+                      key={area}
+                      variant="secondary"
+                      className="text-[10px] pl-2 pr-1 py-0.5 gap-1 flex items-center bg-background border border-border text-foreground font-medium"
+                    >
+                      {area}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedAreas(prev => prev.filter(a => a !== area))}
+                        className="rounded-full hover:bg-muted p-0.5"
+                      >
+                        <X className="h-2.5 w-2.5 text-muted-foreground hover:text-foreground" />
+                      </button>
+                    </Badge>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAreas([])}
+                    className="text-[10px] text-muted-foreground hover:text-destructive underline ml-auto pl-1"
+                  >
+                    Clear all
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Status Filter */}
