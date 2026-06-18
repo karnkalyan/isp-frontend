@@ -570,6 +570,10 @@ export function LeadManagement() {
   const [statusChangeLead, setStatusChangeLead] = useState<Lead | null>(null)
   const [newStatus, setNewStatus] = useState<LeadStatus>('new')
   const [isMounted, setIsMounted] = useState(false)
+  const [showSmsDialog, setShowSmsDialog] = useState(false)
+  const [smsLead, setSmsLead] = useState<Lead | null>(null)
+  const [smsMessage, setSmsMessage] = useState("")
+  const [sendingSms, setSendingSms] = useState(false)
 
   // Pagination and filter states
   const [searchQuery, setSearchQuery] = useState("")
@@ -1218,8 +1222,8 @@ export function LeadManagement() {
 
     // If lat/lon fields are updated, update the map
     if (field === 'latitude' || field === 'longitude') {
-      const lat = field === 'latitude' ? parseFloat(value) : parseFloat(prev.latitude || '')
-      const lon = field === 'longitude' ? parseFloat(value) : parseFloat(prev.longitude || '')
+      const lat = field === 'latitude' ? parseFloat(value) : parseFloat(formData.latitude || '')
+      const lon = field === 'longitude' ? parseFloat(value) : parseFloat(formData.longitude || '')
       if (!isNaN(lat) && !isNaN(lon)) {
         setLeadMapPosition([lat, lon])
         const radius = leadServiceRadius || 5
@@ -1253,8 +1257,8 @@ export function LeadManagement() {
 
     // If lat/lon fields are updated, update the map
     if (field === 'lat' || field === 'lon') {
-      const lat = field === 'lat' ? parseFloat(value) : parseFloat(prev.lat || '')
-      const lon = field === 'lon' ? parseFloat(value) : parseFloat(prev.lon || '')
+      const lat = field === 'lat' ? parseFloat(value) : parseFloat(conversionForm.lat || '')
+      const lon = field === 'lon' ? parseFloat(value) : parseFloat(conversionForm.lon || '')
       if (!isNaN(lat) && !isNaN(lon)) {
         setConvertMapPosition([lat, lon])
         const radius = convertServiceRadius || 5
@@ -1361,8 +1365,8 @@ export function LeadManagement() {
       district: lead.district || "",
       province: lead.province || "",
       gender: lead.gender || "",
-      age: lead.metadata?.age || undefined,
-      fullAddress: lead.metadata?.fullAddress || undefined,
+      age: lead.metadata?.age || "",
+      fullAddress: lead.metadata?.fullAddress || "",
       latitude: lead.metadata?.latitude?.toString() || "",
       longitude: lead.metadata?.longitude?.toString() || "",
       serviceRadius: lead.metadata?.serviceRadius?.toString() || "0.1"
@@ -1413,6 +1417,46 @@ export function LeadManagement() {
       toast.error(error.message || "Failed to delete lead")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const openSmsDialog = (lead: Lead) => {
+    setSelectedLead(lead)
+    setSmsLead(lead)
+    setSmsMessage("")
+    setShowSmsDialog(true)
+  }
+
+  const handleSendSms = async () => {
+    if (!smsLead) return
+    const phoneNumber = smsLead.phoneNumber || smsLead.secondaryContactNumber
+    if (!phoneNumber) {
+      toast.error("This lead does not have a phone number.")
+      return
+    }
+    if (!smsMessage.trim()) {
+      toast.error("Please enter a message.")
+      return
+    }
+
+    setSendingSms(true)
+    try {
+      await apiRequest("/service/sms/send-bulk", {
+        method: "POST",
+        body: JSON.stringify({
+          to: [phoneNumber],
+          text: smsMessage,
+          type: "lead"
+        })
+      })
+      toast.success("SMS message sent successfully!")
+      setShowSmsDialog(false)
+      setSmsMessage("")
+    } catch (error: any) {
+      console.error("SMS Send Error:", error)
+      toast.error(error.message || "Failed to send SMS message.")
+    } finally {
+      setSendingSms(false)
     }
   }
 
@@ -2992,6 +3036,17 @@ export function LeadManagement() {
                                 >
                                   <Eye className="h-4 w-4 text-blue-600" />
                                 </Button>
+                                {(lead.phoneNumber || lead.secondaryContactNumber) && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => openSmsDialog(lead)}
+                                    className="h-8 w-8 hover:bg-yellow-100"
+                                    title="Send SMS"
+                                  >
+                                    <MessageSquare className="h-4 w-4 text-yellow-600" />
+                                  </Button>
+                                )}
                                 <Button
                                   variant="ghost"
                                   size="icon"
@@ -3190,6 +3245,17 @@ export function LeadManagement() {
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
+                              {(lead.phoneNumber || lead.secondaryContactNumber) && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => openSmsDialog(lead)}
+                                  className="h-8 w-8 hover:bg-yellow-100"
+                                  title="Send SMS"
+                                >
+                                  <MessageSquare className="h-4 w-4 text-yellow-600" />
+                                </Button>
+                              )}
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -3355,6 +3421,17 @@ export function LeadManagement() {
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
+                              {(lead.phoneNumber || lead.secondaryContactNumber) && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => openSmsDialog(lead)}
+                                  className="h-8 w-8 hover:bg-yellow-100"
+                                  title="Send SMS"
+                                >
+                                  <MessageSquare className="h-4 w-4 text-yellow-600" />
+                                </Button>
+                              )}
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -3486,15 +3563,28 @@ export function LeadManagement() {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => viewLeadDetails(lead)}
-                              className="h-8 w-8 hover:bg-blue-100"
-                              title="View"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => viewLeadDetails(lead)}
+                                className="h-8 w-8 hover:bg-blue-100"
+                                title="View"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              {(lead.phoneNumber || lead.secondaryContactNumber) && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => openSmsDialog(lead)}
+                                  className="h-8 w-8 hover:bg-yellow-100"
+                                  title="Send SMS"
+                                >
+                                  <MessageSquare className="h-4 w-4 text-yellow-600" />
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -4486,6 +4576,60 @@ export function LeadManagement() {
               disabled={loading}
             >
               {loading ? "Saving..." : editingFollowUp ? "Update Follow-up" : "Create Follow-up"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Send SMS Dialog */}
+      <Dialog open={showSmsDialog} onOpenChange={setShowSmsDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Send SMS Message</DialogTitle>
+            <DialogDescription>
+              Write a message to {smsLead?.firstName} {smsLead?.lastName}. This message will be sent via the configured SMS provider.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="sms-phone">Phone Number</Label>
+              <Input
+                id="sms-phone"
+                value={smsLead?.phoneNumber || smsLead?.secondaryContactNumber || ""}
+                disabled
+                className="bg-muted text-muted-foreground"
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="sms-message">Message Content</Label>
+                <span className="text-xs text-muted-foreground">
+                  {smsMessage.length} characters
+                </span>
+              </div>
+              <Textarea
+                id="sms-message"
+                placeholder="Type your SMS message here..."
+                value={smsMessage}
+                onChange={(e) => setSmsMessage(e.target.value)}
+                rows={5}
+                required
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowSmsDialog(false)
+                setSmsMessage("")
+              }}
+              disabled={sendingSms}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleSendSms} disabled={sendingSms || !smsMessage.trim()}>
+              {sendingSms ? "Sending..." : "Send SMS"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -57,6 +57,8 @@ export function SmsCampaign() {
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
   const [recipients, setRecipients] = useState<any[]>([])
+  const [selectedRecipients, setSelectedRecipients] = useState<any[]>([])
+  const [recipientSearchQuery, setRecipientSearchQuery] = useState("")
   const [credit, setCredit] = useState<any>(null)
   const [smsProviders, setSmsProviders] = useState<any[]>([])
   const [selectedProvider, setSelectedProvider] = useState<string>("")
@@ -65,6 +67,16 @@ export function SmsCampaign() {
   const [campaignLogs, setCampaignLogs] = useState<any[]>([])
   const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null)
   const [logsLoading, setLogsLoading] = useState(false)
+
+  const filteredRecipients = React.useMemo(() => {
+    const query = recipientSearchQuery.trim().toLowerCase()
+    if (!query) return recipients
+    return recipients.filter(
+      (r) =>
+        (r.name && r.name.toLowerCase().includes(query)) ||
+        (r.phone && r.phone.toLowerCase().includes(query))
+    )
+  }, [recipients, recipientSearchQuery])
 
   // Derive hierarchy: Head Office (parentId null) -> Branches -> Sub-Branches
   const headOffices = React.useMemo(() => allBranchData.filter((b: any) => b.parentId === null), [allBranchData])
@@ -259,6 +271,7 @@ export function SmsCampaign() {
 
   const fetchRecipients = useCallback(async () => {
     setLoading(true)
+    setSelectedRecipients([])
     try {
       const endpoint = recipientType === "customer" ? "/customer" : "/lead"
       const params = new URLSearchParams({ limit: "all" })
@@ -290,10 +303,12 @@ export function SmsCampaign() {
       // Extract phone numbers
       const data = recipientType === "customer"
         ? filteredRaw.map((c: any) => ({
+            recipientId: c.id,
             name: c.firstName ? `${c.firstName} ${c.lastName || ""}`.trim() : `${c.lead?.firstName || ""} ${c.lead?.lastName || ""}`.trim(),
             phone: c.phoneNumber || c.lead?.phoneNumber
           }))
         : filteredRaw.map((l: any) => ({
+            recipientId: l.id,
             name: `${l.firstName || ""} ${l.lastName || ""}`.trim(),
             phone: l.phoneNumber
           }))
@@ -311,7 +326,11 @@ export function SmsCampaign() {
       toast.error("Please write a message before sending.")
       return
     }
-    if (!includeAllMatching && recipients.length === 0) {
+
+    const hasManualSelection = selectedRecipients.length > 0
+    const finalRecipients = hasManualSelection ? selectedRecipients : recipients
+
+    if (!hasManualSelection && !includeAllMatching && recipients.length === 0) {
       toast.error("No recipients found with valid phone numbers.")
       return
     }
@@ -322,7 +341,11 @@ export function SmsCampaign() {
 
     setSending(true)
     try {
-      const phones = recipients.map(r => r.phone)
+      const recipientData = finalRecipients.map(r => ({
+        phone: r.phone,
+        recipientId: r.recipientId,
+        name: r.name
+      }))
       const scopedBranchIds = Array.from(getSelectedBranchScope())
       const campaignFilters: any = {
         status: filters.status,
@@ -338,11 +361,11 @@ export function SmsCampaign() {
       const res = await apiRequest<any>("/service/sms/campaigns", {
         method: "POST",
         body: JSON.stringify({
-          to: phones,
+          to: recipientData,
           text: message,
           type: recipientType,
           provider: selectedProvider,
-          selectAll: includeAllMatching,
+          selectAll: hasManualSelection ? false : includeAllMatching,
           filters: campaignFilters,
         })
       })
@@ -350,6 +373,7 @@ export function SmsCampaign() {
       const skipped = res?.data?.skippedCount || 0
       toast.success(`SMS campaign queued for ${queued} recipients${skipped ? `, ${skipped} skipped` : ""}.`)
       setMessage("")
+      setSelectedRecipients([])
       fetchCredit(selectedProvider)
       fetchCampaigns()
     } catch (err: any) {
@@ -608,20 +632,109 @@ export function SmsCampaign() {
               </Select>
             </div>
 
+            {/* Manual Recipient Selection */}
+            <div className="space-y-2 pt-2 border-t border-border/50">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold text-foreground/70 uppercase tracking-wider">
+                  Select Recipients Manually
+                </Label>
+                <Badge variant="outline" className="text-[10px] bg-slate-500/10">
+                  {selectedRecipients.length > 0 ? `${selectedRecipients.length} selected` : "All (Auto)"}
+                </Badge>
+              </div>
+              
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder={`Search ${recipientType === 'customer' ? 'customers' : 'leads'}...`}
+                  className="pl-8 h-8 text-xs bg-background border-input"
+                  value={recipientSearchQuery}
+                  onChange={(e) => setRecipientSearchQuery(e.target.value)}
+                />
+              </div>
+
+              <div className="border border-border rounded-md max-h-[180px] overflow-y-auto divide-y divide-border/50 bg-background/50">
+                {loading ? (
+                  <div className="p-3 text-xs text-center text-muted-foreground flex items-center justify-center gap-1.5">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading list...
+                  </div>
+                ) : filteredRecipients.length === 0 ? (
+                  <div className="p-3 text-xs text-center text-muted-foreground">
+                    No recipients found
+                  </div>
+                ) : (
+                  filteredRecipients.map((rec) => {
+                    const isChecked = selectedRecipients.some(r => r.phone === rec.phone);
+                    return (
+                      <div key={rec.phone} className="flex items-center gap-2.5 px-3 py-2 hover:bg-muted/40 transition-colors">
+                        <Checkbox
+                          id={`rec-${rec.phone}`}
+                          checked={isChecked}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedRecipients(prev => [...prev, rec]);
+                            } else {
+                              setSelectedRecipients(prev => prev.filter(r => r.phone !== rec.phone));
+                            }
+                          }}
+                          className="h-3.5 w-3.5"
+                        />
+                        <Label htmlFor={`rec-${rec.phone}`} className="flex-1 flex flex-col cursor-pointer select-none text-left">
+                          <span className="text-xs font-medium text-foreground">{rec.name || "Unnamed"}</span>
+                          <span className="text-[10px] text-muted-foreground">{rec.phone}</span>
+                        </Label>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="flex gap-2 justify-end">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-[10px] h-6 px-2 text-muted-foreground hover:bg-muted"
+                  onClick={() => setSelectedRecipients(recipients)}
+                  disabled={recipients.length === 0 || loading}
+                >
+                  Select All loaded
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-[10px] h-6 px-2 text-muted-foreground hover:bg-muted"
+                  onClick={() => setSelectedRecipients([])}
+                  disabled={selectedRecipients.length === 0 || loading}
+                >
+                  Deselect All
+                </Button>
+              </div>
+            </div>
+
             {/* Recipients Summary */}
             <div className="p-4 rounded-lg bg-blue-600/5 border border-blue-600/20 mt-2">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-sm text-muted-foreground font-medium">Selected Recipients</span>
+                <span className="text-sm text-muted-foreground font-medium">Recipients Status</span>
                 <Badge variant="outline" className="bg-blue-600/10 text-blue-600 border-blue-600/20 font-bold">
-                  {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : recipients.length}
+                  {loading ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : selectedRecipients.length > 0 ? (
+                    `${selectedRecipients.length} Selected`
+                  ) : (
+                    `${recipients.length} Matching`
+                  )}
                 </Badge>
               </div>
               <p className="text-[10px] text-muted-foreground italic">
-                {includeAllMatching ? "All matching valid mobile numbers will be targeted." : "Only loaded recipients with valid mobile numbers will be targeted."}
+                {selectedRecipients.length > 0
+                  ? "Targeting ONLY the manually selected recipients above."
+                  : includeAllMatching
+                    ? "Targeting ALL matching valid mobile numbers."
+                    : "Targeting all loaded preview recipients."}
               </p>
               <Button variant="ghost" size="sm" className="w-full mt-2 h-7 text-xs gap-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={fetchRecipients} disabled={loading}>
                 <RefreshCw className="h-3 w-3" />
-                Refresh
+                Refresh List
               </Button>
             </div>
           </CardContent>
