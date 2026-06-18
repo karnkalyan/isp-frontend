@@ -540,6 +540,16 @@ const SplitterMarker = ({ splitter }: { splitter: Splitter }) => {
   )
 }
 
+const getSmsParts = (text: string) => {
+  if (!text) return 0
+  const isUnicode = /[^\u0000-\u007F]/.test(text)
+  if (isUnicode) {
+    return text.length <= 70 ? 1 : Math.ceil(text.length / 67)
+  } else {
+    return text.length <= 160 ? 1 : Math.ceil(text.length / 153)
+  }
+}
+
 export function LeadManagement() {
   const router = useRouter()
   const { user } = useAuth()
@@ -4626,7 +4636,7 @@ export function LeadManagement() {
               <div className="flex items-center justify-between">
                 <Label htmlFor="sms-message">Message Content</Label>
                 <span className="text-xs text-muted-foreground">
-                  {smsMessage.length} characters
+                  {smsMessage.length} characters ({getSmsParts(smsMessage)} {getSmsParts(smsMessage) === 1 ? 'part' : 'parts'})
                 </span>
               </div>
               <Textarea
@@ -4637,6 +4647,14 @@ export function LeadManagement() {
                 rows={5}
                 required
               />
+              {smsMessage.length > 0 && (
+                <div className="flex items-center gap-1.5 text-amber-600 bg-amber-500/5 px-2.5 py-1 rounded-md border border-amber-500/10 text-xs font-medium mt-1 w-fit">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  <span>
+                    Estimated Cost: {getSmsParts(smsMessage)} Credit{getSmsParts(smsMessage) === 1 ? '' : 's'}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>

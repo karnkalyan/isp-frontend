@@ -38,6 +38,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner"
 import { apiRequest } from "@/lib/api"
 import { SearchableSelect } from "@/components/ui/searchable-select"
+const getSmsParts = (text: string) => {
+  if (!text) return 0
+  const isUnicode = /[^\u0000-\u007F]/.test(text)
+  if (isUnicode) {
+    return text.length <= 70 ? 1 : Math.ceil(text.length / 67)
+  } else {
+    return text.length <= 160 ? 1 : Math.ceil(text.length / 153)
+  }
+}
 
 export function SmsCampaign() {
   const [recipientType, setRecipientType] = useState("customer")
@@ -915,7 +924,7 @@ export function SmsCampaign() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium text-foreground/80">Message Text</label>
-                <span className="text-xs text-muted-foreground">{message.length} characters</span>
+                <span className="text-xs text-muted-foreground">{message.length} characters ({getSmsParts(message)} {getSmsParts(message) === 1 ? 'part' : 'parts'})</span>
               </div>
               <Textarea
                 placeholder="Type your message here..."
@@ -949,7 +958,7 @@ export function SmsCampaign() {
                 <div className="flex items-center gap-2 text-amber-600 bg-amber-500/5 px-3 py-1.5 rounded-full border border-amber-500/10">
                   <AlertCircle className="h-4 w-4" />
                   <span className="text-xs font-medium">
-                    Estimated Cost: {targetingScope === "all" ? `${recipientsCount} Credits` : `${selectedRecipients.length} Credits`}
+                    Estimated Cost: {(targetingScope === "all" ? recipientsCount : selectedRecipients.length) * getSmsParts(message)} Credits
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-emerald-600 bg-emerald-500/5 px-3 py-1.5 rounded-full border border-emerald-500/10">

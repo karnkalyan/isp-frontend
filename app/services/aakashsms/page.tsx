@@ -49,7 +49,7 @@ export default function AakashSmsServicePage() {
   const fetchCampaigns = async () => {
     setCampaignsLoading(true)
     try {
-      const res = await apiRequest<any>("/service/sms/campaigns?limit=20")
+      const res = await apiRequest<any>("/service/sms/campaigns?limit=20&provider=AAKASHSMS")
       setCampaigns(res?.data || res || [])
     } catch (err) {
       console.error("Failed to fetch SMS campaigns:", err)
@@ -105,7 +105,9 @@ export default function AakashSmsServicePage() {
   const lastSentDate = lastCampaign ? new Date(lastCampaign.createdAt).toLocaleDateString() : "No campaigns yet"
 
   const creditDisplay = typeof credit === 'object' 
-    ? (credit?.credit !== undefined ? credit.credit : JSON.stringify(credit))
+    ? (credit?.available_credit !== undefined 
+        ? credit.available_credit 
+        : (credit?.credit !== undefined ? credit.credit : JSON.stringify(credit)))
     : (credit !== null && credit !== undefined ? credit : "Not Configured")
 
   if (statusLoading) {
