@@ -54,7 +54,9 @@ import {
   Check,
   ChevronRight,
   AlertTriangle,
-  CheckCircle2
+  CheckCircle2,
+  Pencil,
+  RotateCcw
 } from "lucide-react"
 import { apiRequest, getDynamicBaseUrl } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
@@ -995,14 +997,14 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="w-[95vw] sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{device ? "Edit Device" : "Add Provisioned Device"}</DialogTitle>
           <DialogDescription>
             Assign an ONT/Device from your branch's inventory to this customer.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-4 max-h-[70vh] overflow-y-auto pr-1">
           <div className="space-y-2">
             <Label htmlFor="deviceType">Device Type *</Label>
             <SearchableSelect
@@ -1032,7 +1034,7 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
             <p className="text-[10px] text-muted-foreground">Only showing devices assigned to your user from your active branch.</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="brand">Brand *</Label>
               <Input
@@ -1054,7 +1056,7 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="serialNumber">Serial Number *</Label>
               <Input
@@ -1077,7 +1079,7 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="ponSerial">PON-SN (GPON)</Label>
               <Input
@@ -1103,6 +1105,147 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button type="button" onClick={handleSubmit}>Save Device</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ========== Edit Assigned Device Dialog Component ==========
+interface EditAssignedDeviceDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  device: any | null
+  customerId: number
+  onSaveSuccess: () => void
+}
+
+function EditAssignedDeviceDialog({ open, onOpenChange, device, customerId, onSaveSuccess }: EditAssignedDeviceDialogProps) {
+  const [formData, setFormData] = useState({
+    deviceType: "ONT",
+    brand: "",
+    model: "",
+    serialNumber: "",
+    macAddress: "",
+    ponSerial: "",
+    provisioningStatus: "pending",
+    notes: "",
+  })
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (device) {
+      setFormData({
+        deviceType: device.deviceType || "ONT",
+        brand: device.brand || "",
+        model: device.model || "",
+        serialNumber: device.serialNumber || "",
+        macAddress: device.macAddress || "",
+        ponSerial: device.ponSerial || "",
+        provisioningStatus: device.provisioningStatus || "pending",
+        notes: device.notes || "",
+      })
+    }
+  }, [device, open])
+
+  const handleChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  const handleSubmit = async () => {
+    if (!device) return
+    setLoading(true)
+    try {
+      await apiRequest(`/customer/${customerId}/devices/${device.id}`, {
+        method: "PUT",
+        body: JSON.stringify(formData),
+        headers: { "Content-Type": "application/json" }
+      })
+      toast({ title: "Success", description: "Device updated successfully" })
+      onSaveSuccess()
+      onOpenChange(false)
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Failed to update device", variant: "destructive" })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[95vw] sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit Assigned Device</DialogTitle>
+          <DialogDescription>Modify device details and status.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4 max-h-[70vh] overflow-y-auto pr-1">
+          <div className="space-y-2">
+            <Label htmlFor="edit-deviceType">Device Type *</Label>
+            <Select value={formData.deviceType} onValueChange={(val) => handleChange("deviceType", val)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select device type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ONT">ONT (Optical Network Terminal)</SelectItem>
+                <SelectItem value="Router">Router</SelectItem>
+                <SelectItem value="STB">Set-Top Box</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-brand">Brand *</Label>
+              <Input id="edit-brand" value={formData.brand} onChange={(e) => handleChange("brand", e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-model">Model *</Label>
+              <Input id="edit-model" value={formData.model} onChange={(e) => handleChange("model", e.target.value)} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-serialNumber">Serial Number *</Label>
+              <Input id="edit-serialNumber" value={formData.serialNumber} onChange={(e) => handleChange("serialNumber", e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-macAddress">MAC Address</Label>
+              <Input id="edit-macAddress" value={formData.macAddress} onChange={(e) => handleChange("macAddress", e.target.value)} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-ponSerial">PON-SN (GPON)</Label>
+              <Input id="edit-ponSerial" value={formData.ponSerial} onChange={(e) => handleChange("ponSerial", e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-status">Status *</Label>
+              <Select value={formData.provisioningStatus} onValueChange={(val) => handleChange("provisioningStatus", val)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">PENDING</SelectItem>
+                  <SelectItem value="active">ACTIVE</SelectItem>
+                  <SelectItem value="suspended">SUSPENDED</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit-notes">Notes</Label>
+            <Textarea id="edit-notes" value={formData.notes} onChange={(e) => handleChange("notes", e.target.value)} rows={2} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={handleSubmit} disabled={loading}>
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Save Changes
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1139,6 +1282,10 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const [renewPackageOpen, setRenewPackageOpen] = useState(false)
   const [deleteCustomerOpen, setDeleteCustomerOpen] = useState(false)
   const [returnHardwareOpen, setReturnHardwareOpen] = useState(false)
+  const [editDeviceOpen, setEditDeviceOpen] = useState(false)
+  const [editingDevice, setEditingDevice] = useState<any | null>(null)
+  const [deleteDeviceOpen, setDeleteDeviceOpen] = useState(false)
+  const [deletingDevice, setDeletingDevice] = useState<any | null>(null)
 
   // Form states
   const [newUsername, setNewUsername] = useState("")
@@ -1221,13 +1368,11 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     setLoadingSplitters(true)
     try {
       const [oltData, splitterData] = await Promise.all([
-        apiRequest<any>("/device?category=OLT"),
-        apiRequest<any>("/splitters"),
+        apiRequest<any>("/olt?limit=1000"),
+        apiRequest<any>("/splitters?limit=1000"),
       ])
-      const oltArr = Array.isArray(oltData) ? oltData : (oltData?.data || oltData?.devices || [])
-      const splitterArr = Array.isArray(splitterData) ? splitterData : (splitterData?.data || [])
-      setOlts(oltArr)
-      setSplitters(splitterArr)
+      setOlts(Array.isArray(oltData?.data) ? oltData.data : [])
+      setSplitters(Array.isArray(splitterData?.data) ? splitterData.data : [])
     } catch (e) {
       console.error("Failed to load OLTs/splitters", e)
     } finally {
@@ -2019,6 +2164,47 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       setActionLoading(false)
     }
   }
+
+  const getMatchingInventoryItem = (device: any) => {
+    if (!customer?.inventoryItems) return null
+    return customer.inventoryItems.find((item: any) => 
+      (device.serialNumber && item.serialNumber === device.serialNumber) ||
+      (device.macAddress && item.macAddress === device.macAddress)
+    ) || null
+  }
+
+  const hasInventoryItem = (device: any) => {
+    return !!getMatchingInventoryItem(device)
+  }
+
+  const handleReturnOrDeleteDevice = (device: any) => {
+    const matchingItem = getMatchingInventoryItem(device)
+    if (matchingItem) {
+      setReturnHardwareItem(matchingItem)
+      setReturnHardwareOpen(true)
+    } else {
+      setDeletingDevice(device)
+      setDeleteDeviceOpen(true)
+    }
+  }
+
+  const confirmDeleteDevice = async () => {
+    if (!deletingDevice || !customer) return
+    try {
+      setActionLoading(true)
+      await apiRequest(`/customer/${customer.id}/devices/${deletingDevice.id}`, {
+        method: "DELETE"
+      })
+      toast({ title: "Success", description: "Device deleted successfully" })
+      setDeletingDevice(null)
+      fetchCustomerData()
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to delete device", variant: "destructive" })
+    } finally {
+      setActionLoading(false)
+      setDeleteDeviceOpen(false)
+    }
+  }
   
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -2126,7 +2312,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     <div className="space-y-6">
       {/* Dialogs */}
       <Dialog open={changeUsernameOpen} onOpenChange={setChangeUsernameOpen}>
-        <DialogContent>
+        <DialogContent className="w-[95vw] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Change Username</DialogTitle>
             <DialogDescription>Update the username for this customer's connection.</DialogDescription>
@@ -2161,7 +2347,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       </Dialog>
 
       <Dialog open={changePackageOpen} onOpenChange={setChangePackageOpen}>
-        <DialogContent>
+        <DialogContent className="w-[95vw] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Change Package</DialogTitle>
             <DialogDescription>Select a new package for this customer.</DialogDescription>
@@ -2199,7 +2385,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       </Dialog>
 
       <Dialog open={resetMacOpen} onOpenChange={setResetMacOpen}>
-        <DialogContent>
+        <DialogContent className="w-[95vw] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Reset MAC Address</DialogTitle>
             <DialogDescription>Update the MAC address for this customer's device.</DialogDescription>
@@ -2226,7 +2412,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       </Dialog>
 
       <Dialog open={renewPackageOpen} onOpenChange={setRenewPackageOpen}>
-        <DialogContent>
+        <DialogContent className="w-[95vw] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Renew Package</DialogTitle>
             <DialogDescription>
@@ -2923,7 +3109,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
               setAutoFindError(null)
             }
           }}>
-            <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="w-[95vw] sm:w-[90vw] md:max-w-3xl lg:max-w-5xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto p-4 sm:p-6">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Cpu className="h-5 w-5" />
@@ -3322,6 +3508,28 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
             onSave={handleDeviceSave}
           />
 
+          <EditAssignedDeviceDialog
+            open={editDeviceOpen}
+            onOpenChange={setEditDeviceOpen}
+            device={editingDevice}
+            customerId={customer.id}
+            onSaveSuccess={fetchCustomerData}
+          />
+
+          <ConfirmDialog
+            open={deleteDeviceOpen}
+            onOpenChange={(open) => {
+              setDeleteDeviceOpen(open)
+              if (!open) setDeletingDevice(null)
+            }}
+            title="Delete device?"
+            description={`Are you sure you want to delete the device ${deletingDevice?.brand || ""} ${deletingDevice?.model || ""} (Serial: ${deletingDevice?.serialNumber || "N/A"})? This action cannot be undone.`}
+            confirmLabel="Delete Device"
+            cancelLabel="Cancel"
+            variant="destructive"
+            onConfirm={confirmDeleteDevice}
+          />
+
           <CardContainer title="Assigned Hardware" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
             <div className="flex items-center justify-between mb-4">
               <div className="text-sm text-muted-foreground">{customer.devices.length} device{customer.devices.length === 1 ? "" : "s"} assigned</div>
@@ -3331,15 +3539,49 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
             </div>
             {customer.devices.length > 0 ? (
               <div className="space-y-3">
-                {customer.devices.map((device, index) => (
-                  <div key={`${device.serialNumber || device.macAddress || index}`} className="flex flex-col gap-3 rounded-lg border p-4 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <div className="font-medium">{device.deviceType || "Device"} {device.brand || ""} {device.model || ""}</div>
-                      <div className="text-sm text-muted-foreground">Serial: {device.serialNumber || "N/A"} | MAC: {device.macAddress || "N/A"}</div>
+                {customer.devices.map((device, index) => {
+                  const hasInv = hasInventoryItem(device);
+                  return (
+                    <div key={`${device.serialNumber || device.macAddress || index}`} className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="space-y-1">
+                        <div className="font-medium flex items-center gap-2 flex-wrap">
+                          {device.deviceType || "Device"} {device.brand || ""} {device.model || ""}
+                          <Badge variant={device.provisioningStatus === "active" ? "default" : "secondary"}>
+                            {device.provisioningStatus?.toUpperCase() || "PENDING"}
+                          </Badge>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Serial: <span className="font-mono">{device.serialNumber || "N/A"}</span> | MAC: <span className="font-mono">{device.macAddress || "N/A"}</span>
+                          {device.ponSerial && ` | PON-SN: ${device.ponSerial}`}
+                        </div>
+                        {device.notes && <div className="text-xs text-muted-foreground italic">Note: {device.notes}</div>}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                          onClick={() => {
+                            setEditingDevice(device);
+                            setEditDeviceOpen(true);
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                          <span className="sr-only">Edit</span>
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => handleReturnOrDeleteDevice(device)}
+                        >
+                          {hasInv ? <RotateCcw className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
+                          <span className="sr-only">{hasInv ? "Return" : "Delete"}</span>
+                        </Button>
+                      </div>
                     </div>
-                    <Badge variant="outline">{device.provisioningStatus || "Assigned"}</Badge>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">No hardware assigned yet.</div>

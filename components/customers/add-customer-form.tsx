@@ -636,7 +636,7 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{device ? "Edit Device" : "Add Provisioned Device"}</DialogTitle>
           <DialogDescription>
@@ -673,7 +673,7 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
             <p className="text-[10px] text-muted-foreground">Only showing devices assigned to your user from your active branch.</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="brand">Brand *</Label>
               <Input
@@ -695,7 +695,7 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="serialNumber">Serial Number *</Label>
               <Input
@@ -718,7 +718,7 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="ponSerial">PON-SN (GPON)</Label>
               <Input
@@ -940,7 +940,7 @@ function NetTVDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle>Configure NETTV Service</DialogTitle>
           <DialogDescription>
@@ -948,7 +948,7 @@ function NetTVDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="nettvUsername">Username *</Label>
               <Input
@@ -979,7 +979,7 @@ function NetTVDialog({
               placeholder="email@example.com"
             />
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="nettvFname">First Name *</Label>
               <Input
@@ -1021,7 +1021,7 @@ function NetTVDialog({
               placeholder="Street address"
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="nettvCity">City *</Label>
               <Input
@@ -1041,7 +1041,7 @@ function NetTVDialog({
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="nettvCountry">Country *</Label>
               <SearchableSelect
@@ -1063,7 +1063,7 @@ function NetTVDialog({
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="nettvPhone">Phone (Landline) *</Label>
               <Input
@@ -1083,7 +1083,7 @@ function NetTVDialog({
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="nettvLongitude">Longitude</Label>
               <Input
@@ -1400,8 +1400,8 @@ export function AddCustomerForm() {
             apiRequest("/membership").catch(() => []),
             fetchExistingISPs(),
             apiRequest("/customer-types").catch(() => []),
-            apiRequest("/olt").catch(() => []),
-            apiRequest("/splitters").catch(() => []),
+            apiRequest("/olt?limit=1000").catch(() => []),
+            apiRequest("/splitters?limit=1000").catch(() => []),
             apiRequest("/services/catalog").catch(() => []),
           ])
 
@@ -2627,7 +2627,7 @@ export function AddCustomerForm() {
     <div className="space-y-6">
       {/* Secret Unlock Dialog for Free Customer feature */}
       <Dialog open={showSecretModal} onOpenChange={setShowSecretModal}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Unlock Free Customer Option</DialogTitle>
             <DialogDescription>
