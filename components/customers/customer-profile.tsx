@@ -3562,8 +3562,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                           size="icon" 
                           className="h-8 w-8 text-muted-foreground hover:text-foreground"
                           onClick={() => {
-                            setEditingDevice(device);
-                            setEditDeviceOpen(true);
+                            setAssignHardwareOpen(true);
                           }}
                         >
                           <Pencil className="h-4 w-4" />
