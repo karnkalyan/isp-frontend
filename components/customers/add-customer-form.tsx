@@ -573,6 +573,8 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
         macAddress: "",
         ponSerial: "",
         notes: "",
+        id: undefined,
+        inventoryItemId: undefined,
       })
     }
   }, [device, open])
@@ -1166,7 +1168,7 @@ export function AddCustomerForm() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey && (e.key === "z" || e.key === "Z")) ||
-          (e.ctrlKey && e.altKey && (e.key === "f" || e.key === "F"))) {
+        (e.ctrlKey && e.altKey && (e.key === "f" || e.key === "F"))) {
         e.preventDefault()
         setShowSecretModal(true)
       }

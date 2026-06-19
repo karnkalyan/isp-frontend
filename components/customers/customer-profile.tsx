@@ -191,6 +191,7 @@ interface CustomerDevice {
   ponSerial?: string
   notes: string
   inventoryItemId?: number
+  provisioningStatus?: string
 }
 
 interface Customer {
@@ -934,6 +935,8 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
         macAddress: "",
         ponSerial: "",
         notes: "",
+        id: undefined,
+        inventoryItemId: undefined,
       })
     }
   }, [device, open])
@@ -1330,6 +1333,10 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const [autoFindError, setAutoFindError] = useState<string | null>(null)
   const [hwProvisionLoading, setHwProvisionLoading] = useState(false)
 
+  const hasOntDevices = hwDevices.some(d => d.deviceType === "ONT")
+  const hasPendingOnt = hwDevices.some(d => d.deviceType === "ONT" && d.provisioningStatus !== "active")
+  const isAlreadyProvisioned = hasOntDevices && !hasPendingOnt
+
   // ========== OLT/Splitter helpers ==========
   const findUltimateOltForSplitter = useCallback((splitterId: string): OLT | null => {
     if (!splitterId) return null
@@ -1421,11 +1428,28 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         macAddress: dev.macAddress,
         ponSerial: dev.ponSerial || undefined,
         notes: dev.notes || "",
+        provisioningStatus: dev.provisioningStatus || "pending",
       }))
       setHwDevices(mappedDevices)
       setSelectedDiscoveredOnt(null)
       setMatchedDeviceForOnt(null)
       setAutoFindError(null)
+    } else {
+      setHwDevices([])
+      setHwProvisionDetails({
+        useSplitter: true,
+        useDirectOLT: false,
+        oltId: "",
+        splitterId: "",
+        splitterPort: "",
+        oltPort: "",
+        selectedVlanIds: [],
+        selectedProfileIds: [],
+      })
+      setSelectedDiscoveredOnt(null)
+      setMatchedDeviceForOnt(null)
+      setAutoFindError(null)
+      setDiscoveredOnts([])
     }
   }, [assignHardwareOpen, customer, fetchOltsAndSplitters])
 
@@ -1769,6 +1793,21 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           method: "PUT",
           body: JSON.stringify({ customerId: customer.id })
         })
+      }
+
+      // Step 3.5: Activate ONT Devices in database
+      // Fetch fresh customer details to get IDs of newly assigned devices
+      const freshData = await apiRequest<any>(`/customer/${customer.id}`)
+      if (freshData) {
+        const freshDevices = freshData.devices || []
+        const ontDevicesToActivate = freshDevices.filter((d: any) => d.deviceType === "ONT" && d.provisioningStatus !== "active")
+        for (const dev of ontDevicesToActivate) {
+          await apiRequest(`/customer/${customer.id}/devices/${dev.id}`, {
+            method: "PUT",
+            body: JSON.stringify({ provisioningStatus: "active" }),
+            headers: { "Content-Type": "application/json" }
+          })
+        }
       }
 
       toast({ title: "Fiber provisioning saved successfully" })
@@ -3408,85 +3447,99 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                   <div className="space-y-4 border rounded-lg p-4 bg-muted/20">
                     <div className="flex items-center justify-between">
                       <Label className="text-sm font-semibold">ONT Discovery</Label>
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={handleAutoFindOnt}
-                        disabled={
-                          isAutoFinding ||
-                          !hwProvisionDetails.oltId ||
-                          (hwProvisionDetails.useDirectOLT && !hwProvisionDetails.oltPort)
-                        }
-                      >
-                        {isAutoFinding ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                        Autofind ONT
-                      </Button>
+                      {isAlreadyProvisioned ? (
+                        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-100">
+                          PROVISIONED & ACTIVE
+                        </Badge>
+                      ) : (
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={handleAutoFindOnt}
+                          disabled={
+                            isAutoFinding ||
+                            !hwProvisionDetails.oltId ||
+                            (hwProvisionDetails.useDirectOLT && !hwProvisionDetails.oltPort)
+                          }
+                        >
+                          {isAutoFinding ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                          Autofind ONT
+                        </Button>
+                      )}
                     </div>
 
-                    {/* Show the board port that will be used */}
-                    {hwProvisionDetails.useSplitter && hwProvisionDetails.splitterId && (
-                      <div className="text-xs text-muted-foreground">
-                        Using board port from splitter:{' '}
-                        <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded font-mono">
-                          {(() => {
-                            const path = getSplitterPath(hwProvisionDetails.splitterId);
-                            const lastSplitter = path[path.length - 1];
-                            return lastSplitter?.connectedServiceBoard?.boardPort || 'Not available';
-                          })()}
-                        </code>
-                      </div>
-                    )}
+                    {isAlreadyProvisioned ? (
+                      <p className="text-xs text-muted-foreground">
+                        The ONT device is already successfully provisioned and active on the OLT network.
+                      </p>
+                    ) : (
+                      <>
+                        {/* Show the board port that will be used */}
+                        {hwProvisionDetails.useSplitter && hwProvisionDetails.splitterId && (
+                          <div className="text-xs text-muted-foreground">
+                            Using board port from splitter:{' '}
+                            <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded font-mono">
+                              {(() => {
+                                const path = getSplitterPath(hwProvisionDetails.splitterId);
+                                const lastSplitter = path[path.length - 1];
+                                return lastSplitter?.connectedServiceBoard?.boardPort || 'Not available';
+                              })()}
+                            </code>
+                          </div>
+                        )}
 
-                    {hwProvisionDetails.useDirectOLT && hwProvisionDetails.oltPort && (
-                      <div className="text-xs text-muted-foreground">
-                        Using entered OLT port:{' '}
-                        <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded font-mono">
-                          {hwProvisionDetails.oltPort}
-                        </code>
-                      </div>
-                    )}
+                        {hwProvisionDetails.useDirectOLT && hwProvisionDetails.oltPort && (
+                          <div className="text-xs text-muted-foreground">
+                            Using entered OLT port:{' '}
+                            <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded font-mono">
+                              {hwProvisionDetails.oltPort}
+                            </code>
+                          </div>
+                        )}
 
-                    {autoFindError && (
-                      <Alert variant="destructive" className="py-2.5">
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertDescription className="text-xs">{autoFindError}</AlertDescription>
-                      </Alert>
-                    )}
+                        {autoFindError && (
+                          <Alert variant="destructive" className="py-2.5">
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertDescription className="text-xs">{autoFindError}</AlertDescription>
+                          </Alert>
+                        )}
 
-                    {discoveredOnts.length > 0 && (
-                      <div className="space-y-2">
-                        <Label htmlFor="discoveredOntSelect" className="text-xs font-medium">Select Discovered ONT</Label>
-                        <SearchableSelect
-                          options={discoveredOnts.map((ont) => ({
-                            value: ont.ont_id_details,
-                            label: `${ont.ont_id_details} (on ${ont.interface})`,
-                          }))}
-                          value={selectedDiscoveredOnt?.ont_id_details || ''}
-                          onValueChange={(value) => {
-                            const val = Array.isArray(value) ? value[0] : value
-                            handleSelectDiscoveredOnt(val)
-                          }}
-                          placeholder="Choose an ONT from the list"
-                        />
-                      </div>
-                    )}
+                        {discoveredOnts.length > 0 && (
+                          <div className="space-y-2">
+                            <Label htmlFor="discoveredOntSelect" className="text-xs font-medium">Select Discovered ONT</Label>
+                            <SearchableSelect
+                              options={discoveredOnts.map((ont) => ({
+                                value: ont.ont_id_details,
+                                label: `${ont.ont_id_details} (on ${ont.interface})`,
+                              }))}
+                              value={selectedDiscoveredOnt?.ont_id_details || ''}
+                              onValueChange={(value) => {
+                                const val = Array.isArray(value) ? value[0] : value
+                                handleSelectDiscoveredOnt(val)
+                              }}
+                              placeholder="Choose an ONT from the list"
+                            />
+                          </div>
+                        )}
 
-                    {matchedDeviceForOnt && selectedDiscoveredOnt && (
-                      <Alert className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900/30 py-2.5">
-                        <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-                        <AlertDescription className="text-xs text-green-800 dark:text-green-200">
-                          Matched with device: {matchedDeviceForOnt.brand} {matchedDeviceForOnt.model}
-                          {matchedDeviceForOnt.ponSerial && ` (PON-SN: ${matchedDeviceForOnt.ponSerial})`}
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                    {selectedDiscoveredOnt && !matchedDeviceForOnt && (
-                      <Alert variant="destructive" className="py-2.5">
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertDescription className="text-xs">
-                          No matching device found. Please add a device with matching serial/MAC/PON-SN.
-                        </AlertDescription>
-                      </Alert>
+                        {matchedDeviceForOnt && selectedDiscoveredOnt && (
+                          <Alert className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900/30 py-2.5">
+                            <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                            <AlertDescription className="text-xs text-green-800 dark:text-green-200">
+                              Matched with device: {matchedDeviceForOnt.brand} {matchedDeviceForOnt.model}
+                              {matchedDeviceForOnt.ponSerial && ` (PON-SN: ${matchedDeviceForOnt.ponSerial})`}
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                        {selectedDiscoveredOnt && !matchedDeviceForOnt && (
+                          <Alert variant="destructive" className="py-2.5">
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertDescription className="text-xs">
+                              No matching device found. Please add a device with matching serial/MAC/PON-SN.
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
@@ -3496,7 +3549,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                 <Button variant="outline" onClick={() => setAssignHardwareOpen(false)}>Cancel</Button>
                 <Button onClick={handleHwProvisionSave} disabled={hwProvisionLoading}>
                   {hwProvisionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Save Connection Details
+                  Device Provision
                 </Button>
               </DialogFooter>
             </DialogContent>
