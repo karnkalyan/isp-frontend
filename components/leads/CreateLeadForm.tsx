@@ -760,9 +760,28 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
         try {
             const data = await apiRequest("/branches")
             const list = Array.isArray(data) ? data : (data?.data || [])
-            const processed = list.map((b: any) => ({ id: String(b.id), name: b.name, parentId: b.parentId ?? null }))
-            setBranches(processed.filter((b: any) => !b.parentId))
-            setSubBranches(processed.filter((b: any) => b.parentId))
+            const processed = list.map((b: any) => ({
+                id: String(b.id),
+                name: b.name,
+                parentId: b.parentId ? String(b.parentId) : null
+            }))
+
+            // Level 1: Branch (has parent which has no parent)
+            const level1 = processed.filter((b: any) => {
+                if (!b.parentId) return false; // Level 0 (Head Office / Org)
+                const parent = processed.find((p: any) => p.id === b.parentId);
+                return !parent || !parent.parentId; // Parent has no parent
+            });
+
+            // Level 2: Sub-branch (has parent which has a parent)
+            const level2 = processed.filter((b: any) => {
+                if (!b.parentId) return false;
+                const parent = processed.find((p: any) => p.id === b.parentId);
+                return parent && parent.parentId; // Parent has a parent itself
+            });
+
+            setBranches(level1)
+            setSubBranches(level2)
         } catch (error: any) {
             console.error("Failed to fetch branches:", error)
         }
