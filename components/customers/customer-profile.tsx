@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import React, { useState, useEffect, useCallback, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
@@ -73,6 +73,8 @@ import { CustomerBillingManagement } from "@/components/customers/customer-billi
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Textarea } from "@/components/ui/textarea"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 import {
   Dialog,
@@ -118,9 +120,31 @@ interface OLT {
   ipAddress: string
   model: string
   ports: number
-  totalPorts?: number
-  vlans?: Array<{ id: string; vlanId: number; name: string; description?: string; status: string }>
-  profiles?: Array<{ id: string; profileId: string; name: string; type: string; description?: string }>
+  serviceBoards?: Array<{
+    id: string
+    slot: number
+    type: string
+    portCount: number
+    usedPorts: number
+    availablePorts: number
+    status: string
+  }>
+  vlans?: Array<{
+    id: string
+    vlanId: number
+    name: string
+    description?: string
+    gemIndex?: number
+    priority?: number
+    status: string
+  }>
+  profiles?: Array<{
+    id: string
+    profileId: string
+    name: string
+    type: string
+    description?: string
+  }>
 }
 
 interface Splitter {
@@ -130,15 +154,33 @@ interface Splitter {
   splitRatio: string
   portCount: number
   oltId?: number
+  location?: {
+    latitude?: number
+    longitude?: number
+    site?: string
+  }
   status?: string
   splitterType?: string
   availablePorts?: number
+  distance?: number // for nearest calculation
+  olt?: {
+    id: number
+    name: string
+    ipAddress: string
+  } | null
+  connectedServiceBoard?: {
+    oltId: string
+    oltName: string
+    boardPort: string
+    boardSlot: number
+    boardType?: string // to determine EPON/GPON
+  } | null
   isMaster?: boolean
   masterSplitterId?: string | null
-  connectedServiceBoard?: { oltId: string; oltName: string; boardPort: string; boardSlot: number } | null
 }
 
 interface CustomerDevice {
+  id?: number
   deviceType: string
   brand: string
   model: string
@@ -840,6 +882,233 @@ function DataUsageHistory({ usernames }: DataUsageHistoryProps) {
   )
 }
 
+// ==================== Device Dialog Component (with MAC formatting) ====================
+interface DeviceDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  device?: CustomerDevice
+  onSave: (device: CustomerDevice) => void
+}
+
+function formatMacAddress(value: string): string {
+  const cleaned = value.replace(/[^a-fA-F0-9]/g, '').toLowerCase()
+  const groups = cleaned.match(/.{1,4}/g)
+  if (!groups) return value
+  return groups.join('.')
+}
+
+function normalizeIdentifier(value?: string | null): string {
+  return (value || "").replace(/[^a-fA-F0-9]/g, "").toLowerCase()
+}
+
+function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps) {
+  const { user } = useAuth()
+  const [formData, setFormData] = useState<CustomerDevice & { ponSerial?: string }>({
+    deviceType: "ONT",
+    brand: "",
+    model: "",
+    serialNumber: "",
+    macAddress: "",
+    ponSerial: "",
+    notes: "",
+  })
+
+  const [inventoryItems, setInventoryItems] = useState<any[]>([])
+  const [loadingInventory, setLoadingInventory] = useState(false)
+
+  useEffect(() => {
+    if (device) {
+      setFormData({
+        ...device,
+        ponSerial: (device as any).ponSerial || "",
+        macAddress: device.macAddress ? formatMacAddress(device.macAddress) : "",
+      })
+    } else {
+      setFormData({
+        deviceType: "ONT",
+        brand: "",
+        model: "",
+        serialNumber: "",
+        macAddress: "",
+        ponSerial: "",
+        notes: "",
+      })
+    }
+  }, [device, open])
+
+  // Fetch branch stock
+  useEffect(() => {
+    if (open && user?.id) {
+      setLoadingInventory(true)
+      apiRequest<any[]>(`/inventory?type=${encodeURIComponent(formData.deviceType)}&status=ASSIGNED_TO_USER&userId=${user.id}`)
+        .then(data => {
+          const available = (data || []).filter((item: any) =>
+            item.status === "ASSIGNED_TO_USER" && Number(item.userId) === Number(user.id) && !item.customerId
+          )
+          setInventoryItems(available)
+        })
+        .catch(console.error)
+        .finally(() => setLoadingInventory(false))
+    }
+  }, [open, user?.id, formData.deviceType])
+
+  const handleChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  const handleInventorySelect = (value: string | string[]) => {
+    const serialNumber = Array.isArray(value) ? value[0] : value
+    const selectedIdentifier = normalizeIdentifier(serialNumber)
+    const item = inventoryItems.find(i =>
+      i.serialNumber === serialNumber ||
+      normalizeIdentifier(i.serialNumber) === selectedIdentifier ||
+      normalizeIdentifier(i.ponSerialNumber) === selectedIdentifier ||
+      normalizeIdentifier(i.macAddress) === selectedIdentifier
+    )
+    if (item) {
+      setFormData(prev => ({
+        ...prev,
+        serialNumber: item.serialNumber,
+        macAddress: item.macAddress || prev.macAddress,
+        ponSerial: item.ponSerialNumber || prev.ponSerial,
+        brand: item.name || prev.brand,
+        model: item.model || item.type || prev.model,
+        inventoryItemId: item.id,
+      }))
+    }
+  }
+
+  const handleMacBlur = () => {
+    if (formData.macAddress) {
+      setFormData(prev => ({ ...prev, macAddress: formatMacAddress(prev.macAddress) }))
+    }
+  }
+
+  const handleSubmit = () => {
+    if (!formData.brand || !formData.model || !formData.serialNumber) {
+      toast({ title: "Error", description: "Please fill all required fields", variant: "destructive" })
+      return
+    }
+    onSave(formData as CustomerDevice)
+    onOpenChange(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{device ? "Edit Device" : "Add Provisioned Device"}</DialogTitle>
+          <DialogDescription>
+            Assign an ONT/Device from your branch's inventory to this customer.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="deviceType">Device Type *</Label>
+            <SearchableSelect
+              options={[
+                { value: "ONT", label: "ONT (Optical Network Terminal)" },
+                { value: "Router", label: "Router" },
+                { value: "STB", label: "Set-Top Box" },
+              ]}
+              value={formData.deviceType}
+              onValueChange={(value) => handleChange("deviceType", Array.isArray(value) ? value[0] : value)}
+              placeholder="Select device type"
+            />
+          </div>
+
+          <div className="space-y-2 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-100 rounded-lg">
+            <Label>Select Available Stock *</Label>
+            <SearchableSelect
+              options={inventoryItems.map(i => ({
+                value: i.serialNumber,
+                label: `${i.name} (${i.serialNumber})`
+              }))}
+              value={formData.serialNumber}
+              onValueChange={handleInventorySelect}
+              placeholder={loadingInventory ? "Loading inventory..." : "Select from branch stock"}
+              disabled={loadingInventory}
+            />
+            <p className="text-[10px] text-muted-foreground">Only showing devices assigned to your user from your active branch.</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="brand">Brand *</Label>
+              <Input
+                id="brand"
+                value={formData.brand}
+                onChange={(e) => handleChange("brand", e.target.value)}
+                placeholder="e.g., TP-Link"
+                disabled
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="model">Model *</Label>
+              <Input
+                id="model"
+                value={formData.model}
+                onChange={(e) => handleChange("model", e.target.value)}
+                placeholder="e.g., Archer C7"
+                disabled
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="serialNumber">Serial Number *</Label>
+              <Input
+                id="serialNumber"
+                value={formData.serialNumber}
+                onChange={(e) => handleChange("serialNumber", e.target.value)}
+                placeholder="SN123456"
+                disabled
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="macAddress">MAC Address</Label>
+              <Input
+                id="macAddress"
+                value={formData.macAddress}
+                onChange={(e) => handleChange("macAddress", e.target.value)}
+                onBlur={handleMacBlur}
+                placeholder="xxxx.xxxx.xxxx"
+                disabled
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="ponSerial">PON-SN (GPON)</Label>
+              <Input
+                id="ponSerial"
+                value={formData.ponSerial}
+                onChange={(e) => handleChange("ponSerial", e.target.value)}
+                placeholder="e.g., ALCLF12345678"
+                disabled
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="notes">Notes</Label>
+            <Textarea
+              id="notes"
+              value={formData.notes}
+              onChange={(e) => handleChange("notes", e.target.value)}
+              placeholder="Any additional info..."
+              rows={2}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button type="button" onClick={handleSubmit}>Save Device</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ========== Main Component ==========
 interface CustomerProfileProps {
   customerId?: string
@@ -967,52 +1236,303 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     }
   }, [])
 
+  const openDeviceDialogForEdit = useCallback((index: number) => {
+    setHwEditingDeviceIndex(index)
+    setHwDeviceDialogOpen(true)
+  }, [])
+
+  const removeDevice = useCallback((index: number) => {
+    setHwDevices(prev => prev.filter((_, i) => i !== index))
+  }, [])
+
+  const handleDeviceSave = useCallback((device: CustomerDevice) => {
+    if (hwEditingDeviceIndex !== null) {
+      setHwDevices(prev => {
+        const updated = [...prev]
+        updated[hwEditingDeviceIndex] = device
+        return updated
+      })
+      setHwEditingDeviceIndex(null)
+    } else {
+      setHwDevices(prev => [...prev, device])
+    }
+  }, [hwEditingDeviceIndex])
+
+  // Helper to convert a serial (e.g., "ALCLB2C804B0") to hex format ("414C434CB2C804B0")
+  const convertToPonHex = useCallback((serial: string): string => {
+    if (!serial) return ""
+    // If it's already all hex digits, return as is (upper case)
+    if (/^[0-9A-Fa-f]+$/.test(serial)) return serial.toUpperCase()
+    // First 4 chars are vendor ID, convert each to hex ASCII
+    const vendor = serial.slice(0, 4)
+    const rest = serial.slice(4)
+    const hexVendor = vendor.split('').map(ch => ch.charCodeAt(0).toString(16).toUpperCase()).join('')
+    return hexVendor + rest.toUpperCase()
+  }, [])
+
+  // Helper to get serial for OLT registration
+  const getOntSerialForRegistration = useCallback((device: CustomerDevice, isEpon: boolean): string => {
+    if (isEpon) {
+      // EPON: use MAC address without dots
+      return device.macAddress
+    } else {
+      // GPON: use ponSerial if available, else convert serialNumber to hex
+      return device.ponSerial ? convertToPonHex(device.ponSerial) : convertToPonHex(device.serialNumber)
+    }
+  }, [convertToPonHex])
+
+  // OLT Provisioning function
+  const registerOntOnOlt = useCallback(async (): Promise<boolean> => {
+    if (!hwProvisionDetails.oltId) {
+      toast({ title: "No OLT selected", variant: "destructive" })
+      return false
+    }
+    if (!matchedDeviceForOnt || !selectedDiscoveredOnt) {
+      toast({ title: "No matched ONT device", variant: "destructive" })
+      return false
+    }
+
+    const selectedOlt = olts.find(o => o.id.toString() === hwProvisionDetails.oltId)
+    if (!selectedOlt) {
+      toast({ title: "Please select a valid OLT", variant: "destructive" })
+      return false
+    }
+
+    let boardPortStr = hwProvisionDetails.oltPort || ""
+    let boardType = selectedOlt.serviceBoards?.[0]?.type
+
+    if (hwProvisionDetails.useSplitter) {
+      const ultimateOlt = findUltimateOltForSplitter(hwProvisionDetails.splitterId)
+      if (!ultimateOlt) {
+        toast({ title: "Could not determine OLT from selected splitter", variant: "destructive" })
+        return false
+      }
+
+      const path = getSplitterPath(hwProvisionDetails.splitterId)
+      const lastSplitter = path[path.length - 1]
+      boardPortStr = lastSplitter?.connectedServiceBoard?.boardPort || ""
+      const selectedSplitter = splitters.find(s => s.id.toString() === hwProvisionDetails.splitterId)
+      boardType = selectedSplitter?.connectedServiceBoard?.boardType || ultimateOlt.serviceBoards?.[0]?.type
+    }
+
+    // boardPortStr format like "0/0/1"
+    const [frame, slot, port] = boardPortStr.split('/').map(Number)
+    if ([frame, slot, port].some(part => Number.isNaN(part) || part === undefined)) {
+      toast({ title: "Invalid OLT port format. Use frame/slot/port, for example 0/0/1.", variant: "destructive" })
+      return false
+    }
+
+    // Determine board type
+    const isEpon = !!boardType?.toUpperCase().includes("EPON")
+
+    // Build serial
+    const serial = getOntSerialForRegistration(matchedDeviceForOnt, isEpon)
+    if (!serial) {
+      toast({ title: "No serial/MAC available for ONT", variant: "destructive" })
+      return false
+    }
+
+    // Get VLANs
+    const vlans = hwProvisionDetails.selectedVlanIds
+      .map(vlanId => {
+        const vlan = selectedOlt?.vlans?.find(v => v.id.toString() === vlanId.toString())
+        if (!vlan) return null
+        return {
+          vlan: vlan.vlanId,
+          gemport: vlan.gemIndex || 1, // fallback if gemIndex missing
+        }
+      })
+      .filter(Boolean)
+
+    // Get profiles (line_profile_id and service_profile_id)
+    const profiles = selectedOlt?.profiles?.filter(p => hwProvisionDetails.selectedProfileIds.includes(p.id.toString())) || []
+    const lineProfile = profiles.find(p => p.type === "line" || p.type === "LINE")
+    const serviceProfile = profiles.find(p => p.type === "service" || p.type === "SERVICE")
+    const lineProfileId = lineProfile ? (lineProfile.profileId || lineProfile.id) : null
+    const serviceProfileId = serviceProfile ? (serviceProfile.profileId || serviceProfile.id) : null
+    if (!isEpon) {
+      if (!lineProfileId || !serviceProfileId) {
+        toast({ title: "Please select both line and service profiles", variant: "destructive" })
+        return false
+      }
+    }
+
+    const payload = {
+      action: "registerONT",
+      params: {
+        frame,
+        slot,
+        port,
+        serial,
+        line_profile_id: lineProfileId,
+        service_profile_id: serviceProfileId,
+        description: `${customer?.firstName || "Customer"}_${customer?.lastName || ""}_${customer?.street || ""}`.replace(/\s+/g, '_'),
+        vlans,
+      },
+    }
+
+    try {
+      const response = await apiRequest<any>(`/device/${hwProvisionDetails.oltId}/action`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/json" },
+      })
+      if (response?.success) {
+        toast({ title: "ONT registered on OLT successfully" })
+        return true
+      } else {
+        toast({ title: "ONT registration failed", description: response?.error || "Failed to register ONT", variant: "destructive" })
+        return false
+      }
+    } catch (error: any) {
+      toast({ title: "ONT registration error", description: error?.message || "Error", variant: "destructive" })
+      return false
+    }
+  }, [hwProvisionDetails, matchedDeviceForOnt, selectedDiscoveredOnt, findUltimateOltForSplitter, getSplitterPath, splitters, olts, customer, getOntSerialForRegistration])
+
   const handleAutoFindOnt = useCallback(async () => {
     if (!hwProvisionDetails.oltId) {
-      toast({ title: "Select OLT first", variant: "destructive" })
+      toast({ title: "Please select an OLT first", variant: "destructive" })
       return
     }
+
+    let frame: number, slot: number, port: number
+
+    if (hwProvisionDetails.useSplitter) {
+      if (!hwProvisionDetails.splitterId) {
+        toast({ title: "Please select a splitter first", variant: "destructive" })
+        return
+      }
+
+      const selectedSplitter = splitters.find(s => s.id.toString() === hwProvisionDetails.splitterId)
+      const ultimateOlt = findUltimateOltForSplitter(hwProvisionDetails.splitterId)
+      const path = getSplitterPath(hwProvisionDetails.splitterId)
+      const lastSplitter = path[path.length - 1]
+      const boardPortStr = lastSplitter?.connectedServiceBoard?.boardPort || ""
+
+      if (!boardPortStr) {
+        toast({ title: "Unable to determine board port from splitter", variant: "destructive" })
+        return
+      }
+
+      const parts = boardPortStr.split('/').map(Number)
+      if (parts.length !== 3 || parts.some(isNaN)) {
+        toast({ title: `Invalid board port format from splitter: ${boardPortStr}`, variant: "destructive" })
+        return
+      }
+      [frame, slot, port] = parts
+    } else {
+      // Direct OLT mode
+      if (!hwProvisionDetails.oltPort) {
+        toast({ title: "Please enter the OLT port (frame/slot/port) for direct connection", variant: "destructive" })
+        return
+      }
+      const parts = hwProvisionDetails.oltPort.split('/').map(Number)
+      if (parts.length !== 3 || parts.some(isNaN)) {
+        toast({ title: "OLT port must be in format frame/slot/port (e.g., 0/0/1)", variant: "destructive" })
+        return
+      }
+      [frame, slot, port] = parts
+    }
+
     setIsAutoFinding(true)
     setAutoFindError(null)
     setDiscoveredOnts([])
     setSelectedDiscoveredOnt(null)
     setMatchedDeviceForOnt(null)
+
     try {
-      let boardPort = hwProvisionDetails.oltPort || ""
-      if (hwProvisionDetails.useSplitter && hwProvisionDetails.splitterId) {
-        const path = getSplitterPath(hwProvisionDetails.splitterId)
-        boardPort = path[path.length - 1]?.connectedServiceBoard?.boardPort || ""
-      }
       const response = await apiRequest<any>(`/device/${hwProvisionDetails.oltId}/action`, {
         method: "POST",
-        body: JSON.stringify({ action: "autofind", boardPort }),
+        body: JSON.stringify({
+          action: "autofind",
+          params: [frame, slot, port],
+        }),
+        headers: { "Content-Type": "application/json" },
       })
-      if (response?.success && Array.isArray(response.data)) {
+
+      if (response?.success && response.data) {
         setDiscoveredOnts(response.data)
       } else {
         setAutoFindError(response?.error || "Failed to discover ONTs")
       }
-    } catch (e: any) {
-      setAutoFindError(e?.message || "Error during autofind")
+    } catch (error: any) {
+      setAutoFindError(error?.message || "Error during autofind")
     } finally {
       setIsAutoFinding(false)
     }
-  }, [hwProvisionDetails, getSplitterPath, toast])
+  }, [hwProvisionDetails, splitters, findUltimateOltForSplitter, getSplitterPath, toast])
 
-  const handleSelectDiscoveredOnt = (ontId: string) => {
+  const handleSelectDiscoveredOnt = useCallback((ontId: string) => {
     const ont = discoveredOnts.find(o => o.ont_id_details === ontId)
     setSelectedDiscoveredOnt(ont || null)
-    if (ont) {
-      const matched = hwDevices.find(d => {
-        const serial = (d.serialNumber || "").replace(/[^a-fA-F0-9]/g, "").toLowerCase()
-        const pon = (d.ponSerial || "").replace(/[^a-fA-F0-9]/g, "").toLowerCase()
-        const mac = (d.macAddress || "").replace(/[^a-fA-F0-9]/g, "").toLowerCase()
-        const ontSerial = (ont.ont_id_details || "").replace(/[^a-fA-F0-9]/g, "").toLowerCase()
-        return serial === ontSerial || pon === ontSerial || mac === ontSerial
-      })
-      setMatchedDeviceForOnt(matched || null)
+
+    if (!ont) {
+      setMatchedDeviceForOnt(null)
+      return
     }
-  }
+
+    if (!hwDevices.length) {
+      setMatchedDeviceForOnt(null)
+      toast({ title: "No devices added. Please add a device first.", variant: "destructive" })
+      return
+    }
+
+    const selectedSplitter = splitters.find(s => s.id.toString() === hwProvisionDetails.splitterId)
+    const ultimateOlt = findUltimateOltForSplitter(hwProvisionDetails.splitterId)
+    const boardType = selectedSplitter?.connectedServiceBoard?.boardType || ultimateOlt?.serviceBoards?.[0]?.type
+    const isEpon = boardType?.toUpperCase().includes("EPON")
+
+    const ontIdentifier = ont.ont_id_details  // e.g., "414C434CB2C804B0" for GPON
+    const normalizedOnt = normalizeIdentifier(ontIdentifier)
+
+    // Try to match with any added ONT device
+    for (const device of hwDevices) {
+      if (device.deviceType !== "ONT") continue
+
+      const candidateIdentifiers = [
+        device.macAddress,
+        device.serialNumber,
+        device.ponSerial,
+        convertToPonHex(device.serialNumber || ""),
+        convertToPonHex(device.ponSerial || ""),
+      ]
+        .map(normalizeIdentifier)
+        .filter(Boolean)
+
+      if (candidateIdentifiers.includes(normalizedOnt)) {
+        setMatchedDeviceForOnt(device)
+        setSelectedDiscoveredOnt((prev: any) => prev ? ({ ...prev, ont_id: ont.ont_id }) : null)
+        toast({ title: `Matched with device: ${device.brand} ${device.model}` })
+        return
+      }
+
+      if (isEpon) {
+        // EPON: match by MAC
+        const normalizedMac = normalizeIdentifier(device.macAddress)
+        if (normalizedMac && normalizedMac === normalizedOnt) {
+          setMatchedDeviceForOnt(device)
+          setSelectedDiscoveredOnt((prev: any) => prev ? ({ ...prev, ont_id: ont.ont_id }) : null)
+          toast({ title: `Matched with device: ${device.brand} ${device.model}` })
+          return
+        }
+      } else {
+        // GPON: match by serialNumber or ponSerial after converting to hex
+        const deviceSerialHex = convertToPonHex(device.serialNumber || "")
+        const devicePonHex = convertToPonHex(device.ponSerial || "")
+        if ((devicePonHex && devicePonHex === ontIdentifier) || (deviceSerialHex && deviceSerialHex === ontIdentifier)) {
+          setMatchedDeviceForOnt(device)
+          setSelectedDiscoveredOnt((prev: any) => prev ? ({ ...prev, ont_id: ont.ont_id }) : null)
+          toast({ title: `Matched with device: ${device.brand} ${device.model}` })
+          return
+        }
+      }
+    }
+
+    // No match found
+    setMatchedDeviceForOnt(null)
+    toast({ title: "No matching device found", variant: "destructive" })
+  }, [hwDevices, hwProvisionDetails.splitterId, splitters, findUltimateOltForSplitter, discoveredOnts, convertToPonHex, toast])
 
   const handleHwProvisionSave = async () => {
     if (!customer) return
@@ -1022,31 +1542,42 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       const ultimateOlt = hwProvisionDetails.useSplitter
         ? findUltimateOltForSplitter(hwProvisionDetails.splitterId)
         : selectedOlt
-      const path = hwProvisionDetails.useSplitter ? getSplitterPath(hwProvisionDetails.splitterId) : []
-      const selectedSplitter = splitters.find(s => s.id.toString() === hwProvisionDetails.splitterId)
 
-      let boardPortStr = hwProvisionDetails.oltPort || ""
-      if (hwProvisionDetails.useSplitter && path.length > 0) {
-        boardPortStr = path[path.length - 1]?.connectedServiceBoard?.boardPort || ""
+      // Step 1: Register ONT on OLT (if fiber, and discovery/matching is set)
+      if (selectedDiscoveredOnt && matchedDeviceForOnt) {
+        const ontRegistered = await registerOntOnOlt()
+        if (!ontRegistered) {
+          setHwProvisionLoading(false)
+          return
+        }
       }
 
-      // Save fiber provisioning to the customer
-      await apiRequest(`/device/${ultimateOlt?.id || hwProvisionDetails.oltId}/action`, {
-        method: "POST",
+      // Step 2: Save connection details to customer
+      // vlanId field needs to be a comma-separated string of the selected VLAN IDs (database IDs)
+      const vlanIdStr = hwProvisionDetails.selectedVlanIds.join(',')
+
+      await apiRequest(`/customer/${customer.id}`, {
+        method: "PUT",
         body: JSON.stringify({
-          action: "provision",
-          customerId: customer.id,
-          splitterId: selectedSplitter?.splitterId || null,
-          splitterPort: hwProvisionDetails.splitterPort || null,
-          boardPort: boardPortStr,
+          connectionType: "fiber",
+          oltId: ultimateOlt?.id || hwProvisionDetails.oltId ? Number(ultimateOlt?.id || hwProvisionDetails.oltId) : null,
+          splitterId: hwProvisionDetails.splitterId ? Number(hwProvisionDetails.splitterId) : null,
           oltPort: hwProvisionDetails.oltPort || null,
-          vlans: hwProvisionDetails.selectedVlanIds,
-          profiles: hwProvisionDetails.selectedProfileIds,
-          devices: hwDevices,
-          ontDetails: selectedDiscoveredOnt,
-          matchedDevice: matchedDeviceForOnt,
+          splitterPort: hwProvisionDetails.splitterPort || null,
+          vlanId: vlanIdStr,
         }),
+        headers: { "Content-Type": "application/json" },
       })
+
+      // Step 3: Assign new devices to customer
+      const newDevices = hwDevices.filter(d => !d.id && d.inventoryItemId)
+      for (const dev of newDevices) {
+        await apiRequest(`/inventory/${dev.inventoryItemId}/assign`, {
+          method: "PUT",
+          body: JSON.stringify({ customerId: customer.id })
+        })
+      }
+
       toast({ title: "Fiber provisioning saved successfully" })
       setAssignHardwareOpen(false)
       fetchCustomerData()
@@ -2347,220 +2878,449 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           <Dialog open={assignHardwareOpen} onOpenChange={(open) => {
             setAssignHardwareOpen(open)
             if (open) {
-              setHwDialogStep(1)
               fetchOltsAndSplitters()
+              const sd = customer?.serviceDetails?.[0]
+              if (sd) {
+                let selectedVlanIds: string[] = []
+                if (sd.vlanId) {
+                  selectedVlanIds = sd.vlanId.split(',').filter(Boolean)
+                }
+                setHwProvisionDetails({
+                  useSplitter: !!sd.splitterId,
+                  useDirectOLT: !sd.splitterId,
+                  oltId: sd.oltId?.toString() || "",
+                  splitterId: sd.splitterId?.toString() || "",
+                  splitterPort: sd.splitterPort || "",
+                  oltPort: sd.oltPort || "",
+                  selectedVlanIds,
+                  selectedProfileIds: [],
+                })
+              } else {
+                setHwProvisionDetails({
+                  useSplitter: true,
+                  useDirectOLT: false,
+                  oltId: "",
+                  splitterId: "",
+                  splitterPort: "",
+                  oltPort: "",
+                  selectedVlanIds: [],
+                  selectedProfileIds: [],
+                })
+              }
+              const mappedDevices: CustomerDevice[] = (customer?.devices || []).map((dev) => ({
+                id: dev.id,
+                deviceType: dev.deviceType,
+                brand: dev.brand,
+                model: dev.model,
+                serialNumber: dev.serialNumber,
+                macAddress: dev.macAddress,
+                ponSerial: dev.ponSerial || undefined,
+                notes: dev.notes || "",
+              }))
+              setHwDevices(mappedDevices)
+              setSelectedDiscoveredOnt(null)
+              setMatchedDeviceForOnt(null)
+              setAutoFindError(null)
             }
           }}>
             <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Fiber Network Provisioning</DialogTitle>
-                <DialogDescription>Configure splitter, OLT, VLANs, and add devices. Use Autofind to discover and match ONT.</DialogDescription>
+                <DialogTitle className="flex items-center gap-2">
+                  <Cpu className="h-5 w-5" />
+                  Fiber Network Provisioning
+                </DialogTitle>
+                <DialogDescription>
+                  Configure splitter, OLT, VLANs, and add devices. Use Autofind to discover and match ONT.
+                </DialogDescription>
               </DialogHeader>
 
-              {hwDialogStep === 1 ? (
-                <div className="space-y-5 py-2">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Device Type</Label>
-                      <Select value={selectedDeviceType} onValueChange={(value: any) => setSelectedDeviceType(value)}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Choose device type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {["ONT", "ONU", "STB", "Router", "Other"].map(type => (
-                            <SelectItem key={type} value={type}>{type}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+              <div className="space-y-6 py-4">
+                {/* Connection Method */}
+                <div className="space-y-4">
+                  <Label>Connection Method</Label>
+                  <RadioGroup
+                    value={hwProvisionDetails.useSplitter ? "splitter" : "direct"}
+                    onValueChange={(value) => {
+                      if (value === "splitter") {
+                        setHwProvisionDetails((prev) => ({ ...prev, useSplitter: true, useDirectOLT: false }))
+                      } else {
+                        setHwProvisionDetails((prev) => ({ ...prev, useSplitter: false, useDirectOLT: true }))
+                      }
+                    }}
+                    className="grid grid-cols-1 md:grid-cols-2 gap-4"
+                  >
+                    <div className="flex items-center space-x-2 rounded-lg border p-4 cursor-pointer hover:bg-accent">
+                      <RadioGroupItem value="splitter" id="splitter-method" />
+                      <Label htmlFor="splitter-method" className="flex items-center cursor-pointer font-medium">
+                        <Split className="mr-2 h-5 w-5 text-primary" />
+                        Via Splitter
+                      </Label>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Inventory Item</Label>
-                      <Select value={selectedHardwareId?.toString() || ""} onValueChange={(value) => {
-                        const item = availableStock.find(stock => stock.id.toString() === value)
-                        setSelectedHardwareId(Number(value))
-                        if (item) {
-                          setHwDevices([{
-                            deviceType: selectedDeviceType,
-                            brand: item.brand || item.vendor?.name || "",
-                            model: item.model || item.name || "",
-                            serialNumber: item.serialNumber || "",
-                            macAddress: item.macAddress || "",
-                            ponSerial: item.ponSerial || item.serialNumber || "",
-                            notes: item.notes || "",
-                            inventoryItemId: item.id,
-                          }])
+                    <div className="flex items-center space-x-2 rounded-lg border p-4 cursor-pointer hover:bg-accent">
+                      <RadioGroupItem value="direct" id="direct-method" />
+                      <Label htmlFor="direct-method" className="flex items-center cursor-pointer font-medium">
+                        <Server className="mr-2 h-5 w-5 text-primary" />
+                        Direct OLT Port
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+
+                {/* Splitter selection */}
+                {hwProvisionDetails.useSplitter && (
+                  <div className="space-y-2">
+                    <Label htmlFor="splitterId">Splitter</Label>
+                    <SearchableSelect
+                      options={splitters
+                        .filter(s => (s.availablePorts ?? 0) > 0 || s.id.toString() === hwProvisionDetails.splitterId)
+                        .map((splitter) => ({
+                          value: splitter.id.toString(),
+                          label: `${splitter.name} (${splitter.splitterId})`,
+                          description: `Ratio: ${splitter.splitRatio} | Ports: ${splitter.portCount} | Available: ${splitter.availablePorts ?? 0}`,
+                        }))}
+                      value={hwProvisionDetails.splitterId}
+                      onValueChange={(value) => {
+                        const val = Array.isArray(value) ? value[0] : value
+                        const selectedSplitter = splitters.find(s => s.id.toString() === val)
+                        if (selectedSplitter) {
+                          const ultimateOlt = findUltimateOltForSplitter(val)
+                          setHwProvisionDetails((prev) => ({
+                            ...prev,
+                            splitterId: val,
+                            oltId: ultimateOlt ? ultimateOlt.id.toString() : '',
+                          }))
+                        } else {
+                          setHwProvisionDetails((prev) => ({ ...prev, splitterId: val }))
                         }
-                      }}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select stock item" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableStock.map(item => (
-                            <SelectItem key={item.id} value={item.id.toString()}>
-                              {item.serialNumber || item.name} {item.model ? `- ${item.model}` : ""}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Input placeholder="Search inventory" value={hardwareSearch} onChange={(event) => setHardwareSearch(event.target.value)} />
-                      {stockLoading && <div className="text-xs text-muted-foreground">Loading stock...</div>}
-                    </div>
+                      }}
+                      placeholder={loadingSplitters ? "Loading splitters..." : "Select splitter with available ports"}
+                      disabled={loadingSplitters}
+                    />
                   </div>
+                )}
 
-                  <div className="space-y-3">
-                    <Label>Connection Method</Label>
-                    <RadioGroup
-                      value={hwProvisionDetails.useSplitter ? "splitter" : "direct"}
-                      onValueChange={(value) => setHwProvisionDetails(prev => ({
-                        ...prev,
-                        useSplitter: value === "splitter",
-                        useDirectOLT: value === "direct",
+                {/* Display selected splitter details with hierarchy */}
+                {hwProvisionDetails.splitterId && hwProvisionDetails.useSplitter && (
+                  (() => {
+                    const selectedSplitter = splitters.find(s => s.id.toString() === hwProvisionDetails.splitterId)
+                    if (!selectedSplitter) return null
+                    const path = getSplitterPath(hwProvisionDetails.splitterId)
+                    const ultimateOlt = findUltimateOltForSplitter(hwProvisionDetails.splitterId)
+                    return (
+                      <div className="p-4 border rounded-lg bg-muted/50 space-y-3">
+                        <h4 className="font-medium text-sm">Selected Splitter Details</h4>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>Name:</div><div>{selectedSplitter.name}</div>
+                          <div>ID:</div><div>{selectedSplitter.splitterId}</div>
+                          <div>Ratio:</div><div>{selectedSplitter.splitRatio}</div>
+                          <div>Type:</div><div>{selectedSplitter.splitterType || "N/A"}</div>
+                          <div>Ports:</div><div>{selectedSplitter.portCount} total, {selectedSplitter.availablePorts ?? 0} available</div>
+                          <div>Status:</div><div><Badge variant={selectedSplitter.status === "active" ? "default" : "destructive"}>{selectedSplitter.status}</Badge></div>
+                        </div>
+
+                        {/* Hierarchy Path */}
+                        {path.length > 1 && (
+                          <div className="mt-2">
+                            <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">Splitter Hierarchy</Label>
+                            <div className="flex flex-wrap items-center gap-1 mt-1 text-xs">
+                              {path.map((s, idx) => (
+                                <React.Fragment key={s.id}>
+                                  {idx > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+                                  <span className={`px-2 py-0.5 rounded text-[11px] font-medium ${s.id === selectedSplitter.id ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200' : 'bg-gray-100 dark:bg-gray-800'}`}>
+                                    {s.name}
+                                  </span>
+                                </React.Fragment>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Ultimate OLT */}
+                        {ultimateOlt && (
+                          <div className="mt-3 p-3 bg-green-50/50 dark:bg-green-950/20 border border-green-200 dark:border-green-900/30 rounded-lg">
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <Server className="h-4 w-4 text-green-600 dark:text-green-400" />
+                              <span className="font-semibold text-xs text-green-800 dark:text-green-300">Ultimate OLT</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-1 text-[11px]">
+                              <span className="text-muted-foreground">Name:</span><span className="font-medium">{ultimateOlt.name}</span>
+                              {path[path.length - 1]?.connectedServiceBoard?.boardPort && (
+                                <>
+                                  <span className="text-muted-foreground">Port:</span><span className="font-mono font-medium">{path[path.length - 1]?.connectedServiceBoard?.boardPort}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()
+                )}
+
+                {/* OLT selection for direct connection */}
+                {!hwProvisionDetails.useSplitter && (
+                  <div className="space-y-2">
+                    <Label htmlFor="oltId">OLT</Label>
+                    <SearchableSelect
+                      options={olts.map((olt) => ({
+                        value: olt.id.toString(),
+                        label: olt.name,
+                        description: `${olt.model}`,
                       }))}
-                      className="grid grid-cols-1 md:grid-cols-2 gap-3"
-                    >
-                      <Label className="flex items-center gap-3 rounded-md border p-3">
-                        <RadioGroupItem value="splitter" />
-                        <span>Via Splitter</span>
-                      </Label>
-                      <Label className="flex items-center gap-3 rounded-md border p-3">
-                        <RadioGroupItem value="direct" />
-                        <span>Direct OLT Port</span>
-                      </Label>
-                    </RadioGroup>
+                      value={hwProvisionDetails.oltId}
+                      onValueChange={(value) => {
+                        const val = Array.isArray(value) ? value[0] : value
+                        handleHwProvisionChange("oltId", val)
+                      }}
+                      placeholder={loadingOlts ? "Loading OLTs..." : "Select OLT"}
+                      disabled={loadingOlts}
+                    />
+                  </div>
+                )}
+
+                {/* OLT Port Input – only for direct connection */}
+                {!hwProvisionDetails.useSplitter && (
+                  <div className="space-y-2">
+                    <Label htmlFor="oltPort">OLT Port</Label>
+                    <Input
+                      id="oltPort"
+                      value={hwProvisionDetails.oltPort}
+                      onChange={(e) => handleHwProvisionChange("oltPort", e.target.value)}
+                      placeholder="e.g., 1/1/1"
+                    />
+                  </div>
+                )}
+
+                {hwProvisionDetails.useSplitter && (
+                  <div className="space-y-2">
+                    <Label htmlFor="splitterPort">Splitter Output Port</Label>
+                    <Input
+                      id="splitterPort"
+                      value={hwProvisionDetails.splitterPort}
+                      onChange={(e) => handleHwProvisionChange("splitterPort", e.target.value)}
+                      placeholder="e.g., 1-32"
+                    />
+                  </div>
+                )}
+
+                {/* VLAN Multi-Select */}
+                {hwProvisionDetails.oltId && (
+                  (() => {
+                    const selectedOlt = olts.find(o => o.id.toString() === hwProvisionDetails.oltId)
+                    if (!selectedOlt || !selectedOlt.vlans || selectedOlt.vlans.length === 0) {
+                      return (
+                        <div className="text-sm text-muted-foreground">No VLANs available for this OLT.</div>
+                      )
+                    }
+                    return (
+                      <div className="space-y-2">
+                        <Label>Select VLANs</Label>
+                        <div className="border rounded-lg p-3 space-y-2 max-h-40 overflow-y-auto">
+                          {selectedOlt.vlans.map((vlan) => (
+                            <div key={vlan.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`vlan-${vlan.id}`}
+                                checked={hwProvisionDetails.selectedVlanIds.includes(vlan.id.toString())}
+                                onCheckedChange={(checked) => {
+                                  const newIds = checked
+                                    ? [...hwProvisionDetails.selectedVlanIds, vlan.id.toString()]
+                                    : hwProvisionDetails.selectedVlanIds.filter(id => id !== vlan.id.toString())
+                                  handleHwProvisionChange("selectedVlanIds", newIds)
+                                }}
+                              />
+                              <Label htmlFor={`vlan-${vlan.id}`} className="text-sm cursor-pointer font-normal">
+                                {vlan.vlanId} - {vlan.name} {vlan.description ? `(${vlan.description})` : ''}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })()
+                )}
+
+                {/* Profile Multi-Select */}
+                {hwProvisionDetails.oltId && (
+                  (() => {
+                    const selectedOlt = olts.find(o => o.id.toString() === hwProvisionDetails.oltId)
+                    if (!selectedOlt || !selectedOlt.profiles || selectedOlt.profiles.length === 0) {
+                      return (
+                        <div className="text-sm text-muted-foreground">No profiles available for this OLT.</div>
+                      )
+                    }
+                    return (
+                      <div className="space-y-2">
+                        <Label>Select Profiles</Label>
+                        <div className="border rounded-lg p-3 space-y-2 max-h-40 overflow-y-auto">
+                          {selectedOlt.profiles.map((profile) => (
+                            <div key={profile.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`profile-${profile.id}`}
+                                checked={hwProvisionDetails.selectedProfileIds.includes(profile.id.toString())}
+                                onCheckedChange={(checked) => {
+                                  const newIds = checked
+                                    ? [...hwProvisionDetails.selectedProfileIds, profile.id.toString()]
+                                    : hwProvisionDetails.selectedProfileIds.filter(id => id !== profile.id.toString())
+                                  handleHwProvisionChange("selectedProfileIds", newIds)
+                                }}
+                              />
+                              <Label htmlFor={`profile-${profile.id}`} className="text-sm cursor-pointer font-normal">
+                                {profile.name} ({profile.type}) {profile.description ? `- ${profile.description}` : ''}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })()
+                )}
+
+                {/* Customer Devices Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-base font-semibold">Customer Devices</Label>
+                    <Button type="button" variant="outline" size="sm" onClick={() => {
+                      setHwEditingDeviceIndex(null)
+                      setHwDeviceDialogOpen(true)
+                    }}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Device
+                    </Button>
                   </div>
 
-                  {hwProvisionDetails.useSplitter ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Splitter</Label>
-                        <Select value={hwProvisionDetails.splitterId} onValueChange={(value) => {
-                          handleHwProvisionChange("splitterId", value)
-                          const rootOlt = findUltimateOltForSplitter(value)
-                          if (rootOlt) handleHwProvisionChange("oltId", rootOlt.id.toString())
-                        }}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select splitter with available ports" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {splitters.map(splitterOption => (
-                              <SelectItem key={splitterOption.id} value={splitterOption.id.toString()}>
-                                {splitterOption.name} ({splitterOption.availablePorts ?? splitterOption.portCount} ports)
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Splitter Output Port</Label>
-                        <Input value={hwProvisionDetails.splitterPort} onChange={(event) => handleHwProvisionChange("splitterPort", event.target.value)} placeholder="e.g., 1-32" />
-                      </div>
-                    </div>
+                  {hwDevices.length === 0 ? (
+                    <p className="text-sm text-muted-foreground italic">No devices added yet.</p>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>OLT</Label>
-                        <Select value={hwProvisionDetails.oltId} onValueChange={(value) => handleHwProvisionChange("oltId", value)}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select OLT" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {olts.map(oltOption => (
-                              <SelectItem key={oltOption.id} value={oltOption.id.toString()}>{oltOption.name} - {oltOption.ipAddress}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>OLT Port</Label>
-                        <Input value={hwProvisionDetails.oltPort} onChange={(event) => handleHwProvisionChange("oltPort", event.target.value)} placeholder="e.g., 0/1/1" />
-                      </div>
+                    <div className="space-y-2">
+                      {hwDevices.map((device, index) => (
+                        <div key={index} className="flex items-start justify-between p-3 border rounded-lg bg-slate-50/50 dark:bg-slate-900/20">
+                          <div>
+                            <div className="font-semibold text-sm">{device.brand} {device.model}</div>
+                            <div className="text-xs text-muted-foreground mt-0.5">
+                              {device.deviceType} • SN: {device.serialNumber} • MAC: {device.macAddress || "N/A"}
+                              {device.ponSerial && <span> • PON-SN: {device.ponSerial}</span>}
+                            </div>
+                            {device.notes && <div className="text-xs text-gray-500 mt-1 italic">Notes: {device.notes}</div>}
+                          </div>
+                          <div className="flex gap-2">
+                            <Button type="button" variant="ghost" size="sm" onClick={() => openDeviceDialogForEdit(index)}>
+                              Edit
+                            </Button>
+                            <Button type="button" variant="ghost" size="sm" className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20" onClick={() => removeDevice(index)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
+                </div>
 
-                  <div className="space-y-3">
+                {/* Autofind ONT Section */}
+                {hwProvisionDetails.oltId && (
+                  <div className="space-y-4 border rounded-lg p-4 bg-muted/20">
                     <div className="flex items-center justify-between">
-                      <Label>Customer Devices</Label>
-                      <Button type="button" size="sm" variant="outline" onClick={() => {
-                        setHwDevices(prev => [...prev, {
-                          deviceType: selectedDeviceType,
-                          brand: "",
-                          model: "",
-                          serialNumber: "",
-                          macAddress: "",
-                          ponSerial: "",
-                          notes: "",
-                        }])
-                      }}>
-                        <Plus className="mr-2 h-4 w-4" /> Add Device
+                      <Label className="text-sm font-semibold">ONT Discovery</Label>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleAutoFindOnt}
+                        disabled={
+                          isAutoFinding ||
+                          !hwProvisionDetails.oltId ||
+                          (hwProvisionDetails.useDirectOLT && !hwProvisionDetails.oltPort)
+                        }
+                      >
+                        {isAutoFinding ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                        Autofind ONT
                       </Button>
                     </div>
-                    {hwDevices.length === 0 ? (
-                      <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No devices added yet.</div>
-                    ) : (
-                      <div className="space-y-2">
-                        {hwDevices.map((device, index) => (
-                          <div key={index} className="grid grid-cols-1 md:grid-cols-5 gap-2 rounded-md border p-3">
-                            <Input value={device.deviceType} onChange={(event) => setHwDevices(prev => prev.map((d, i) => i === index ? { ...d, deviceType: event.target.value } : d))} placeholder="Type" />
-                            <Input value={device.brand} onChange={(event) => setHwDevices(prev => prev.map((d, i) => i === index ? { ...d, brand: event.target.value } : d))} placeholder="Brand" />
-                            <Input value={device.model} onChange={(event) => setHwDevices(prev => prev.map((d, i) => i === index ? { ...d, model: event.target.value } : d))} placeholder="Model" />
-                            <Input value={device.serialNumber} onChange={(event) => setHwDevices(prev => prev.map((d, i) => i === index ? { ...d, serialNumber: event.target.value } : d))} placeholder="Serial / PON" />
-                            <Button type="button" variant="outline" onClick={() => setHwDevices(prev => prev.filter((_, i) => i !== index))}>Remove</Button>
-                          </div>
-                        ))}
+
+                    {/* Show the board port that will be used */}
+                    {hwProvisionDetails.useSplitter && hwProvisionDetails.splitterId && (
+                      <div className="text-xs text-muted-foreground">
+                        Using board port from splitter:{' '}
+                        <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded font-mono">
+                          {(() => {
+                            const path = getSplitterPath(hwProvisionDetails.splitterId);
+                            const lastSplitter = path[path.length - 1];
+                            return lastSplitter?.connectedServiceBoard?.boardPort || 'Not available';
+                          })()}
+                        </code>
                       </div>
                     )}
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4 py-2">
-                  <div className="flex items-center gap-2">
-                    <Button type="button" variant="outline" onClick={handleAutoFindOnt} disabled={isAutoFinding || !hwProvisionDetails.oltId}>
-                      {isAutoFinding ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                      Autofind Device
-                    </Button>
-                    {autoFindError && <span className="text-sm text-red-500">{autoFindError}</span>}
-                  </div>
-                  <div className="rounded-md border">
-                    {discoveredOnts.length === 0 ? (
-                      <div className="p-4 text-sm text-muted-foreground">No discovered ONT yet.</div>
-                    ) : (
-                      discoveredOnts.map((ont) => (
-                        <button
-                          key={ont.ont_id_details || ont.id}
-                          type="button"
-                          className={`flex w-full items-center justify-between border-b p-3 text-left text-sm last:border-b-0 ${selectedDiscoveredOnt === ont ? "bg-primary/10" : ""}`}
-                          onClick={() => handleSelectDiscoveredOnt(ont.ont_id_details)}
-                        >
-                          <span>{ont.ont_id_details || ont.serialNumber || "Unknown ONT"}</span>
-                          <span className="text-muted-foreground">{ont.board_port || ont.port || ""}</span>
-                        </button>
-                      ))
+
+                    {hwProvisionDetails.useDirectOLT && hwProvisionDetails.oltPort && (
+                      <div className="text-xs text-muted-foreground">
+                        Using entered OLT port:{' '}
+                        <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded font-mono">
+                          {hwProvisionDetails.oltPort}
+                        </code>
+                      </div>
+                    )}
+
+                    {autoFindError && (
+                      <Alert variant="destructive" className="py-2.5">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertDescription className="text-xs">{autoFindError}</AlertDescription>
+                      </Alert>
+                    )}
+
+                    {discoveredOnts.length > 0 && (
+                      <div className="space-y-2">
+                        <Label htmlFor="discoveredOntSelect" className="text-xs font-medium">Select Discovered ONT</Label>
+                        <SearchableSelect
+                          options={discoveredOnts.map((ont) => ({
+                            value: ont.ont_id_details,
+                            label: `${ont.ont_id_details} (on ${ont.interface})`,
+                          }))}
+                          value={selectedDiscoveredOnt?.ont_id_details || ''}
+                          onValueChange={(value) => {
+                            const val = Array.isArray(value) ? value[0] : value
+                            handleSelectDiscoveredOnt(val)
+                          }}
+                          placeholder="Choose an ONT from the list"
+                        />
+                      </div>
+                    )}
+
+                    {matchedDeviceForOnt && selectedDiscoveredOnt && (
+                      <Alert className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900/30 py-2.5">
+                        <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                        <AlertDescription className="text-xs text-green-800 dark:text-green-200">
+                          Matched with device: {matchedDeviceForOnt.brand} {matchedDeviceForOnt.model}
+                          {matchedDeviceForOnt.ponSerial && ` (PON-SN: ${matchedDeviceForOnt.ponSerial})`}
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                    {selectedDiscoveredOnt && !matchedDeviceForOnt && (
+                      <Alert variant="destructive" className="py-2.5">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertDescription className="text-xs">
+                          No matching device found. Please add a device with matching serial/MAC/PON-SN.
+                        </AlertDescription>
+                      </Alert>
                     )}
                   </div>
-                  {matchedDeviceForOnt && (
-                    <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-                      Matched device: {matchedDeviceForOnt.serialNumber || matchedDeviceForOnt.ponSerial}
-                    </div>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
 
               <DialogFooter>
-                {hwDialogStep === 2 && <Button variant="outline" onClick={() => setHwDialogStep(1)}>Back</Button>}
-                {hwDialogStep === 1 ? (
-                  <Button onClick={() => setHwDialogStep(2)}>Next</Button>
-                ) : (
-                  <Button onClick={async () => {
-                    if (selectedHardwareId) await handleAssignHardware()
-                    await handleHwProvisionSave()
-                  }} disabled={actionLoading || hwProvisionLoading}>
-                    {(actionLoading || hwProvisionLoading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Save Provisioning
-                  </Button>
-                )}
+                <Button variant="outline" onClick={() => setAssignHardwareOpen(false)}>Cancel</Button>
+                <Button onClick={handleHwProvisionSave} disabled={hwProvisionLoading}>
+                  {hwProvisionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Save Connection Details
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+          <DeviceDialog
+            open={hwDeviceDialogOpen}
+            onOpenChange={setHwDeviceDialogOpen}
+            device={hwEditingDeviceIndex !== null ? hwDevices[hwEditingDeviceIndex] : undefined}
+            onSave={handleDeviceSave}
+          />
 
           <CardContainer title="Assigned Hardware" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
             <div className="flex items-center justify-between mb-4">
