@@ -951,6 +951,17 @@ export function OLTDetailed() {
     allSplitters: Splitter[],
     visited: Set<string> = new Set()
   ): string | null => {
+    // 1. Direct OLT connection via service board
+    if (splitter.connectedServiceBoard?.oltId) {
+      return String(splitter.connectedServiceBoard.oltId);
+    }
+
+    // 2. Direct OLT connection via olt relation or oltId field
+    const directOltId = (splitter as any).oltId || (splitter as any).olt?.id;
+    if (directOltId) {
+      return String(directOltId);
+    }
+
     // Cycle detection: if we've already visited this splitter, stop
     if (visited.has(splitter.splitterId)) {
       console.warn(`Circular splitter reference detected at splitterId: ${splitter.splitterId}`);
@@ -958,13 +969,8 @@ export function OLTDetailed() {
     }
     visited.add(splitter.splitterId);
 
-    // If splitter is directly connected to OLT, return that OLT ID
-    if (splitter.connectedServiceBoard?.oltId) {
-      return splitter.connectedServiceBoard.oltId;
-    }
-
-    // If splitter has a master splitter, recursively find the root OLT
-    if (splitter.masterSplitterId) {
+    // If splitter has a master splitter, and it is not self-referential, recursively find the root OLT
+    if (splitter.masterSplitterId && splitter.masterSplitterId !== splitter.splitterId) {
       const masterSplitter = allSplitters.find(s => s.splitterId === splitter.masterSplitterId);
       if (masterSplitter) {
         return findRootOltForSplitter(masterSplitter, allSplitters, visited);
@@ -999,6 +1005,13 @@ export function OLTDetailed() {
       return path;
     }
 
+    const directOlt = (splitter as any).olt || (splitter as any).oltId;
+    if (directOlt) {
+      const directOltName = typeof directOlt === 'object' ? directOlt.name : `OLT (${directOlt})`;
+      path.push(`→ ${directOltName}`);
+      return path;
+    }
+
     // If connected to parent splitter, recursively build path
     if (splitter.masterSplitterId) {
       const parentSplitter = allSplitters.find(s => s.splitterId === splitter.masterSplitterId);
@@ -1017,7 +1030,7 @@ export function OLTDetailed() {
   const getConnectedOltName = (splitter: Splitter, allSplitters: Splitter[]): string => {
     const rootOltId = findRootOltForSplitter(splitter, allSplitters);
     if (rootOltId) {
-      const olt = olts.find(o => o.id === rootOltId);
+      const olt = olts.find(o => String(o.id) === String(rootOltId));
       return olt?.name || "Unknown OLT";
     }
     return "Not connected";
@@ -1068,7 +1081,7 @@ export function OLTDetailed() {
         if (oltId && oltId !== 'all') {
           filteredSplitters = filteredSplitters.filter(splitter => {
             const rootOltId = findRootOltForSplitter(splitter, response.data || []);
-            return rootOltId === oltId;
+            return String(rootOltId) === String(oltId);
           });
         }
 
@@ -2147,7 +2160,7 @@ export function OLTDetailed() {
   const handleOLTSelection = (value: string) => {
     if (value) {
       fetchAvailablePorts(value);
-      const selectedOLT = olts.find(o => o.id === value);
+      const selectedOLT = olts.find(o => String(o.id) === String(value));
       setSplitterForm(prev => ({
         ...prev,
         connectedServiceBoard: {
@@ -3543,7 +3556,7 @@ export function OLTDetailed() {
                     }))}
                     value={selectedOLT?.id || ""}
                     onValueChange={(value) => {
-                      const olt = olts.find(o => o.id === value)
+                      const olt = olts.find(o => String(o.id) === String(value))
                       if (olt) {
                         setSelectedOLT(olt)
                         fetchONTs(olt.id, 1, ontSearch, ontStatusFilter)
@@ -4199,7 +4212,7 @@ export function OLTDetailed() {
                                   {ultimateOlt !== "Not connected" && (
                                     (() => {
                                       const rootOltId = findRootOltForSplitter(splitter, splitters);
-                                      const olt = olts.find(o => o.id === rootOltId);
+                                      const olt = olts.find(o => String(o.id) === String(rootOltId));
                                       return olt?.ipAddress ? (
                                         <div className="text-xs text-gray-500 font-mono">
                                           {olt.ipAddress}
@@ -5127,7 +5140,7 @@ export function OLTDetailed() {
                           // Get all splitters connected to this OLT (directly or through hierarchy)
                           const connectedSplitters = splitters.filter(splitter => {
                             const rootOltId = findRootOltForSplitter(splitter, splitters);
-                            return rootOltId === selectedOLT?.id;
+                            return String(rootOltId) === String(selectedOLT?.id);
                           });
 
                           // Apply splitter type filter
@@ -5178,7 +5191,10 @@ export function OLTDetailed() {
                                 <div className="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
                                   <p className="text-sm text-gray-500">Direct Connections</p>
                                   <p className="text-xl font-bold text-green-600">
-                                    {filteredSplitters.filter(s => s.connectedServiceBoard?.oltId === selectedOLT?.id).length}
+                                    {filteredSplitters.filter(s => {
+                                      const directOltId = s.connectedServiceBoard?.oltId || (s as any).oltId || (s as any).olt?.id;
+                                      return String(directOltId) === String(selectedOLT?.id);
+                                    }).length}
                                   </p>
                                 </div>
                               </div>
@@ -7137,7 +7153,7 @@ export function OLTDetailed() {
                       onValueChange={(value) => {
                         if (value) {
                           fetchAvailablePorts(value as string)
-                          const olt = olts.find(o => o.id === value)
+                          const olt = olts.find(o => String(o.id) === String(value))
                           setSplitterForm({
                             ...splitterForm,
                             connectedServiceBoard: {
@@ -7618,7 +7634,7 @@ export function OLTDetailed() {
                     {(() => {
                       const connectionPath = getConnectionPath(selectedSplitter, splitters);
                       const rootOltId = findRootOltForSplitter(selectedSplitter, splitters);
-                      const rootOlt = olts.find(o => o.id === rootOltId);
+                      const rootOlt = olts.find(o => String(o.id) === String(rootOltId));
 
                       // Function to get full hierarchical path with all intermediate splitters
                       const getFullHierarchyPath = (splitter: Splitter): any[] => {
@@ -7633,10 +7649,18 @@ export function OLTDetailed() {
                         });
 
                         // Trace back through parents
+                        const visitedHierarchy = new Set<string>();
                         while (currentSplitter) {
+                          if (visitedHierarchy.has(currentSplitter.splitterId)) {
+                            break;
+                          }
+                          visitedHierarchy.add(currentSplitter.splitterId);
+
+                          const directOlt = (currentSplitter as any).olt || (currentSplitter as any).oltId;
+
                           if (currentSplitter.connectedServiceBoard) {
                             // Found OLT connection
-                            const olt = olts.find(o => o.id === currentSplitter.connectedServiceBoard?.oltId);
+                            const olt = olts.find(o => String(o.id) === String(currentSplitter.connectedServiceBoard?.oltId));
                             path.push({
                               type: 'olt',
                               data: olt || {
