@@ -946,7 +946,18 @@ export function OLTDetailed() {
   }
 
 
-  const findRootOltForSplitter = (splitter: Splitter, allSplitters: Splitter[]): string | null => {
+  const findRootOltForSplitter = (
+    splitter: Splitter,
+    allSplitters: Splitter[],
+    visited: Set<string> = new Set()
+  ): string | null => {
+    // Cycle detection: if we've already visited this splitter, stop
+    if (visited.has(splitter.splitterId)) {
+      console.warn(`Circular splitter reference detected at splitterId: ${splitter.splitterId}`);
+      return null;
+    }
+    visited.add(splitter.splitterId);
+
     // If splitter is directly connected to OLT, return that OLT ID
     if (splitter.connectedServiceBoard?.oltId) {
       return splitter.connectedServiceBoard.oltId;
@@ -956,7 +967,7 @@ export function OLTDetailed() {
     if (splitter.masterSplitterId) {
       const masterSplitter = allSplitters.find(s => s.splitterId === splitter.masterSplitterId);
       if (masterSplitter) {
-        return findRootOltForSplitter(masterSplitter, allSplitters);
+        return findRootOltForSplitter(masterSplitter, allSplitters, visited);
       }
     }
 
@@ -964,8 +975,20 @@ export function OLTDetailed() {
   };
 
   // Helper function to get the full connection path for a splitter
-  const getConnectionPath = (splitter: Splitter, allSplitters: Splitter[]): string[] => {
+  const getConnectionPath = (
+    splitter: Splitter,
+    allSplitters: Splitter[],
+    visited: Set<string> = new Set()
+  ): string[] => {
     const path: string[] = [];
+
+    // Cycle detection: if we've already visited this splitter, stop
+    if (visited.has(splitter.splitterId)) {
+      console.warn(`Circular splitter reference detected at splitterId: ${splitter.splitterId}`);
+      path.push("→ Circular reference detected");
+      return path;
+    }
+    visited.add(splitter.splitterId);
 
     // Add current splitter
     path.push(`${splitter.name} (${splitter.splitterId})`);
@@ -980,7 +1003,7 @@ export function OLTDetailed() {
     if (splitter.masterSplitterId) {
       const parentSplitter = allSplitters.find(s => s.splitterId === splitter.masterSplitterId);
       if (parentSplitter) {
-        const parentPath = getConnectionPath(parentSplitter, allSplitters);
+        const parentPath = getConnectionPath(parentSplitter, allSplitters, visited);
         return [...path, ...parentPath.slice(1)]; // Skip the parent's own name in path
       }
     }

@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import React, { useState, useEffect, useMemo } from "react"
 import { CardContainer } from "@/components/ui/card-container"
@@ -382,7 +382,7 @@ const LocationMarker = ({
         >
             <Popup>
                 <div className="p-2 min-w-[250px]">
-                    <div className="font-semibold text-sm mb-2">📍 Selected Location</div>
+                    <div className="font-semibold text-sm mb-2">ðŸ“ Selected Location</div>
 
                     <div className="space-y-2">
                         <div className="text-xs">
@@ -405,7 +405,7 @@ const LocationMarker = ({
                             <div className={`text-xs p-2 rounded ${serviceAvailable ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
                                 <span className="font-medium">Service:</span>
                                 <div className="mt-1">
-                                    {serviceAvailable ? '✅ Available' : '❌ Not Available'}
+                                    {serviceAvailable ? 'âœ… Available' : 'âŒ Not Available'}
                                 </div>
                             </div>
                         )}
@@ -532,6 +532,8 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
     const [memberships, setMemberships] = useState<Membership[]>([])
     const [splitters, setSplitters] = useState<Splitter[]>([])
     const [leadFollowUps, setLeadFollowUps] = useState<FollowUp[]>([])
+    const [branches, setBranches] = useState<Array<{ id: string; name: string; parentId?: number | null }>>([])    
+    const [subBranches, setSubBranches] = useState<Array<{ id: string; name: string; parentId?: number | null }>>([])
     const [showFollowUpDialog, setShowFollowUpDialog] = useState(false)
     const [editingFollowUp, setEditingFollowUp] = useState<FollowUp | null>(null)
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
@@ -574,6 +576,8 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
         latitude: "" as string | "",
         longitude: "" as string | "",
         serviceRadius: "0.1" as string | ""
+        branchId: "",
+        subBranchId: ""
     })
 
     // Follow-up form state
@@ -623,6 +627,7 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
         fetchPackages()
         fetchMemberships()
         fetchSplitters()
+        fetchBranches()
         if (leadId) {
             setIsEditing(true)
             fetchLead()
@@ -750,6 +755,18 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
         }
     }
 
+    
+    const fetchBranches = async () => {
+        try {
+            const data = await apiRequest("/branches")
+            const list = Array.isArray(data) ? data : (data?.data || [])
+            const processed = list.map((b: any) => ({ id: String(b.id), name: b.name, parentId: b.parentId ?? null }))
+            setBranches(processed.filter((b: any) => !b.parentId))
+            setSubBranches(processed.filter((b: any) => b.parentId))
+        } catch (error: any) {
+            console.error("Failed to fetch branches:", error)
+        }
+    }
     const fetchSplitters = async () => {
         try {
             const response = await apiRequest("/splitters")
@@ -827,9 +844,10 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                     fullAddress: lead.metadata?.fullAddress || "",
                     latitude: lead.metadata?.latitude?.toString() || "",
                     longitude: lead.metadata?.longitude?.toString() || "",
-                    serviceRadius: lead.metadata?.serviceRadius?.toString() || "0.1"
+                    serviceRadius: lead.metadata?.serviceRadius?.toString() || "0.1",
+                    branchId: lead.branchId ? String(lead.branchId) : "",
+                    subBranchId: lead.subBranchId ? String(lead.subBranchId) : ""
                 }
-
                 setFormData(processedData)
 
                 // Set map position if coordinates exist
@@ -1241,7 +1259,9 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
             fullAddress: "",
             latitude: "",
             longitude: "",
-            serviceRadius: "0.1"
+            serviceRadius: "0.1",
+            branchId: "",
+            subBranchId: ""
         })
         setLeadMapPosition([27.7172, 85.3240])
         setLeadNearestSplitters([])
@@ -1564,6 +1584,37 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                         </div>
                     </div>
 
+                    {/* Branch and Sub-branch Selection */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="branchId">Branch</Label>
+                            <SearchableSelect
+                                options={branches.map(b => ({ value: b.id, label: b.name }))}
+                                value={formData.branchId}
+                                onValueChange={(value) => {
+                                    updateFormField("branchId", value as string)
+                                    updateFormField("subBranchId", "")
+                                }}
+                                placeholder="Select branch"
+                                emptyMessage="No branches found"
+                                clearable
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="subBranchId">Sub-branch</Label>
+                            <SearchableSelect
+                                options={subBranches
+                                    .filter(sb => !formData.branchId || String(sb.parentId) === formData.branchId)
+                                    .map(b => ({ value: b.id, label: b.name }))}
+                                value={formData.subBranchId}
+                                onValueChange={(value) => updateFormField("subBranchId", value as string)}
+                                placeholder={formData.branchId ? "Select sub-branch" : "Select a branch first"}
+                                emptyMessage="No sub-branches found"
+                                clearable
+                            />
+                        </div>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="source">Source</Label>
@@ -1758,10 +1809,10 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                                                                 </div>
                                                                 <div className="flex items-center gap-2 text-xs text-gray-400">
                                                                     <span className="flex items-center gap-1">
-                                                                        <span>📍</span>
+                                                                        <span>ðŸ“</span>
                                                                         <span>{parseFloat(result.lat).toFixed(6)}, {parseFloat(result.lon).toFixed(6)}</span>
                                                                     </span>
-                                                                    <span>•</span>
+                                                                    <span>â€¢</span>
                                                                     <span>{result.type}</span>
                                                                 </div>
                                                             </div>
@@ -1944,7 +1995,7 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
 
                                 {/* Current Location Info */}
                                 <div className="p-3 bg-gray-50 border rounded-lg">
-                                    <h4 className="font-medium mb-2">📍 Current Location Info</h4>
+                                    <h4 className="font-medium mb-2">ðŸ“ Current Location Info</h4>
                                     <div className="space-y-2 text-sm">
                                         <div className="flex justify-between">
                                             <span className="text-gray-600">Map Coordinates:</span>
@@ -2009,7 +2060,7 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                                                         <div>
                                                             <div className="font-medium">{splitter.name}</div>
                                                             <div className="text-sm text-gray-500">
-                                                                ID: {splitter.splitterId} • Ratio: {splitter.splitRatio}
+                                                                ID: {splitter.splitterId} â€¢ Ratio: {splitter.splitRatio}
                                                             </div>
                                                             <div className="text-xs text-gray-500 mt-1">
                                                                 {splitter.location.site || 'No site specified'}
@@ -2029,9 +2080,9 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                                                     </div>
                                                     <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
                                                         <span>Available Ports: {splitter.availablePorts}/{splitter.portCount}</span>
-                                                        <span>•</span>
+                                                        <span>â€¢</span>
                                                         <span>Type: {splitter.splitterType}</span>
-                                                        <span>•</span>
+                                                        <span>â€¢</span>
                                                         <span className={`px-2 py-0.5 rounded ${splitter.status === 'active'
                                                             ? 'bg-green-100 text-green-800'
                                                             : 'bg-red-100 text-red-800'

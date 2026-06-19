@@ -31,12 +31,15 @@ type Branch = {
     isActive: boolean
     createdAt: string
     updatedAt: string
+    parentId?: number | null
+    parent?: { id: string; name: string } | null
     _count?: {
         users: number
         customers: number
         leads: number
         olts: number
         onts: number
+        subBranches?: number
     }
 }
 
@@ -580,7 +583,8 @@ export default function BranchForm() {
                                     <TableHeader>
                                         <TableRow className="dark:border-b-[#1e293b] dark:hover:bg-[#1e293b]">
                                             <TableHead className="dark:text-slate-400">Code</TableHead>
-                                            <TableHead className="dark:text-slate-400">Branch Name</TableHead>
+                                            <TableHead className="dark:text-slate-400">Name</TableHead>
+                                            <TableHead className="dark:text-slate-400">Level</TableHead>
                                             <TableHead className="dark:text-slate-400">Contact</TableHead>
                                             <TableHead className="dark:text-slate-400">Location</TableHead>
                                             <TableHead className="dark:text-slate-400">Statistics</TableHead>
@@ -599,10 +603,21 @@ export default function BranchForm() {
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="font-medium dark:text-white">{branch.name}</div>
-                                                    {branch.contactPerson && (
-                                                        <div className="text-sm text-muted-foreground dark:text-slate-400">
-                                                            {branch.contactPerson}
+                                                    {branch.parentId && branch.parent && (
+                                                        <div className="text-xs text-muted-foreground dark:text-slate-500">
+                                                            Under: {branch.parent.name}
                                                         </div>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {branch.parentId ? (
+                                                        <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-500 border-blue-500/20">
+                                                            Sub-branch
+                                                        </Badge>
+                                                    ) : (
+                                                        <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-500 border-purple-500/20">
+                                                            Branch
+                                                        </Badge>
                                                     )}
                                                 </TableCell>
                                                 <TableCell>
