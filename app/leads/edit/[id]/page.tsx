@@ -3,7 +3,12 @@
 import { useParams } from "next/navigation"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { PageHeader } from "@/components/ui/page-header"
-import { CreateLeadForm } from "@/components/leads/CreateLeadForm"
+import dynamic from "next/dynamic"
+
+const CreateLeadForm = dynamic(
+    () => import("@/components/leads/CreateLeadForm").then((mod) => mod.CreateLeadForm),
+    { ssr: false }
+)
 
 export default function EditLeadPage() {
     const params = useParams()
@@ -15,7 +20,10 @@ export default function EditLeadPage() {
                 <PageHeader
                     title="Edit Lead"
                     description="Update lead information"
-                    showBackButton
+                    breadcrumbs={[
+                        { label: "Leads", href: "/leads" },
+                        { label: "Edit" }
+                    ]}
                 />
                 <CreateLeadForm leadId={leadId} />
             </div>

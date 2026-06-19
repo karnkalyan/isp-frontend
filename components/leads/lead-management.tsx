@@ -83,29 +83,42 @@ import { SearchableSelect, type Option } from "@/components/ui/searchable-select
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 
-// Add Leaflet imports
-import { MapContainer, TileLayer, Marker, Popup, Circle, useMapEvents, useMap } from "react-leaflet"
+import dynamic from 'next/dynamic'
 import "leaflet/dist/leaflet.css"
-import L from "leaflet"
+import { useMapEvents, useMap } from 'react-leaflet'
 
-// Fix Leaflet marker icons
-delete (L.Icon.Default.prototype as any)._getIconUrl
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: '/leaflet/images/marker-icon-2x.png',
-  iconUrl: '/leaflet/images/marker-icon.png',
-  shadowUrl: '/leaflet/images/marker-shadow.png',
-})
+// Dynamically import Leaflet components
+const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
+const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
+const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
+const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false })
+const Circle = dynamic(() => import('react-leaflet').then(mod => mod.Circle), { ssr: false })
 
-// Custom marker icon
-const customIcon = new L.Icon({
-  iconUrl: '/leaflet/images/marker-icon.png',
-  iconRetinaUrl: '/leaflet/images/marker-icon-2x.png',
-  shadowUrl: '/leaflet/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
-})
+// Custom icon factory function (only runs on client)
+const getCustomIcon = () => {
+  if (typeof window === 'undefined') return null
+
+  // Dynamically import Leaflet only on client side
+  const L = require('leaflet')
+
+  // Fix Leaflet marker icons
+  delete (L.Icon.Default.prototype as any)._getIconUrl
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl: '/leaflet/images/marker-icon-2x.png',
+    iconUrl: '/leaflet/images/marker-icon.png',
+    shadowUrl: '/leaflet/images/marker-shadow.png',
+  })
+
+  return new L.Icon({
+    iconUrl: '/leaflet/images/marker-icon.png',
+    iconRetinaUrl: '/leaflet/images/marker-icon-2x.png',
+    shadowUrl: '/leaflet/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+  })
+}
 
 type LeadStatus = 'new' | 'contacted' | 'qualified' | 'unqualified' | 'converted'
 type FollowUpType = 'CALL' | 'EMAIL' | 'MEETING' | 'VISIT' | 'OTHER'
@@ -376,6 +389,11 @@ const LocationMarker = ({ position, draggable = true, onDragEnd }: {
   onDragEnd?: (lat: number, lng: number) => void
 }) => {
   const [markerPosition, setMarkerPosition] = useState<[number, number] | null>(position)
+  const [customIcon, setCustomIcon] = useState<any>(null)
+
+  useEffect(() => {
+    setCustomIcon(getCustomIcon())
+  }, [])
 
   const eventHandlers = useMemo(() => ({
     dragend: (e: any) => {
@@ -396,7 +414,7 @@ const LocationMarker = ({ position, draggable = true, onDragEnd }: {
     }
   }, [position])
 
-  if (!markerPosition) return null
+  if (!markerPosition || !customIcon) return null
 
   return (
     <Marker
@@ -435,6 +453,7 @@ const SplitterMarker = ({ splitter }: { splitter: Splitter }) => {
   }
 
   const getSplitterIcon = (isMaster: boolean) => {
+    const L = require('leaflet')
     return new L.DivIcon({
       html: `
         <div class="relative">
@@ -513,6 +532,11 @@ const formatCoordinate = (coord: any): string => {
 
 export function LeadManagement() {
   const router = useRouter()
+  const [customIcon, setCustomIcon] = useState<any>(null)
+
+  useEffect(() => {
+    setCustomIcon(getCustomIcon())
+  }, [])
   const [activeTab, setActiveTab] = useState("list")
   const [leads, setLeads] = useState<Lead[]>([])
   const [convertedLeads, setConvertedLeads] = useState<Lead[]>([])

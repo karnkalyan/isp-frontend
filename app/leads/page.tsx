@@ -2,7 +2,12 @@
 
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { PageHeader } from "@/components/ui/page-header"
-import { LeadManagement } from "@/components/leads/lead-management"
+import dynamic from "next/dynamic"
+
+const LeadManagement = dynamic(
+  () => import("@/components/leads/lead-management").then((mod) => mod.LeadManagement),
+  { ssr: false }
+)
 
 export default function LeadsPage() {
   return (
