@@ -11,7 +11,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { toast } from "react-hot-toast"
 import { useRouter } from "next/navigation"
-import { useAuth } from "@/contexts/AuthContext"
 
 import {
   Save,
@@ -84,17 +83,29 @@ import { SearchableSelect, type Option } from "@/components/ui/searchable-select
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 
-// Dynamically import Leaflet components to avoid SSR issues
-import dynamic from 'next/dynamic'
+// Add Leaflet imports
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMapEvents, useMap } from "react-leaflet"
 import "leaflet/dist/leaflet.css"
-import { useMapEvents, useMap } from 'react-leaflet'
+import L from "leaflet"
 
-// Dynamically import map components
-const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
-const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
-const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
-const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false })
-const Circle = dynamic(() => import('react-leaflet').then(mod => mod.Circle), { ssr: false })
+// Fix Leaflet marker icons
+delete (L.Icon.Default.prototype as any)._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: '/leaflet/images/marker-icon-2x.png',
+  iconUrl: '/leaflet/images/marker-icon.png',
+  shadowUrl: '/leaflet/images/marker-shadow.png',
+})
+
+// Custom marker icon
+const customIcon = new L.Icon({
+  iconUrl: '/leaflet/images/marker-icon.png',
+  iconRetinaUrl: '/leaflet/images/marker-icon-2x.png',
+  shadowUrl: '/leaflet/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+})
 
 type LeadStatus = 'new' | 'contacted' | 'qualified' | 'unqualified' | 'converted'
 type FollowUpType = 'CALL' | 'EMAIL' | 'MEETING' | 'VISIT' | 'OTHER'
@@ -346,17 +357,138 @@ interface Splitter {
   updatedAt: string
   totalCustomers?: number
   slaveCount?: number
-  distance?: number
 }
 
+// Add Map Click Handler Component
+const MapClickHandler = ({ onLocationSelect }: { onLocationSelect: (lat: number, lng: number) => void }) => {
+  useMapEvents({
+    click: (e) => {
+      onLocationSelect(e.latlng.lat, e.latlng.lng)
+    },
+  })
+  return null
+}
+
+// Add Location Marker Component - Fixed version
+const LocationMarker = ({ position, draggable = true, onDragEnd }: {
+  position: [number, number],
+  draggable?: boolean,
+  onDragEnd?: (lat: number, lng: number) => void
+}) => {
+  const [markerPosition, setMarkerPosition] = useState<[number, number] | null>(position)
+
+  const eventHandlers = useMemo(() => ({
+    dragend: (e: any) => {
+      const marker = e.target
+      const position = marker.getLatLng()
+      const newPosition: [number, number] = [position.lat, position.lng]
+      setMarkerPosition(newPosition)
+      if (onDragEnd) {
+        onDragEnd(position.lat, position.lng)
+      }
+    },
+  }), [onDragEnd])
+
+  // Update marker position when prop changes
+  useEffect(() => {
+    if (position) {
+      setMarkerPosition(position)
+    }
+  }, [position])
+
+  if (!markerPosition) return null
+
+  return (
+    <Marker
+      position={markerPosition}
+      draggable={draggable}
+      eventHandlers={eventHandlers}
+      icon={customIcon}
+    >
+      <Popup>
+        Latitude: {markerPosition[0].toFixed(6)} <br />
+        Longitude: {markerPosition[1].toFixed(6)}
+      </Popup>
+    </Marker>
+  )
+}
+
+// Add Map Center Updater Component
+const MapCenterUpdater = ({ center }: { center: [number, number] }) => {
+  const map = useMap()
+
+  useEffect(() => {
+    if (center && center[0] && center[1]) {
+      map.setView(center, map.getZoom())
+    }
+  }, [center, map])
+
+  return null
+}
+
+// Add Splitter Marker Component
+const SplitterMarker = ({ splitter }: { splitter: Splitter }) => {
+  const position: [number, number] = [splitter.location.latitude || 0, splitter.location.longitude || 0]
+
+  if (!splitter.location.latitude || !splitter.location.longitude) {
+    return null
+  }
+
+  const getSplitterIcon = (isMaster: boolean) => {
+    return new L.DivIcon({
+      html: `
+        <div class="relative">
+          <div class="w-6 h-6 rounded-full ${isMaster ? 'bg-purple-500' : 'bg-blue-500'} border-2 border-white shadow-lg flex items-center justify-center">
+            <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
+            </svg>
+          </div>
+        </div>
+      `,
+      className: 'splitter-marker',
+      iconSize: [24, 24],
+      iconAnchor: [12, 12]
+    })
+  }
+
+  return (
+    <Marker
+      position={position}
+      icon={getSplitterIcon(splitter.isMaster)}
+    >
+      <Popup>
+        <div className="p-1">
+          <strong>{splitter.name}</strong><br />
+          ID: {splitter.splitterId}<br />
+          Type: {splitter.splitterType}<br />
+          Ratio: {splitter.splitRatio}<br />
+          Status: <span className={`px-2 py-1 rounded text-xs ${splitter.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+            {splitter.status}
+          </span><br />
+          Available Ports: {splitter.availablePorts}/{splitter.portCount}<br />
+          <div className="mt-2 text-xs text-gray-500">
+            {splitter.location.site || 'No site specified'}
+          </div>
+        </div>
+      </Popup>
+    </Marker>
+  )
+}
+
+// Helper function to format distance
 // Helper function to format distance - ROBUST VERSION
 const formatDistance = (distance: any): string => {
   try {
+    // Convert to number
     const distNum = Number(distance);
+
+    // Check if it's a valid number
     if (isNaN(distNum) || !isFinite(distNum)) {
       return "N/A";
     }
+
     if (distNum < 1) {
+      // Convert to meters
       const meters = distNum * 1000;
       if (meters < 100) {
         return `${meters.toFixed(0)} m`;
@@ -379,180 +511,8 @@ const formatCoordinate = (coord: any): string => {
   return isNaN(num) ? String(coord) : num.toFixed(6);
 };
 
-// Custom icon factory function (only runs on client)
-const getCustomIcon = () => {
-  if (typeof window === 'undefined') return null
-  
-  // Dynamically import Leaflet only on client side
-  const L = require('leaflet')
-  
-  // Fix Leaflet marker icons
-  delete (L.Icon.Default.prototype as any)._getIconUrl
-  L.Icon.Default.mergeOptions({
-    iconRetinaUrl: '/leaflet/images/marker-icon-2x.png',
-    iconUrl: '/leaflet/images/marker-icon.png',
-    shadowUrl: '/leaflet/images/marker-shadow.png',
-  })
-  
-  return new L.Icon({
-    iconUrl: '/leaflet/images/marker-icon.png',
-    iconRetinaUrl: '/leaflet/images/marker-icon-2x.png',
-    shadowUrl: '/leaflet/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41]
-  })
-}
-
-// Map Click Handler Component
-const MapClickHandler = ({ onLocationSelect }: { onLocationSelect: (lat: number, lng: number) => void }) => {
-  const MapEvents = () => {
-    useMapEvents({
-      click: (e) => {
-        onLocationSelect(e.latlng.lat, e.latlng.lng)
-      },
-    })
-    return null
-  }
-  return <MapEvents />
-}
-
-// Location Marker Component - Fixed version
-const LocationMarker = ({ position, draggable = true, onDragEnd }: {
-  position: [number, number],
-  draggable?: boolean,
-  onDragEnd?: (lat: number, lng: number) => void
-}) => {
-  const [markerPosition, setMarkerPosition] = useState<[number, number] | null>(position)
-  const [customIcon, setCustomIcon] = useState<any>(null)
-
-  // Initialize icon on client side only
-  useEffect(() => {
-    setCustomIcon(getCustomIcon())
-  }, [])
-
-  const eventHandlers = useMemo(() => ({
-    dragend: (e: any) => {
-      const marker = e.target
-      const position = marker.getLatLng()
-      const newPosition: [number, number] = [position.lat, position.lng]
-      setMarkerPosition(newPosition)
-      if (onDragEnd) {
-        onDragEnd(position.lat, position.lng)
-      }
-    },
-  }), [onDragEnd])
-
-  // Update marker position when prop changes
-  useEffect(() => {
-    if (position) {
-      setMarkerPosition(position)
-    }
-  }, [position])
-
-  if (!markerPosition || !customIcon) return null
-
-  return (
-    <Marker
-      position={markerPosition}
-      draggable={draggable}
-      eventHandlers={eventHandlers}
-      icon={customIcon}
-    >
-      <Popup>
-        Latitude: {markerPosition[0].toFixed(6)} <br />
-        Longitude: {markerPosition[1].toFixed(6)}
-      </Popup>
-    </Marker>
-  )
-}
-
-// Map Center Updater Component
-const MapCenterUpdater = ({ center }: { center: [number, number] }) => {
-  const map = useMap()
-
-  useEffect(() => {
-    if (center && center[0] && center[1] && map && typeof map.getZoom === 'function') {
-      map.setView(center, map.getZoom())
-    }
-  }, [center, map])
-
-  return null
-}
-
-// Splitter Marker Component
-const SplitterMarker = ({ splitter }: { splitter: Splitter }) => {
-  const [isClient, setIsClient] = useState(false)
-  const [splitterIcon, setSplitterIcon] = useState<any>(null)
-  
-  const position: [number, number] = [splitter.location.latitude || 0, splitter.location.longitude || 0]
-
-  useEffect(() => {
-    setIsClient(true)
-    
-    // Create splitter icon on client side
-    if (typeof window !== 'undefined') {
-      const L = require('leaflet')
-      const icon = new L.DivIcon({
-        html: `
-          <div class="relative">
-            <div class="w-6 h-6 rounded-full ${splitter.isMaster ? 'bg-purple-500' : 'bg-blue-500'} border-2 border-white shadow-lg flex items-center justify-center">
-              <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
-              </svg>
-            </div>
-          </div>
-        `,
-        className: 'splitter-marker',
-        iconSize: [24, 24],
-        iconAnchor: [12, 12]
-      })
-      setSplitterIcon(icon)
-    }
-  }, [splitter.isMaster])
-
-  if (!splitter.location.latitude || !splitter.location.longitude || !isClient || !splitterIcon) {
-    return null
-  }
-
-  return (
-    <Marker
-      position={position}
-      icon={splitterIcon}
-    >
-      <Popup>
-        <div className="p-1">
-          <strong>{splitter.name}</strong><br />
-          ID: {splitter.splitterId}<br />
-          Type: {splitter.splitterType}<br />
-          Ratio: {splitter.splitRatio}<br />
-          Status: <span className={`px-2 py-1 rounded text-xs ${splitter.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-            {splitter.status}
-          </span><br />
-          Available Ports: {splitter.availablePorts}/{splitter.portCount}<br />
-          <div className="mt-2 text-xs text-gray-500">
-            {splitter.location.site || 'No site specified'}
-          </div>
-        </div>
-      </Popup>
-    </Marker>
-  )
-}
-
-const getSmsParts = (text: string) => {
-  if (!text) return 0
-  const isUnicode = /[^\u0000-\u007F]/.test(text)
-  if (isUnicode) {
-    return text.length <= 70 ? 1 : Math.ceil(text.length / 67)
-  } else {
-    return text.length <= 160 ? 1 : Math.ceil(text.length / 153)
-  }
-}
-
 export function LeadManagement() {
   const router = useRouter()
-  const { user } = useAuth()
   const [activeTab, setActiveTab] = useState("list")
   const [leads, setLeads] = useState<Lead[]>([])
   const [convertedLeads, setConvertedLeads] = useState<Lead[]>([])
@@ -563,6 +523,8 @@ export function LeadManagement() {
   const [memberships, setMemberships] = useState<Membership[]>([])
   const [existingISPs, setExistingISPs] = useState<ExistingISP[]>([])
   const [splitters, setSplitters] = useState<Splitter[]>([])
+  const [branches, setBranches] = useState<Array<{ id: string; name: string; parentId?: number | null }>>([])
+  const [subBranches, setSubBranches] = useState<Array<{ id: string; name: string; parentId?: number | null }>>([])
   const [loading, setLoading] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showConvertDialog, setShowConvertDialog] = useState(false)
@@ -579,12 +541,6 @@ export function LeadManagement() {
   const [showStatusChangeDialog, setShowStatusChangeDialog] = useState(false)
   const [statusChangeLead, setStatusChangeLead] = useState<Lead | null>(null)
   const [newStatus, setNewStatus] = useState<LeadStatus>('new')
-  const [isMounted, setIsMounted] = useState(false)
-  const [showSmsDialog, setShowSmsDialog] = useState(false)
-  const [smsLead, setSmsLead] = useState<Lead | null>(null)
-  const [smsMessage, setSmsMessage] = useState("")
-  const [sendingSms, setSendingSms] = useState(false)
-  const [smsConfigured, setSmsConfigured] = useState<boolean | null>(null)
 
   // Pagination and filter states
   const [searchQuery, setSearchQuery] = useState("")
@@ -690,13 +646,10 @@ export function LeadManagement() {
     fullAddress: "",
     latitude: "" as string | "",
     longitude: "" as string | "",
-    serviceRadius: "0.1" as string | "" // Default 100 meters
+    serviceRadius: "0.1" as string | "", // Default 100 meters
+    branchId: "",
+    subBranchId: ""
   })
-
-  // Set mounted state
-  useEffect(() => {
-    setIsMounted(true)
-  }, [])
 
   // Prepare options from data using useMemo for performance
   const userOptions: Option[] = useMemo(() =>
@@ -741,7 +694,7 @@ export function LeadManagement() {
     fetchMemberships()
     fetchExistingISPs()
     fetchSplitters()
-    checkSmsConfig()
+    fetchBranches()
   }, [])
 
   // Fetch leads when active tab or filters change
@@ -1102,6 +1055,20 @@ export function LeadManagement() {
     }
   }
 
+  const fetchBranches = async () => {
+    try {
+      const data = await apiRequest("/branches")
+      const list = Array.isArray(data) ? data : (data?.data || [])
+      const processed = list.map((b: any) => ({ id: String(b.id), name: b.name, parentId: b.parentId ?? null }))
+      // Top-level branches (no parent) â†’ shown as Branch
+      setBranches(processed.filter((b: any) => !b.parentId))
+      // Sub-branches (have parent) â†’ all loaded so we can filter by selected branchId
+      setSubBranches(processed.filter((b: any) => b.parentId))
+    } catch (error: any) {
+      console.error("Failed to fetch branches:", error)
+    }
+  }
+
   // Calculate distance between two coordinates using Haversine formula
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
     const R = 6371 // Earth's radius in kilometers
@@ -1315,6 +1282,8 @@ export function LeadManagement() {
 
       const leadData = {
         ...formData,
+        branchId: formData.branchId ? formData.branchId : undefined,
+        subBranchId: formData.subBranchId ? formData.subBranchId : undefined,
         metadata: {
           fullAddress: formData.fullAddress,
           age: formData.age ? parseInt(formData.age as any) : undefined,
@@ -1377,11 +1346,13 @@ export function LeadManagement() {
       district: lead.district || "",
       province: lead.province || "",
       gender: lead.gender || "",
-      age: lead.metadata?.age || "",
-      fullAddress: lead.metadata?.fullAddress || "",
+      age: lead.metadata?.age || undefined,
+      fullAddress: lead.metadata?.fullAddress || undefined,
       latitude: lead.metadata?.latitude?.toString() || "",
       longitude: lead.metadata?.longitude?.toString() || "",
-      serviceRadius: lead.metadata?.serviceRadius?.toString() || "0.1"
+      serviceRadius: lead.metadata?.serviceRadius?.toString() || "0.1",
+      branchId: (lead as any).branchId ? String((lead as any).branchId) : "",
+      subBranchId: (lead as any).subBranchId ? String((lead as any).subBranchId) : ""
     })
 
     // Set map position if coordinates exist
@@ -1429,66 +1400,6 @@ export function LeadManagement() {
       toast.error(error.message || "Failed to delete lead")
     } finally {
       setLoading(false)
-    }
-  }
-
-  const checkSmsConfig = async () => {
-    try {
-      const res = await apiRequest<any[]>("/service/isp?includeInactive=true")
-      const list = Array.isArray(res) ? res : ((res as any)?.data || [])
-      const hasActiveSms = list.some((s: any) => 
-        (s.service?.code === "AAKASHSMS" || s.service?.code === "SPARROWSMS") && 
-        s.isActive && 
-        s.credentials?.some((c: any) => c.key === "auth_token" && c.value)
-      )
-      setSmsConfigured(hasActiveSms)
-    } catch (err) {
-      console.warn("SMS service configuration check failed:", err)
-      setSmsConfigured(false)
-    }
-  }
-
-  const openSmsDialog = (lead: Lead) => {
-    if (smsConfigured === false) {
-      toast.error("SMS service is not configured. Please enable Aakash SMS or Sparrow SMS in settings.")
-      return
-    }
-    setSelectedLead(lead)
-    setSmsLead(lead)
-    setSmsMessage("")
-    setShowSmsDialog(true)
-  }
-
-  const handleSendSms = async () => {
-    if (!smsLead) return
-    const phoneNumber = smsLead.phoneNumber || smsLead.secondaryContactNumber
-    if (!phoneNumber) {
-      toast.error("This lead does not have a phone number.")
-      return
-    }
-    if (!smsMessage.trim()) {
-      toast.error("Please enter a message.")
-      return
-    }
-
-    setSendingSms(true)
-    try {
-      await apiRequest("/service/sms/send-bulk", {
-        method: "POST",
-        body: JSON.stringify({
-          to: [phoneNumber],
-          text: smsMessage,
-          type: "lead"
-        })
-      })
-      toast.success("SMS message sent successfully!")
-      setShowSmsDialog(false)
-      setSmsMessage("")
-    } catch (error: any) {
-      console.error("SMS Send Error:", error)
-      toast.error(error.message || "Failed to send SMS message.")
-    } finally {
-      setSendingSms(false)
     }
   }
 
@@ -1626,32 +1537,21 @@ export function LeadManagement() {
   }
 
   const handleOutboundcalls = async (phoneNumber: string) => {
-    if (!phoneNumber) {
-      toast.error("Phone number is not available")
-      return
-    }
-    const extension = String(user?.yeastarExt || user?.extId || "").trim()
-    if (!extension) {
-      toast.error("No VoIP extension is assigned to your user account")
-      return
-    }
+    const callPayload = {
+      destination: phoneNumber,
+    };
 
-    try {
+    if (phoneNumber) {
       await apiRequest(`/yeaster/calls/make`, {
         method: 'POST',
         body: JSON.stringify({
-          extension,
-          caller: extension,
           callee: phoneNumber,
-          number: phoneNumber,
-          autoanswer: "yes",
+          autoanswer: "yes"
         })
       })
       toast.success("Calling " + phoneNumber)
-    } catch (error: any) {
-      console.error("Call error:", error)
-      const message = String(error?.message || "")
-      toast.error(/yeastar|yeaster|asterisk|voip|configured|enabled/i.test(message) ? "Calling is disabled because no VOIP service is enabled" : message || "Failed to initiate call")
+    } else {
+      toast.error("Phone number is not available")
     }
   }
 
@@ -1677,6 +1577,7 @@ export function LeadManagement() {
     }
   }
 
+  // Function to change lead status
   // Function to change lead status
   const handleChangeLeadStatus = async (leadId: string, newStatus: LeadStatus) => {
     try {
@@ -1708,7 +1609,6 @@ export function LeadManagement() {
       } else {
         toast.success(`Lead status changed to ${newStatus}`);
         fetchLeads(1); // Refresh to first page
-        setShowStatusChangeDialog(false);
       }
     } catch (error: any) {
       console.error("Change status error:", error);
@@ -1787,7 +1687,7 @@ export function LeadManagement() {
       const response = await apiRequest("/lead/template", {
         method: 'GET',
         responseType: 'blob' // Make sure your apiRequest handles this
-      } as any);
+      });
 
       // Check if response is already a blob
       if (response instanceof Blob) {
@@ -1840,7 +1740,9 @@ export function LeadManagement() {
       fullAddress: "",
       latitude: "",
       longitude: "",
-      serviceRadius: "0.1" // Default 100 meters
+      serviceRadius: "0.1", // Default 100 meters
+      branchId: "",
+      subBranchId: ""
     })
     setLeadMapPosition([27.7172, 85.3240])
     setLeadNearestSplitters([])
@@ -2130,6 +2032,7 @@ export function LeadManagement() {
       <ConfirmDialog />
 
       {/* Change Lead Status Dialog */}
+      {/* Change Lead Status Dialog */}
       <Dialog open={showStatusChangeDialog} onOpenChange={setShowStatusChangeDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -2247,6 +2150,7 @@ export function LeadManagement() {
           <TabsTrigger value="qualified">Qualified</TabsTrigger>
           <TabsTrigger value="unqualified">Unqualified</TabsTrigger>
           <TabsTrigger value="converted">Converted</TabsTrigger>
+          {/* <TabsTrigger value="create">{editingId ? "Edit Lead" : "Create Lead"}</TabsTrigger> */}
         </TabsList>
 
         <TabsContent value="create" className="space-y-6">
@@ -2339,6 +2243,38 @@ export function LeadManagement() {
                     value={formData.age}
                     onChange={(e) => updateFormField("age", e.target.value)}
                   />
+                </div>
+
+                {/* Branch & Sub-branch Selection */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="branchId">Branch</Label>
+                    <SearchableSelect
+                      options={branches.map(b => ({ value: b.id, label: b.name }))}
+                      value={formData.branchId}
+                      onValueChange={(value) => {
+                        updateFormField("branchId", value as string)
+                        updateFormField("subBranchId", "") // reset sub-branch when branch changes
+                      }}
+                      placeholder="Select branch"
+                      emptyMessage="No branches found"
+                      clearable
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="subBranchId">Sub-branch</Label>
+                    <SearchableSelect
+                      options={subBranches
+                        .filter(sb => !formData.branchId || String(sb.parentId) === formData.branchId)
+                        .map(b => ({ value: b.id, label: b.name }))}
+                      value={formData.subBranchId}
+                      onValueChange={(value) => updateFormField("subBranchId", value as string)}
+                      placeholder={formData.branchId ? "Select sub-branch" : "Select a branch first"}
+                      emptyMessage="No sub-branches found"
+                      clearable
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -2461,254 +2397,254 @@ export function LeadManagement() {
                 />
               </div>
 
-              {/* Map Section for Lead Form - Only render on client */}
-              {isMounted && (
-                <div className="pt-6 border-t">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold">Location & Service Availability</h3>
-                    <div className="flex items-center gap-2">
-                      <Ruler className="h-4 w-4 text-gray-500" />
-                      <span className="text-sm text-gray-600">Service Radius: {formatDistance(leadServiceRadius)}</span>
+              {/* Map Section for Lead Form */}
+              <div className="pt-6 border-t">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold">Location & Service Availability</h3>
+                  <div className="flex items-center gap-2">
+                    <Ruler className="h-4 w-4 text-gray-500" />
+                    <span className="text-sm text-gray-600">Service Radius: {formatDistance(leadServiceRadius)}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Left Column - Map */}
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <Label>Set Location on Map</Label>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          // Use current location
+                          if (navigator.geolocation) {
+                            navigator.geolocation.getCurrentPosition(
+                              (position) => {
+                                const lat = position.coords.latitude
+                                const lng = position.coords.longitude
+                                handleLeadLocationSelect(lat, lng)
+                              },
+                              (error) => {
+                                toast.error("Unable to get current location")
+                              }
+                            )
+                          } else {
+                            toast.error("Geolocation is not supported by your browser")
+                          }
+                        }}
+                        className="flex items-center gap-2"
+                      >
+                        <Navigation className="h-4 w-4" />
+                        Use My Location
+                      </Button>
+                    </div>
+
+                    <div className="h-[350px] rounded-lg overflow-hidden border relative">
+                      <MapContainer
+                        center={leadMapPosition}
+                        zoom={15} // Increased zoom for better precision
+                        style={{ height: "100%", width: "100%" }}
+                      >
+                        <MapCenterUpdater center={leadMapPosition} />
+                        <TileLayer
+                          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                          attribution='Simulcast Technologies Pvt Ltd'
+                        />
+
+                        {/* Click handler for map */}
+                        <MapClickHandler onLocationSelect={handleLeadLocationSelect} />
+
+                        {/* Draggable marker for selected location */}
+                        {formData.latitude && formData.longitude && (
+                          <LocationMarker
+                            position={leadMapPosition}
+                            draggable={true}
+                            onDragEnd={handleLeadMarkerDragEnd}
+                          />
+                        )}
+
+                        {/* Show splitters on map */}
+                        {splitters
+                          .filter(splitter => splitter.location.latitude && splitter.location.longitude)
+                          .map((splitter) => (
+                            <SplitterMarker key={splitter.id} splitter={splitter} />
+                          ))}
+
+                        {/* Service area circle */}
+                        {formData.latitude && formData.longitude && (
+                          <Circle
+                            center={leadMapPosition}
+                            radius={leadServiceRadius * 1000} // Convert km to meters
+                            pathOptions={{
+                              fillColor: leadServiceAvailable ? 'green' : 'red',
+                              color: leadServiceAvailable ? 'darkgreen' : 'darkred',
+                              fillOpacity: 0.2,
+                              weight: 2
+                            }}
+                          />
+                        )}
+                      </MapContainer>
+
+                      {/* Add this CSS to hide the attribution */}
+                      <style jsx>{`
+    :global(.leaflet-control-attribution) {
+      display: none !important;
+    }
+  `}</style>
+                    </div>
+
+                    {/* Map Instructions */}
+                    <div className="p-3 bg-blue-500/20 border border-blue-200/10 rounded-lg">
+                      <p className="text-sm text-blue-800">
+                        <strong>Instructions:</strong> Click on the map to set location, or drag the marker to adjust.
+                        Service is considered available if a splitter is within the service radius.
+                      </p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Left Column - Map */}
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <Label>Set Location on Map</Label>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            // Use current location
-                            if (navigator.geolocation) {
-                              navigator.geolocation.getCurrentPosition(
-                                (position) => {
-                                  const lat = position.coords.latitude
-                                  const lng = position.coords.longitude
-                                  handleLeadLocationSelect(lat, lng)
-                                },
-                                (error) => {
-                                  toast.error("Unable to get current location")
-                                }
-                              )
-                            } else {
-                              toast.error("Geolocation is not supported by your browser")
-                            }
-                          }}
-                          className="flex items-center gap-2"
-                        >
-                          <Navigation className="h-4 w-4" />
-                          Use My Location
-                        </Button>
+                  {/* Right Column - Coordinates & Service Info */}
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="latitude">Latitude</Label>
+                        <Input
+                          id="latitude"
+                          type="number"
+                          step="0.000001"
+                          placeholder="27.7172"
+                          value={formData.latitude}
+                          onChange={(e) => updateFormField("latitude", e.target.value)}
+                        />
                       </div>
-
-                      <div className="h-[350px] rounded-lg overflow-hidden border relative">
-                        <MapContainer
-                          center={leadMapPosition}
-                          zoom={15}
-                          style={{ height: "100%", width: "100%" }}
-                        >
-                          <MapCenterUpdater center={leadMapPosition} />
-                          <TileLayer
-                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                            attribution='Simulcast Technologies Pvt Ltd'
-                          />
-
-                          {/* Click handler for map */}
-                          <MapClickHandler onLocationSelect={handleLeadLocationSelect} />
-
-                          {/* Draggable marker for selected location */}
-                          {formData.latitude && formData.longitude && (
-                            <LocationMarker
-                              position={leadMapPosition}
-                              draggable={true}
-                              onDragEnd={handleLeadMarkerDragEnd}
-                            />
-                          )}
-
-                          {/* Show splitters on map */}
-                          {splitters
-                            .filter(splitter => splitter.location.latitude && splitter.location.longitude)
-                            .map((splitter) => (
-                              <SplitterMarker key={splitter.id} splitter={splitter} />
-                            ))}
-
-                          {/* Service area circle */}
-                          {formData.latitude && formData.longitude && (
-                            <Circle
-                              center={leadMapPosition}
-                              radius={leadServiceRadius * 1000}
-                              pathOptions={{
-                                fillColor: leadServiceAvailable ? 'green' : 'red',
-                                color: leadServiceAvailable ? 'darkgreen' : 'darkred',
-                                fillOpacity: 0.2,
-                                weight: 2
-                              }}
-                            />
-                          )}
-                        </MapContainer>
-
-                        <style jsx>{`
-                          :global(.leaflet-control-attribution) {
-                            display: none !important;
-                          }
-                        `}</style>
-                      </div>
-
-                      {/* Map Instructions */}
-                      <div className="p-3 bg-blue-500/20 border border-blue-200/10 rounded-lg">
-                        <p className="text-sm text-blue-800">
-                          <strong>Instructions:</strong> Click on the map to set location, or drag the marker to adjust.
-                          Service is considered available if a splitter is within the service radius.
-                        </p>
+                      <div className="space-y-2">
+                        <Label htmlFor="longitude">Longitude</Label>
+                        <Input
+                          id="longitude"
+                          type="number"
+                          step="0.000001"
+                          placeholder="85.3240"
+                          value={formData.longitude}
+                          onChange={(e) => updateFormField("longitude", e.target.value)}
+                        />
                       </div>
                     </div>
 
-                    {/* Right Column - Coordinates & Service Info */}
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="latitude">Latitude</Label>
-                          <Input
-                            id="latitude"
-                            type="number"
-                            step="0.000001"
-                            placeholder="27.7172"
-                            value={formData.latitude}
-                            onChange={(e) => updateFormField("latitude", e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="longitude">Longitude</Label>
-                          <Input
-                            id="longitude"
-                            type="number"
-                            step="0.000001"
-                            placeholder="85.3240"
-                            value={formData.longitude}
-                            onChange={(e) => updateFormField("longitude", e.target.value)}
-                          />
+                    <div className="space-y-2">
+                      <Label htmlFor="serviceRadius">
+                        Service Radius
+                      </Label>
+                      <div className="space-y-3">
+                        <Slider
+                          value={[leadServiceRadius]}
+                          min={0.05} // 50 meters (0.05 km)
+                          max={10} // 10 km
+                          step={0.05} // 50 meter steps
+                          onValueChange={(value) => {
+                            const radius = value[0]
+                            setLeadServiceRadius(radius)
+                            updateFormField("serviceRadius", radius.toString())
+                          }}
+                          className="w-full"
+                        />
+                        <div className="flex justify-between text-sm text-gray-600">
+                          <span>50 m</span>
+                          <span>{formatDistance(leadServiceRadius)}</span>
+                          <span>10 km</span>
                         </div>
                       </div>
+                    </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="serviceRadius">
-                          Service Radius
-                        </Label>
-                        <div className="space-y-3">
-                          <Slider
-                            value={[leadServiceRadius]}
-                            min={0.05}
-                            max={10}
-                            step={0.05}
-                            onValueChange={(value) => {
-                              const radius = value[0]
-                              setLeadServiceRadius(radius)
-                              updateFormField("serviceRadius", radius.toString())
-                            }}
-                            className="w-full"
-                          />
-                          <div className="flex justify-between text-sm text-gray-600">
-                            <span>50 m</span>
-                            <span>{formatDistance(leadServiceRadius)}</span>
-                            <span>10 km</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Service Availability Badge */}
-                      {leadServiceAvailable !== null && (
-                        <div className="mt-4">
-                          {leadServiceAvailable ? (
-                            <div className="flex items-center gap-2 p-3 bg-green-100/10 border border-green-200 rounded-lg">
-                              <CheckCircle className="h-5 w-5 text-green-600" />
-                              <div>
-                                <p className="font-medium text-green-800">Service Available</p>
-                                <p className="text-sm text-green-600">
-                                  Nearest splitter is {formatDistance(leadNearestSplitters[0]?.distance || 0)} away
-                                </p>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2 p-3 bg-red-100/10 border border-red-200 rounded-lg">
-                              <AlertTriangle className="h-5 w-5 text-red-600/10" />
-                              <div>
-                                <p className="font-medium text-red-800/10">Service Not Available</p>
-                                <p className="text-sm text-red-600/10">
-                                  No splitters within service range ({formatDistance(leadServiceRadius)})
-                                </p>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Nearest Splitters List */}
-                      {leadNearestSplitters.length > 0 && (
-                        <div className="mt-4">
-                          <h4 className="font-medium mb-2">Nearest Splitters (within {formatDistance(leadServiceRadius)})</h4>
-                          <div className="space-y-2 max-h-48 overflow-y-auto">
-                            {leadNearestSplitters.map((splitter, index) => (
-                              <div key={splitter.id} className="p-3 border rounded-lg hover:bg-gray-50/10">
-                                <div className="flex justify-between items-start">
-                                  <div>
-                                    <div className="font-medium">{splitter.name}</div>
-                                    <div className="text-sm text-gray-500">
-                                      ID: {splitter.splitterId} • Ratio: {splitter.splitRatio}
-                                    </div>
-                                    <div className="text-xs text-gray-500 mt-1">
-                                      {splitter.location.site || 'No site specified'}
-                                    </div>
-                                  </div>
-                                  <div className="text-right">
-                                    <div className="font-medium">
-                                      {formatDistance(splitter.distance || 0)}
-                                    </div>
-                                    <Badge className={`mt-1 ${(splitter.distance ?? 0) <= leadServiceRadius
-                                      ? 'bg-green-100/10 text-green-800'
-                                      : 'bg-yellow-100/10 text-yellow-800'
-                                      }`}>
-                                      {(splitter.distance ?? 0) <= leadServiceRadius ? 'Within range' : 'Out of range'}
-                                    </Badge>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-                                  <span>Available Ports: {splitter.availablePorts}/{splitter.portCount}</span>
-                                  <span>•</span>
-                                  <span>Type: {splitter.splitterType}</span>
-                                  <span>•</span>
-                                  <span className={`px-2 py-0.5 rounded ${splitter.status === 'active'
-                                    ? 'bg-green-500/10 text-green-800'
-                                    : 'bg-red-500/10 text-red-800'
-                                    }`}>
-                                    {splitter.status}
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {leadNearestSplitters.length === 0 && formData.latitude && formData.longitude && (
-                        <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                          <div className="flex items-center gap-2">
-                            <AlertTriangle className="h-5 w-5 text-yellow-600" />
+                    {/* Service Availability Badge */}
+                    {leadServiceAvailable !== null && (
+                      <div className="mt-4">
+                        {leadServiceAvailable ? (
+                          <div className="flex items-center gap-2 p-3 bg-green-100/10 border border-green-200 rounded-lg">
+                            <CheckCircle className="h-5 w-5 text-green-600" />
                             <div>
-                              <p className="font-medium text-yellow-800">No Splitters Found</p>
-                              <p className="text-sm text-yellow-600">
-                                No splitters found within {formatDistance(leadServiceRadius)} radius. Service may not be available at this location.
+                              <p className="font-medium text-green-800">Service Available</p>
+                              <p className="text-sm text-green-600">
+                                Nearest splitter is {formatDistance(leadNearestSplitters[0]?.distance || 0)} away
                               </p>
                             </div>
                           </div>
+                        ) : (
+                          <div className="flex items-center gap-2 p-3 bg-red-100/10 border border-red-200 rounded-lg">
+                            <AlertTriangle className="h-5 w-5 text-red-600/10" />
+                            <div>
+                              <p className="font-medium text-red-800/10">Service Not Available</p>
+                              <p className="text-sm text-red-600/10">
+                                No splitters within service range ({formatDistance(leadServiceRadius)})
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Nearest Splitters List */}
+                    {/* Nearest Splitters List */}
+                    {leadNearestSplitters.length > 0 && (
+                      <div className="mt-4">
+                        <h4 className="font-medium mb-2">Nearest Splitters (within {formatDistance(leadServiceRadius)})</h4>
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {leadNearestSplitters.map((splitter, index) => (
+                            <div key={splitter.id} className="p-3 border rounded-lg hover:bg-gray-50/10">
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <div className="font-medium">{splitter.name}</div>
+                                  <div className="text-sm text-gray-500">
+                                    ID: {splitter.splitterId} â€¢ Ratio: {splitter.splitRatio}
+                                  </div>
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    {splitter.location.site || 'No site specified'}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="font-medium">
+                                    {formatDistance(splitter.distance || 0)}
+                                  </div>
+                                  <Badge className={`mt-1 ${splitter.distance <= leadServiceRadius
+                                    ? 'bg-green-100/10 text-green-800'
+                                    : 'bg-yellow-100/10 text-yellow-800'
+                                    }`}>
+                                    {splitter.distance <= leadServiceRadius ? 'Within range' : 'Out of range'}
+                                  </Badge>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                                <span>Available Ports: {splitter.availablePorts}/{splitter.portCount}</span>
+                                <span>â€¢</span>
+                                <span>Type: {splitter.splitterType}</span>
+                                <span>â€¢</span>
+                                <span className={`px-2 py-0.5 rounded ${splitter.status === 'active'
+                                  ? 'bg-green-500/10 text-green-800'
+                                  : 'bg-red-500/10 text-red-800'
+                                  }`}>
+                                  {splitter.status}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
+
+                    {leadNearestSplitters.length === 0 && formData.latitude && formData.longitude && (
+                      <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-5 w-5 text-yellow-600" />
+                          <div>
+                            <p className="font-medium text-yellow-800">No Splitters Found</p>
+                            <p className="text-sm text-yellow-600">
+                              No splitters found within {formatDistance(leadServiceRadius)} radius. Service may not be available at this location.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
-              )}
+              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="notes">Notes</Label>
@@ -2972,10 +2908,7 @@ export function LeadManagement() {
 
                                 {lead.secondaryContactNumber && (
                                   <div className="flex items-center gap-1 text-sm">
-                                    <PhoneIcon
-                                      className="h-3 w-3 cursor-pointer text-green-600 hover:text-blue-800"
-                                      onClick={() => handleOutboundcalls(lead.secondaryContactNumber!)}
-                                    />
+                                    <PhoneIcon className="h-3 w-3" />
                                     {lead.secondaryContactNumber}
                                   </div>
                                 )}
@@ -2983,25 +2916,20 @@ export function LeadManagement() {
                             </TableCell>
                             <TableCell>
                               <div className="space-y-1">
-                                {(lead.address || lead.street || lead.district || lead.province) ? (
-                                  <>
-                                    {(lead.address || lead.street) && (
-                                      <div className="flex items-center gap-1 text-sm font-medium">
-                                        <MapPin className="h-3 w-3 text-gray-500" />
-                                        <span>{[lead.street, lead.address].filter(Boolean).join(", ")}</span>
-                                      </div>
-                                    )}
-                                    {(lead.district || lead.province) && (
-                                      <div className="text-xs text-muted-foreground pl-4">
-                                        {[lead.district, lead.province].filter(Boolean).join(", ")}
-                                      </div>
-                                    )}
-                                  </>
-                                ) : (
-                                  <span className="text-muted-foreground text-sm">-</span>
+                                {lead.district && (
+                                  <div className="flex items-center gap-1 text-sm">
+                                    <MapPin className="h-3 w-3" />
+                                    {lead.district}
+                                  </div>
+                                )}
+                                {lead.province && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {lead.province}
+                                  </div>
                                 )}
                                 {lead.metadata?.latitude && lead.metadata?.longitude && (
-                                  <div className="text-xs text-blue-600 pl-4">
+                                  <div className="text-xs text-blue-600">
+                                    <MapPinIcon className="inline h-3 w-3 mr-1" />
                                     Coordinates set
                                   </div>
                                 )}
@@ -3065,29 +2993,31 @@ export function LeadManagement() {
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-2">
+                                {/* <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => viewLeadDetails(lead)}
+                                  // onClick={() => router.push(`/leads/view/${lead.id}`)}
+                                  className="h-8 w-8 hover:bg-blue-100"
+                                  title="View Dialog"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button> */}
+
                                 <Button
                                   variant="ghost"
                                   size="icon"
+                                  // onClick={() => viewLeadDetails(lead)}
                                   onClick={() => router.push(`/leads/view/${lead.id}`)}
                                   className="h-8 w-8 hover:bg-blue-100"
                                   title="View Page"
                                 >
                                   <Eye className="h-4 w-4 text-blue-600" />
                                 </Button>
-                                {(lead.phoneNumber || lead.secondaryContactNumber) && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => openSmsDialog(lead)}
-                                    className="h-8 w-8 hover:bg-yellow-100"
-                                    title="Send SMS"
-                                  >
-                                    <MessageSquare className="h-4 w-4 text-yellow-600" />
-                                  </Button>
-                                )}
                                 <Button
                                   variant="ghost"
                                   size="icon"
+                                  // onClick={() => editLead(lead)}
                                   onClick={() => router.push(`/leads/edit/${lead.id}`)}
                                   className="h-8 w-8 hover:bg-green-100"
                                   title="Edit"
@@ -3219,26 +3149,15 @@ export function LeadManagement() {
                           </TableCell>
                           <TableCell>
                             <div className="space-y-1">
-                              {(lead.address || lead.street || lead.district || lead.province) ? (
-                                <>
-                                  {(lead.address || lead.street) && (
-                                    <div className="flex items-center gap-1 text-sm font-medium">
-                                      <MapPin className="h-3 w-3 text-gray-500" />
-                                      <span>{[lead.street, lead.address].filter(Boolean).join(", ")}</span>
-                                    </div>
-                                  )}
-                                  {(lead.district || lead.province) && (
-                                    <div className="text-xs text-muted-foreground pl-4">
-                                      {[lead.district, lead.province].filter(Boolean).join(", ")}
-                                    </div>
-                                  )}
-                                </>
-                              ) : (
-                                <span className="text-muted-foreground text-sm">-</span>
+                              {lead.district && (
+                                <div className="flex items-center gap-1 text-sm">
+                                  <MapPin className="h-3 w-3" />
+                                  {lead.district}
+                                </div>
                               )}
-                              {lead.metadata?.latitude && lead.metadata?.longitude && (
-                                <div className="text-xs text-blue-600 pl-4">
-                                  Coordinates set
+                              {lead.province && (
+                                <div className="text-xs text-muted-foreground">
+                                  {lead.province}
                                 </div>
                               )}
                             </div>
@@ -3294,17 +3213,6 @@ export function LeadManagement() {
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
-                              {(lead.phoneNumber || lead.secondaryContactNumber) && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => openSmsDialog(lead)}
-                                  className="h-8 w-8 hover:bg-yellow-100"
-                                  title="Send SMS"
-                                >
-                                  <MessageSquare className="h-4 w-4 text-yellow-600" />
-                                </Button>
-                              )}
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -3411,26 +3319,15 @@ export function LeadManagement() {
                           </TableCell>
                           <TableCell>
                             <div className="space-y-1">
-                              {(lead.address || lead.street || lead.district || lead.province) ? (
-                                <>
-                                  {(lead.address || lead.street) && (
-                                    <div className="flex items-center gap-1 text-sm font-medium">
-                                      <MapPin className="h-3 w-3 text-gray-500" />
-                                      <span>{[lead.street, lead.address].filter(Boolean).join(", ")}</span>
-                                    </div>
-                                  )}
-                                  {(lead.district || lead.province) && (
-                                    <div className="text-xs text-muted-foreground pl-4">
-                                      {[lead.district, lead.province].filter(Boolean).join(", ")}
-                                    </div>
-                                  )}
-                                </>
-                              ) : (
-                                <span className="text-muted-foreground text-sm">-</span>
+                              {lead.district && (
+                                <div className="flex items-center gap-1 text-sm">
+                                  <MapPin className="h-3 w-3" />
+                                  {lead.district}
+                                </div>
                               )}
-                              {lead.metadata?.latitude && lead.metadata?.longitude && (
-                                <div className="text-xs text-blue-600 pl-4">
-                                  Coordinates set
+                              {lead.province && (
+                                <div className="text-xs text-muted-foreground">
+                                  {lead.province}
                                 </div>
                               )}
                             </div>
@@ -3481,17 +3378,6 @@ export function LeadManagement() {
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
-                              {(lead.phoneNumber || lead.secondaryContactNumber) && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => openSmsDialog(lead)}
-                                  className="h-8 w-8 hover:bg-yellow-100"
-                                  title="Send SMS"
-                                >
-                                  <MessageSquare className="h-4 w-4 text-yellow-600" />
-                                </Button>
-                              )}
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -3623,28 +3509,15 @@ export function LeadManagement() {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <div className="flex gap-2">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => viewLeadDetails(lead)}
-                                className="h-8 w-8 hover:bg-blue-100"
-                                title="View"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              {(lead.phoneNumber || lead.secondaryContactNumber) && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => openSmsDialog(lead)}
-                                  className="h-8 w-8 hover:bg-yellow-100"
-                                  title="Send SMS"
-                                >
-                                  <MessageSquare className="h-4 w-4 text-yellow-600" />
-                                </Button>
-                              )}
-                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => viewLeadDetails(lead)}
+                              className="h-8 w-8 hover:bg-blue-100"
+                              title="View"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -3664,514 +3537,502 @@ export function LeadManagement() {
       </Tabs>
 
       {/* View Lead Details Dialog - UPDATED WITH COMPLETE FOLLOW-UP INFORMATION */}
-      {isMounted && (
-        <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
-          <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="text-2xl font-bold">Lead Details</DialogTitle>
-              <DialogDescription className="text-base">
-                Complete information about {viewLead?.firstName} {viewLead?.lastName}
-              </DialogDescription>
-            </DialogHeader>
+      <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold">Lead Details</DialogTitle>
+            <DialogDescription className="text-base">
+              Complete information about {viewLead?.firstName} {viewLead?.lastName}
+            </DialogDescription>
+          </DialogHeader>
 
-            {viewLead && (
-              <div className="space-y-6 py-4">
-                {/* Grid Layout with proper spacing */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  {/* Left Column - Personal & Lead Info */}
-                  <div className="lg:col-span-1 space-y-6">
-                    {/* Personal Information Card */}
-                    <div className="bg-card rounded-lg border p-5 shadow-sm">
-                      <div className="flex items-center gap-2 mb-4">
-                        <UserIcon className="h-5 w-5 text-primary" />
-                        <h3 className="text-lg font-semibold">Personal Information</h3>
+          {viewLead && (
+            <div className="space-y-6 py-4">
+              {/* Grid Layout with proper spacing */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Left Column - Personal & Lead Info */}
+                <div className="lg:col-span-1 space-y-6">
+                  {/* Personal Information Card */}
+                  <div className="bg-card rounded-lg border p-5 shadow-sm">
+                    <div className="flex items-center gap-2 mb-4">
+                      <UserIcon className="h-5 w-5 text-primary" />
+                      <h3 className="text-lg font-semibold">Personal Information</h3>
+                    </div>
+                    <div className="space-y-4">
+                      <div>
+                        <Label className="text-sm text-muted-foreground mb-1 block">Full Name</Label>
+                        <p className="font-medium text-base">
+                          {viewLead.firstName} {viewLead.middleName} {viewLead.lastName}
+                        </p>
                       </div>
-                      <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <Label className="text-sm text-muted-foreground mb-1 block">Full Name</Label>
-                          <p className="font-medium text-base">
-                            {viewLead.firstName} {viewLead.middleName} {viewLead.lastName}
-                          </p>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label className="text-sm text-muted-foreground mb-1 block">Gender</Label>
-                            <p className="font-medium">{getGenderDisplay(viewLead.gender)}</p>
-                          </div>
-                          <div>
-                            <Label className="text-sm text-muted-foreground mb-1 block">Age</Label>
-                            <p className="font-medium">{viewLead.metadata?.age || "Not provided"}</p>
-                          </div>
+                          <Label className="text-sm text-muted-foreground mb-1 block">Gender</Label>
+                          <p className="font-medium">{getGenderDisplay(viewLead.gender)}</p>
                         </div>
                         <div>
-                          <Label className="text-sm text-muted-foreground mb-1 block">Membership</Label>
-                          <p className="font-medium">{viewLead.membership?.name || "None"}</p>
+                          <Label className="text-sm text-muted-foreground mb-1 block">Age</Label>
+                          <p className="font-medium">{viewLead.metadata?.age || "Not provided"}</p>
                         </div>
+                      </div>
+                      <div>
+                        <Label className="text-sm text-muted-foreground mb-1 block">Membership</Label>
+                        <p className="font-medium">{viewLead.membership?.name || "None"}</p>
                       </div>
                     </div>
+                  </div>
 
-                    {/* Contact Information Card */}
-                    <div className="bg-card rounded-lg border p-5 shadow-sm">
-                      <div className="flex items-center gap-2 mb-4">
-                        <PhoneIcon className="h-5 w-5 text-primary" />
-                        <h3 className="text-lg font-semibold">Contact Information</h3>
-                      </div>
-                      <div className="space-y-4">
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <Label className="text-sm text-muted-foreground mb-1 block">Email</Label>
-                              <p className="font-medium truncate">{viewLead.email || "Not provided"}</p>
-                            </div>
-                            {viewLead.email && (
-                              <Button variant="ghost" size="sm" asChild className="ml-2">
-                                <a href={`mailto:${viewLead.email}`}>
-                                  <MailIcon className="h-4 w-4" />
-                                </a>
-                              </Button>
-                            )}
+                  {/* Contact Information Card */}
+                  <div className="bg-card rounded-lg border p-5 shadow-sm">
+                    <div className="flex items-center gap-2 mb-4">
+                      <PhoneIcon className="h-5 w-5 text-primary" />
+                      <h3 className="text-lg font-semibold">Contact Information</h3>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <Label className="text-sm text-muted-foreground mb-1 block">Email</Label>
+                            <p className="font-medium truncate">{viewLead.email || "Not provided"}</p>
                           </div>
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <Label className="text-sm text-muted-foreground mb-1 block">Primary Phone</Label>
-                              <p className="font-medium">{viewLead.phoneNumber || "Not provided"}</p>
-                            </div>
-                            {viewLead.phoneNumber && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleOutboundcalls(viewLead.phoneNumber!)}
-                                className="ml-2 text-green-600 hover:text-green-700"
-                              >
-                                <Phone className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-                          {viewLead.secondaryContactNumber && (
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1">
-                                <Label className="text-sm text-muted-foreground mb-1 block">Secondary Phone</Label>
-                                <p className="font-medium">{viewLead.secondaryContactNumber}</p>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleOutboundcalls(viewLead.secondaryContactNumber!)}
-                                className="ml-2 text-green-600 hover:text-green-700"
-                              >
-                                <Phone className="h-4 w-4" />
-                              </Button>
-                            </div>
+                          {viewLead.email && (
+                            <Button variant="ghost" size="sm" asChild className="ml-2">
+                              <a href={`mailto:${viewLead.email}`}>
+                                <MailIcon className="h-4 w-4" />
+                              </a>
+                            </Button>
                           )}
                         </div>
-                      </div>
-                    </div>
-
-                    {/* Lead Information Card */}
-                    <div className="bg-card rounded-lg border p-5 shadow-sm">
-                      <div className="flex items-center gap-2 mb-4">
-                        <FileTextIcon className="h-5 w-5 text-primary" />
-                        <h3 className="text-lg font-semibold">Lead Information</h3>
-                      </div>
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label className="text-sm text-muted-foreground mb-1 block">Status</Label>
-                            <div className="mt-1">{getStatusBadge(viewLead.status, viewLead.convertedToCustomer)}</div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <Label className="text-sm text-muted-foreground mb-1 block">Primary Phone</Label>
+                            <p className="font-medium">{viewLead.phoneNumber || "Not provided"}</p>
                           </div>
+                          {viewLead.phoneNumber && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleOutboundcalls(viewLead.phoneNumber!)}
+                              className="ml-2 text-green-600 hover:text-green-700"
+                            >
+                              <Phone className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                        {viewLead.secondaryContactNumber && (
                           <div>
-                            <Label className="text-sm text-muted-foreground mb-1 block">Source</Label>
-                            <p className="font-medium capitalize">{viewLead.source?.replace('_', ' ') || "Not provided"}</p>
-                          </div>
-                        </div>
-                        <div>
-                          <Label className="text-sm text-muted-foreground mb-1 block">Assigned To</Label>
-                          <p className="font-medium">{viewLead.assignedUser?.name || "Unassigned"}</p>
-                        </div>
-                        <div>
-                          <Label className="text-sm text-muted-foreground mb-1 block">Interested Package</Label>
-                          <p className="font-medium">{viewLead.interestedPackage ? getPackageDisplayName(viewLead.interestedPackage) : "None"}</p>
-                        </div>
-                        <div>
-                          <Label className="text-sm text-muted-foreground mb-1 block">Created At</Label>
-                          <p className="font-medium">{formatDate(viewLead.createdAt)}</p>
-                        </div>
-                        {viewLead.convertedToCustomer && (
-                          <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                            <Label className="text-sm text-muted-foreground mb-1 block">Converted At</Label>
-                            <p className="font-medium text-green-700 dark:text-green-400">{formatDate(viewLead.convertedAt || "")}</p>
-                            {viewLead.convertedBy && (
-                              <p className="text-sm text-green-600 dark:text-green-300">By: {viewLead.convertedBy.name}</p>
-                            )}
+                            <Label className="text-sm text-muted-foreground mb-1 block">Secondary Phone</Label>
+                            <p className="font-medium">{viewLead.secondaryContactNumber}</p>
                           </div>
                         )}
                       </div>
                     </div>
                   </div>
 
-                  {/* Right Column - Map & Location */}
-                  <div className="lg:col-span-2 space-y-6">
-                    {/* Map Card */}
-                    <div className="bg-card rounded-lg border shadow-sm overflow-hidden">
-                      <div className="p-5 border-b">
-                        <div className="flex items-center gap-2">
-                          <MapIcon className="h-5 w-5 text-primary" />
-                          <h3 className="text-lg font-semibold">Location Information</h3>
+                  {/* Lead Information Card */}
+                  <div className="bg-card rounded-lg border p-5 shadow-sm">
+                    <div className="flex items-center gap-2 mb-4">
+                      <FileTextIcon className="h-5 w-5 text-primary" />
+                      <h3 className="text-lg font-semibold">Lead Information</h3>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label className="text-sm text-muted-foreground mb-1 block">Status</Label>
+                          <div className="mt-1">{getStatusBadge(viewLead.status, viewLead.convertedToCustomer)}</div>
+                        </div>
+                        <div>
+                          <Label className="text-sm text-muted-foreground mb-1 block">Source</Label>
+                          <p className="font-medium capitalize">{viewLead.source?.replace('_', ' ') || "Not provided"}</p>
                         </div>
                       </div>
+                      <div>
+                        <Label className="text-sm text-muted-foreground mb-1 block">Assigned To</Label>
+                        <p className="font-medium">{viewLead.assignedUser?.name || "Unassigned"}</p>
+                      </div>
+                      <div>
+                        <Label className="text-sm text-muted-foreground mb-1 block">Interested Package</Label>
+                        <p className="font-medium">{viewLead.interestedPackage ? getPackageDisplayName(viewLead.interestedPackage) : "None"}</p>
+                      </div>
+                      <div>
+                        <Label className="text-sm text-muted-foreground mb-1 block">Created At</Label>
+                        <p className="font-medium">{formatDate(viewLead.createdAt)}</p>
+                      </div>
+                      {viewLead.convertedToCustomer && (
+                        <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                          <Label className="text-sm text-muted-foreground mb-1 block">Converted At</Label>
+                          <p className="font-medium text-green-700 dark:text-green-400">{formatDate(viewLead.convertedAt || "")}</p>
+                          {viewLead.convertedBy && (
+                            <p className="text-sm text-green-600 dark:text-green-300">By: {viewLead.convertedBy.name}</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
 
-                      {viewLead.metadata?.latitude && viewLead.metadata?.longitude ? (
-                        <div className="space-y-6 p-5">
-                          {/* Map Section */}
-                          <div className="space-y-4">
-                            <div className="h-[400px] rounded-lg overflow-hidden border relative">
-                              <MapContainer
+                {/* Right Column - Map & Location */}
+                <div className="lg:col-span-2 space-y-6">
+                  {/* Map Card */}
+                  <div className="bg-card rounded-lg border shadow-sm overflow-hidden">
+                    <div className="p-5 border-b">
+                      <div className="flex items-center gap-2">
+                        <MapIcon className="h-5 w-5 text-primary" />
+                        <h3 className="text-lg font-semibold">Location Information</h3>
+                      </div>
+                    </div>
+
+                    {viewLead.metadata?.latitude && viewLead.metadata?.longitude ? (
+                      <div className="space-y-6 p-5">
+                        {/* Map Section */}
+                        <div className="space-y-4">
+                          <div className="h-[400px] rounded-lg overflow-hidden border relative">
+                            <MapContainer
+                              center={[
+                                parseFloat(viewLead.metadata.latitude.toString()) || 27.7172,
+                                parseFloat(viewLead.metadata.longitude.toString()) || 85.3240
+                              ] as [number, number]}
+                              zoom={15}
+                              style={{ height: "100%", width: "100%" }}
+                              className="dark:invert-[.85] dark:hue-rotate-180"
+                            >
+                              <TileLayer
+                                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                attribution='Simulcast Technologies Pvt Ltd'
+                              />
+
+                              {/* Lead Location Marker */}
+                              <Marker
+                                position={[
+                                  parseFloat(viewLead.metadata.latitude.toString()) || 27.7172,
+                                  parseFloat(viewLead.metadata.longitude.toString()) || 85.3240
+                                ] as [number, number]}
+                                icon={customIcon}
+                              >
+                                <Popup className="dark:bg-gray-900 dark:text-white">
+                                  <div className="font-medium text-center">Lead Location</div>
+                                  <div className="text-sm mt-1">{viewLead.firstName} {viewLead.lastName}</div>
+                                  <div className="text-xs mt-2">
+                                    <div>Latitude: {viewLead.metadata.latitude}</div>
+                                    <div>Longitude: {viewLead.metadata.longitude}</div>
+                                  </div>
+                                </Popup>
+                              </Marker>
+
+                              {/* Show splitters on map */}
+                              {splitters
+                                .filter(splitter => splitter.location.latitude && splitter.location.longitude)
+                                .map((splitter) => (
+                                  <SplitterMarker key={splitter.id} splitter={splitter} />
+                                ))}
+
+                              {/* Service area circle */}
+                              <Circle
                                 center={[
                                   parseFloat(viewLead.metadata.latitude.toString()) || 27.7172,
                                   parseFloat(viewLead.metadata.longitude.toString()) || 85.3240
                                 ] as [number, number]}
-                                zoom={15}
-                                style={{ height: "100%", width: "100%" }}
-                                className="dark:invert-[.85] dark:hue-rotate-180"
-                              >
-                                <TileLayer
-                                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                  attribution='Simulcast Technologies Pvt Ltd'
-                                />
+                                radius={(parseFloat(viewLead.metadata.serviceRadius?.toString() || "0.1") || 0.1) * 1000}
+                                pathOptions={{
+                                  fillColor: '#3b82f6',
+                                  color: '#1d4ed8',
+                                  fillOpacity: 0.2,
+                                  weight: 2
+                                }}
+                              />
+                            </MapContainer>
 
-                                {/* Lead Location Marker */}
-                                <Marker
-                                  position={[
-                                    parseFloat(viewLead.metadata.latitude.toString()) || 27.7172,
-                                    parseFloat(viewLead.metadata.longitude.toString()) || 85.3240
-                                  ] as [number, number]}
-                                  icon={getCustomIcon()}
-                                >
-                                  <Popup className="dark:bg-gray-900 dark:text-white">
-                                    <div className="font-medium text-center">Lead Location</div>
-                                    <div className="text-sm mt-1">{viewLead.firstName} {viewLead.lastName}</div>
-                                    <div className="text-xs mt-2">
-                                      <div>Latitude: {viewLead.metadata.latitude}</div>
-                                      <div>Longitude: {viewLead.metadata.longitude}</div>
-                                    </div>
-                                  </Popup>
-                                </Marker>
-
-                                {/* Show splitters on map */}
-                                {splitters
-                                  .filter(splitter => splitter.location.latitude && splitter.location.longitude)
-                                  .map((splitter) => (
-                                    <SplitterMarker key={splitter.id} splitter={splitter} />
-                                  ))}
-
-                                {/* Service area circle */}
-                                <Circle
-                                  center={[
-                                    parseFloat(viewLead.metadata.latitude.toString()) || 27.7172,
-                                    parseFloat(viewLead.metadata.longitude.toString()) || 85.3240
-                                  ] as [number, number]}
-                                  radius={(parseFloat(viewLead.metadata.serviceRadius?.toString() || "0.1") || 0.1) * 1000}
-                                  pathOptions={{
-                                    fillColor: '#3b82f6',
-                                    color: '#1d4ed8',
-                                    fillOpacity: 0.2,
-                                    weight: 2
-                                  }}
-                                />
-                              </MapContainer>
-
-                              {/* Hide attribution */}
-                              <style jsx>{`
-                          :global(.leaflet-control-attribution) {
-                            display: none !important;
-                          }
-                          :global(.leaflet-popup-content-wrapper) {
-                            border-radius: 0.5rem;
-                          }
-                        `}</style>
-                            </div>
+                            {/* Hide attribution */}
+                            <style jsx>{`
+                        :global(.leaflet-control-attribution) {
+                          display: none !important;
+                        }
+                        :global(.leaflet-popup-content-wrapper) {
+                          border-radius: 0.5rem;
+                        }
+                      `}</style>
                           </div>
+                        </div>
 
-                          {/* Coordinates & Address Grid */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Coordinates Card */}
-                            <div className="bg-muted/50 dark:bg-muted/20 rounded-lg p-4 border">
-                              <div className="flex items-center gap-2 mb-3">
-                                <Navigation className="h-4 w-4 text-primary" />
-                                <h4 className="font-medium">Coordinates</h4>
-                              </div>
-                              <div className="space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                  <div>
-                                    <Label className="text-xs text-muted-foreground mb-1 block">Latitude</Label>
-                                    <div className="font-mono text-sm bg-background dark:bg-gray-900 p-2 rounded border">
-                                      {viewLead.metadata.latitude}
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <Label className="text-xs text-muted-foreground mb-1 block">Longitude</Label>
-                                    <div className="font-mono text-sm bg-background dark:bg-gray-900 p-2 rounded border">
-                                      {viewLead.metadata.longitude}
-                                    </div>
+                        {/* Coordinates & Address Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          {/* Coordinates Card */}
+                          <div className="bg-muted/50 dark:bg-muted/20 rounded-lg p-4 border">
+                            <div className="flex items-center gap-2 mb-3">
+                              <Navigation className="h-4 w-4 text-primary" />
+                              <h4 className="font-medium">Coordinates</h4>
+                            </div>
+                            <div className="space-y-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <Label className="text-xs text-muted-foreground mb-1 block">Latitude</Label>
+                                  <div className="font-mono text-sm bg-background dark:bg-gray-900 p-2 rounded border">
+                                    {viewLead.metadata.latitude}
                                   </div>
                                 </div>
                                 <div>
-                                  <Label className="text-xs text-muted-foreground mb-1 block">Service Radius</Label>
-                                  <div className="flex items-center gap-2">
-                                    <Ruler className="h-4 w-4 text-muted-foreground" />
-                                    <span className="font-medium">
-                                      {formatDistance(viewLead.metadata.serviceRadius || 0.1)}
-                                    </span>
+                                  <Label className="text-xs text-muted-foreground mb-1 block">Longitude</Label>
+                                  <div className="font-mono text-sm bg-background dark:bg-gray-900 p-2 rounded border">
+                                    {viewLead.metadata.longitude}
                                   </div>
                                 </div>
                               </div>
-                            </div>
-
-                            {/* Address Details Card */}
-                            <div className="bg-muted/50 dark:bg-muted/20 rounded-lg p-4 border">
-                              <div className="flex items-center gap-2 mb-3">
-                                <MapPinIcon className="h-4 w-4 text-primary" />
-                                <h4 className="font-medium">Address Details</h4>
+                              <div>
+                                <Label className="text-xs text-muted-foreground mb-1 block">Service Radius</Label>
+                                <div className="flex items-center gap-2">
+                                  <Ruler className="h-4 w-4 text-muted-foreground" />
+                                  <span className="font-medium">
+                                    {formatDistance(viewLead.metadata.serviceRadius || 0.1)}
+                                  </span>
+                                </div>
                               </div>
-                              <div className="space-y-3">
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div>
-                                    <Label className="text-xs text-muted-foreground mb-1 block">Province</Label>
-                                    <p className="font-medium text-sm">{viewLead.province || "Not provided"}</p>
-                                  </div>
-                                  <div>
-                                    <Label className="text-xs text-muted-foreground mb-1 block">District</Label>
-                                    <p className="font-medium text-sm">{viewLead.district || "Not provided"}</p>
-                                  </div>
-                                  <div>
-                                    <Label className="text-xs text-muted-foreground mb-1 block">Street</Label>
-                                    <p className="font-medium text-sm">{viewLead.street || "Not provided"}</p>
-                                  </div>
-                                  <div>
-                                    <Label className="text-xs text-muted-foreground mb-1 block">Address</Label>
-                                    <p className="font-medium text-sm">{viewLead.address || "Not provided"}</p>
-                                  </div>
+                            </div>
+                          </div>
+
+                          {/* Address Details Card */}
+                          <div className="bg-muted/50 dark:bg-muted/20 rounded-lg p-4 border">
+                            <div className="flex items-center gap-2 mb-3">
+                              <MapPinIcon className="h-4 w-4 text-primary" />
+                              <h4 className="font-medium">Address Details</h4>
+                            </div>
+                            <div className="space-y-3">
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <Label className="text-xs text-muted-foreground mb-1 block">Province</Label>
+                                  <p className="font-medium text-sm">{viewLead.province || "Not provided"}</p>
                                 </div>
                                 <div>
-                                  <Label className="text-xs text-muted-foreground mb-1 block">Full Address</Label>
-                                  <p className="text-sm bg-background dark:bg-gray-900 p-2 rounded border">
-                                    {viewLead.metadata?.fullAddress || "Not provided"}
-                                  </p>
+                                  <Label className="text-xs text-muted-foreground mb-1 block">District</Label>
+                                  <p className="font-medium text-sm">{viewLead.district || "Not provided"}</p>
                                 </div>
+                                <div>
+                                  <Label className="text-xs text-muted-foreground mb-1 block">Street</Label>
+                                  <p className="font-medium text-sm">{viewLead.street || "Not provided"}</p>
+                                </div>
+                                <div>
+                                  <Label className="text-xs text-muted-foreground mb-1 block">Address</Label>
+                                  <p className="font-medium text-sm">{viewLead.address || "Not provided"}</p>
+                                </div>
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground mb-1 block">Full Address</Label>
+                                <p className="text-sm bg-background dark:bg-gray-900 p-2 rounded border">
+                                  {viewLead.metadata?.fullAddress || "Not provided"}
+                                </p>
                               </div>
                             </div>
                           </div>
                         </div>
-                      ) : (
-                        <div className="p-8 text-center">
-                          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
-                            <MapPinIcon className="h-8 w-8 text-muted-foreground" />
-                          </div>
-                          <h4 className="font-medium text-lg mb-2">No Location Data</h4>
-                          <p className="text-muted-foreground mb-4">
-                            This lead doesn't have location coordinates.
-                          </p>
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setShowViewDialog(false);
-                              editLead(viewLead);
-                            }}
-                          >
-                            <MapPinIcon className="h-4 w-4 mr-2" />
-                            Add Location
-                          </Button>
+                      </div>
+                    ) : (
+                      <div className="p-8 text-center">
+                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
+                          <MapPinIcon className="h-8 w-8 text-muted-foreground" />
                         </div>
-                      )}
-                    </div>
+                        <h4 className="font-medium text-lg mb-2">No Location Data</h4>
+                        <p className="text-muted-foreground mb-4">
+                          This lead doesn't have location coordinates.
+                        </p>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setShowViewDialog(false);
+                            editLead(viewLead);
+                          }}
+                        >
+                          <MapPinIcon className="h-4 w-4 mr-2" />
+                          Add Location
+                        </Button>
+                      </div>
+                    )}
+                  </div>
 
-                    {/* Notes Card */}
-                    <div className="bg-card rounded-lg border p-5 shadow-sm">
-                      <div className="flex items-center gap-2 mb-4">
-                        <MessageSquare className="h-5 w-5 text-primary" />
-                        <h3 className="text-lg font-semibold">Notes</h3>
-                      </div>
-                      <div className="bg-muted/30 dark:bg-muted/10 rounded-lg p-4 min-h-[120px]">
-                        {viewLead.notes ? (
-                          <p className="text-foreground whitespace-pre-wrap leading-relaxed">
-                            {viewLead.notes}
-                          </p>
-                        ) : (
-                          <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                            <MessageSquare className="h-8 w-8 mb-2 opacity-50" />
-                            <p>No notes available</p>
-                          </div>
-                        )}
-                      </div>
+                  {/* Notes Card */}
+                  <div className="bg-card rounded-lg border p-5 shadow-sm">
+                    <div className="flex items-center gap-2 mb-4">
+                      <MessageSquare className="h-5 w-5 text-primary" />
+                      <h3 className="text-lg font-semibold">Notes</h3>
                     </div>
-
-                    {/* Follow-ups Card (if available) */}
-                    <div className="bg-card rounded-lg border p-5 shadow-sm">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-5 w-5 text-primary" />
-                          <h3 className="text-lg font-semibold">Follow-up History</h3>
-                        </div>
-                        <Badge variant="outline" className="ml-auto bg-green-500/10 text-green-500 border-green-500/20">
-                          {leadFollowUps.length} total
-                        </Badge>
-                      </div>
-                      {leadFollowUps.length === 0 ? (
-                        <div className="text-center py-8">
-                          <Clock className="h-12 w-12 mx-auto text-gray-300 mb-3" />
-                          <p className="text-gray-500">No follow-ups recorded yet</p>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="mt-3"
-                            onClick={() => {
-                              setShowViewDialog(false)
-                              openFollowUpDialog(viewLead)
-                            }}
-                          >
-                            <Plus className="h-4 w-4 mr-2" />
-                            Schedule First Follow-up
-                          </Button>
-                        </div>
+                    <div className="bg-muted/30 dark:bg-muted/10 rounded-lg p-4 min-h-[120px]">
+                      {viewLead.notes ? (
+                        <p className="text-foreground whitespace-pre-wrap leading-relaxed">
+                          {viewLead.notes}
+                        </p>
                       ) : (
-                        <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
-                          {leadFollowUps.map((followUp) => (
-                            <div key={followUp.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
-                              <div className="flex justify-between items-start mb-2">
-                                <div className="space-y-2 flex-1">
-                                  <div className="flex items-center gap-2">
-                                    {getFollowUpTypeIcon(followUp.type)}
-                                    <h4 className="font-medium text-base">{followUp.title}</h4>
-                                    <div className="ml-auto">
-                                      {getFollowUpStatusBadge(followUp.status)}
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-4 text-sm">
-                                    <div className="flex items-center gap-1">
-                                      <CalendarDays className="h-3 w-3" />
-                                      <span className="font-medium">Scheduled: {formatDate(followUp.scheduledAt)}</span>
-                                    </div>
-                                    {followUp.completedAt && (
-                                      <div className="flex items-center gap-1">
-                                        <CheckCircle className="h-3 w-3 text-green-600" />
-                                        <span className="text-green-600">Completed: {formatDate(followUp.completedAt)}</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                  {followUp.assignedUser && (
-                                    <div className="flex items-center gap-1 text-sm">
-                                      <User className="h-3 w-3" />
-                                      <span>Assigned to: {followUp.assignedUser.name}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              {followUp.description && (
-                                <div className="mb-3">
-                                  <Label className="text-xs text-muted-foreground mb-1 block">Description</Label>
-                                  <p className="text-sm bg-muted/30 p-2 rounded">{followUp.description}</p>
-                                </div>
-                              )}
-                              {followUp.notes && (
-                                <div className="mb-3">
-                                  <Label className="text-xs text-muted-foreground mb-1 block">Notes</Label>
-                                  <p className="text-sm text-muted-foreground italic p-2 bg-muted/20 rounded">
-                                    "{followUp.notes}"
-                                  </p>
-                                </div>
-                              )}
-                              {followUp.outcome && (
-                                <div className="mb-2">
-                                  <Label className="text-xs text-muted-foreground mb-1 block">Outcome</Label>
-                                  <div className="flex items-center gap-2">
-                                    <Badge variant="secondary" className="text-xs">
-                                      {OUTCOME_OPTIONS.find(o => o.value === followUp.outcome)?.label || followUp.outcome}
-                                    </Badge>
-                                  </div>
-                                </div>
-                              )}
-                              <div className="flex justify-between items-center pt-2 border-t">
-                                <div className="text-xs text-muted-foreground">
-                                  Created: {formatDate(followUp.createdAt)}
-                                </div>
-                                <div className="flex gap-2">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => {
-                                      setShowViewDialog(false)
-                                      openFollowUpDialog(viewLead, followUp)
-                                    }}
-                                    className="h-7"
-                                  >
-                                    <Edit className="h-3 w-3 mr-1" />
-                                    Edit
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => deleteFollowUp(followUp.id)}
-                                    className="h-7 text-destructive"
-                                  >
-                                    <Trash2 className="h-3 w-3 mr-1" />
-                                    Delete
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
+                        <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                          <MessageSquare className="h-8 w-8 mb-2 opacity-50" />
+                          <p>No notes available</p>
                         </div>
                       )}
                     </div>
                   </div>
-                </div>
-              </div>
-            )}
 
-            <DialogFooter className="pt-4 border-t">
-              <div className="flex items-center justify-between w-full">
-                <div className="text-sm text-muted-foreground">
-                  Lead ID: {viewLead?.id}
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setShowViewDialog(false)}>
-                    Close
-                  </Button>
-                  {viewLead && !viewLead.convertedToCustomer && (
-                    <>
-                      <Button
-                        variant="outline"
-                        onClick={() => openStatusChangeDialog(viewLead)}
-                        className="flex items-center gap-2"
-                      >
-                        <TrendingUpIcon className="h-4 w-4" />
-                        Change Status
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setShowViewDialog(false);
-                          openFollowUpDialog(viewLead);
-                        }}
-                      >
-                        <Clock className="h-4 w-4 mr-2" />
-                        Add Follow-up
-                      </Button>
-                      <Button onClick={() => {
-                        setShowViewDialog(false);
-                        editLead(viewLead);
-                      }}>
-                        <Edit className="h-4 w-4 mr-2" />
-                        Edit Lead
-                      </Button>
-                    </>
-                  )}
+                  {/* Follow-ups Card (if available) */}
+                  <div className="bg-card rounded-lg border p-5 shadow-sm">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-5 w-5 text-primary" />
+                        <h3 className="text-lg font-semibold">Follow-up History</h3>
+                      </div>
+                      <Badge variant="outline" className="ml-auto bg-green-500/10 text-green-500 border-green-500/20">
+                        {leadFollowUps.length} total
+                      </Badge>
+                    </div>
+                    {leadFollowUps.length === 0 ? (
+                      <div className="text-center py-8">
+                        <Clock className="h-12 w-12 mx-auto text-gray-300 mb-3" />
+                        <p className="text-gray-500">No follow-ups recorded yet</p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-3"
+                          onClick={() => {
+                            setShowViewDialog(false)
+                            openFollowUpDialog(viewLead)
+                          }}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Schedule First Follow-up
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                        {leadFollowUps.map((followUp) => (
+                          <div key={followUp.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
+                            <div className="flex justify-between items-start mb-2">
+                              <div className="space-y-2 flex-1">
+                                <div className="flex items-center gap-2">
+                                  {getFollowUpTypeIcon(followUp.type)}
+                                  <h4 className="font-medium text-base">{followUp.title}</h4>
+                                  <div className="ml-auto">
+                                    {getFollowUpStatusBadge(followUp.status)}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-4 text-sm">
+                                  <div className="flex items-center gap-1">
+                                    <CalendarDays className="h-3 w-3" />
+                                    <span className="font-medium">Scheduled: {formatDate(followUp.scheduledAt)}</span>
+                                  </div>
+                                  {followUp.completedAt && (
+                                    <div className="flex items-center gap-1">
+                                      <CheckCircle className="h-3 w-3 text-green-600" />
+                                      <span className="text-green-600">Completed: {formatDate(followUp.completedAt)}</span>
+                                    </div>
+                                  )}
+                                </div>
+                                {followUp.assignedUser && (
+                                  <div className="flex items-center gap-1 text-sm">
+                                    <User className="h-3 w-3" />
+                                    <span>Assigned to: {followUp.assignedUser.name}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            {followUp.description && (
+                              <div className="mb-3">
+                                <Label className="text-xs text-muted-foreground mb-1 block">Description</Label>
+                                <p className="text-sm bg-muted/30 p-2 rounded">{followUp.description}</p>
+                              </div>
+                            )}
+                            {followUp.notes && (
+                              <div className="mb-3">
+                                <Label className="text-xs text-muted-foreground mb-1 block">Notes</Label>
+                                <p className="text-sm text-muted-foreground italic p-2 bg-muted/20 rounded">
+                                  "{followUp.notes}"
+                                </p>
+                              </div>
+                            )}
+                            {followUp.outcome && (
+                              <div className="mb-2">
+                                <Label className="text-xs text-muted-foreground mb-1 block">Outcome</Label>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="secondary" className="text-xs">
+                                    {OUTCOME_OPTIONS.find(o => o.value === followUp.outcome)?.label || followUp.outcome}
+                                  </Badge>
+                                </div>
+                              </div>
+                            )}
+                            <div className="flex justify-between items-center pt-2 border-t">
+                              <div className="text-xs text-muted-foreground">
+                                Created: {formatDate(followUp.createdAt)}
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setShowViewDialog(false)
+                                    openFollowUpDialog(viewLead, followUp)
+                                  }}
+                                  className="h-7"
+                                >
+                                  <Edit className="h-3 w-3 mr-1" />
+                                  Edit
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => deleteFollowUp(followUp.id)}
+                                  className="h-7 text-destructive"
+                                >
+                                  <Trash2 className="h-3 w-3 mr-1" />
+                                  Delete
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+            </div>
+          )}
+
+          <DialogFooter className="pt-4 border-t">
+            <div className="flex items-center justify-between w-full">
+              <div className="text-sm text-muted-foreground">
+                Lead ID: {viewLead?.id}
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setShowViewDialog(false)}>
+                  Close
+                </Button>
+                {viewLead && !viewLead.convertedToCustomer && (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => openStatusChangeDialog(viewLead)}
+                      className="flex items-center gap-2"
+                    >
+                      <TrendingUpIcon className="h-4 w-4" />
+                      Change Status
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowViewDialog(false);
+                        openFollowUpDialog(viewLead);
+                      }}
+                    >
+                      <Clock className="h-4 w-4 mr-2" />
+                      Add Follow-up
+                    </Button>
+                    <Button onClick={() => {
+                      setShowViewDialog(false);
+                      editLead(viewLead);
+                    }}>
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit Lead
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Bulk Import Dialog */}
       <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
@@ -4235,13 +4096,13 @@ export function LeadManagement() {
             <div className="rounded-lg bg-blue-50 p-4">
               <h4 className="font-medium text-blue-800 mb-2">CSV Format Requirements:</h4>
               <ul className="text-sm text-blue-700 space-y-1">
-                <li>• File must be in CSV format with UTF-8 encoding</li>
-                <li>• First row should contain column headers</li>
-                <li>• Required columns: firstName, lastName, phoneNumber</li>
-                <li>• Optional columns: email, source, address, district, etc.</li>
-                <li>• Membership ID, Assigned User ID, and Package ID should reference existing records</li>
-                <li>• Maximum file size: 10MB</li>
-                <li>• Maximum 1000 records per import</li>
+                <li>â€¢ File must be in CSV format with UTF-8 encoding</li>
+                <li>â€¢ First row should contain column headers</li>
+                <li>â€¢ Required columns: firstName, lastName, phoneNumber</li>
+                <li>â€¢ Optional columns: email, source, address, district, etc.</li>
+                <li>â€¢ Membership ID, Assigned User ID, and Package ID should reference existing records</li>
+                <li>â€¢ Maximum file size: 10MB</li>
+                <li>â€¢ Maximum 1000 records per import</li>
               </ul>
             </div>
           </div>
@@ -4636,68 +4497,6 @@ export function LeadManagement() {
               disabled={loading}
             >
               {loading ? "Saving..." : editingFollowUp ? "Update Follow-up" : "Create Follow-up"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Send SMS Dialog */}
-      <Dialog open={showSmsDialog} onOpenChange={setShowSmsDialog}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Send SMS Message</DialogTitle>
-            <DialogDescription>
-              Write a message to {smsLead?.firstName} {smsLead?.lastName}. This message will be sent via the configured SMS provider.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="sms-phone">Phone Number</Label>
-              <Input
-                id="sms-phone"
-                value={smsLead?.phoneNumber || smsLead?.secondaryContactNumber || ""}
-                disabled
-                className="bg-muted text-muted-foreground"
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="sms-message">Message Content</Label>
-                <span className="text-xs text-muted-foreground">
-                  {smsMessage.length} characters ({getSmsParts(smsMessage)} {getSmsParts(smsMessage) === 1 ? 'part' : 'parts'})
-                </span>
-              </div>
-              <Textarea
-                id="sms-message"
-                placeholder="Type your SMS message here..."
-                value={smsMessage}
-                onChange={(e) => setSmsMessage(e.target.value)}
-                rows={5}
-                required
-              />
-              {smsMessage.length > 0 && (
-                <div className="flex items-center gap-1.5 text-amber-600 bg-amber-500/5 px-2.5 py-1 rounded-md border border-amber-500/10 text-xs font-medium mt-1 w-fit">
-                  <AlertCircle className="h-3.5 w-3.5" />
-                  <span>
-                    Estimated Cost: {getSmsParts(smsMessage)} Credit{getSmsParts(smsMessage) === 1 ? '' : 's'}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowSmsDialog(false)
-                setSmsMessage("")
-              }}
-              disabled={sendingSms}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleSendSms} disabled={sendingSms || !smsMessage.trim()}>
-              {sendingSms ? "Sending..." : "Send SMS"}
             </Button>
           </DialogFooter>
         </DialogContent>

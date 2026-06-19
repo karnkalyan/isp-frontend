@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { CardContainer } from "@/components/ui/card-container"
@@ -523,8 +523,6 @@ export function LeadManagement() {
   const [memberships, setMemberships] = useState<Membership[]>([])
   const [existingISPs, setExistingISPs] = useState<ExistingISP[]>([])
   const [splitters, setSplitters] = useState<Splitter[]>([])
-  const [branches, setBranches] = useState<Array<{ id: string; name: string; parentId?: number | null }>>([])
-  const [subBranches, setSubBranches] = useState<Array<{ id: string; name: string; parentId?: number | null }>>([])
   const [loading, setLoading] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showConvertDialog, setShowConvertDialog] = useState(false)
@@ -646,9 +644,7 @@ export function LeadManagement() {
     fullAddress: "",
     latitude: "" as string | "",
     longitude: "" as string | "",
-    serviceRadius: "0.1" as string | "", // Default 100 meters
-    branchId: "",
-    subBranchId: ""
+    serviceRadius: "0.1" as string | "" // Default 100 meters
   })
 
   // Prepare options from data using useMemo for performance
@@ -694,7 +690,6 @@ export function LeadManagement() {
     fetchMemberships()
     fetchExistingISPs()
     fetchSplitters()
-    fetchBranches()
   }, [])
 
   // Fetch leads when active tab or filters change
@@ -1055,20 +1050,6 @@ export function LeadManagement() {
     }
   }
 
-  const fetchBranches = async () => {
-    try {
-      const data = await apiRequest("/branches")
-      const list = Array.isArray(data) ? data : (data?.data || [])
-      const processed = list.map((b: any) => ({ id: String(b.id), name: b.name, parentId: b.parentId ?? null }))
-      // Top-level branches (no parent) â†’ shown as Branch
-      setBranches(processed.filter((b: any) => !b.parentId))
-      // Sub-branches (have parent) â†’ all loaded so we can filter by selected branchId
-      setSubBranches(processed.filter((b: any) => b.parentId))
-    } catch (error: any) {
-      console.error("Failed to fetch branches:", error)
-    }
-  }
-
   // Calculate distance between two coordinates using Haversine formula
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
     const R = 6371 // Earth's radius in kilometers
@@ -1282,8 +1263,6 @@ export function LeadManagement() {
 
       const leadData = {
         ...formData,
-        branchId: formData.branchId ? formData.branchId : undefined,
-        subBranchId: formData.subBranchId ? formData.subBranchId : undefined,
         metadata: {
           fullAddress: formData.fullAddress,
           age: formData.age ? parseInt(formData.age as any) : undefined,
@@ -1350,9 +1329,7 @@ export function LeadManagement() {
       fullAddress: lead.metadata?.fullAddress || undefined,
       latitude: lead.metadata?.latitude?.toString() || "",
       longitude: lead.metadata?.longitude?.toString() || "",
-      serviceRadius: lead.metadata?.serviceRadius?.toString() || "0.1",
-      branchId: (lead as any).branchId ? String((lead as any).branchId) : "",
-      subBranchId: (lead as any).subBranchId ? String((lead as any).subBranchId) : ""
+      serviceRadius: lead.metadata?.serviceRadius?.toString() || "0.1"
     })
 
     // Set map position if coordinates exist
@@ -1740,9 +1717,7 @@ export function LeadManagement() {
       fullAddress: "",
       latitude: "",
       longitude: "",
-      serviceRadius: "0.1", // Default 100 meters
-      branchId: "",
-      subBranchId: ""
+      serviceRadius: "0.1" // Default 100 meters
     })
     setLeadMapPosition([27.7172, 85.3240])
     setLeadNearestSplitters([])
@@ -2244,38 +2219,6 @@ export function LeadManagement() {
                     onChange={(e) => updateFormField("age", e.target.value)}
                   />
                 </div>
-
-              {/* Branch & Sub-branch Selection */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="branchId">Branch</Label>
-                  <SearchableSelect
-                    options={branches.map(b => ({ value: b.id, label: b.name }))}
-                    value={formData.branchId}
-                    onValueChange={(value) => {
-                      updateFormField("branchId", value as string)
-                      updateFormField("subBranchId", "") // reset sub-branch when branch changes
-                    }}
-                    placeholder="Select branch"
-                    emptyMessage="No branches found"
-                    clearable
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="subBranchId">Sub-branch</Label>
-                  <SearchableSelect
-                    options={subBranches
-                      .filter(sb => !formData.branchId || String(sb.parentId) === formData.branchId)
-                      .map(b => ({ value: b.id, label: b.name }))}
-                    value={formData.subBranchId}
-                    onValueChange={(value) => updateFormField("subBranchId", value as string)}
-                    placeholder={formData.branchId ? "Select sub-branch" : "Select a branch first"}
-                    emptyMessage="No sub-branches found"
-                    clearable
-                  />
-                </div>
-              </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -2593,7 +2536,7 @@ export function LeadManagement() {
                                 <div>
                                   <div className="font-medium">{splitter.name}</div>
                                   <div className="text-sm text-gray-500">
-                                    ID: {splitter.splitterId} â€¢ Ratio: {splitter.splitRatio}
+                                    ID: {splitter.splitterId} • Ratio: {splitter.splitRatio}
                                   </div>
                                   <div className="text-xs text-gray-500 mt-1">
                                     {splitter.location.site || 'No site specified'}
@@ -2613,9 +2556,9 @@ export function LeadManagement() {
                               </div>
                               <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
                                 <span>Available Ports: {splitter.availablePorts}/{splitter.portCount}</span>
-                                <span>â€¢</span>
+                                <span>•</span>
                                 <span>Type: {splitter.splitterType}</span>
-                                <span>â€¢</span>
+                                <span>•</span>
                                 <span className={`px-2 py-0.5 rounded ${splitter.status === 'active'
                                   ? 'bg-green-500/10 text-green-800'
                                   : 'bg-red-500/10 text-red-800'
@@ -4096,13 +4039,13 @@ export function LeadManagement() {
             <div className="rounded-lg bg-blue-50 p-4">
               <h4 className="font-medium text-blue-800 mb-2">CSV Format Requirements:</h4>
               <ul className="text-sm text-blue-700 space-y-1">
-                <li>â€¢ File must be in CSV format with UTF-8 encoding</li>
-                <li>â€¢ First row should contain column headers</li>
-                <li>â€¢ Required columns: firstName, lastName, phoneNumber</li>
-                <li>â€¢ Optional columns: email, source, address, district, etc.</li>
-                <li>â€¢ Membership ID, Assigned User ID, and Package ID should reference existing records</li>
-                <li>â€¢ Maximum file size: 10MB</li>
-                <li>â€¢ Maximum 1000 records per import</li>
+                <li>• File must be in CSV format with UTF-8 encoding</li>
+                <li>• First row should contain column headers</li>
+                <li>• Required columns: firstName, lastName, phoneNumber</li>
+                <li>• Optional columns: email, source, address, district, etc.</li>
+                <li>• Membership ID, Assigned User ID, and Package ID should reference existing records</li>
+                <li>• Maximum file size: 10MB</li>
+                <li>• Maximum 1000 records per import</li>
               </ul>
             </div>
           </div>

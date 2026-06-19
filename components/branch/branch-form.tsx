@@ -34,6 +34,7 @@ type Branch = {
     createdAt: string
     updatedAt: string
     parent?: { id: string | number, name: string } | null
+    parentId?: number | string | null
     _count?: {
         users: number
         customers: number
@@ -225,6 +226,25 @@ export default function BranchForm() {
         } finally {
             setLoading(false)
         }
+    }
+
+    const getBranchLevel = (branch: Branch) => {
+        const parentId = branch.parentId || branch.parent?.id;
+        if (!parentId || parentId === "none") {
+            return "organization";
+        }
+        
+        const parent = branches.find(b => String(b.id) === String(parentId));
+        if (!parent) {
+            return "branch";
+        }
+        
+        const grandParentId = parent.parentId || parent.parent?.id;
+        if (grandParentId && grandParentId !== "none") {
+            return "sub-branch";
+        }
+        
+        return "branch";
     }
 
     const editBranch = (branch: Branch) => {
@@ -630,8 +650,8 @@ export default function BranchForm() {
                                     <TableHeader>
                                         <TableRow className="dark:border-b-[#1e293b] dark:hover:bg-[#1e293b]">
                                             <TableHead className="dark:text-slate-400">Code</TableHead>
-                                            <TableHead className="dark:text-slate-400">Branch Name</TableHead>
-                                            <TableHead className="dark:text-slate-400">Parent Branch</TableHead>
+                                            <TableHead className="dark:text-slate-400">Name</TableHead>
+                                            <TableHead className="dark:text-slate-400">Level</TableHead>
                                             <TableHead className="dark:text-slate-400">Contact</TableHead>
                                             <TableHead className="dark:text-slate-400">Location</TableHead>
                                             <TableHead className="dark:text-slate-400">Statistics</TableHead>
@@ -650,20 +670,35 @@ export default function BranchForm() {
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="font-medium dark:text-white">{branch.name}</div>
-                                                    {branch.contactPerson && (
-                                                        <div className="text-sm text-muted-foreground dark:text-slate-400">
-                                                            {branch.contactPerson}
+                                                    {branch.parent && (
+                                                        <div className="text-xs text-muted-foreground dark:text-slate-500">
+                                                            Under: {branch.parent.name}
                                                         </div>
                                                     )}
                                                 </TableCell>
                                                 <TableCell>
-                                                    {branch.parent ? (
-                                                        <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20">
-                                                            {branch.parent.name}
-                                                        </Badge>
-                                                    ) : (
-                                                        <span className="text-muted-foreground dark:text-slate-500">-</span>
-                                                    )}
+                                                    {(() => {
+                                                        const level = getBranchLevel(branch);
+                                                        if (level === "organization") {
+                                                            return (
+                                                                <Badge variant="outline" className="text-xs bg-slate-500/10 text-slate-500 border-slate-500/20">
+                                                                    Organization
+                                                                </Badge>
+                                                            );
+                                                        }
+                                                        if (level === "branch") {
+                                                            return (
+                                                                <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-500 border-purple-500/20">
+                                                                    Branch
+                                                                </Badge>
+                                                            );
+                                                        }
+                                                        return (
+                                                            <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-500 border-blue-500/20">
+                                                                Sub-branch
+                                                            </Badge>
+                                                        );
+                                                    })()}
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="space-y-1">

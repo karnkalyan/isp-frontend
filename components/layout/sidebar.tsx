@@ -223,12 +223,12 @@ const menuCategories: MenuCategory[] = [
         icon: Package,
         permission: "inventory_read",
         submenu: [
+          { title: "Assign Inventory", href: "/inventory", permission: "inventory_manage" },
           { title: "Add Inventory", href: "/inventory/add", permission: "inventory_manage" },
           { title: "Bulk Inventory", href: "/inventory/bulk", permission: "bulk_inventory_read" },
-          { title: "Assign Inventory", href: "/inventory", permission: "inventory_manage" },
-          { title: "Vendors", href: "/vendors", permission: "settings_read" },
           { title: "Import Inventory", href: "/inventory/import", permission: "inventory_manage" },
-          { title: "Lifecycle Management", href: "/inventory/lifecycle", permission: "inventory_read" },
+          { title: "Device Lifecycle", href: "/inventory/lifecycle", permission: "inventory_read" },
+          { title: "Vendor", href: "/vendors", permission: "settings_read" },
         ],
       },
       {
