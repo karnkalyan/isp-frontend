@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import React, { useState, useEffect, useCallback, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
@@ -51,7 +51,10 @@ import {
   ArrowRightLeft,
   Plus,
   Search,
-  Check
+  Check,
+  ChevronRight,
+  AlertTriangle,
+  CheckCircle2
 } from "lucide-react"
 import { apiRequest, getDynamicBaseUrl } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
@@ -66,6 +69,10 @@ import { TR069DeviceNeighbors } from "@/components/tr069/device-neighbors"
 // Realtime Usage Chart
 import { RealtimeUsageChart } from "@/components/customers/realtime-charts"
 import { CustomerBillingManagement } from "@/components/customers/customer-billing-management"
+
+import { SearchableSelect } from "@/components/ui/searchable-select"
+import { Checkbox } from "@/components/ui/checkbox"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 
 import {
   Dialog,
@@ -104,7 +111,46 @@ import { useTheme } from "next-themes"
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
 
 // ========== Types ==========
+
+interface OLT {
+  id: number
+  name: string
+  ipAddress: string
+  model: string
+  ports: number
+  totalPorts?: number
+  vlans?: Array<{ id: string; vlanId: number; name: string; description?: string; status: string }>
+  profiles?: Array<{ id: string; profileId: string; name: string; type: string; description?: string }>
+}
+
+interface Splitter {
+  id: number
+  name: string
+  splitterId: string
+  splitRatio: string
+  portCount: number
+  oltId?: number
+  status?: string
+  splitterType?: string
+  availablePorts?: number
+  isMaster?: boolean
+  masterSplitterId?: string | null
+  connectedServiceBoard?: { oltId: string; oltName: string; boardPort: string; boardSlot: number } | null
+}
+
+interface CustomerDevice {
+  deviceType: string
+  brand: string
+  model: string
+  serialNumber: string
+  macAddress: string
+  ponSerial?: string
+  notes: string
+  inventoryItemId?: number
+}
+
 interface Customer {
+
   id: number
   customerUniqueId: string | null
   panNo?: string
@@ -795,7 +841,11 @@ function DataUsageHistory({ usernames }: DataUsageHistoryProps) {
 }
 
 // ========== Main Component ==========
-export function CustomerProfile() {
+interface CustomerProfileProps {
+  customerId?: string
+}
+
+export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileProps = {}) {
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState("overview")
   const [customer, setCustomer] = useState<Customer | null>(null)
@@ -835,6 +885,178 @@ export function CustomerProfile() {
   const [returnHardwareItem, setReturnHardwareItem] = useState<any | null>(null)
   const [voipEnabled, setVoipEnabled] = useState(false)
 
+  // ========== Hardware Dialog Steps ==========
+  const [hwDialogStep, setHwDialogStep] = useState<1 | 2>(1)
+  const [selectedDeviceType, setSelectedDeviceType] = useState<"ONT" | "STB" | "ONU" | "Router" | "Other">("ONT")
+
+  // ========== Fiber Provisioning State (for Add Hardware) ==========
+  const [olts, setOlts] = useState<OLT[]>([])
+  const [splitters, setSplitters] = useState<Splitter[]>([])
+  const [loadingOlts, setLoadingOlts] = useState(false)
+  const [loadingSplitters, setLoadingSplitters] = useState(false)
+  const [hwProvisionDetails, setHwProvisionDetails] = useState({
+    useSplitter: true,
+    useDirectOLT: false,
+    oltId: "",
+    splitterId: "",
+    splitterPort: "",
+    oltPort: "",
+    selectedVlanIds: [] as string[],
+    selectedProfileIds: [] as string[],
+  })
+  const [hwDevices, setHwDevices] = useState<CustomerDevice[]>([])
+  const [hwDeviceDialogOpen, setHwDeviceDialogOpen] = useState(false)
+  const [hwEditingDeviceIndex, setHwEditingDeviceIndex] = useState<number | null>(null)
+  const [discoveredOnts, setDiscoveredOnts] = useState<any[]>([])
+  const [selectedDiscoveredOnt, setSelectedDiscoveredOnt] = useState<any | null>(null)
+  const [matchedDeviceForOnt, setMatchedDeviceForOnt] = useState<CustomerDevice | null>(null)
+  const [isAutoFinding, setIsAutoFinding] = useState(false)
+  const [autoFindError, setAutoFindError] = useState<string | null>(null)
+  const [hwProvisionLoading, setHwProvisionLoading] = useState(false)
+
+  // ========== OLT/Splitter helpers ==========
+  const findUltimateOltForSplitter = useCallback((splitterId: string): OLT | null => {
+    if (!splitterId) return null
+    const findRoot = (sId: string): Splitter | null => {
+      const splitter = splitters.find(s => s.id.toString() === sId)
+      if (!splitter) return null
+      if (!splitter.masterSplitterId) return splitter
+      const parent = splitters.find(s => s.splitterId === splitter.masterSplitterId)
+      if (!parent) return splitter
+      return findRoot(parent.id.toString())
+    }
+    const rootSplitter = findRoot(splitterId)
+    if (!rootSplitter?.connectedServiceBoard) return null
+    return olts.find(o => o.id.toString() === rootSplitter.connectedServiceBoard?.oltId) || null
+  }, [splitters, olts])
+
+  const getSplitterPath = useCallback((splitterId: string): Splitter[] => {
+    const path: Splitter[] = []
+    let current = splitters.find(s => s.id.toString() === splitterId)
+    while (current) {
+      path.unshift(current)
+      if (!current.masterSplitterId) break
+      const parent = splitters.find(s => s.splitterId === current!.masterSplitterId)
+      if (!parent) break
+      current = parent
+    }
+    return path
+  }, [splitters])
+
+  const handleHwProvisionChange = (field: string, value: any) => {
+    setHwProvisionDetails(prev => ({ ...prev, [field]: value }))
+  }
+
+  const fetchOltsAndSplitters = useCallback(async () => {
+    setLoadingOlts(true)
+    setLoadingSplitters(true)
+    try {
+      const [oltData, splitterData] = await Promise.all([
+        apiRequest<any>("/device?category=OLT"),
+        apiRequest<any>("/splitters"),
+      ])
+      const oltArr = Array.isArray(oltData) ? oltData : (oltData?.data || oltData?.devices || [])
+      const splitterArr = Array.isArray(splitterData) ? splitterData : (splitterData?.data || [])
+      setOlts(oltArr)
+      setSplitters(splitterArr)
+    } catch (e) {
+      console.error("Failed to load OLTs/splitters", e)
+    } finally {
+      setLoadingOlts(false)
+      setLoadingSplitters(false)
+    }
+  }, [])
+
+  const handleAutoFindOnt = useCallback(async () => {
+    if (!hwProvisionDetails.oltId) {
+      toast({ title: "Select OLT first", variant: "destructive" })
+      return
+    }
+    setIsAutoFinding(true)
+    setAutoFindError(null)
+    setDiscoveredOnts([])
+    setSelectedDiscoveredOnt(null)
+    setMatchedDeviceForOnt(null)
+    try {
+      let boardPort = hwProvisionDetails.oltPort || ""
+      if (hwProvisionDetails.useSplitter && hwProvisionDetails.splitterId) {
+        const path = getSplitterPath(hwProvisionDetails.splitterId)
+        boardPort = path[path.length - 1]?.connectedServiceBoard?.boardPort || ""
+      }
+      const response = await apiRequest<any>(`/device/${hwProvisionDetails.oltId}/action`, {
+        method: "POST",
+        body: JSON.stringify({ action: "autofind", boardPort }),
+      })
+      if (response?.success && Array.isArray(response.data)) {
+        setDiscoveredOnts(response.data)
+      } else {
+        setAutoFindError(response?.error || "Failed to discover ONTs")
+      }
+    } catch (e: any) {
+      setAutoFindError(e?.message || "Error during autofind")
+    } finally {
+      setIsAutoFinding(false)
+    }
+  }, [hwProvisionDetails, getSplitterPath, toast])
+
+  const handleSelectDiscoveredOnt = (ontId: string) => {
+    const ont = discoveredOnts.find(o => o.ont_id_details === ontId)
+    setSelectedDiscoveredOnt(ont || null)
+    if (ont) {
+      const matched = hwDevices.find(d => {
+        const serial = (d.serialNumber || "").replace(/[^a-fA-F0-9]/g, "").toLowerCase()
+        const pon = (d.ponSerial || "").replace(/[^a-fA-F0-9]/g, "").toLowerCase()
+        const mac = (d.macAddress || "").replace(/[^a-fA-F0-9]/g, "").toLowerCase()
+        const ontSerial = (ont.ont_id_details || "").replace(/[^a-fA-F0-9]/g, "").toLowerCase()
+        return serial === ontSerial || pon === ontSerial || mac === ontSerial
+      })
+      setMatchedDeviceForOnt(matched || null)
+    }
+  }
+
+  const handleHwProvisionSave = async () => {
+    if (!customer) return
+    setHwProvisionLoading(true)
+    try {
+      const selectedOlt = olts.find(o => o.id.toString() === hwProvisionDetails.oltId)
+      const ultimateOlt = hwProvisionDetails.useSplitter
+        ? findUltimateOltForSplitter(hwProvisionDetails.splitterId)
+        : selectedOlt
+      const path = hwProvisionDetails.useSplitter ? getSplitterPath(hwProvisionDetails.splitterId) : []
+      const selectedSplitter = splitters.find(s => s.id.toString() === hwProvisionDetails.splitterId)
+
+      let boardPortStr = hwProvisionDetails.oltPort || ""
+      if (hwProvisionDetails.useSplitter && path.length > 0) {
+        boardPortStr = path[path.length - 1]?.connectedServiceBoard?.boardPort || ""
+      }
+
+      // Save fiber provisioning to the customer
+      await apiRequest(`/device/${ultimateOlt?.id || hwProvisionDetails.oltId}/action`, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "provision",
+          customerId: customer.id,
+          splitterId: selectedSplitter?.splitterId || null,
+          splitterPort: hwProvisionDetails.splitterPort || null,
+          boardPort: boardPortStr,
+          oltPort: hwProvisionDetails.oltPort || null,
+          vlans: hwProvisionDetails.selectedVlanIds,
+          profiles: hwProvisionDetails.selectedProfileIds,
+          devices: hwDevices,
+          ontDetails: selectedDiscoveredOnt,
+          matchedDevice: matchedDeviceForOnt,
+        }),
+      })
+      toast({ title: "Fiber provisioning saved successfully" })
+      setAssignHardwareOpen(false)
+      fetchCustomerData()
+    } catch (e: any) {
+      toast({ title: "Error saving provision", description: e?.message, variant: "destructive" })
+    } finally {
+      setHwProvisionLoading(false)
+    }
+  }
+
   const handleOutboundCall = async (phoneNumber?: string | null) => {
     if (!voipEnabled) {
       toast({ title: "Calling is disabled because no VOIP service is enabled", variant: "destructive" })
@@ -846,7 +1068,7 @@ export function CustomerProfile() {
     }
     const extension = String(user?.yeastarExt || user?.extId || "").trim()
     if (!extension) {
-      toast({ title: "No Yeastar extension is assigned to your user account", variant: "destructive" })
+      toast({ title: "No VoIP extension is assigned to your user account", variant: "destructive" })
       return
     }
 
@@ -863,7 +1085,12 @@ export function CustomerProfile() {
       })
       toast({ title: `Calling ${phoneNumber}` })
     } catch (error: any) {
-      toast({ title: "Failed to initiate call", description: error.message, variant: "destructive" })
+      const message = String(error?.message || "")
+      toast({
+        title: /yeastar|yeaster|asterisk|voip|configured|enabled/i.test(message) ? "Calling is disabled because no VOIP service is enabled" : "Failed to initiate call",
+        description: /yeastar|yeaster|asterisk|voip|configured|enabled/i.test(message) ? undefined : message,
+        variant: "destructive"
+      })
     }
   }
 
@@ -927,7 +1154,7 @@ export function CustomerProfile() {
 
   const params = useParams()
   const router = useRouter()
-  const customerId = params.id as string
+  const customerId = customerIdProp || (params.id as string)
 
   const [networkSettings, setNetworkSettings] = useState({
     dnd: false,
@@ -1562,11 +1789,11 @@ export function CustomerProfile() {
               </div>
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 text-sm text-muted-foreground mt-1">
                 <div className="flex items-center"><Shield className="mr-1 h-4 w-4" /> ID Number: {customer.idNumber || "N/A"}</div>
-                <button type="button" disabled={!voipEnabled} className="flex items-center hover:text-green-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted-foreground" onClick={() => handleOutboundCall(customer.phoneNumber)}>
+                <button type="button" className={`flex items-center hover:text-green-600 ${!voipEnabled ? "cursor-not-allowed opacity-50 hover:text-muted-foreground" : ""}`} onClick={() => handleOutboundCall(customer.phoneNumber)}>
                   <Phone className="mr-1 h-4 w-4" /> Mobile: {customer.phoneNumber}
                 </button>
                 {customer.secondaryPhone && (
-                  <button type="button" disabled={!voipEnabled} className="flex items-center hover:text-green-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted-foreground" onClick={() => handleOutboundCall(customer.secondaryPhone)}>
+                  <button type="button" className={`flex items-center hover:text-green-600 ${!voipEnabled ? "cursor-not-allowed opacity-50 hover:text-muted-foreground" : ""}`} onClick={() => handleOutboundCall(customer.secondaryPhone)}>
                     <Phone className="mr-1 h-4 w-4" /> Secondary: {customer.secondaryPhone}
                   </button>
                 )}
@@ -1638,12 +1865,12 @@ export function CustomerProfile() {
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Phone Number:</span>
-                    <button type="button" disabled={!voipEnabled} className="font-medium hover:text-green-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted-foreground" onClick={() => handleOutboundCall(customer.phoneNumber)}>{customer.phoneNumber}</button>
+                    <button type="button" className={`font-medium hover:text-green-600 ${!voipEnabled ? "cursor-not-allowed opacity-50 hover:text-muted-foreground" : ""}`} onClick={() => handleOutboundCall(customer.phoneNumber)}>{customer.phoneNumber}</button>
                   </div>
                   {customer.secondaryPhone && (
                     <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                       <span className="text-muted-foreground">Secondary Phone:</span>
-                      <button type="button" disabled={!voipEnabled} className="font-medium hover:text-green-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted-foreground" onClick={() => handleOutboundCall(customer.secondaryPhone)}>{customer.secondaryPhone}</button>
+                      <button type="button" className={`font-medium hover:text-green-600 ${!voipEnabled ? "cursor-not-allowed opacity-50 hover:text-muted-foreground" : ""}`} onClick={() => handleOutboundCall(customer.secondaryPhone)}>{customer.secondaryPhone}</button>
                     </div>
                   )}
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
@@ -1940,196 +2167,21 @@ export function CustomerProfile() {
             <CardContainer title="Connection Users" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
               <div className="space-y-3">
                 {customer.connectionUsers.length > 0 ? (
-                  <div className="grid grid-cols-1 gap-2">
-                    {customer.connectionUsers.map((user) => (
-                      <div key={user.id} className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <User className="h-4 w-4 text-muted-foreground" />
-                              <span className="font-medium">{user.username}</span>
-                            </div>
-                            <div className="text-sm text-muted-foreground mt-1">
-                              User ID: {user.id} | Created: {formatDate(user.createdAt)}
-                            </div>
-                          </div>
-                          <Badge variant={user.isActive ? "default" : "secondary"} className={user.isActive ? "bg-green-500" : "bg-gray-500"}>
-                            {user.isActive ? "Active" : "Inactive"}
-                          </Badge>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 mt-3">
-                          <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded">
-                            <div className="text-xs text-muted-foreground">Password</div>
-                            <div className="font-mono text-sm truncate">{user.password}</div>
-                          </div>
-                          <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded">
-                            <div className="text-xs text-muted-foreground">Status</div>
-                            <div className="text-sm">{user.isDeleted ? "Deleted" : "Active"}</div>
-                          </div>
-                        </div>
+                  customer.connectionUsers.map((connectionUser) => (
+                    <div key={connectionUser.id} className="flex items-center justify-between rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                      <div>
+                        <div className="font-medium">{connectionUser.username}</div>
+                        <div className="text-xs text-muted-foreground">Connection login</div>
                       </div>
-                    ))}
-                  </div>
+                      <Badge variant="outline">Active</Badge>
+                    </div>
+                  ))
                 ) : (
-                  <div className="text-center p-4 text-muted-foreground">No connection users found</div>
+                  <div className="text-sm text-muted-foreground">No connection users saved.</div>
                 )}
-                <div className="text-xs text-muted-foreground mt-2">
-                  {customer.connectionUsers.length} of {customer.subscribedPkg.packagePlanDetails.deviceLimit} devices used
-                </div>
               </div>
             </CardContainer>
           </div>
-
-          {/* Subscribed Services with TSHUL & NETTV details */}
-          {customer.subscribedApps && customer.subscribedApps.length > 0 && (
-            <CardContainer title="Subscribed Services" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
-              <div className="space-y-4">
-                {/* Existing simple cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {customer.subscribedApps.map((app) => (
-                    <div key={app.id} className="p-3 rounded-lg border border-slate-200 dark:border-slate-700">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          {app.service.iconUrl ? <img src={app.service.iconUrl} alt={app.service.name} className="h-6 w-6" /> : <Box className="h-5 w-5 text-muted-foreground" />}
-                          <div>
-                            <div className="font-medium">{app.service.name}</div>
-                            <div className="text-xs text-muted-foreground">{app.service.code}</div>
-                          </div>
-                        </div>
-                        <Badge className={app.status === "active" ? "bg-green-500" : "bg-amber-500"}>{app.status}</Badge>
-                      </div>
-                      <div className="mt-2 text-xs text-muted-foreground">{getServiceMessage(app)}</div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* TSHUL Details */}
-                {tshulMessage && !tshulDetails && (
-                  <div className="mt-4 p-4 border rounded-lg bg-amber-50 dark:bg-amber-900/20 text-sm text-amber-800 dark:text-amber-200">
-                    {tshulMessage}
-                  </div>
-                )}
-                {tshulDetails && (
-                  <div className="mt-4 p-4 border rounded-lg bg-blue-50 dark:bg-blue-900/20">
-                    <h4 className="font-medium mb-2 flex items-center gap-2"><Box className="h-4 w-4" /> TSHUL Customer Details</h4>
-                    {loadingTshul ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div>Name:</div><div className="font-medium">{tshulDetails.Name}</div>
-                        <div>Customer ID:</div><div>{tshulDetails.CustomerId}</div>
-                        <div>PAN No:</div><div>{tshulDetails.PanNo}</div>
-                        <div>Address:</div><div>{tshulDetails.Address}</div>
-                        <div>Phone:</div><div>{tshulDetails.Phone}</div>
-                        <div>Email:</div><div>{tshulDetails.Email}</div>
-                        <div>Reference ID:</div><div>{tshulDetails.ReferenceId}</div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* NETTV Details */}
-                {nettvMessage && !nettvDetails && (
-                  <div className="mt-4 p-4 border rounded-lg bg-amber-50 dark:bg-amber-900/20 text-sm text-amber-800 dark:text-amber-200">
-                    {nettvMessage}
-                  </div>
-                )}
-                {nettvDetails && (
-                  <div className="mt-4 p-4 border rounded-lg bg-green-50 dark:bg-green-900/20">
-                    <h4 className="font-medium mb-2 flex items-center gap-2"><Box className="h-4 w-4" /> NETTV Subscriber Details</h4>
-                    {loadingNettv ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <div className="space-y-3">
-                        {/* Subscriber summary */}
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                          <div>Username:</div><div className="font-medium">{nettvDetails.username}</div>
-                          <div>Email:</div><div>{nettvDetails.email}</div>
-                          <div>Status:</div><div><Badge className={nettvDetails.status === 0 ? "bg-green-500" : "bg-amber-500"}>{nettvDetails.status === 0 ? "Active" : "Inactive"}</Badge></div>
-                          <div>Balance:</div><div>{nettvDetails.balance}</div>
-                          <div>Due Amount:</div><div>{nettvDetails.due_amount}</div>
-                          <div>STBs Count:</div><div>{nettvDetails.user_stbs_count}</div>
-                          <div>Active STBs:</div><div>{nettvDetails.active_user_stbs_count}</div>
-                          <div>Wallet:</div><div>{nettvDetails.is_wallet_enable ? "Enabled" : "Disabled"}</div>
-                          <div>ERP ID:</div><div className="font-mono text-xs">{nettvDetails.erp_id}</div>
-                        </div>
-                        {nettvDetails.details && (
-                          <>
-                            <h5 className="font-medium text-sm mt-2">Personal Details</h5>
-                            <div className="grid grid-cols-2 gap-2 text-sm">
-                              <div>Full Name:</div><div>{nettvDetails.details.fname} {nettvDetails.details.mname} {nettvDetails.details.lname}</div>
-                              <div>Address:</div><div>{nettvDetails.details.address}</div>
-                              <div>City:</div><div>{nettvDetails.details.city}</div>
-                              <div>District:</div><div>{nettvDetails.details.district}</div>
-                              <div>Phone:</div><div>{nettvDetails.details.phone_no}</div>
-                              <div>Mobile:</div><div>{nettvDetails.details.mobile_no}</div>
-                              {nettvDetails.details.country_info && (
-                                <>
-                                  <div>Country:</div><div>{nettvDetails.details.country_info.name}</div>
-                                </>
-                              )}
-                              {nettvDetails.details.province_info && (
-                                <>
-                                  <div>Province:</div><div>{nettvDetails.details.province_info.name}</div>
-                                </>
-                              )}
-                              {nettvDetails.details.latitude && nettvDetails.details.longitude && (
-                                <>
-                                  <div>Coordinates:</div><div>{nettvDetails.details.latitude.toFixed(4)}, {nettvDetails.details.longitude.toFixed(4)}</div>
-                                </>
-                              )}
-                            </div>
-                          </>
-                        )}
-                        {/* STBs with subscribed packages */}
-                        {nettvDetails.user_stbs && nettvDetails.user_stbs.length > 0 && (
-                          <div>
-                            <h5 className="font-medium text-sm mt-2">STBs ({nettvDetails.user_stbs.length})</h5>
-                            <div className="space-y-2">
-                              {nettvDetails.user_stbs.map((stb: any) => (
-                                <div key={stb.id} className="p-2 bg-white dark:bg-slate-800 rounded text-sm">
-                                  <div className="flex justify-between items-start">
-                                    <div>
-                                      <div className="font-medium">STB ID: {stb.stb_id}</div>
-                                      <div className="text-xs text-muted-foreground">Label: {stb.stb_label} | Type: {stb.type}</div>
-                                      <div className="text-xs">Status: <Badge className={stb.status === "1" ? "bg-green-500" : "bg-gray-500"}>{stb.status === "1" ? "Active" : "Inactive"}</Badge></div>
-                                    </div>
-                                    {stb.stb && (
-                                      <div className="text-right text-xs">
-                                        <div>MAC: {stb.stb.mac || "N/A"}</div>
-                                        <div>Serial: {stb.stb.serial}</div>
-                                        <div>Vendor: {stb.stb.vendor}</div>
-                                      </div>
-                                    )}
-                                  </div>
-                                  {stb.stb?.subscribed_packages && stb.stb.subscribed_packages.length > 0 && (
-                                    <div className="mt-2">
-                                      <div className="text-xs font-medium">Subscribed Packages:</div>
-                                      {stb.stb.subscribed_packages.map((pkg: any) => (
-                                        <div key={pkg.id} className="ml-2 mt-1 text-xs border-l-2 border-green-500 pl-2">
-                                          <div className="font-medium">{pkg.package_config_name}</div>
-                                          {pkg.description && <div className="text-muted-foreground">{pkg.description}</div>}
-                                          {pkg.package_subscription_details && pkg.package_subscription_details.map((detail: any) => (
-                                            <div key={detail.id} className="text-muted-foreground">
-                                              Expires: {new Date(detail.expiry_date).toLocaleDateString()} | Service: {detail.services?.name}
-                                            </div>
-                                          ))}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </CardContainer>
-          )}
         </TabsContent>
 
         <TabsContent value="billing" className="space-y-4">
@@ -2291,148 +2343,251 @@ export function CustomerProfile() {
           </CardContainer>
         </TabsContent>
 
-        <TabsContent value="billing" className="space-y-4 animate-in slide-in-from-bottom-2 duration-300">
-           <CustomerBillingManagement 
-              customer={customer} 
-              refreshCustomer={() => fetchCustomerData()} 
-           />
-        </TabsContent>
+        <TabsContent value="devices" className="space-y-4">
+          <Dialog open={assignHardwareOpen} onOpenChange={(open) => {
+            setAssignHardwareOpen(open)
+            if (open) {
+              setHwDialogStep(1)
+              fetchOltsAndSplitters()
+            }
+          }}>
+            <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Fiber Network Provisioning</DialogTitle>
+                <DialogDescription>Configure splitter, OLT, VLANs, and add devices. Use Autofind to discover and match ONT.</DialogDescription>
+              </DialogHeader>
 
-        <TabsContent value="devices" className="space-y-4 animate-in fade-in duration-300">
-           {/* Physical Hardware Inventory (Real stock items) */}
-            <CardContainer 
-              title="Hardware"
-              className="border-0 shadow-lg overflow-hidden" 
-              actions={[
-                { 
-                  label: "Assign Hardware", 
-                  onClick: () => setAssignHardwareOpen(true),
-                  icon: <Plus className="h-4 w-4" />
-                }
-              ]}
-            >
-              <div className="space-y-4">
-                {customer.inventoryItems && customer.inventoryItems.length > 0 ? (
+              {hwDialogStep === 1 ? (
+                <div className="space-y-5 py-2">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {customer.inventoryItems.map((item: any) => (
-                      <div key={item.id} className="p-4 rounded-xl border bg-card shadow-sm flex items-center justify-between group">
-                        <div className="flex items-center gap-4">
-                          <div className="p-3 rounded-full bg-slate-100 dark:bg-slate-800">
-                            <Package className="h-6 w-6 text-primary" />
-                          </div>
-                          <div>
-                            <div className="font-bold text-sm">
-                              {item.name} 
-                              <Badge variant="outline" className="ml-2 py-0 h-4 text-[10px]">{item.type}</Badge>
-                            </div>
-                            <div className="text-xs font-mono text-muted-foreground">SN: {item.serialNumber}</div>
-                            {item.macAddress && <div className="text-[10px] text-muted-foreground uppercase">MAC: {item.macAddress}</div>}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={item.status === 'FAULTY' ? 'destructive' : 'secondary'}>
-                            {item.status.replace(/_/g, ' ')}
-                          </Badge>
-                          <Button 
-                             variant="outline" 
-                             size="sm" 
-                             className="bg-rose-50 text-rose-600 border-rose-100 hover:bg-rose-100 h-8 gap-1"
-                             onClick={() => {
-                               setReturnHardwareItem(item)
-                               setReturnHardwareOpen(true)
-                             }}
-                          >
-                            <ArrowRightLeft className="h-3 w-3" /> Return
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12 border-2 border-dashed rounded-xl">
-                    <Package className="h-12 w-12 text-slate-300 mx-auto mb-3" />
-                    <p className="text-muted-foreground text-sm">No physical hardware items currently assigned to this customer.</p>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="mt-4 gap-2"
-                      onClick={() => setAssignHardwareOpen(true)}
-                    >
-                      <Plus className="h-4 w-4" /> Assign Hardware Now
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </CardContainer>
-
-            {/* Assign Hardware Dialog */}
-            <Dialog open={assignHardwareOpen} onOpenChange={setAssignHardwareOpen}>
-              <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle>Assign Hardware to Customer</DialogTitle>
-                  <DialogDescription>Search for available hardware in stock and assign it to this customer.</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      placeholder="Search by serial number, mac address, or model..." 
-                      className="pl-9"
-                      value={hardwareSearch}
-                      onChange={(e) => setHardwareSearch(e.target.value)}
-                    />
-                  </div>
-                  
-                  <ScrollArea className="h-64 rounded-md border">
-                    <div className="p-4 space-y-2">
-                      {stockLoading ? (
-                        <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
-                      ) : availableStock.length === 0 ? (
-                        <div className="text-center p-8 text-muted-foreground text-sm">No matching items in stock</div>
-                      ) : (
-                        availableStock.map((item: any) => (
-                          <div 
-                            key={item.id} 
-                            className={`flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer ${
-                              selectedHardwareId === item.id 
-                                ? "border-primary bg-primary/5 ring-1 ring-primary" 
-                                : "hover:bg-slate-50 dark:hover:bg-slate-800"
-                            }`}
-                            onClick={() => setSelectedHardwareId(item.id)}
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="p-2 rounded-full bg-slate-100 dark:bg-slate-800">
-                                <Package className="h-4 w-4 text-primary" />
-                              </div>
-                              <div>
-                                <div className="text-sm font-bold">{item.name} <Badge variant="outline" className="text-[10px] py-0 h-4">{item.type}</Badge></div>
-                                <div className="text-xs text-muted-foreground font-mono">SN: {item.serialNumber}</div>
-                                {item.macAddress && <div className="text-[10px] text-muted-foreground uppercase">MAC: {item.macAddress}</div>}
-                              </div>
-                            </div>
-                            {selectedHardwareId === item.id && <Check className="h-5 w-5 text-primary" />}
-                          </div>
-                        ))
-                      )}
+                    <div className="space-y-2">
+                      <Label>Device Type</Label>
+                      <Select value={selectedDeviceType} onValueChange={(value: any) => setSelectedDeviceType(value)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Choose device type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {["ONT", "ONU", "STB", "Router", "Other"].map(type => (
+                            <SelectItem key={type} value={type}>{type}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                  </ScrollArea>
+                    <div className="space-y-2">
+                      <Label>Inventory Item</Label>
+                      <Select value={selectedHardwareId?.toString() || ""} onValueChange={(value) => {
+                        const item = availableStock.find(stock => stock.id.toString() === value)
+                        setSelectedHardwareId(Number(value))
+                        if (item) {
+                          setHwDevices([{
+                            deviceType: selectedDeviceType,
+                            brand: item.brand || item.vendor?.name || "",
+                            model: item.model || item.name || "",
+                            serialNumber: item.serialNumber || "",
+                            macAddress: item.macAddress || "",
+                            ponSerial: item.ponSerial || item.serialNumber || "",
+                            notes: item.notes || "",
+                            inventoryItemId: item.id,
+                          }])
+                        }
+                      }}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select stock item" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableStock.map(item => (
+                            <SelectItem key={item.id} value={item.id.toString()}>
+                              {item.serialNumber || item.name} {item.model ? `- ${item.model}` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input placeholder="Search inventory" value={hardwareSearch} onChange={(event) => setHardwareSearch(event.target.value)} />
+                      {stockLoading && <div className="text-xs text-muted-foreground">Loading stock...</div>}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label>Connection Method</Label>
+                    <RadioGroup
+                      value={hwProvisionDetails.useSplitter ? "splitter" : "direct"}
+                      onValueChange={(value) => setHwProvisionDetails(prev => ({
+                        ...prev,
+                        useSplitter: value === "splitter",
+                        useDirectOLT: value === "direct",
+                      }))}
+                      className="grid grid-cols-1 md:grid-cols-2 gap-3"
+                    >
+                      <Label className="flex items-center gap-3 rounded-md border p-3">
+                        <RadioGroupItem value="splitter" />
+                        <span>Via Splitter</span>
+                      </Label>
+                      <Label className="flex items-center gap-3 rounded-md border p-3">
+                        <RadioGroupItem value="direct" />
+                        <span>Direct OLT Port</span>
+                      </Label>
+                    </RadioGroup>
+                  </div>
+
+                  {hwProvisionDetails.useSplitter ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Splitter</Label>
+                        <Select value={hwProvisionDetails.splitterId} onValueChange={(value) => {
+                          handleHwProvisionChange("splitterId", value)
+                          const rootOlt = findUltimateOltForSplitter(value)
+                          if (rootOlt) handleHwProvisionChange("oltId", rootOlt.id.toString())
+                        }}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select splitter with available ports" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {splitters.map(splitterOption => (
+                              <SelectItem key={splitterOption.id} value={splitterOption.id.toString()}>
+                                {splitterOption.name} ({splitterOption.availablePorts ?? splitterOption.portCount} ports)
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Splitter Output Port</Label>
+                        <Input value={hwProvisionDetails.splitterPort} onChange={(event) => handleHwProvisionChange("splitterPort", event.target.value)} placeholder="e.g., 1-32" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>OLT</Label>
+                        <Select value={hwProvisionDetails.oltId} onValueChange={(value) => handleHwProvisionChange("oltId", value)}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select OLT" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {olts.map(oltOption => (
+                              <SelectItem key={oltOption.id} value={oltOption.id.toString()}>{oltOption.name} - {oltOption.ipAddress}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>OLT Port</Label>
+                        <Input value={hwProvisionDetails.oltPort} onChange={(event) => handleHwProvisionChange("oltPort", event.target.value)} placeholder="e.g., 0/1/1" />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label>Customer Devices</Label>
+                      <Button type="button" size="sm" variant="outline" onClick={() => {
+                        setHwDevices(prev => [...prev, {
+                          deviceType: selectedDeviceType,
+                          brand: "",
+                          model: "",
+                          serialNumber: "",
+                          macAddress: "",
+                          ponSerial: "",
+                          notes: "",
+                        }])
+                      }}>
+                        <Plus className="mr-2 h-4 w-4" /> Add Device
+                      </Button>
+                    </div>
+                    {hwDevices.length === 0 ? (
+                      <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No devices added yet.</div>
+                    ) : (
+                      <div className="space-y-2">
+                        {hwDevices.map((device, index) => (
+                          <div key={index} className="grid grid-cols-1 md:grid-cols-5 gap-2 rounded-md border p-3">
+                            <Input value={device.deviceType} onChange={(event) => setHwDevices(prev => prev.map((d, i) => i === index ? { ...d, deviceType: event.target.value } : d))} placeholder="Type" />
+                            <Input value={device.brand} onChange={(event) => setHwDevices(prev => prev.map((d, i) => i === index ? { ...d, brand: event.target.value } : d))} placeholder="Brand" />
+                            <Input value={device.model} onChange={(event) => setHwDevices(prev => prev.map((d, i) => i === index ? { ...d, model: event.target.value } : d))} placeholder="Model" />
+                            <Input value={device.serialNumber} onChange={(event) => setHwDevices(prev => prev.map((d, i) => i === index ? { ...d, serialNumber: event.target.value } : d))} placeholder="Serial / PON" />
+                            <Button type="button" variant="outline" onClick={() => setHwDevices(prev => prev.filter((_, i) => i !== index))}>Remove</Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setAssignHardwareOpen(false)}>Cancel</Button>
-                  <Button 
-                    onClick={handleAssignHardware} 
-                    disabled={!selectedHardwareId || actionLoading}
-                    className="bg-primary"
-                  >
-                    {actionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Assign Hardware
+              ) : (
+                <div className="space-y-4 py-2">
+                  <div className="flex items-center gap-2">
+                    <Button type="button" variant="outline" onClick={handleAutoFindOnt} disabled={isAutoFinding || !hwProvisionDetails.oltId}>
+                      {isAutoFinding ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                      Autofind Device
+                    </Button>
+                    {autoFindError && <span className="text-sm text-red-500">{autoFindError}</span>}
+                  </div>
+                  <div className="rounded-md border">
+                    {discoveredOnts.length === 0 ? (
+                      <div className="p-4 text-sm text-muted-foreground">No discovered ONT yet.</div>
+                    ) : (
+                      discoveredOnts.map((ont) => (
+                        <button
+                          key={ont.ont_id_details || ont.id}
+                          type="button"
+                          className={`flex w-full items-center justify-between border-b p-3 text-left text-sm last:border-b-0 ${selectedDiscoveredOnt === ont ? "bg-primary/10" : ""}`}
+                          onClick={() => handleSelectDiscoveredOnt(ont.ont_id_details)}
+                        >
+                          <span>{ont.ont_id_details || ont.serialNumber || "Unknown ONT"}</span>
+                          <span className="text-muted-foreground">{ont.board_port || ont.port || ""}</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                  {matchedDeviceForOnt && (
+                    <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+                      Matched device: {matchedDeviceForOnt.serialNumber || matchedDeviceForOnt.ponSerial}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <DialogFooter>
+                {hwDialogStep === 2 && <Button variant="outline" onClick={() => setHwDialogStep(1)}>Back</Button>}
+                {hwDialogStep === 1 ? (
+                  <Button onClick={() => setHwDialogStep(2)}>Next</Button>
+                ) : (
+                  <Button onClick={async () => {
+                    if (selectedHardwareId) await handleAssignHardware()
+                    await handleHwProvisionSave()
+                  }} disabled={actionLoading || hwProvisionLoading}>
+                    {(actionLoading || hwProvisionLoading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Save Provisioning
                   </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                )}
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <CardContainer title="Assigned Hardware" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-sm text-muted-foreground">{customer.devices.length} device{customer.devices.length === 1 ? "" : "s"} assigned</div>
+              <Button onClick={() => setAssignHardwareOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" /> Add Hardware
+              </Button>
+            </div>
+            {customer.devices.length > 0 ? (
+              <div className="space-y-3">
+                {customer.devices.map((device, index) => (
+                  <div key={`${device.serialNumber || device.macAddress || index}`} className="flex flex-col gap-3 rounded-lg border p-4 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <div className="font-medium">{device.deviceType || "Device"} {device.brand || ""} {device.model || ""}</div>
+                      <div className="text-sm text-muted-foreground">Serial: {device.serialNumber || "N/A"} | MAC: {device.macAddress || "N/A"}</div>
+                    </div>
+                    <Badge variant="outline">{device.provisioningStatus || "Assigned"}</Badge>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">No hardware assigned yet.</div>
+            )}
+          </CardContainer>
 
           {customer.devices.filter(d => d.deviceType === "ONT" && d.serialNumber).length > 0 && (
-            <CardContainer title="ACS Device Information (TR-069)" className="mt-6 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
+            <CardContainer title="ACS Device Information" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
               <Tabs defaultValue={customer.devices.find(d => d.deviceType === "ONT")?.serialNumber}>
                 <TabsList className="mb-4">
                   {customer.devices.filter(d => d.deviceType === "ONT").map((device, idx) => (
@@ -2503,21 +2658,21 @@ export function CustomerProfile() {
                           </div>
                           <div className="mt-3 flex gap-2">
                             <Button size="sm" variant="outline" className="text-xs" onClick={() => {
-                              const filePath = doc.filePath.replace(/\\/g, '/');
-                              const baseUrl = getDynamicBaseUrl().replace(/\/+$/, '');
-                              const url = `${baseUrl}/${filePath}`;
-                              const link = document.createElement('a');
-                              link.href = url;
-                              link.download = doc.fileName || 'file';
-                              document.body.appendChild(link);
-                              link.click();
-                              document.body.removeChild(link);
-                              toast({ title: "Download started", description: `Downloading ${doc.fileName}` });
+                              const filePath = doc.filePath.replace(/\\/g, "/")
+                              const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3200"
+                              const url = `${baseUrl}/${filePath}`
+                              const link = document.createElement("a")
+                              link.href = url
+                              link.download = doc.fileName || "file"
+                              document.body.appendChild(link)
+                              link.click()
+                              document.body.removeChild(link)
+                              toast({ title: "Download started", description: `Downloading ${doc.fileName}` })
                             }}>Download</Button>
                             <Button size="sm" variant="outline" className="text-xs" onClick={() => {
-                              const filePath = doc.filePath.replace(/\\/g, '/');
-                              const baseUrl = getDynamicBaseUrl().replace(/\/+$/, '');
-                              window.open(`${baseUrl}/${filePath}`, '_blank');
+                              const filePath = doc.filePath.replace(/\\/g, "/")
+                              const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3200"
+                              window.open(`${baseUrl}/${filePath}`, "_blank")
                             }}>Preview</Button>
                           </div>
                         </div>
@@ -2530,9 +2685,9 @@ export function CustomerProfile() {
               )}
               <div className="text-sm text-muted-foreground">
                 Total Documents: {customer.documents.length} |
-                ID Proof: {customer.documents.filter(d => d.documentType === 'idProof').length} |
-                Address Proof: {customer.documents.filter(d => d.documentType === 'addressProof').length} |
-                Photos: {customer.documents.filter(d => d.documentType === 'photo').length}
+                ID Proof: {customer.documents.filter(d => d.documentType === "idProof").length} |
+                Address Proof: {customer.documents.filter(d => d.documentType === "addressProof").length} |
+                Photos: {customer.documents.filter(d => d.documentType === "photo").length}
               </div>
             </div>
           </CardContainer>

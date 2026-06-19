@@ -36,11 +36,20 @@ export function InventoryLifecycle() {
       setLoading(true)
       try {
         const params = new URLSearchParams({ includeLogs: "true" })
-        if (selectedBranchId) params.set("branchId", String(selectedBranchId))
-        const response = await apiRequest(`/inventory?${params.toString()}`)
-        if (response.success) {
-          setItems(response.data)
+        if (selectedBranchId && String(selectedBranchId) !== "all") {
+          params.set("branchId", String(selectedBranchId))
         }
+        const response = await apiRequest(`/inventory?${params.toString()}`)
+        const list = Array.isArray(response)
+          ? response
+          : Array.isArray(response?.data)
+            ? response.data
+            : Array.isArray(response?.items)
+              ? response.items
+              : Array.isArray(response?.data?.items)
+                ? response.data.items
+                : []
+        setItems(list)
       } catch (err) {
         console.error("Failed to fetch inventory lifecycle", err)
       } finally {

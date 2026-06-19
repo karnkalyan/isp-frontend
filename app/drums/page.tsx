@@ -40,6 +40,12 @@ type User = {
   email: string
 }
 
+type Vendor = {
+  id: number
+  name: string
+  companyName?: string | null
+}
+
 export default function DrumsPage() {
   const { hasPermission } = useAuth()
   const canCreate = hasPermission("drums_create")
@@ -49,6 +55,7 @@ export default function DrumsPage() {
   const [drums, setDrums] = useState<Drum[]>([])
   const [branches, setBranches] = useState<Branch[]>([])
   const [users, setUsers] = useState<User[]>([])
+  const [vendors, setVendors] = useState<Vendor[]>([])
   const [loading, setLoading] = useState(true)
 
   // Filters
@@ -65,6 +72,7 @@ export default function DrumsPage() {
   const [capacity, setCapacity] = useState("")
   const [manufacturer, setManufacturer] = useState("")
   const [purchaseDate, setPurchaseDate] = useState("")
+  const [vendorId, setVendorId] = useState("none")
   const [savingDrum, setSavingDrum] = useState(false)
 
   // Assignment Modal
@@ -104,16 +112,20 @@ export default function DrumsPage() {
       if (search.trim()) queryParams.append("search", search.trim())
       if (statusFilter && statusFilter !== "ALL") queryParams.append("status", statusFilter)
 
-      const [drumsData, branchData, userData] = await Promise.all([
+      const [drumsData, branchData, userData, vendorData] = await Promise.all([
         apiRequest<Drum[]>(`/drums?${queryParams.toString()}`),
         apiRequest<Branch[]>("/branches"),
-        apiRequest<User[]>("/users")
+        apiRequest<User[]>("/users"),
+        apiRequest<Vendor[]>("/vendors")
       ])
       setDrums(Array.isArray(drumsData) ? drumsData : [])
-      setBranches(Array.isArray(branchData) ? branchData.filter(b => b.id) : [])
+      const branchList = Array.isArray(branchData) ? branchData : (branchData as any)?.data || []
+      setBranches(Array.isArray(branchList) ? branchList.filter(b => b.id) : [])
       
       const userList = Array.isArray(userData) ? userData : (userData as any)?.data || []
       setUsers(Array.isArray(userList) ? userList : [])
+      const vendorList = Array.isArray(vendorData) ? vendorData : (vendorData as any)?.data || []
+      setVendors(Array.isArray(vendorList) ? vendorList : [])
     } catch (e) {
       toast.error("Failed to load drums and assignees data")
     } finally {
@@ -144,7 +156,8 @@ export default function DrumsPage() {
             totalLength: parseFloat(totalLength),
             capacity: capacity ? parseFloat(capacity) : parseFloat(totalLength),
             manufacturer: manufacturer.trim() || null,
-            purchaseDate: purchaseDate || null
+            purchaseDate: purchaseDate || null,
+            vendorId: vendorId === "none" ? null : vendorId
           })
         })
         setDrums(prev => prev.map(d => d.id === editingDrum.id ? updated : d))
@@ -159,7 +172,8 @@ export default function DrumsPage() {
             totalLength: parseFloat(totalLength),
             capacity: capacity ? parseFloat(capacity) : parseFloat(totalLength),
             manufacturer: manufacturer.trim() || null,
-            purchaseDate: purchaseDate || null
+            purchaseDate: purchaseDate || null,
+            vendorId: vendorId === "none" ? null : vendorId
           })
         })
         setDrums(prev => [created, ...prev])
@@ -241,6 +255,7 @@ export default function DrumsPage() {
     setCapacity(String(drum.capacity))
     setManufacturer(drum.manufacturer || "")
     setPurchaseDate(drum.purchaseDate ? drum.purchaseDate.split("T")[0] : "")
+    setVendorId((drum as any).vendorId ? String((drum as any).vendorId) : "none")
     setShowDrumForm(true)
   }
 
@@ -258,6 +273,7 @@ export default function DrumsPage() {
     setCapacity("")
     setManufacturer("")
     setPurchaseDate("")
+    setVendorId("none")
     setShowDrumForm(false)
   }
 
@@ -456,6 +472,23 @@ export default function DrumsPage() {
                         </SelectContent>
                       </Select>
                     </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="vendor">Vendor</Label>
+                    <Select value={vendorId} onValueChange={setVendorId}>
+                      <SelectTrigger id="vendor">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No Vendor</SelectItem>
+                        {vendors.map(vendor => (
+                          <SelectItem key={vendor.id} value={String(vendor.id)}>
+                            {vendor.name}{vendor.companyName ? ` - ${vendor.companyName}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">

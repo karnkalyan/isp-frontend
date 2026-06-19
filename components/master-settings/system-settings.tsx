@@ -100,6 +100,7 @@ export function SystemSettings() {
     termsAndConditions: "By using our services, you agree to our terms and conditions...",
     privacyPolicy: "We respect your privacy and are committed to protecting your personal data...",
     autoTrialEnabled: true,
+    pushTrialPackageToAccount: true,
     trialDurationDays: 3,
     maxStaffGraceDays: 3,
     allowStaffCompensation: false,
@@ -219,6 +220,7 @@ export function SystemSettings() {
             termsAndConditions: data.termsAndConditions || prev.termsAndConditions,
             privacyPolicy: data.privacyPolicy || prev.privacyPolicy,
             autoTrialEnabled: data.autoTrialEnabled !== 'false',
+            pushTrialPackageToAccount: data.pushTrialPackageToAccount !== 'false',
             trialDurationDays: parseInt(data.trialDurationDays || '3'),
             maxStaffGraceDays: parseInt(data.maxStaffGraceDays || '3'),
             allowStaffCompensation: data.allowStaffCompensation === 'true',
@@ -760,6 +762,16 @@ export function SystemSettings() {
                     <Switch
                        checked={settings.autoTrialEnabled ?? true}
                        onCheckedChange={(checked) => updateSetting("autoTrialEnabled", checked)}
+                    />
+                 </div>
+                 <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Push Trial Package to Account</span>
+                    <Switch
+                       checked={settings.pushTrialPackageToAccount ?? true}
+                       onCheckedChange={(checked) => {
+                         updateSetting("pushTrialPackageToAccount", checked)
+                         updateSetting("autoTrialEnabled", checked)
+                       }}
                     />
                  </div>
                  {settings.autoTrialEnabled !== false && (

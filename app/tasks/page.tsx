@@ -183,7 +183,10 @@ export default function TasksPage() {
       const url = branches.length > 0 && selectedBranchId ? `/users?branchId=${selectedBranchId}` : "/users"
       const res = await apiRequest<any>(url)
       const list = Array.isArray(res) ? res : res?.data || []
-      setUsers(list)
+      setUsers(list.filter((item: any) => {
+        const roleName = typeof item.role === "string" ? item.role : item.role?.name
+        return String(roleName || "").toLowerCase() !== "customer"
+      }))
     } catch (e) {
       console.error(e)
     }

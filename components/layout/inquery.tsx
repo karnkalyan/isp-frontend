@@ -551,7 +551,7 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
 
   const handleCallBack = async (phoneNumber: string) => {
     if (!assignedExtension) {
-      toast.error("No Yeastar extension is assigned to your user account")
+      toast.error("No VoIP extension is assigned to your user account")
       return
     }
 

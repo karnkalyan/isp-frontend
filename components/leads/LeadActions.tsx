@@ -72,7 +72,7 @@ export function LeadActions({ lead, onDelete, onConvert, onFollowUp, users = [] 
         if (phoneNumber) {
             const extension = String(user?.yeastarExt || user?.extId || "").trim()
             if (!extension) {
-                toast.error("No Yeastar extension is assigned to your user account")
+                toast.error("No VoIP extension is assigned to your user account")
                 return
             }
 
@@ -87,7 +87,10 @@ export function LeadActions({ lead, onDelete, onConvert, onFollowUp, users = [] 
                 })
             })
                 .then(() => toast.success("Calling " + phoneNumber))
-                .catch(() => toast.error("Failed to make call"))
+                .catch((error: any) => {
+                    const message = String(error?.message || "")
+                    toast.error(/yeastar|yeaster|asterisk|voip|configured|enabled/i.test(message) ? "Calling is disabled because no VOIP service is enabled" : message || "Failed to make call")
+                })
         } else {
             toast.error("Phone number is not available")
         }
@@ -156,7 +159,6 @@ export function LeadActions({ lead, onDelete, onConvert, onFollowUp, users = [] 
                         variant="ghost"
                         size="icon"
                         onClick={handleCall}
-                        disabled={!voipEnabled}
                         className={`h-8 w-8 ${voipEnabled ? "hover:bg-blue-100" : "opacity-50 cursor-not-allowed"}`}
                         title={voipEnabled ? "Call" : "Call disabled - no VOIP service enabled"}
                     >

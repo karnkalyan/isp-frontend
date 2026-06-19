@@ -851,12 +851,12 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
     const fetchBranches = async () => {
         try {
             const data = await apiRequest("/branches")
-            const processedBranches = Array.isArray(data)
-                ? data.map((branch: any) => ({
+            const branchList = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : []
+            const processedBranches = branchList
+                .map((branch: any) => ({
                     ...branch,
                     id: String(branch.id)
                 }))
-                : []
             setBranches(processedBranches)
         } catch (error: any) {
             console.error("Failed to fetch branches:", error)

@@ -29,6 +29,7 @@ export function AddInventoryItem() {
   
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [branches, setBranches] = useState<any[]>([])
+  const [vendors, setVendors] = useState<any[]>([])
   const [loadingBranches, setLoadingBranches] = useState(true)
   
   const [formData, setFormData] = useState({
@@ -39,6 +40,7 @@ export function AddInventoryItem() {
     ponSerialNumber: "",
     macAddress: "",
     branchId: "none",
+    vendorId: "none",
     qty: "1",
   })
 
@@ -46,19 +48,23 @@ export function AddInventoryItem() {
     async function fetchBranches() {
       try {
         const data = await apiRequest("/branches/my-access") // Hierarchical branches
-        setBranches(data || [])
+        setBranches(Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [])
       } catch (err: any) {
         console.error("Failed to load branches:", err)
         // Fallback to all branches if my-access fails or not implemented
         try {
           const fallbackData = await apiRequest("/branch")
-          if (fallbackData?.data) setBranches(fallbackData.data)
+          const list = Array.isArray(fallbackData) ? fallbackData : Array.isArray(fallbackData?.data) ? fallbackData.data : []
+          setBranches(list)
         } catch(e) {}
       } finally {
         setLoadingBranches(false)
       }
     }
     fetchBranches()
+    apiRequest("/vendors").then(data => {
+      setVendors(Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [])
+    }).catch(() => setVendors([]))
   }, [])
 
   const handleChange = (field: string, value: string) => {
@@ -75,6 +81,7 @@ export function AddInventoryItem() {
         ...formData,
         qty: isSerialized ? 1 : parseInt(formData.qty) || 1,
         branchId: formData.branchId === "none" ? null : formData.branchId,
+        vendorId: formData.vendorId === "none" ? null : formData.vendorId,
       }
 
       await apiRequest("/inventory", {
@@ -216,6 +223,23 @@ export function AddInventoryItem() {
             )}
           </div>
 
+          <div className="space-y-2">
+            <Label>Vendor</Label>
+            <Select value={formData.vendorId} onValueChange={(v) => handleChange("vendorId", v)}>
+              <SelectTrigger className="bg-white dark:bg-slate-950">
+                <SelectValue placeholder="Select vendor" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No Vendor</SelectItem>
+                {vendors.map(vendor => (
+                  <SelectItem key={vendor.id} value={vendor.id.toString()}>
+                    {vendor.name}{vendor.companyName ? ` - ${vendor.companyName}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
         </div>
       </CardContainer>
 
@@ -234,7 +258,9 @@ export function AddInventoryItem() {
               <SelectContent>
                 <SelectItem value="none">Head Office (Unassigned)</SelectItem>
                 {branches.map(b => (
-                   <SelectItem key={b.id} value={b.id.toString()}>{b.name}</SelectItem>
+                   <SelectItem key={b.id} value={b.id.toString()}>
+                    {b.parentId ? "Sub-branch: " : "Branch: "}{b.name}
+                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>

@@ -53,6 +53,7 @@ export function SmsCampaign() {
   const [recipientType, setRecipientType] = useState("customer")
   const [filters, setFilters] = useState({
     oltId: "all",
+    oltPort: "",
     splitterId: "all",
     area: "",
     status: "all"
@@ -196,6 +197,7 @@ export function SmsCampaign() {
         if (filters.status !== "all") params.append("status", filters.status)
         if (recipientType === "customer") {
           if (filters.oltId !== "all") params.append("oltId", filters.oltId)
+          if (filters.oltPort) params.append("oltPort", filters.oltPort)
           if (filters.splitterId !== "all") params.append("splitterId", filters.splitterId)
           if (filters.area) params.append("area", filters.area)
         } else {
@@ -360,6 +362,7 @@ export function SmsCampaign() {
       if (filters.status !== "all") params.append("status", filters.status)
       if (recipientType === "customer") {
         if (filters.oltId !== "all") params.append("oltId", filters.oltId)
+        if (filters.oltPort) params.append("oltPort", filters.oltPort)
         if (filters.splitterId !== "all") params.append("splitterId", filters.splitterId)
         if (filters.area) params.append("area", filters.area)
       } else {
@@ -442,6 +445,7 @@ export function SmsCampaign() {
 
       if (recipientType === "customer") {
         campaignFilters.oltId = filters.oltId
+        campaignFilters.oltPort = filters.oltPort
         campaignFilters.splitterId = filters.splitterId
       }
 
@@ -475,7 +479,7 @@ export function SmsCampaign() {
   }
 
   const resetFilters = () => {
-    setFilters({ oltId: "all", splitterId: "all", area: "", status: "all" })
+    setFilters({ oltId: "all", oltPort: "", splitterId: "all", area: "", status: "all" })
     setSelectedHeadOffices([])
     setSelectedBranches([])
     setSelectedSubBranches([])
@@ -486,6 +490,7 @@ export function SmsCampaign() {
     selectedBranches.length > 0,
     selectedSubBranches.length > 0,
     filters.oltId !== "all",
+    filters.oltPort !== "",
     filters.splitterId !== "all",
     filters.area !== "",
     filters.status !== "all",
@@ -539,7 +544,7 @@ export function SmsCampaign() {
               <Label className="text-xs font-semibold text-foreground/70 uppercase tracking-wider">Recipient Type</Label>
               <Select value={recipientType} onValueChange={(val) => {
                 setRecipientType(val)
-                setFilters(prev => ({ ...prev, status: "all", oltId: "all", splitterId: "all" }))
+                setFilters(prev => ({ ...prev, status: "all", oltId: "all", oltPort: "", splitterId: "all" }))
               }}>
                 <SelectTrigger className="bg-background border-input text-foreground">
                   <SelectValue />
@@ -654,6 +659,20 @@ export function SmsCampaign() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            )}
+
+            {recipientType === "customer" && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-foreground/70 uppercase tracking-wider flex items-center gap-1.5">
+                  <Network className="h-3 w-3" /> OLT Port
+                </Label>
+                <Input
+                  value={filters.oltPort}
+                  onChange={(event) => updateFilter("oltPort", event.target.value)}
+                  placeholder="e.g. 0/1/1"
+                  className="bg-background border-input text-foreground"
+                />
               </div>
             )}
 

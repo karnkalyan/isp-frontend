@@ -187,7 +187,7 @@ export function CustomersList() {
     }
     const extension = String(user?.yeastarExt || user?.extId || "").trim()
     if (!extension) {
-      toast.error("No Yeastar extension is assigned to your user account")
+      toast.error("No VoIP extension is assigned to your user account")
       return
     }
 
@@ -204,7 +204,8 @@ export function CustomersList() {
       })
       toast.success(`Calling ${phoneNumber}`)
     } catch (error: any) {
-      toast.error(error.message || "Failed to initiate call")
+      const message = String(error?.message || "")
+      toast.error(/yeastar|yeaster|asterisk|voip|configured|enabled/i.test(message) ? "Calling is disabled because no VOIP service is enabled" : message || "Failed to initiate call")
     }
   }
 
@@ -497,8 +498,7 @@ export function CustomersList() {
                               <div className="text-xs text-muted-foreground">{customer.email}</div>
                               <button
                                 type="button"
-                                disabled={!voipEnabled}
-                                className="text-xs text-muted-foreground hover:text-green-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted-foreground"
+                                className={`text-xs text-muted-foreground hover:text-green-600 ${!voipEnabled ? "cursor-not-allowed opacity-50 hover:text-muted-foreground" : ""}`}
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   handleOutboundCall(customer.phoneNumber)
@@ -510,8 +510,7 @@ export function CustomersList() {
                               {customer.secondaryPhone && (
                                 <button
                                   type="button"
-                                  disabled={!voipEnabled}
-                                  className="block text-xs text-muted-foreground hover:text-green-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted-foreground"
+                                  className={`block text-xs text-muted-foreground hover:text-green-600 ${!voipEnabled ? "cursor-not-allowed opacity-50 hover:text-muted-foreground" : ""}`}
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     handleOutboundCall(customer.secondaryPhone)

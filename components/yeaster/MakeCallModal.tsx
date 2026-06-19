@@ -97,7 +97,7 @@ export default function MakeCallModal({
         e.preventDefault()
 
         if (!assignedExtension) {
-            toast.error("No Yeastar extension is assigned to your user account")
+            toast.error("No VoIP extension is assigned to your user account")
             return
         }
 
@@ -173,7 +173,7 @@ export default function MakeCallModal({
                             </div>
                             {!assignedExtension && (
                                 <p className="text-sm text-amber-600">
-                                    No Yeastar extension is assigned to your user account.
+                                    No VoIP extension is assigned to your user account.
                                 </p>
                             )}
                         </div>

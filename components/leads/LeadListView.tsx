@@ -760,7 +760,7 @@ export function ActiveLeads({
         }
         const extension = String(user?.yeastarExt || user?.extId || "").trim()
         if (!extension) {
-            toast.error("No Yeastar extension is assigned to your user account")
+            toast.error("No VoIP extension is assigned to your user account")
             return
         }
         try {
@@ -777,7 +777,8 @@ export function ActiveLeads({
             toast.success("Calling " + phoneNumber)
         } catch (error: any) {
             console.error("Call error:", error)
-            toast.error(error.message || "Failed to initiate call")
+            const message = String(error?.message || "")
+            toast.error(/yeastar|yeaster|asterisk|voip|configured|enabled/i.test(message) ? "Calling is disabled because no VOIP service is enabled" : message || "Failed to initiate call")
         }
     }
 

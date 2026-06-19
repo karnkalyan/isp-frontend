@@ -85,6 +85,7 @@ const getItemLocationLabel = (item: any) => {
 export function InventoryOverview() {
     const [items, setItems] = useState<any[]>([])
     const [branches, setBranches] = useState<any[]>([])
+    const [vendors, setVendors] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState("")
     const [statusFilter, setStatusFilter] = useState("all")
@@ -116,7 +117,8 @@ export function InventoryOverview() {
         macAddress: "",
         branchId: "none",
         qty: "1",
-        condition: "Good"
+        condition: "Good",
+        vendorId: "none"
     })
     const [savingEdit, setSavingEdit] = useState(false)
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -136,7 +138,8 @@ export function InventoryOverview() {
 
     useEffect(() => {
         fetchInventory()
-        apiRequest("/branches").then(data => setBranches(Array.isArray(data) ? data : [])).catch(() => {})
+        apiRequest("/branches").then(data => setBranches(Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [])).catch(() => {})
+        apiRequest("/vendors").then(data => setVendors(Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [])).catch(() => {})
     }, [])
 
     const toggleSelection = (id: number) => {
@@ -177,7 +180,8 @@ export function InventoryOverview() {
             macAddress: item.macAddress || "",
             branchId: item.branchId ? String(item.branchId) : "none",
             qty: String(item.qty || 1),
-            condition: item.condition || "Good"
+            condition: item.condition || "Good",
+            vendorId: item.vendorId ? String(item.vendorId) : "none"
         })
     }
 
@@ -198,7 +202,8 @@ export function InventoryOverview() {
                 body: JSON.stringify({
                     ...editForm,
                     branchId: editForm.branchId === "none" ? null : editForm.branchId,
-                    qty: isSerialized ? 1 : parseInt(editForm.qty) || 1
+                    qty: isSerialized ? 1 : parseInt(editForm.qty) || 1,
+                    vendorId: editForm.vendorId === "none" ? null : editForm.vendorId
                 })
             })
             toast({ title: "Success", description: "Inventory item updated successfully" })
@@ -653,8 +658,23 @@ export function InventoryOverview() {
                                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                             >
                                 <option value="none">Head Office</option>
-                                {branches.map(branch => (
-                                    <option key={branch.id} value={String(branch.id)}>{branch.name}</option>
+                            {branches.map(branch => (
+                                    <option key={branch.id} value={String(branch.id)}>{branch.parentId ? "Sub-branch: " : "Branch: "}{branch.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Vendor</Label>
+                            <select
+                                value={editForm.vendorId}
+                                onChange={(e) => updateEditForm("vendorId", e.target.value)}
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            >
+                                <option value="none">No Vendor</option>
+                                {vendors.map(vendor => (
+                                    <option key={vendor.id} value={String(vendor.id)}>
+                                        {vendor.name}{vendor.companyName ? ` - ${vendor.companyName}` : ""}
+                                    </option>
                                 ))}
                             </select>
                         </div>
