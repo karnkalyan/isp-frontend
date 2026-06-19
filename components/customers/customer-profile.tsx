@@ -1381,6 +1381,54 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     }
   }, [])
 
+  useEffect(() => {
+    if (assignHardwareOpen) {
+      fetchOltsAndSplitters()
+      const sd = customer?.serviceDetails?.[0]
+      if (sd) {
+        let selectedVlanIds: string[] = []
+        if (sd.vlanId) {
+          selectedVlanIds = sd.vlanId.split(',').filter(Boolean)
+        }
+        setHwProvisionDetails({
+          useSplitter: !!sd.splitterId,
+          useDirectOLT: !sd.splitterId,
+          oltId: sd.oltId?.toString() || "",
+          splitterId: sd.splitterId?.toString() || "",
+          splitterPort: sd.splitterPort || "",
+          oltPort: sd.oltPort || "",
+          selectedVlanIds,
+          selectedProfileIds: [],
+        })
+      } else {
+        setHwProvisionDetails({
+          useSplitter: true,
+          useDirectOLT: false,
+          oltId: "",
+          splitterId: "",
+          splitterPort: "",
+          oltPort: "",
+          selectedVlanIds: [],
+          selectedProfileIds: [],
+        })
+      }
+      const mappedDevices: CustomerDevice[] = (customer?.devices || []).map((dev) => ({
+        id: dev.id,
+        deviceType: dev.deviceType,
+        brand: dev.brand,
+        model: dev.model,
+        serialNumber: dev.serialNumber,
+        macAddress: dev.macAddress,
+        ponSerial: dev.ponSerial || undefined,
+        notes: dev.notes || "",
+      }))
+      setHwDevices(mappedDevices)
+      setSelectedDiscoveredOnt(null)
+      setMatchedDeviceForOnt(null)
+      setAutoFindError(null)
+    }
+  }, [assignHardwareOpen, customer, fetchOltsAndSplitters])
+
   const openDeviceDialogForEdit = useCallback((index: number) => {
     setHwEditingDeviceIndex(index)
     setHwDeviceDialogOpen(true)
@@ -3061,54 +3109,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         </TabsContent>
 
         <TabsContent value="devices" className="space-y-4">
-          <Dialog open={assignHardwareOpen} onOpenChange={(open) => {
-            setAssignHardwareOpen(open)
-            if (open) {
-              fetchOltsAndSplitters()
-              const sd = customer?.serviceDetails?.[0]
-              if (sd) {
-                let selectedVlanIds: string[] = []
-                if (sd.vlanId) {
-                  selectedVlanIds = sd.vlanId.split(',').filter(Boolean)
-                }
-                setHwProvisionDetails({
-                  useSplitter: !!sd.splitterId,
-                  useDirectOLT: !sd.splitterId,
-                  oltId: sd.oltId?.toString() || "",
-                  splitterId: sd.splitterId?.toString() || "",
-                  splitterPort: sd.splitterPort || "",
-                  oltPort: sd.oltPort || "",
-                  selectedVlanIds,
-                  selectedProfileIds: [],
-                })
-              } else {
-                setHwProvisionDetails({
-                  useSplitter: true,
-                  useDirectOLT: false,
-                  oltId: "",
-                  splitterId: "",
-                  splitterPort: "",
-                  oltPort: "",
-                  selectedVlanIds: [],
-                  selectedProfileIds: [],
-                })
-              }
-              const mappedDevices: CustomerDevice[] = (customer?.devices || []).map((dev) => ({
-                id: dev.id,
-                deviceType: dev.deviceType,
-                brand: dev.brand,
-                model: dev.model,
-                serialNumber: dev.serialNumber,
-                macAddress: dev.macAddress,
-                ponSerial: dev.ponSerial || undefined,
-                notes: dev.notes || "",
-              }))
-              setHwDevices(mappedDevices)
-              setSelectedDiscoveredOnt(null)
-              setMatchedDeviceForOnt(null)
-              setAutoFindError(null)
-            }
-          }}>
+          <Dialog open={assignHardwareOpen} onOpenChange={setAssignHardwareOpen}>
             <DialogContent className="w-[95vw] sm:w-[90vw] md:max-w-3xl lg:max-w-5xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto p-4 sm:p-6">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
