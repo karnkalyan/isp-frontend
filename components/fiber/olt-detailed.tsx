@@ -560,6 +560,8 @@ interface Splitter {
   }
   status: "active" | "inactive" | "maintenance"
   notes?: string
+  totalCustomers?: number
+  slaveCount?: number
   createdAt: string
   updatedAt: string
 }
@@ -4136,7 +4138,7 @@ export function OLTDetailed() {
                                     <Badge className="bg-purple-500/10 text-purple-500 border-purple-500/20">
                                       Master
                                     </Badge>
-                                    {splitter.slaveCount > 0 && (
+                                    {(splitter.slaveCount ?? 0) > 0 && (
                                       <div className="text-xs text-gray-500">
                                         {splitter.slaveCount} slave{splitter.slaveCount !== 1 ? 's' : ''}
                                       </div>
@@ -4280,8 +4282,18 @@ export function OLTDetailed() {
                                         portCount: splitter.portCount,
                                         usedPorts: splitter.usedPorts,
                                         availablePorts: splitter.availablePorts,
-                                        location: splitter.location,
-                                        upstreamFiber: splitter.upstreamFiber,
+                                        location: {
+                                          site: splitter.location.site || "",
+                                          latitude: splitter.location.latitude ?? 0,
+                                          longitude: splitter.location.longitude ?? 0,
+                                          description: splitter.location.description || ""
+                                        },
+                                        upstreamFiber: {
+                                          coreColor: splitter.upstreamFiber.coreColor,
+                                          connectedTo: splitter.upstreamFiber.connectedTo,
+                                          connectionId: splitter.upstreamFiber.connectionId || "",
+                                          port: splitter.upstreamFiber.port || ""
+                                        },
                                         isMaster: splitter.isMaster,
                                         masterSplitterId: parentSplitterId,
                                         connectedServiceBoard: splitter.connectedServiceBoard,
@@ -5244,7 +5256,7 @@ export function OLTDetailed() {
                                                 <Badge className="bg-purple-500/10 text-purple-500 border-purple-500/20">
                                                   Master
                                                 </Badge>
-                                                {splitter.slaveCount > 0 && (
+                                                {(splitter.slaveCount ?? 0) > 0 && (
                                                   <div className="text-xs text-gray-500">
                                                     {splitter.slaveCount} slave{splitter.slaveCount !== 1 ? 's' : ''}
                                                   </div>
@@ -5362,8 +5374,18 @@ export function OLTDetailed() {
                                                     portCount: splitter.portCount,
                                                     usedPorts: splitter.usedPorts,
                                                     availablePorts: splitter.availablePorts,
-                                                    location: splitter.location,
-                                                    upstreamFiber: splitter.upstreamFiber,
+                                                   location: {
+                                          site: splitter.location.site || "",
+                                          latitude: splitter.location.latitude ?? 0,
+                                          longitude: splitter.location.longitude ?? 0,
+                                          description: splitter.location.description || ""
+                                        },
+                                                   upstreamFiber: {
+                                          coreColor: splitter.upstreamFiber.coreColor,
+                                          connectedTo: splitter.upstreamFiber.connectedTo,
+                                          connectionId: splitter.upstreamFiber.connectionId || "",
+                                          port: splitter.upstreamFiber.port || ""
+                                        },
                                                     isMaster: splitter.isMaster,
                                                     masterSplitterId: parentSplitterId,
                                                     connectedServiceBoard: splitter.connectedServiceBoard,
@@ -7049,28 +7071,7 @@ export function OLTDetailed() {
                     <Switch
                       id="is-master"
                       checked={splitterForm.isMaster}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          // Becoming master: clear parent, enable OLT connection
-                          setSplitterForm({
-                            ...splitterForm,
-                            isMaster: true,
-                            masterSplitterId: "",
-                            upstreamFiber: {
-                              ...splitterForm.upstreamFiber,
-                              connectedTo: "service-board"
-                            }
-                          });
-                        } else {
-                          // Becoming slave: disable OLT connection, enable parent selection
-                          setSplitterForm({
-                            ...splitterForm,
-                            isMaster: false,
-                            connectedServiceBoard: undefined
-                          });
-                          setAvailablePorts([]);
-                        }
-                      }}
+                      onCheckedChange={handleMasterSlaveToggle}
                     />
                     <Label htmlFor="is-master">
                       {splitterForm.isMaster ? "Master Splitter" : "Slave Splitter"}
@@ -7469,6 +7470,7 @@ export function OLTDetailed() {
                   name: "",
                   splitterId: "",
                   splitRatio: "1:8",
+                  ratio: 8,
                   splitterType: "PLC",
                   portCount: 8,
                   usedPorts: 0,
@@ -7610,7 +7612,7 @@ export function OLTDetailed() {
                         />
                       </div>
                     </div>
-                    {selectedSplitter.isMaster && selectedSplitter.slaveCount > 0 && (
+                    {selectedSplitter.isMaster && (selectedSplitter.slaveCount ?? 0) > 0 && (
                       <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
                         <div className="flex items-center gap-2">
                           <Server className="h-4 w-4 text-purple-500" />
@@ -8066,8 +8068,18 @@ export function OLTDetailed() {
                       portCount: selectedSplitter.portCount,
                       usedPorts: selectedSplitter.usedPorts,
                       availablePorts: selectedSplitter.availablePorts,
-                      location: selectedSplitter.location,
-                      upstreamFiber: selectedSplitter.upstreamFiber,
+                      location: {
+                        site: selectedSplitter.location.site || "",
+                        latitude: selectedSplitter.location.latitude ?? 0,
+                        longitude: selectedSplitter.location.longitude ?? 0,
+                        description: selectedSplitter.location.description || ""
+                      },
+                      upstreamFiber: {
+                        coreColor: selectedSplitter.upstreamFiber.coreColor,
+                        connectedTo: selectedSplitter.upstreamFiber.connectedTo,
+                        connectionId: selectedSplitter.upstreamFiber.connectionId || "",
+                        port: selectedSplitter.upstreamFiber.port || ""
+                      },
                       isMaster: selectedSplitter.isMaster,
                       masterSplitterId: parentSplitterId,
                       connectedServiceBoard: selectedSplitter.connectedServiceBoard,
@@ -8129,7 +8141,7 @@ Connection Path:
 ${connectionPath.join('\n→ ')}
 
 Location: ${selectedSplitter.location.site || 'Not specified'}
-${selectedSplitter.location.latitude ? `Coordinates: ${selectedSplitter.location.latitude.toFixed(6)}, ${selectedSplitter.location.longitude.toFixed(6)}` : ''}
+${(selectedSplitter.location.latitude && selectedSplitter.location.longitude) ? `Coordinates: ${selectedSplitter.location.latitude.toFixed(6)}, ${selectedSplitter.location.longitude.toFixed(6)}` : ''}
 
 Updated: ${formatDate(selectedSplitter.updatedAt)}
               `.trim();
