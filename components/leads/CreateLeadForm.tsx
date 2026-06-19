@@ -41,29 +41,17 @@ import { Slider } from "@/components/ui/slider"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { useRouter } from "next/navigation"
 
-// Add Leaflet imports
-import { MapContainer, TileLayer, Marker, Popup, Circle, useMapEvents, useMap } from "react-leaflet"
+// Dynamic imports for Leaflet (to avoid SSR issues)
+import dynamic from 'next/dynamic'
 import "leaflet/dist/leaflet.css"
-import L from "leaflet"
+import { useMapEvents, useMap } from 'react-leaflet'
 
-// Fix Leaflet marker icons
-delete (L.Icon.Default.prototype as any)._getIconUrl
-L.Icon.Default.mergeOptions({
-    iconRetinaUrl: '/leaflet/images/marker-icon-2x.png',
-    iconUrl: '/leaflet/images/marker-icon.png',
-    shadowUrl: '/leaflet/images/marker-shadow.png',
-})
-
-// Custom marker icon
-const customIcon = new L.Icon({
-    iconUrl: '/leaflet/images/marker-icon.png',
-    iconRetinaUrl: '/leaflet/images/marker-icon-2x.png',
-    shadowUrl: '/leaflet/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41]
-})
+// Dynamically import Leaflet components
+const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
+const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
+const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
+const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false })
+const Circle = dynamic(() => import('react-leaflet').then(mod => mod.Circle), { ssr: false })
 
 // Interface for geocoding result
 interface GeocodingResult {
@@ -81,6 +69,14 @@ interface GeocodingResult {
     name: string
     display_name: string
     boundingbox: [string, string, string, string]
+    address?: {
+        road?: string
+        county?: string
+        district?: string
+        state_district?: string
+        state?: string
+        country?: string
+    }
 }
 
 type LeadStatus = 'new' | 'contacted' | 'qualified' | 'unqualified' | 'converted'
@@ -188,6 +184,8 @@ interface User {
     id: string
     name: string
     email: string
+    branchId?: number | string | null
+    userBranches?: any[]
     role?: {
         id: string
         name: string
@@ -249,6 +247,7 @@ interface Splitter {
     updatedAt: string
     totalCustomers?: number
     slaveCount?: number
+    distance?: number
 }
 
 // Source options
@@ -319,17 +318,70 @@ const OUTCOME_OPTIONS = [
     { value: "converted", label: "Converted to Customer" }
 ]
 
-// Add Map Click Handler Component
-const MapClickHandler = ({ onLocationSelect }: { onLocationSelect: (lat: number, lng: number) => void }) => {
-    useMapEvents({
-        click: (e) => {
-            onLocationSelect(e.latlng.lat, e.latlng.lng)
-        },
-    })
-    return null
+// Helper function to format distance
+const formatDistance = (distance: any): string => {
+    try {
+        const distNum = Number(distance);
+        if (isNaN(distNum) || !isFinite(distNum)) {
+            return "N/A";
+        }
+        if (distNum < 1) {
+            const meters = distNum * 1000;
+            if (meters < 100) {
+                return `${meters.toFixed(0)} m`;
+            } else {
+                return `${meters.toFixed(0)} m`;
+            }
+        } else if (distNum < 10) {
+            return `${distNum.toFixed(2)} km`;
+        } else {
+            return `${distNum.toFixed(1)} km`;
+        }
+    } catch (error) {
+        return "N/A";
+    }
 }
 
-// Add Location Marker Component with enhanced popup
+// Custom icon factory function (only runs on client)
+const getCustomIcon = () => {
+    if (typeof window === 'undefined') return null
+
+    // Dynamically import Leaflet only on client side
+    const L = require('leaflet')
+
+    // Fix Leaflet marker icons
+    delete (L.Icon.Default.prototype as any)._getIconUrl
+    L.Icon.Default.mergeOptions({
+        iconRetinaUrl: '/leaflet/images/marker-icon-2x.png',
+        iconUrl: '/leaflet/images/marker-icon.png',
+        shadowUrl: '/leaflet/images/marker-shadow.png',
+    })
+
+    return new L.Icon({
+        iconUrl: '/leaflet/images/marker-icon.png',
+        iconRetinaUrl: '/leaflet/images/marker-icon-2x.png',
+        shadowUrl: '/leaflet/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+    })
+}
+
+// Map Click Handler Component
+const MapClickHandler = ({ onLocationSelect }: { onLocationSelect: (lat: number, lng: number) => void }) => {
+    const MapEvents = () => {
+        useMapEvents({
+            click: (e) => {
+                onLocationSelect(e.latlng.lat, e.latlng.lng)
+            },
+        })
+        return null
+    }
+    return <MapEvents />
+}
+
+// Location Marker Component with enhanced popup
 const LocationMarker = ({
     position,
     draggable = true,
@@ -337,7 +389,6 @@ const LocationMarker = ({
     address = "",
     serviceAvailable = null,
     nearestSplitter = null,
-
 }: {
     position: [number, number],
     draggable?: boolean,
@@ -348,6 +399,12 @@ const LocationMarker = ({
 }) => {
     const [markerPosition, setMarkerPosition] = useState<[number, number] | null>(position)
     const [isDragging, setIsDragging] = useState(false)
+    const [customIcon, setCustomIcon] = useState<any>(null)
+
+    // Initialize icon on client side only
+    useEffect(() => {
+        setCustomIcon(getCustomIcon())
+    }, [])
 
     const eventHandlers = useMemo(() => ({
         dragstart: () => {
@@ -371,7 +428,7 @@ const LocationMarker = ({
         }
     }, [position])
 
-    if (!markerPosition) return null
+    if (!markerPosition || !customIcon) return null
 
     return (
         <Marker
@@ -382,7 +439,7 @@ const LocationMarker = ({
         >
             <Popup>
                 <div className="p-2 min-w-[250px]">
-                    <div className="font-semibold text-sm mb-2">ðŸ“ Selected Location</div>
+                    <div className="font-semibold text-sm mb-2">📍 Selected Location</div>
 
                     <div className="space-y-2">
                         <div className="text-xs">
@@ -405,7 +462,7 @@ const LocationMarker = ({
                             <div className={`text-xs p-2 rounded ${serviceAvailable ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
                                 <span className="font-medium">Service:</span>
                                 <div className="mt-1">
-                                    {serviceAvailable ? 'âœ… Available' : 'âŒ Not Available'}
+                                    {serviceAvailable ? '✅ Available' : '❌ Not Available'}
                                 </div>
                             </div>
                         )}
@@ -433,12 +490,12 @@ const LocationMarker = ({
     )
 }
 
-// Add Map Center Updater Component
+// Map Center Updater Component
 const MapCenterUpdater = ({ center }: { center: [number, number] }) => {
     const map = useMap()
 
     useEffect(() => {
-        if (center && center[0] && center[1]) {
+        if (center && center[0] && center[1] && map && typeof map.getZoom === 'function') {
             map.setView(center, map.getZoom())
         }
     }, [center, map])
@@ -446,35 +503,45 @@ const MapCenterUpdater = ({ center }: { center: [number, number] }) => {
     return null
 }
 
-// Add Splitter Marker Component
+// Splitter Marker Component
 const SplitterMarker = ({ splitter }: { splitter: Splitter }) => {
+    const [isClient, setIsClient] = useState(false)
+    const [splitterIcon, setSplitterIcon] = useState<any>(null)
+
+    useEffect(() => {
+        setIsClient(true)
+
+        // Create splitter icon on client side
+        if (typeof window !== 'undefined') {
+            const L = require('leaflet')
+            const icon = new L.DivIcon({
+                html: `
+                    <div class="relative">
+                        <div class="w-6 h-6 rounded-full ${splitter.isMaster ? 'bg-purple-500' : 'bg-blue-500'} border-2 border-white shadow-lg flex items-center justify-center">
+                            <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                    </div>
+                `,
+                className: 'splitter-marker',
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            })
+            setSplitterIcon(icon)
+        }
+    }, [splitter.isMaster])
+
     const position: [number, number] = [splitter.location.latitude || 0, splitter.location.longitude || 0]
 
-    if (!splitter.location.latitude || !splitter.location.longitude) {
+    if (!splitter.location.latitude || !splitter.location.longitude || !isClient || !splitterIcon) {
         return null
-    }
-
-    const getSplitterIcon = (isMaster: boolean) => {
-        return new L.DivIcon({
-            html: `
-                <div class="relative">
-                    <div class="w-6 h-6 rounded-full ${isMaster ? 'bg-purple-500' : 'bg-blue-500'} border-2 border-white shadow-lg flex items-center justify-center">
-                        <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
-                        </svg>
-                    </div>
-                </div>
-            `,
-            className: 'splitter-marker',
-            iconSize: [24, 24],
-            iconAnchor: [12, 12]
-        })
     }
 
     return (
         <Marker
             position={position}
-            icon={getSplitterIcon(splitter.isMaster)}
+            icon={splitterIcon}
         >
             <Popup>
                 <div className="p-1">
@@ -495,30 +562,6 @@ const SplitterMarker = ({ splitter }: { splitter: Splitter }) => {
     )
 }
 
-// Helper function to format distance
-const formatDistance = (distance: any): string => {
-    try {
-        const distNum = Number(distance);
-        if (isNaN(distNum) || !isFinite(distNum)) {
-            return "N/A";
-        }
-        if (distNum < 1) {
-            const meters = distNum * 1000;
-            if (meters < 100) {
-                return `${meters.toFixed(0)} m`;
-            } else {
-                return `${meters.toFixed(0)} m`;
-            }
-        } else if (distNum < 10) {
-            return `${distNum.toFixed(2)} km`;
-        } else {
-            return `${distNum.toFixed(1)} km`;
-        }
-    } catch (error) {
-        return "N/A";
-    }
-}
-
 interface CreateLeadFormProps {
     leadId?: string
 }
@@ -527,13 +570,14 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
     const router = useRouter()
     const [loading, setLoading] = useState(false)
     const [isEditing, setIsEditing] = useState(false)
+    const [isMounted, setIsMounted] = useState(false)
     const [users, setUsers] = useState<User[]>([])
     const [packages, setPackages] = useState<PackagePlan[]>([])
     const [memberships, setMemberships] = useState<Membership[]>([])
     const [splitters, setSplitters] = useState<Splitter[]>([])
+    const [branches, setBranches] = useState<Array<{ id: string; name: string; parentId?: number | string | null }>>([])
+    const [subBranches, setSubBranches] = useState<Array<{ id: string; name: string; parentId?: number | string | null }>>([])
     const [leadFollowUps, setLeadFollowUps] = useState<FollowUp[]>([])
-    const [branches, setBranches] = useState<Array<{ id: string; name: string; parentId?: number | null }>>([])
-    const [subBranches, setSubBranches] = useState<Array<{ id: string; name: string; parentId?: number | null }>>([])
     const [showFollowUpDialog, setShowFollowUpDialog] = useState(false)
     const [editingFollowUp, setEditingFollowUp] = useState<FollowUp | null>(null)
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
@@ -566,6 +610,8 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
         memberShipId: "",
         assignedUserId: "",
         interestedPackageId: "",
+        branchId: "",
+        subBranchId: "",
         address: "",
         street: "",
         district: "",
@@ -575,9 +621,7 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
         fullAddress: "",
         latitude: "" as string | "",
         longitude: "" as string | "",
-        serviceRadius: "0.1" as string | "",
-        branchId: "",
-        subBranchId: ""
+        serviceRadius: "0.1" as string | ""
     })
 
     // Follow-up form state
@@ -594,15 +638,50 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
 
     const { confirm, ConfirmDialog } = useConfirmToast()
 
+    // Set mounted state
+    useEffect(() => {
+        setIsMounted(true)
+    }, [])
+
     // Prepare options from data using useMemo for performance
-    const userOptions: Option[] = useMemo(() =>
-        users.map(user => ({
+    const userOptions: Option[] = useMemo(() => {
+        let filteredUsers = users;
+
+        const selectedBranchId = formData.branchId ? Number(formData.branchId) : null;
+        const selectedSubBranchId = formData.subBranchId ? Number(formData.subBranchId) : null;
+
+        if (selectedSubBranchId) {
+            // Filter by specific sub-branch
+            filteredUsers = users.filter(user => {
+                const userBranchId = user.branchId ? Number(user.branchId) : null;
+                const userAddBranchIds = user.userBranches?.map((ub: any) => Number(ub.branchId)) || [];
+                return userBranchId === selectedSubBranchId || userAddBranchIds.includes(selectedSubBranchId);
+            });
+        } else if (selectedBranchId) {
+            // Filter by parent branch and all of its sub-branches
+            const relatedBranchIds = [
+                Number(selectedBranchId),
+                ...subBranches
+                    .filter(sb => String(sb.parentId) === String(selectedBranchId))
+                    .map(sb => Number(sb.id))
+            ];
+
+            filteredUsers = users.filter(user => {
+                const userBranchId = user.branchId ? Number(user.branchId) : null;
+                const userAddBranchIds = user.userBranches?.map((ub: any) => Number(ub.branchId)) || [];
+
+                const matchesPrimary = userBranchId && relatedBranchIds.includes(userBranchId);
+                const matchesAdditional = userAddBranchIds.some((id: number) => relatedBranchIds.includes(id));
+                return matchesPrimary || matchesAdditional;
+            });
+        }
+
+        return filteredUsers.map(user => ({
             value: String(user.id),
             label: user.name,
             description: user.role?.name || "No role"
-        })),
-        [users]
-    )
+        }));
+    }, [users, formData.branchId, formData.subBranchId, branches, subBranches])
 
     const membershipOptions: Option[] = useMemo(() =>
         memberships.map(membership => ({
@@ -619,6 +698,23 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
             description: pkg.description || ""
         })),
         [packages]
+    )
+
+    const mainBranchOptions: Option[] = useMemo(() => {
+        return branches.map(branch => ({
+            value: String(branch.id),
+            label: branch.name
+        }));
+    }, [branches])
+
+    const subBranchOptions: Option[] = useMemo(() =>
+        subBranches
+            .filter(sb => !formData.branchId || String(sb.parentId) === formData.branchId)
+            .map(sb => ({
+                value: String(sb.id),
+                label: sb.name
+            })),
+        [subBranches, formData.branchId]
     )
 
     // Fetch data on component mount
@@ -677,9 +773,10 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
             longitude: lng.toString(),
             fullAddress: result.display_name || "",
             address: result.name || "",
-            district: result.address?.county || result.address?.state_district || "",
+            district: result.address?.district || result.address?.county || result.address?.state_district || "",
             province: result.address?.state || "",
-            street: result.address?.road || ""
+            street: result.address?.road || "",
+            branchId: prev.branchId // Preserve branchId
         }))
 
         // Set current location address from search result
@@ -755,7 +852,6 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
         }
     }
 
-
     const fetchBranches = async () => {
         try {
             const data = await apiRequest("/branches")
@@ -784,8 +880,10 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
             setSubBranches(level2)
         } catch (error: any) {
             console.error("Failed to fetch branches:", error)
+            toast.error("Failed to load branches")
         }
     }
+
     const fetchSplitters = async () => {
         try {
             const response = await apiRequest("/splitters")
@@ -826,6 +924,8 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
         }
     }
 
+
+
     const fetchLead = async () => {
         if (!leadId) return
 
@@ -854,6 +954,8 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                     memberShipId: lead.memberShipId ? String(lead.memberShipId) : "",
                     assignedUserId: lead.assignedUserId ? String(lead.assignedUserId) : "",
                     interestedPackageId: lead.interestedPackageId ? String(lead.interestedPackageId) : "",
+                    branchId: lead.branchId ? String(lead.branchId) : "",
+                    subBranchId: lead.subBranchId ? String(lead.subBranchId) : "",
                     address: lead.address || "",
                     street: lead.street || "",
                     district: lead.district || "",
@@ -863,10 +965,9 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                     fullAddress: lead.metadata?.fullAddress || "",
                     latitude: lead.metadata?.latitude?.toString() || "",
                     longitude: lead.metadata?.longitude?.toString() || "",
-                    serviceRadius: lead.metadata?.serviceRadius?.toString() || "0.1",
-                    branchId: lead.branchId ? String(lead.branchId) : "",
-                    subBranchId: lead.subBranchId ? String(lead.subBranchId) : ""
+                    serviceRadius: lead.metadata?.serviceRadius?.toString() || "0.1"
                 }
+
                 setFormData(processedData)
 
                 // Set map position if coordinates exist
@@ -887,7 +988,7 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
         } catch (error: any) {
             console.error("Failed to fetch lead:", error)
             toast.error(error.message || "Failed to load lead")
-            router.push('/leads/create')
+            router.push('/leads')
         } finally {
             setLoading(false)
         }
@@ -938,7 +1039,7 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                 )
                 return {
                     ...splitter,
-                    distance: Number(distance)
+                    distance: typeof distance === 'number' ? distance : 0
                 }
             })
             .filter(splitter => splitter.distance <= maxDistanceKm)
@@ -972,6 +1073,7 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
             setReverseGeocodingLoading(false)
         }
     }
+
     // Handle lead form location selection
     const handleLeadLocationSelect = async (lat: number, lng: number) => {
         setFormData(prev => ({
@@ -1018,7 +1120,6 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
         toast.success(`Marker moved to: ${lat.toFixed(6)}, ${lng.toFixed(6)}`)
     }
 
-
     // Update lead map when lat/lon changes in form
     useEffect(() => {
         if (formData.latitude && formData.longitude) {
@@ -1032,7 +1133,6 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                 const serviceAvailable = nearest.some(splitter => splitter.distance <= radius)
                 setLeadServiceAvailable(serviceAvailable)
                 reverseGeocode(lat, lon)
-
             }
         }
     }, [formData.latitude, formData.longitude, leadServiceRadius])
@@ -1048,8 +1148,8 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
         }))
 
         if (field === 'latitude' || field === 'longitude') {
-            const lat = field === 'latitude' ? parseFloat(value) : parseFloat(prev.latitude || '')
-            const lon = field === 'longitude' ? parseFloat(value) : parseFloat(prev.longitude || '')
+            const lat = field === 'latitude' ? parseFloat(value) : parseFloat(formData.latitude || '')
+            const lon = field === 'longitude' ? parseFloat(value) : parseFloat(formData.longitude || '')
             if (!isNaN(lat) && !isNaN(lon)) {
                 setLeadMapPosition([lat, lon])
                 const radius = leadServiceRadius || 0.1
@@ -1269,6 +1369,8 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
             memberShipId: "",
             assignedUserId: "",
             interestedPackageId: "",
+            branchId: "",
+            subBranchId: "",
             address: "",
             street: "",
             district: "",
@@ -1278,9 +1380,7 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
             fullAddress: "",
             latitude: "",
             longitude: "",
-            serviceRadius: "0.1",
-            branchId: "",
-            subBranchId: ""
+            serviceRadius: "0.1"
         })
         setLeadMapPosition([27.7172, 85.3240])
         setLeadNearestSplitters([])
@@ -1603,37 +1703,6 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                         </div>
                     </div>
 
-                    {/* Branch and Sub-branch Selection */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="branchId">Branch</Label>
-                            <SearchableSelect
-                                options={branches.map(b => ({ value: b.id, label: b.name }))}
-                                value={formData.branchId}
-                                onValueChange={(value) => {
-                                    updateFormField("branchId", value as string)
-                                    updateFormField("subBranchId", "")
-                                }}
-                                placeholder="Select branch"
-                                emptyMessage="No branches found"
-                                clearable
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="subBranchId">Sub-branch</Label>
-                            <SearchableSelect
-                                options={subBranches
-                                    .filter(sb => !formData.branchId || String(sb.parentId) === formData.branchId)
-                                    .map(b => ({ value: b.id, label: b.name }))}
-                                value={formData.subBranchId}
-                                onValueChange={(value) => updateFormField("subBranchId", value as string)}
-                                placeholder={formData.branchId ? "Select sub-branch" : "Select a branch first"}
-                                emptyMessage="No sub-branches found"
-                                clearable
-                            />
-                        </div>
-                    </div>
-
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="source">Source</Label>
@@ -1712,7 +1781,37 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                         />
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="branchId">Branch</Label>
+                            <SearchableSelect
+                                key={`branch-select-${formData.branchId || 'empty'}`}
+                                options={mainBranchOptions}
+                                value={formData.branchId}
+                                onValueChange={(value) => {
+                                    updateFormField("branchId", value as string)
+                                    updateFormField("subBranchId", "")
+                                }}
+                                placeholder="Select branch"
+                                emptyMessage="No branches found"
+                                clearable
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="subBranchId">Sub-branch</Label>
+                            <SearchableSelect
+                                key={`subbranch-select-${formData.subBranchId || 'empty'}`}
+                                options={subBranchOptions}
+                                value={formData.subBranchId}
+                                onValueChange={(value) => updateFormField("subBranchId", value as string)}
+                                placeholder="Select sub-branch"
+                                emptyMessage={formData.branchId ? "No sub-branches found" : "Please select a branch first"}
+                                disabled={!formData.branchId}
+                                clearable
+                            />
+                        </div>
+
                         <div className="space-y-2">
                             <Label htmlFor="assignedUserId">Assign To</Label>
                             <SearchableSelect
@@ -1800,38 +1899,38 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
 
                                     {/* Search Results Dropdown */}
                                     {searchResults.length > 0 && (
-                                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-xl max-h-80 overflow-y-auto z-[9999]">
-                                            <div className="sticky top-0 p-3 border-b bg-gray-50">
-                                                <div className="text-sm font-medium text-gray-700">
+                                        <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-800 rounded-lg shadow-xl max-h-80 overflow-y-auto z-[9999]">
+                                            <div className="sticky top-0 p-3 border-b border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950">
+                                                <div className="text-sm font-medium text-gray-700 dark:text-slate-300">
                                                     Found {searchResults.length} location{searchResults.length > 1 ? 's' : ''}
                                                 </div>
-                                                <div className="text-xs text-gray-500 mt-1">
+                                                <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">
                                                     Click on a result to set the location
                                                 </div>
                                             </div>
 
-                                            <div className="divide-y">
+                                            <div className="divide-y divide-gray-100 dark:divide-slate-800">
                                                 {searchResults.map((result) => (
                                                     <button
                                                         key={result.place_id}
                                                         onClick={() => handleSelectSearchResult(result)}
-                                                        className="w-full text-left p-4 hover:bg-blue-50 transition-colors duration-150"
+                                                        className="w-full text-left p-4 hover:bg-blue-50 dark:hover:bg-slate-800/50 transition-colors duration-150"
                                                     >
                                                         <div className="flex items-start gap-3">
                                                             <MapPin className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
                                                             <div className="flex-1 min-w-0">
-                                                                <div className="font-medium text-sm text-gray-900 mb-1">
+                                                                <div className="font-medium text-sm text-gray-900 dark:text-slate-100 mb-1">
                                                                     {result.name || result.display_name.split(',')[0]}
                                                                 </div>
-                                                                <div className="text-xs text-gray-600 mb-2 line-clamp-2">
+                                                                <div className="text-xs text-gray-600 dark:text-slate-400 mb-2 line-clamp-2">
                                                                     {result.display_name}
                                                                 </div>
-                                                                <div className="flex items-center gap-2 text-xs text-gray-400">
+                                                                <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-slate-500">
                                                                     <span className="flex items-center gap-1">
-                                                                        <span>ðŸ“</span>
+                                                                        <span>📍</span>
                                                                         <span>{parseFloat(result.lat).toFixed(6)}, {parseFloat(result.lon).toFixed(6)}</span>
                                                                     </span>
-                                                                    <span>â€¢</span>
+                                                                    <span>•</span>
                                                                     <span>{result.type}</span>
                                                                 </div>
                                                             </div>
@@ -1841,7 +1940,7 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                                                 ))}
                                             </div>
 
-                                            <div className="sticky bottom-0 p-3 border-t bg-gray-50">
+                                            <div className="sticky bottom-0 p-3 border-t border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950">
                                                 <div className="flex items-center gap-2 text-xs text-gray-500">
                                                     <MapPin className="h-3 w-3" />
                                                     <span>Data from OpenStreetMap</span>
@@ -1887,71 +1986,74 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                                     </div>
                                 </div>
 
-                                <div className="h-[350px] rounded-lg overflow-hidden border relative">
-                                    <MapContainer
-                                        center={leadMapPosition}
-                                        zoom={15}
-                                        style={{ height: "100%", width: "100%" }}
-                                    >
-                                        <MapCenterUpdater center={leadMapPosition} />
-                                        <TileLayer
-                                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                            attribution='Simulcast Technologies Pvt Ltd'
-                                        />
-
-                                        {/* Click handler for map */}
-                                        <MapClickHandler onLocationSelect={handleLeadLocationSelect} />
-
-                                        {/* Draggable marker for selected location */}
-                                        {formData.latitude && formData.longitude && (
-                                            <LocationMarker
-                                                position={leadMapPosition}
-                                                draggable={true}
-                                                onDragEnd={handleLeadMarkerDragEnd}
-                                                address={formData.fullAddress || formData.address}
-                                                serviceAvailable={leadServiceAvailable}
-                                                nearestSplitter={leadNearestSplitters[0] ? {
-                                                    distance: leadNearestSplitters[0].distance,
-                                                    name: leadNearestSplitters[0].name
-                                                } : null}
+                                {/* Map Container - Only render on client */}
+                                {isMounted && (
+                                    <div className="h-[350px] rounded-lg overflow-hidden border relative">
+                                        <MapContainer
+                                            center={leadMapPosition}
+                                            zoom={15}
+                                            style={{ height: "100%", width: "100%" }}
+                                        >
+                                            <MapCenterUpdater center={leadMapPosition} />
+                                            <TileLayer
+                                                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                                attribution='Simulcast Technologies Pvt Ltd'
                                             />
-                                        )}
 
-                                        {/* Show splitters on map */}
-                                        {splitters
-                                            .filter(splitter => splitter.location.latitude && splitter.location.longitude)
-                                            .map((splitter) => (
-                                                <SplitterMarker key={splitter.id} splitter={splitter} />
-                                            ))}
+                                            {/* Click handler for map */}
+                                            <MapClickHandler onLocationSelect={handleLeadLocationSelect} />
 
-                                        {/* Service area circle */}
-                                        {formData.latitude && formData.longitude && (
-                                            <Circle
-                                                center={leadMapPosition}
-                                                radius={leadServiceRadius * 1000}
-                                                pathOptions={{
-                                                    fillColor: leadServiceAvailable ? 'green' : 'red',
-                                                    color: leadServiceAvailable ? 'darkgreen' : 'darkred',
-                                                    fillOpacity: 0.2,
-                                                    weight: 2
-                                                }}
-                                            />
-                                        )}
-                                    </MapContainer>
+                                            {/* Draggable marker for selected location */}
+                                            {formData.latitude && formData.longitude && (
+                                                <LocationMarker
+                                                    position={leadMapPosition}
+                                                    draggable={true}
+                                                    onDragEnd={handleLeadMarkerDragEnd}
+                                                    address={formData.fullAddress || formData.address}
+                                                    serviceAvailable={leadServiceAvailable}
+                                                    nearestSplitter={leadNearestSplitters[0] ? {
+                                                        distance: leadNearestSplitters[0].distance ?? 0,
+                                                        name: leadNearestSplitters[0].name
+                                                    } : null}
+                                                />
+                                            )}
 
-                                    <style jsx>{`
-                                        :global(.leaflet-control-attribution) {
-                                            display: none !important;
-                                        }
-                                    `}</style>
-                                </div>
+                                            {/* Show splitters on map */}
+                                            {splitters
+                                                .filter(splitter => splitter.location.latitude && splitter.location.longitude)
+                                                .map((splitter) => (
+                                                    <SplitterMarker key={splitter.id} splitter={splitter} />
+                                                ))}
+
+                                            {/* Service area circle */}
+                                            {formData.latitude && formData.longitude && (
+                                                <Circle
+                                                    center={leadMapPosition}
+                                                    radius={leadServiceRadius * 1000}
+                                                    pathOptions={{
+                                                        fillColor: leadServiceAvailable ? 'green' : 'red',
+                                                        color: leadServiceAvailable ? 'darkgreen' : 'darkred',
+                                                        fillOpacity: 0.2,
+                                                        weight: 2
+                                                    }}
+                                                />
+                                            )}
+                                        </MapContainer>
+
+                                        <style jsx>{`
+                                            :global(.leaflet-control-attribution) {
+                                                display: none !important;
+                                            }
+                                        `}</style>
+                                    </div>
+                                )}
 
                                 {/* Map Instructions */}
-                                <p className="text-sm text-blue-800">
+                                <p className="text-sm text-blue-800 dark:text-blue-400">
                                     <strong>Instructions:</strong>
                                 </p>
 
-                                <ul className="list-disc pl-5 mt-1 space-y-1 text-sm text-blue-800">
+                                <ul className="list-disc pl-5 mt-1 space-y-1 text-sm text-blue-800 dark:text-blue-400">
                                     <li>Search for a location or click on the map to set position</li>
                                     <li>Drag the marker to adjust location</li>
                                     <li>Click "Use My Location" to get your current position</li>
@@ -2004,7 +2106,7 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                                             }}
                                             className="w-full"
                                         />
-                                        <div className="flex justify-between text-sm text-gray-600">
+                                        <div className="flex justify-between text-sm text-gray-600 dark:text-slate-400">
                                             <span>50 m</span>
                                             <span>{formatDistance(leadServiceRadius)}</span>
                                             <span>10 km</span>
@@ -2013,29 +2115,29 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                                 </div>
 
                                 {/* Current Location Info */}
-                                <div className="p-3 bg-gray-50 border rounded-lg">
-                                    <h4 className="font-medium mb-2">ðŸ“ Current Location Info</h4>
+                                <div className="p-3 bg-gray-50 dark:bg-slate-800/40 border border-gray-200 dark:border-slate-800 rounded-lg">
+                                    <h4 className="font-medium mb-2">📍 Current Location Info</h4>
                                     <div className="space-y-2 text-sm">
                                         <div className="flex justify-between">
-                                            <span className="text-gray-600">Map Coordinates:</span>
-                                            <span className="font-mono">
+                                            <span className="text-gray-600 dark:text-slate-400">Map Coordinates:</span>
+                                            <span className="font-mono text-gray-900 dark:text-slate-100">
                                                 {leadMapPosition[0].toFixed(6)}, {leadMapPosition[1].toFixed(6)}
                                             </span>
                                         </div>
 
                                         <div>
-                                            <div className="text-gray-600 mb-1">Location Address:</div>
+                                            <div className="text-gray-600 dark:text-slate-400 mb-1">Location Address:</div>
                                             {reverseGeocodingLoading ? (
-                                                <div className="flex items-center gap-1 text-blue-600 py-1">
+                                                <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400 py-1">
                                                     <Loader2 className="h-3 w-3 animate-spin" />
                                                     <span>Getting address...</span>
                                                 </div>
                                             ) : currentLocationAddress ? (
-                                                <div className="text-xs bg-white p-2 rounded border break-words min-h-[40px] max-h-[100px] overflow-y-auto">
+                                                <div className="text-xs bg-white dark:bg-slate-900 p-2 rounded border border-gray-200 dark:border-slate-800 dark:text-slate-200 break-words min-h-[40px] max-h-[100px] overflow-y-auto">
                                                     {currentLocationAddress}
                                                 </div>
                                             ) : (
-                                                <div className="text-gray-400 italic p-2">Not set on map</div>
+                                                <div className="text-gray-400 dark:text-slate-500 italic p-2">Not set on map</div>
                                             )}
                                         </div>
                                     </div>
@@ -2045,21 +2147,21 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                                 {leadServiceAvailable !== null && (
                                     <div className="mt-4">
                                         {leadServiceAvailable ? (
-                                            <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
-                                                <CheckCircle className="h-5 w-5 text-green-600" />
+                                            <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900/30 rounded-lg">
+                                                <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
                                                 <div>
-                                                    <p className="font-medium text-green-800">Service Available</p>
-                                                    <p className="text-sm text-green-600">
+                                                    <p className="font-medium text-green-800 dark:text-green-300">Service Available</p>
+                                                    <p className="text-sm text-green-600 dark:text-green-400">
                                                         Nearest splitter is {formatDistance(leadNearestSplitters[0]?.distance || 0)} away
                                                     </p>
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-                                                <AlertTriangle className="h-5 w-5 text-red-600" />
+                                            <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-lg">
+                                                <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
                                                 <div>
-                                                    <p className="font-medium text-red-800">Service Not Available</p>
-                                                    <p className="text-sm text-red-600">
+                                                    <p className="font-medium text-red-800 dark:text-red-300">Service Not Available</p>
+                                                    <p className="text-sm text-red-600 dark:text-red-400">
                                                         No splitters within service range ({formatDistance(leadServiceRadius)})
                                                     </p>
                                                 </div>
@@ -2074,37 +2176,37 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                                         <h4 className="font-medium mb-2">Nearest Splitters (within {formatDistance(leadServiceRadius)})</h4>
                                         <div className="space-y-2 max-h-48 overflow-y-auto">
                                             {leadNearestSplitters.map((splitter, index) => (
-                                                <div key={splitter.id} className="p-3 border rounded-lg hover:bg-gray-50">
+                                                <div key={splitter.id} className="p-3 border border-gray-200 dark:border-slate-800 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800/40">
                                                     <div className="flex justify-between items-start">
                                                         <div>
-                                                            <div className="font-medium">{splitter.name}</div>
-                                                            <div className="text-sm text-gray-500">
-                                                                ID: {splitter.splitterId} â€¢ Ratio: {splitter.splitRatio}
+                                                            <div className="font-medium text-gray-900 dark:text-slate-100">{splitter.name}</div>
+                                                            <div className="text-sm text-gray-500 dark:text-slate-400">
+                                                                ID: {splitter.splitterId} • Ratio: {splitter.splitRatio}
                                                             </div>
-                                                            <div className="text-xs text-gray-500 mt-1">
+                                                            <div className="text-xs text-gray-500 dark:text-slate-500 mt-1">
                                                                 {splitter.location.site || 'No site specified'}
                                                             </div>
                                                         </div>
                                                         <div className="text-right">
-                                                            <div className="font-medium">
+                                                            <div className="font-medium text-gray-900 dark:text-slate-100">
                                                                 {formatDistance(splitter.distance || 0)}
                                                             </div>
-                                                            <Badge className={`mt-1 ${splitter.distance <= leadServiceRadius
-                                                                ? 'bg-green-100 text-green-800'
-                                                                : 'bg-yellow-100 text-yellow-800'
+                                                            <Badge className={`mt-1 ${(splitter.distance ?? 0) <= leadServiceRadius
+                                                                ? 'bg-green-100 dark:bg-green-950/30 text-green-800 dark:text-green-400'
+                                                                : 'bg-yellow-100 dark:bg-yellow-950/30 text-yellow-800 dark:text-yellow-400'
                                                                 }`}>
-                                                                {splitter.distance <= leadServiceRadius ? 'Within range' : 'Out of range'}
+                                                                {(splitter.distance ?? 0) <= leadServiceRadius ? 'Within range' : 'Out of range'}
                                                             </Badge>
                                                         </div>
                                                     </div>
-                                                    <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                                                    <div className="flex items-center gap-2 mt-2 text-xs text-gray-500 dark:text-slate-400">
                                                         <span>Available Ports: {splitter.availablePorts}/{splitter.portCount}</span>
-                                                        <span>â€¢</span>
+                                                        <span>•</span>
                                                         <span>Type: {splitter.splitterType}</span>
-                                                        <span>â€¢</span>
+                                                        <span>•</span>
                                                         <span className={`px-2 py-0.5 rounded ${splitter.status === 'active'
-                                                            ? 'bg-green-100 text-green-800'
-                                                            : 'bg-red-100 text-red-800'
+                                                            ? 'bg-green-100 dark:bg-green-950/30 text-green-800 dark:text-green-400'
+                                                            : 'bg-red-100 dark:bg-red-950/30 text-red-800 dark:text-red-400'
                                                             }`}>
                                                             {splitter.status}
                                                         </span>
@@ -2116,12 +2218,12 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                                 )}
 
                                 {leadNearestSplitters.length === 0 && formData.latitude && formData.longitude && (
-                                    <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                    <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900/30 rounded-lg">
                                         <div className="flex items-center gap-2">
-                                            <AlertTriangle className="h-5 w-5 text-yellow-600" />
+                                            <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
                                             <div>
-                                                <p className="font-medium text-yellow-800">No Splitters Found</p>
-                                                <p className="text-sm text-yellow-600">
+                                                <p className="font-medium text-yellow-800 dark:text-yellow-300">No Splitters Found</p>
+                                                <p className="text-sm text-yellow-600 dark:text-yellow-400">
                                                     No splitters found within {formatDistance(leadServiceRadius)} radius. Service may not be available at this location.
                                                 </p>
                                             </div>
@@ -2159,9 +2261,9 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                             </div>
 
                             {(!Array.isArray(leadFollowUps) || leadFollowUps.length === 0) ? (
-                                <div className="text-center py-8 border rounded-lg">
-                                    <MessageSquare className="h-12 w-12 mx-auto text-gray-300" />
-                                    <p className="text-gray-500 mt-2">No follow-ups yet</p>
+                                <div className="text-center py-8 border border-gray-200 dark:border-slate-800 rounded-lg">
+                                    <MessageSquare className="h-12 w-12 mx-auto text-gray-300 dark:text-slate-700" />
+                                    <p className="text-gray-500 dark:text-slate-400 mt-2">No follow-ups yet</p>
                                     <Button
                                         variant="outline"
                                         size="sm"
@@ -2174,16 +2276,16 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                             ) : (
                                 <div className="space-y-3">
                                     {leadFollowUps.map((followUp) => (
-                                        <div key={followUp.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                                        <div key={followUp.id} className="border border-gray-200 dark:border-slate-800 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-slate-800/40">
                                             <div className="flex justify-between items-start">
                                                 <div className="space-y-2">
                                                     <div className="flex items-center gap-2">
                                                         {getFollowUpTypeIcon(followUp.type)}
-                                                        <h4 className="font-medium">{followUp.title}</h4>
+                                                        <h4 className="font-medium text-gray-900 dark:text-slate-100">{followUp.title}</h4>
                                                         {getFollowUpStatusBadge(followUp.status)}
                                                     </div>
-                                                    <p className="text-sm text-gray-600">{followUp.description}</p>
-                                                    <div className="flex items-center gap-4 text-sm">
+                                                    <p className="text-sm text-gray-600 dark:text-slate-300">{followUp.description}</p>
+                                                    <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-slate-400">
                                                         <div className="flex items-center gap-1">
                                                             <CalendarDays className="h-3 w-3" />
                                                             <span>{formatDate(followUp.scheduledAt)}</span>
