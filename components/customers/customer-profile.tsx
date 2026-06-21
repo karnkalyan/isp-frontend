@@ -56,7 +56,10 @@ import {
   AlertTriangle,
   CheckCircle2,
   Pencil,
-  RotateCcw
+  RotateCcw,
+  Eye,
+  EyeOff,
+  Key
 } from "lucide-react"
 import { apiRequest, getDynamicBaseUrl } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
@@ -1304,6 +1307,11 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const [returnHardwareItem, setReturnHardwareItem] = useState<any | null>(null)
   const [voipEnabled, setVoipEnabled] = useState(false)
 
+  // ========== Radius Login Details ==========
+  const [radiusAuthLogs, setRadiusAuthLogs] = useState<any[]>([])
+  const [radiusAuthLoading, setRadiusAuthLoading] = useState(false)
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<number, boolean>>({})
+
   // ========== Hardware Dialog Steps ==========
   const [hwDialogStep, setHwDialogStep] = useState<1 | 2>(1)
   const [selectedDeviceType, setSelectedDeviceType] = useState<"ONT" | "STB" | "ONU" | "Router" | "Other">("ONT")
@@ -1957,6 +1965,31 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   useEffect(() => {
     if (customerId) fetchCustomerData()
   }, [customerId])
+
+  // ========== Fetch Radius Auth Logs ==========
+  const fetchRadiusAuthLogs = useCallback(async () => {
+    if (!customerId) return
+    setRadiusAuthLoading(true)
+    try {
+      const data = await apiRequest<{ success: boolean; data: any[]; message?: string }>(`/customer/${customerId}/radius/auth-logs`)
+      if (data?.success && data.data) {
+        setRadiusAuthLogs(data.data)
+      } else {
+        setRadiusAuthLogs([])
+      }
+    } catch (error) {
+      console.error("Error fetching radius auth logs:", error)
+      setRadiusAuthLogs([])
+    } finally {
+      setRadiusAuthLoading(false)
+    }
+  }, [customerId])
+
+  useEffect(() => {
+    if (activeTab === "radius" && customerId) {
+      fetchRadiusAuthLogs()
+    }
+  }, [activeTab, customerId, fetchRadiusAuthLogs])
 
   useEffect(() => {
     const fetchPackages = async () => {
@@ -2732,6 +2765,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           <TabsTrigger value="usage" className="flex-1"><BarChart className="mr-2 h-4 w-4" />Usage</TabsTrigger>
           <TabsTrigger value="realtime" className="flex-1"><Activity className="mr-2 h-4 w-4" />Realtime Usage</TabsTrigger>
           <TabsTrigger value="documents" className="flex-1"><FileText className="mr-2 h-4 w-4" />Documents</TabsTrigger>
+          <TabsTrigger value="radius" className="flex-1"><Key className="mr-2 h-4 w-4" />Radius Login</TabsTrigger>
           <TabsTrigger value="support" className="flex-1"><LifeBuoy className="mr-2 h-4 w-4" />Support</TabsTrigger>
         </TabsList>
 
@@ -3061,16 +3095,42 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
               </div>
             </CardContainer>
 
-            <CardContainer title="Connection Users" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
+            <CardContainer title="Subscriber Credentials" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
               <div className="space-y-3">
                 {customer.connectionUsers.length > 0 ? (
                   customer.connectionUsers.map((connectionUser) => (
-                    <div key={connectionUser.id} className="flex items-center justify-between rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                      <div>
-                        <div className="font-medium">{connectionUser.username}</div>
-                        <div className="text-xs text-muted-foreground">Connection login</div>
+                    <div key={connectionUser.id} className="rounded-lg p-3 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border border-slate-200 dark:border-slate-700">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium">{connectionUser.username}</span>
+                        </div>
+                        <Badge variant={connectionUser.isActive ? "default" : "secondary"}>
+                          {connectionUser.isActive ? "Active" : "Inactive"}
+                        </Badge>
                       </div>
-                      <Badge variant="outline">Active</Badge>
+                      <div className="flex items-center gap-2 text-sm">
+                        <Key className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="text-muted-foreground">Password:</span>
+                        <span className="font-mono text-xs bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">
+                          {visiblePasswords[connectionUser.id] ? connectionUser.password : "••••••••"}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={() => setVisiblePasswords(prev => ({
+                            ...prev,
+                            [connectionUser.id]: !prev[connectionUser.id]
+                          }))}
+                        >
+                          {visiblePasswords[connectionUser.id] ? (
+                            <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                          ) : (
+                            <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                          )}
+                        </Button>
+                      </div>
                     </div>
                   ))
                 ) : (
@@ -3838,6 +3898,72 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                 Photos: {customer.documents.filter(d => d.documentType === "photo").length}
               </div>
             </div>
+          </CardContainer>
+        </TabsContent>
+
+        <TabsContent value="radius" className="space-y-4">
+          <CardContainer title="Radius Login Details" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm text-muted-foreground">Authentication logs from RADIUS server for all connection users.</p>
+              <Button size="sm" variant="outline" onClick={fetchRadiusAuthLogs} disabled={radiusAuthLoading} className="gap-2">
+                <RefreshCw className={`h-4 w-4 ${radiusAuthLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            </div>
+            {radiusAuthLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <span className="ml-2 text-muted-foreground">Loading auth logs...</span>
+              </div>
+            ) : radiusAuthLogs.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Shield className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p>No radius authentication logs found.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-700">
+                      <th className="text-left py-2 px-3 font-medium text-muted-foreground">Date</th>
+                      <th className="text-left py-2 px-3 font-medium text-muted-foreground">Username</th>
+                      <th className="text-left py-2 px-3 font-medium text-muted-foreground">Password</th>
+                      <th className="text-left py-2 px-3 font-medium text-muted-foreground">MAC</th>
+                      <th className="text-left py-2 px-3 font-medium text-muted-foreground">NAS</th>
+                      <th className="text-left py-2 px-3 font-medium text-muted-foreground">Reply</th>
+                      <th className="text-left py-2 px-3 font-medium text-muted-foreground">Reason</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {radiusAuthLogs.map((log: any, idx: number) => (
+                      <tr key={log.id || idx} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                        <td className="py-2 px-3 whitespace-nowrap text-xs">
+                          {new Date(log.date).toLocaleString()}
+                        </td>
+                        <td className="py-2 px-3 font-mono text-xs">{log.username}</td>
+                        <td className="py-2 px-3">
+                          {log.reply === 'Access-Reject' ? (
+                            <span className="font-mono text-xs bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 px-2 py-0.5 rounded">
+                              {log.password}
+                            </span>
+                          ) : (
+                            <span className="font-mono text-xs text-muted-foreground">••••••••</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-3 font-mono text-xs">{log.mac}</td>
+                        <td className="py-2 px-3 font-mono text-xs">{log.nas}</td>
+                        <td className="py-2 px-3">
+                          <Badge variant={log.reply === 'Access-Accept' ? 'default' : 'destructive'} className="text-xs">
+                            {log.reply}
+                          </Badge>
+                        </td>
+                        <td className="py-2 px-3 text-xs">{log.reason}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </CardContainer>
         </TabsContent>
 
