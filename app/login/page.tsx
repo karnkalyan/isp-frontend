@@ -1,5 +1,6 @@
 import { LoginForm } from "@/components/auth/login-form"
 import type { Metadata } from "next"
+import { Suspense } from "react"
 
 
 
@@ -73,7 +74,13 @@ export default function LoginPage() {
 
       {/* Login form */}
       <div className="relative z-10">
-        <LoginForm />
+        <Suspense fallback={
+          <div className="flex flex-col items-center justify-center p-8 bg-white/80 dark:bg-black/40 rounded-xl shadow-lg border border-white/10 backdrop-blur-sm w-[450px] h-[350px]">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        }>
+          <LoginForm />
+        </Suspense>
       </div>
     </div>
   )
