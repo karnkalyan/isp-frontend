@@ -228,8 +228,8 @@ export function Navbar({ onMenuClick }: NavbarProps) {
               {showSearch ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
             </Button>
 
-            <MessagesDropdown className="hidden md:flex" />
-            <NotificationsDropdown className="hidden md:flex" />
+            {!isCustomer && <MessagesDropdown className="hidden md:flex" />}
+            {!isCustomer && <NotificationsDropdown className="hidden md:flex" />}
             <ThemeToggle />
             <UserNav />
           </div>

@@ -1321,6 +1321,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
 
   // ========== Portal Password Dialog States ==========
   const [portalPasswordOpen, setPortalPasswordOpen] = useState(false)
+  const [newPortalEmail, setNewPortalEmail] = useState("")
   const [newPortalPassword, setNewPortalPassword] = useState("")
   const [portalPasswordSubmitting, setPortalPasswordSubmitting] = useState(false)
   const [showPortalPassword, setShowPortalPassword] = useState(false)
@@ -2016,22 +2017,34 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   }, [customerId])
 
   const handleChangePortalPassword = async () => {
-    if (!newPortalPassword.trim() || newPortalPassword.length < 4) {
+    const isEditing = !!customer?.portalUser;
+    if (!isEditing && (!newPortalPassword.trim() || newPortalPassword.length < 4)) {
       toast({ title: "Validation Error", description: "Password must be at least 4 characters", variant: "destructive" });
+      return;
+    }
+    if (newPortalPassword.trim() && newPortalPassword.length < 4) {
+      toast({ title: "Validation Error", description: "Password must be at least 4 characters", variant: "destructive" });
+      return;
+    }
+    if (!newPortalEmail.trim() || !newPortalEmail.includes("@")) {
+      toast({ title: "Validation Error", description: "Please enter a valid email address", variant: "destructive" });
       return;
     }
     setPortalPasswordSubmitting(true);
     try {
       await apiRequest(`/customer/${customerId}/portal-password`, {
         method: "PUT",
-        body: JSON.stringify({ newPassword: newPortalPassword })
+        body: JSON.stringify({ 
+          email: newPortalEmail.trim(), 
+          newPassword: newPortalPassword.trim() || undefined 
+        })
       });
-      toast({ title: "Success", description: "Portal password updated successfully" });
+      toast({ title: "Success", description: isEditing ? "Portal credentials updated successfully" : "Portal account created successfully" });
       setPortalPasswordOpen(false);
       setNewPortalPassword("");
       fetchCustomerData();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message || "Failed to update portal password", variant: "destructive" });
+      toast({ title: "Error", description: error.message || "Failed to update portal account", variant: "destructive" });
     } finally {
       setPortalPasswordSubmitting(false);
     }
@@ -2782,14 +2795,24 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       <Dialog open={portalPasswordOpen} onOpenChange={setPortalPasswordOpen}>
         <DialogContent className="w-[95vw] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{customer?.portalUser ? "Change Portal Password" : "Create Portal Account"}</DialogTitle>
+            <DialogTitle>{customer?.portalUser ? "Edit Portal Login Credentials" : "Create Portal Account"}</DialogTitle>
             <DialogDescription>
               {customer?.portalUser
-                ? "Set a new password for this subscriber's portal login."
-                : `Create a new portal login account for email/username: ${customer?.portalUser?.email || getFallbackPortalEmail(customer)}`}
+                ? "Update the email/username and password for this subscriber's portal login."
+                : "Create a new portal login account for this subscriber."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-portal-email">Portal Email / Username</Label>
+              <Input
+                id="new-portal-email"
+                type="email"
+                value={newPortalEmail}
+                onChange={(e) => setNewPortalEmail(e.target.value)}
+                placeholder="email@example.com"
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="new-portal-password">Password</Label>
               <Input
@@ -2797,7 +2820,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                 type="password"
                 value={newPortalPassword}
                 onChange={(e) => setNewPortalPassword(e.target.value)}
-                placeholder="Enter password (min 4 characters)"
+                placeholder={customer?.portalUser ? "Enter new password (optional)" : "Enter password (min 4 characters)"}
               />
             </div>
           </div>
@@ -2805,7 +2828,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
             <Button variant="outline" onClick={() => setPortalPasswordOpen(false)}>Cancel</Button>
             <Button onClick={handleChangePortalPassword} disabled={portalPasswordSubmitting}>
               {portalPasswordSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {customer?.portalUser ? "Update Password" : "Create Account"}
+              {customer?.portalUser ? "Save Changes" : "Create Account"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3286,9 +3309,18 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                     </div>
                   )}
                   <div className="flex justify-end mt-2">
-                    <Button size="sm" variant="outline" onClick={() => setPortalPasswordOpen(true)} className="gap-1.5">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => {
+                        setNewPortalEmail(customer.portalUser?.email || getFallbackPortalEmail(customer))
+                        setNewPortalPassword("")
+                        setPortalPasswordOpen(true)
+                      }} 
+                      className="gap-1.5"
+                    >
                       <Key className="h-3.5 w-3.5" />
-                      {customer.portalUser ? "Change Password" : "Create Portal Account"}
+                      {customer.portalUser ? "Edit Portal Login" : "Create Portal Account"}
                     </Button>
                   </div>
                 </div>
