@@ -11,6 +11,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -279,6 +282,21 @@ export function CustomersList() {
   const handleDeleteCustomer = (customerId: string) => {
     setPendingDeleteCustomerId(customerId)
     setDeleteDialogOpen(true)
+  }
+
+  const handleStatusChange = async (customerId: string, newStatus: string) => {
+    const loadingToast = toast.loading(`Updating status to ${newStatus}...`)
+    try {
+      await apiRequest(`/customer/${customerId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: newStatus }),
+      })
+      toast.success(`Status updated to ${newStatus}`, { id: loadingToast })
+      fetchCustomers(pagination.page, pagination.limit)
+    } catch (error: any) {
+      console.error("Error updating customer status:", error)
+      toast.error(error.message || "Failed to update status", { id: loadingToast })
+    }
   }
 
   const confirmDeleteCustomer = async () => {
@@ -589,6 +607,23 @@ export function CustomersList() {
                               <DropdownMenuItem onClick={() => handleCheckConnection(customerId)}>
                                 <Wifi className="mr-2 h-4 w-4" /> Check Connection
                               </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuSub>
+                                <DropdownMenuSubTrigger>
+                                  <User className="mr-2 h-4 w-4" /> Change Status
+                                </DropdownMenuSubTrigger>
+                                <DropdownMenuSubContent>
+                                  <DropdownMenuItem onClick={() => handleStatusChange(customerId, 'active')}>
+                                    Active
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleStatusChange(customerId, 'inactive')}>
+                                    Inactive
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleStatusChange(customerId, 'suspended')}>
+                                    Suspended
+                                  </DropdownMenuItem>
+                                </DropdownMenuSubContent>
+                              </DropdownMenuSub>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteCustomer(customerId)}>
                                 Delete Customer

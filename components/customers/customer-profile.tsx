@@ -450,10 +450,17 @@ interface Customer {
       description: string
       iconUrl: string
       category: string
-      isActive: boolean
       isDeleted: boolean
     }
   }>
+  portalUser?: {
+    id: number
+    email: string
+    name: string | null
+    status: string
+    createdAt: string
+    updatedAt: string
+  } | null
 }
 
 interface PackageOption {
@@ -1312,6 +1319,12 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const [radiusAuthLoading, setRadiusAuthLoading] = useState(false)
   const [visiblePasswords, setVisiblePasswords] = useState<Record<number, boolean>>({})
 
+  // ========== Portal Password Dialog States ==========
+  const [portalPasswordOpen, setPortalPasswordOpen] = useState(false)
+  const [newPortalPassword, setNewPortalPassword] = useState("")
+  const [portalPasswordSubmitting, setPortalPasswordSubmitting] = useState(false)
+  const [showPortalPassword, setShowPortalPassword] = useState(false)
+
   // ========== Hardware Dialog Steps ==========
   const [hwDialogStep, setHwDialogStep] = useState<1 | 2>(1)
   const [selectedDeviceType, setSelectedDeviceType] = useState<"ONT" | "STB" | "ONU" | "Router" | "Other">("ONT")
@@ -1984,6 +1997,27 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       setRadiusAuthLoading(false)
     }
   }, [customerId])
+
+  const handleChangePortalPassword = async () => {
+    if (!newPortalPassword.trim() || newPortalPassword.length < 4) {
+      toast({ title: "Validation Error", description: "Password must be at least 4 characters", variant: "destructive" });
+      return;
+    }
+    setPortalPasswordSubmitting(true);
+    try {
+      await apiRequest(`/customer/${customerId}/portal-password`, {
+        method: "PUT",
+        body: JSON.stringify({ newPassword: newPortalPassword })
+      });
+      toast({ title: "Success", description: "Portal password updated successfully" });
+      setPortalPasswordOpen(false);
+      setNewPortalPassword("");
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to update portal password", variant: "destructive" });
+    } finally {
+      setPortalPasswordSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     if (activeTab === "radius" && customerId) {
@@ -2692,6 +2726,34 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         onConfirm={confirmReturnHardware}
       />
 
+      <Dialog open={portalPasswordOpen} onOpenChange={setPortalPasswordOpen}>
+        <DialogContent className="w-[95vw] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Change Portal Password</DialogTitle>
+            <DialogDescription>Set a new password for this subscriber's portal login.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-portal-password">New Password</Label>
+              <Input
+                id="new-portal-password"
+                type="password"
+                value={newPortalPassword}
+                onChange={(e) => setNewPortalPassword(e.target.value)}
+                placeholder="Enter new password (min 4 characters)"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPortalPasswordOpen(false)}>Cancel</Button>
+            <Button onClick={handleChangePortalPassword} disabled={portalPasswordSubmitting}>
+              {portalPasswordSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Update Password
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <CardContainer title="Customer Information" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
@@ -3095,7 +3157,63 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
               </div>
             </CardContainer>
 
-            <CardContainer title="Subscriber Credentials" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
+            <CardContainer title="Subscriber Portal Login Details" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">Portal Account</span>
+                  </div>
+                  <Badge variant={customer.portalUser ? (customer.portalUser.status === 'active' ? 'default' : 'secondary') : 'secondary'}>
+                    {customer.portalUser ? (customer.portalUser.status === 'active' ? 'Active' : 'Inactive') : 'No Login account'}
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-1 gap-2 text-sm">
+                  <div className="flex justify-between p-1.5 rounded bg-slate-50 dark:bg-slate-800/40">
+                    <span className="text-muted-foreground">Portal Username/Email:</span>
+                    <span className="font-mono font-medium">{customer.portalUser?.email || `${customer.customerUniqueId?.toLowerCase().replace(/\s+/g, '')}@customer.isp`}</span>
+                  </div>
+                  <div className="flex justify-between p-1.5 rounded bg-slate-50 dark:bg-slate-800/40">
+                    <span className="text-muted-foreground">Default Password:</span>
+                    <span className="font-mono font-medium">{customer.customerUniqueId?.toLowerCase().replace(/\s+/g, '')}</span>
+                  </div>
+                  {customer.portalUser && (
+                    <div className="flex items-center justify-between p-1.5 rounded bg-slate-50 dark:bg-slate-800/40">
+                      <span className="text-muted-foreground">Password Hash:</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-xs text-muted-foreground">
+                          {showPortalPassword ? "Hashed in database" : "••••••••"}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={() => setShowPortalPassword(prev => !prev)}
+                        >
+                          {showPortalPassword ? (
+                            <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                          ) : (
+                            <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  {customer.portalUser && (
+                    <div className="flex justify-end mt-2">
+                      <Button size="sm" variant="outline" onClick={() => setPortalPasswordOpen(true)} className="gap-1.5">
+                        <Key className="h-3.5 w-3.5" />
+                        Change Password
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContainer>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <CardContainer title="RADIUS / PPPoE Credentials" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
               <div className="space-y-3">
                 {customer.connectionUsers.length > 0 ? (
                   customer.connectionUsers.map((connectionUser) => (
@@ -3929,7 +4047,10 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                       <th className="text-left py-2 px-3 font-medium text-muted-foreground">Username</th>
                       <th className="text-left py-2 px-3 font-medium text-muted-foreground">Password</th>
                       <th className="text-left py-2 px-3 font-medium text-muted-foreground">MAC</th>
-                      <th className="text-left py-2 px-3 font-medium text-muted-foreground">NAS</th>
+                      <th className="text-left py-2 px-3 font-medium text-muted-foreground">Called ID</th>
+                      <th className="text-left py-2 px-3 font-medium text-muted-foreground">Framed IP</th>
+                      <th className="text-left py-2 px-3 font-medium text-muted-foreground">NAS IP</th>
+                      <th className="text-left py-2 px-3 font-medium text-muted-foreground">NAS Port</th>
                       <th className="text-left py-2 px-3 font-medium text-muted-foreground">Reply</th>
                       <th className="text-left py-2 px-3 font-medium text-muted-foreground">Reason</th>
                     </tr>
@@ -3951,7 +4072,10 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                           )}
                         </td>
                         <td className="py-2 px-3 font-mono text-xs">{log.mac}</td>
-                        <td className="py-2 px-3 font-mono text-xs">{log.nas}</td>
+                        <td className="py-2 px-3 font-mono text-xs">{log.calledId || "N/A"}</td>
+                        <td className="py-2 px-3 font-mono text-xs">{log.framedIp || "N/A"}</td>
+                        <td className="py-2 px-3 font-mono text-xs">{log.nasIp || "N/A"}</td>
+                        <td className="py-2 px-3 font-mono text-xs">{log.nasPort || "N/A"}</td>
                         <td className="py-2 px-3">
                           <Badge variant={log.reply === 'Access-Accept' ? 'default' : 'destructive'} className="text-xs">
                             {log.reply}

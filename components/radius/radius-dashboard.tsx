@@ -155,6 +155,7 @@ export function RadiusDashboard() {
   const [users, setUsers] = useState<any[]>([])
   const [stats, setStats] = useState<any>(null)
   const [search, setSearch] = useState("")
+  const [tableSearch, setTableSearch] = useState("")
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(25)
   const [loading, setLoading] = useState(true)
@@ -402,12 +403,12 @@ export function RadiusDashboard() {
             </TabsList>
             <div className="relative w-full lg:w-80">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search any table value" className="pl-9" />
+              <Input value={tableSearch} onChange={(event) => setTableSearch(event.target.value)} placeholder="Search any table value" className="pl-9" />
             </div>
           </div>
           {radiusTables.map((item) => (
             <TabsContent key={item.key} value={item.key}>
-              <RawRadiusTable table={item.key} search={search} />
+              <RawRadiusTable table={item.key} search={tableSearch} />
             </TabsContent>
           ))}
         </Tabs>
