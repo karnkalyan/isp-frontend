@@ -1,6 +1,6 @@
 "use client"
 
-import { Contact, LayoutDashboard, Router, Settings, Users, UserPlus } from "lucide-react"
+import { Contact, LayoutDashboard, Router, Settings, Users, UserPlus, HelpCircle, Receipt } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { usePathname } from "next/navigation"
 import { motion } from "framer-motion"
@@ -48,6 +48,8 @@ export function BottomNav() {
     { title: "Dashboard", icon: LayoutDashboard, href: "/customer/dashboard" },
     { title: "Router", icon: Router, href: "/customer/router" },
     { title: "Contact", icon: Contact, href: "/customer/contact" },
+    { title: "Support", icon: HelpCircle, href: "/customer/support" },
+    { title: "Billing", icon: Receipt, href: "/customer/billing" },
   ]
   const visibleItems = isCustomer ? customerItems : navItems.filter(item => !item.permission || hasPermission(item.permission))
 

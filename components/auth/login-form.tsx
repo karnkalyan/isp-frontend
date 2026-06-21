@@ -27,6 +27,8 @@ const ROUTE_PERMISSIONS: Record<string, string | string[]> = {
   "/customer/dashboard": "dashboard_view",
   "/customer/router": "dashboard_view",
   "/customer/contact": "dashboard_view",
+  "/customer/support": "dashboard_view",
+  "/customer/billing": "dashboard_view",
   "/branch": "branches_read",
   "/department": "departments_read",
   "/membership": "membership_read",

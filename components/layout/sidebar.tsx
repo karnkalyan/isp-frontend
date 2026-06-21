@@ -121,6 +121,8 @@ const menuCategories: MenuCategory[] = [
           { title: "Customer Dashboard", href: "/customer/dashboard", permission: "dashboard_view" },
           { title: "Router", href: "/customer/router", permission: "dashboard_view" },
           { title: "Contact Details", href: "/customer/contact", permission: "dashboard_view" },
+          { title: "Support Tickets", href: "/customer/support", permission: "dashboard_view" },
+          { title: "Billing & Invoices", href: "/customer/billing", permission: "dashboard_view" },
         ],
       },
       {
