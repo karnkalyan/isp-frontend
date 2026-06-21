@@ -23,7 +23,7 @@ export function CreateNasForm() {
     type: "other",
     ports: 1812,
     secret: "",
-    server: "radius",
+    server: "",
     community: "public",
     description: "",
     isActive: true,

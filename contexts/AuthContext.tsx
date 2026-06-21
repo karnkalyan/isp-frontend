@@ -57,10 +57,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const setUser = useCallback((u: AuthUser | null) => {
     setUserState(u);
     if (typeof window !== "undefined") {
+      const isRemembered = localStorage.getItem("remember-me") === "true";
       if (u) {
-        localStorage.setItem("user", JSON.stringify(u));
+        if (isRemembered) {
+          localStorage.setItem("user", JSON.stringify(u));
+          sessionStorage.removeItem("user");
+        } else {
+          sessionStorage.setItem("user", JSON.stringify(u));
+          localStorage.removeItem("user");
+        }
       } else {
         localStorage.removeItem("user");
+        sessionStorage.removeItem("user");
       }
     }
   }, []);
@@ -99,20 +107,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (typeof window !== "undefined") {
         localStorage.removeItem("selected-branch-id");
         localStorage.removeItem("user");
+        sessionStorage.removeItem("user");
         window.location.href = "/login";
       }
     }
   }, [setUser]);
 
-  // On mount: try localStorage first (instant), then validate via /me
+  // On mount: try storage first, then validate via /me
   useEffect(() => {
-    const stored = localStorage.getItem("user");
-    if (stored) {
-      try {
-        setUserState(JSON.parse(stored));
-      } catch {
-        // Invalid JSON, clear it
-        localStorage.removeItem("user");
+    if (typeof window !== "undefined") {
+      const isRemembered = localStorage.getItem("remember-me") === "true";
+      const stored = isRemembered
+        ? localStorage.getItem("user")
+        : sessionStorage.getItem("user");
+      if (stored) {
+        try {
+          setUserState(JSON.parse(stored));
+        } catch {
+          // Invalid JSON, clear it
+          localStorage.removeItem("user");
+          sessionStorage.removeItem("user");
+        }
       }
     }
     // Always verify with server

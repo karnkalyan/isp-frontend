@@ -215,6 +215,13 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
   }, [open])
 
   useEffect(() => {
+    if (!transferDialogOpen) {
+      setSelectedTransferExtension("")
+      setCurrentCallForTransfer(null)
+    }
+  }, [transferDialogOpen])
+
+  useEffect(() => {
     const handleCallEvent = (event: any) => {
       const eventType = String(event?.eventType || event?.data?.event || "").toLowerCase()
       if (!["callstatus", "newcdr", "forward", "tranfer", "transfer", "callfailed"].includes(eventType)) return
@@ -268,6 +275,7 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
       || members.find(member => member.outbound)?.outbound?.from
       || "Unknown"
     const inboundFrom = members.find(member => member.inbound)?.inbound?.from
+    const outboundTo = members.find(member => member.outbound)?.outbound?.to
     const memberStatuses = members.flatMap(member => [
       member.ext?.memberstatus,
       member.inbound?.memberstatus,
@@ -323,9 +331,10 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
       }
     })
 
-    if (inboundFrom) {
-      setSelectedFromNumber(inboundFrom)
-      fetchContactInfo(inboundFrom)
+    const lookupNumber = inboundFrom || outboundTo
+    if (lookupNumber) {
+      setSelectedFromNumber(lookupNumber)
+      fetchContactInfo(lookupNumber)
     }
   }
 
@@ -371,13 +380,15 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
         setCallData(filteredData)
         onCallsCountChange?.(activeCallCount)
         
-        // Automatically select the first inbound number if available
+        // Automatically select the first inbound or outbound number if available
         if (filteredData?.data?.calllist?.[0]?.numbercalls?.[0]?.members) {
           const members = filteredData.data.calllist[0].numbercalls[0].members
           const inboundMember = members.find(m => m.inbound)
-          if (inboundMember?.inbound?.from) {
-            setSelectedFromNumber(inboundMember.inbound.from)
-            fetchContactInfo(inboundMember.inbound.from)
+          const outboundMember = members.find(m => m.outbound)
+          const autoSelectNumber = inboundMember?.inbound?.from || outboundMember?.outbound?.to
+          if (autoSelectNumber) {
+            setSelectedFromNumber(autoSelectNumber)
+            fetchContactInfo(autoSelectNumber)
           }
         }
         
@@ -805,9 +816,11 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
     return inboundMember?.inbound?.channelid || null
   }
 
-  const getInboundFromNumber = (call: NumberCall): string | null => {
+  const getCallPhoneNumber = (call: NumberCall): string | null => {
     const inboundMember = call.members.find(m => m.inbound)
-    return inboundMember?.inbound?.from || null
+    if (inboundMember?.inbound?.from) return inboundMember.inbound.from
+    const outboundMember = call.members.find(m => m.outbound)
+    return outboundMember?.outbound?.to || null
   }
 
   return (
@@ -950,7 +963,7 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
                                       const isEnded = isCallEnded(call)
                                       const extChannelId = getExtensionChannelId(call)
                                       const inboundChannelId = getInboundChannelId(call)
-                                      const inboundFrom = getInboundFromNumber(call)
+                                      const callPhoneNumber = getCallPhoneNumber(call)
                                       
                                       // Skip if call is being transferred or already ended
                                       if (transferredCalls.has(call.callid) || isEnded) {
@@ -972,6 +985,7 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
                                                 getStatusBadge(
                                                   call.members.find(m => m.ext)?.ext?.memberstatus ||
                                                   call.members.find(m => m.inbound)?.inbound?.memberstatus ||
+                                                  call.members.find(m => m.outbound)?.outbound?.memberstatus ||
                                                   ""
                                                 )
                                               )}
@@ -981,36 +995,59 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
 
                                           {/* Call Flow Visualization */}
                                           <div className="flex items-center justify-between py-4">
-                                            {/* Inbound */}
-                                            {call.members
-                                              .filter(m => m.inbound)
-                                              .map((member, idx) => (
-                                                <div key={`inbound-${idx}`} className="text-center">
-                                                  <div className="flex flex-col items-center gap-2">
-                                                    <div className={`p-3 ${isDarkMode ? 'bg-blue-900/30' : 'bg-blue-100'} rounded-full`}>
-                                                      <PhoneIncoming className={`h-5 w-5 ${isDarkMode ? 'text-blue-300' : 'text-blue-600'}`} />
-                                                    </div>
-                                                    <div className="text-center">
-                                                      <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Incoming</p>
-                                                      <button
-                                                        onClick={() => handleNumberSelect(member.inbound!.from)}
-                                                        className={`mt-1 font-mono text-sm transition-all hover:scale-105 ${
-                                                          selectedFromNumber === member.inbound!.from 
-                                                            ? `${isDarkMode ? 'text-blue-400' : 'text-blue-600'} font-bold` 
-                                                            : `${isDarkMode ? 'text-gray-400 hover:text-blue-400' : 'text-gray-700 hover:text-blue-500'}`
-                                                        }`}
-                                                      >
-                                                        {formatPhoneNumber(member.inbound!.from)}
-                                                      </button>
-                                                      {selectedFromNumber === member.inbound!.from && (
-                                                        <div className="mt-1">
-                                                          <div className={`h-1 w-4 ${isDarkMode ? 'bg-blue-400' : 'bg-blue-500'} rounded-full mx-auto`}></div>
-                                                        </div>
-                                                      )}
+                                            {/* Left side: Inbound from or Extension (if outbound) */}
+                                            {call.members.some(m => m.inbound) ? (
+                                              call.members
+                                                .filter(m => m.inbound)
+                                                .map((member, idx) => (
+                                                  <div key={`inbound-${idx}`} className="text-center">
+                                                    <div className="flex flex-col items-center gap-2">
+                                                      <div className={`p-3 ${isDarkMode ? 'bg-blue-900/30' : 'bg-blue-100'} rounded-full`}>
+                                                        <PhoneIncoming className={`h-5 w-5 ${isDarkMode ? 'text-blue-300' : 'text-blue-600'}`} />
+                                                      </div>
+                                                      <div className="text-center">
+                                                        <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Incoming</p>
+                                                        <button
+                                                          onClick={() => handleNumberSelect(member.inbound!.from)}
+                                                          className={`mt-1 font-mono text-sm transition-all hover:scale-105 ${
+                                                            selectedFromNumber === member.inbound!.from 
+                                                              ? `${isDarkMode ? 'text-blue-400' : 'text-blue-600'} font-bold` 
+                                                              : `${isDarkMode ? 'text-gray-400 hover:text-blue-400' : 'text-gray-700 hover:text-blue-500'}`
+                                                          }`}
+                                                        >
+                                                          {formatPhoneNumber(member.inbound!.from)}
+                                                        </button>
+                                                        {selectedFromNumber === member.inbound!.from && (
+                                                          <div className="mt-1">
+                                                            <div className={`h-1 w-4 ${isDarkMode ? 'bg-blue-400' : 'bg-blue-500'} rounded-full mx-auto`}></div>
+                                                          </div>
+                                                        )}
+                                                      </div>
                                                     </div>
                                                   </div>
-                                                </div>
-                                              ))}
+                                                ))
+                                            ) : (
+                                              call.members
+                                                .filter(m => m.ext)
+                                                .map((member, idx) => (
+                                                  <div key={`ext-left-${idx}`} className="text-center">
+                                                    <div className="flex flex-col items-center gap-2">
+                                                      <div className={`p-3 ${isDarkMode ? 'bg-green-900/30' : 'bg-green-100'} rounded-full`}>
+                                                        <PhoneOutgoing className={`h-5 w-5 ${isDarkMode ? 'text-green-300' : 'text-green-600'}`} />
+                                                      </div>
+                                                      <div>
+                                                        <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Extension</p>
+                                                        <p className={`mt-1 font-mono text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                          {member.ext!.number}
+                                                        </p>
+                                                        <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'} mt-1`}>
+                                                          Status: {member.ext!.memberstatus}
+                                                        </p>
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                ))
+                                            )}
 
                                             {/* Arrow */}
                                             <div className="flex-1 flex items-center justify-center">
@@ -1026,66 +1063,111 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
                                               } mx-2`} />
                                             </div>
 
-                                            {/* Extension */}
-                                            {call.members
-                                              .filter(m => m.ext)
-                                              .map((member, idx) => (
-                                                <div key={`ext-${idx}`} className="text-center">
-                                                  <div className="flex flex-col items-center gap-2">
-                                                    <div className={`p-3 ${isDarkMode ? 'bg-green-900/30' : 'bg-green-100'} rounded-full`}>
-                                                      <PhoneOutgoing className={`h-5 w-5 ${isDarkMode ? 'text-green-300' : 'text-green-600'}`} />
+                                            {/* Right side: Extension (inbound) or Outbound (outbound) */}
+                                            {call.members.some(m => m.inbound) ? (
+                                              call.members
+                                                .filter(m => m.ext)
+                                                .map((member, idx) => (
+                                                  <div key={`ext-right-${idx}`} className="text-center">
+                                                    <div className="flex flex-col items-center gap-2">
+                                                      <div className={`p-3 ${isDarkMode ? 'bg-green-900/30' : 'bg-green-100'} rounded-full`}>
+                                                        <PhoneOutgoing className={`h-5 w-5 ${isDarkMode ? 'text-green-300' : 'text-green-600'}`} />
+                                                      </div>
+                                                      <div>
+                                                        <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Extension</p>
+                                                        <p className={`mt-1 font-mono text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                          {member.ext!.number}
+                                                        </p>
+                                                        <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'} mt-1`}>
+                                                          Status: {member.ext!.memberstatus}
+                                                        </p>
+                                                      </div>
+                                                      
+                                                      {/* Show receive button while the assigned extension is ringing */}
+                                                      {isRinging && (inboundChannelId || extChannelId) && !isAnswered && !isEnded && (
+                                                        <Button
+                                                          size="sm"
+                                                          onClick={() => handleAcceptCall(inboundChannelId || extChannelId!, call.callid, extChannelId)}
+                                                          disabled={acceptingCall === call.callid}
+                                                          className={`mt-2 ${
+                                                            acceptingCall === call.callid 
+                                                              ? 'bg-green-600' 
+                                                              : 'bg-green-500 hover:bg-green-600'
+                                                          }`}
+                                                        >
+                                                          {acceptingCall === call.callid ? (
+                                                            <>
+                                                              <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                                                              Receiving...
+                                                            </>
+                                                          ) : (
+                                                            <>
+                                                              <PhoneCall className="h-4 w-4 mr-2" />
+                                                              Receive Call
+                                                            </>
+                                                          )}
+                                                        </Button>
+                                                      )}
+                                                      
+                                                      {/* Show Transfer Call button when call is answered */}
+                                                      {isAnswered && extChannelId && callPhoneNumber && (
+                                                        <Button
+                                                          size="sm"
+                                                          variant="outline"
+                                                          onClick={() => handleOpenTransferDialog(extChannelId, call.callid, callPhoneNumber)}
+                                                          className={`mt-2 ${isDarkMode ? 'border-gray-600 text-gray-300 hover:bg-[#1e293b]' : 'border-gray-300 text-gray-700 hover:bg-gray-100'}`}
+                                                        >
+                                                          <PhoneForwarded className="h-4 w-4 mr-2" />
+                                                          Transfer Call
+                                                        </Button>
+                                                      )}
                                                     </div>
-                                                    <div>
-                                                      <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Extension</p>
-                                                      <p className={`mt-1 font-mono text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                                                        {member.ext!.number}
-                                                      </p>
-                                                      <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'} mt-1`}>
-                                                        Status: {member.ext!.memberstatus}
-                                                      </p>
-                                                    </div>
-                                                    
-                                                    {/* Show receive button while the assigned extension is ringing */}
-                                                    {isRinging && (inboundChannelId || extChannelId) && !isAnswered && !isEnded && (
-                                                      <Button
-                                                        size="sm"
-                                                        onClick={() => handleAcceptCall(inboundChannelId || extChannelId!, call.callid, extChannelId)}
-                                                        disabled={acceptingCall === call.callid}
-                                                        className={`mt-2 ${
-                                                          acceptingCall === call.callid 
-                                                            ? 'bg-green-600' 
-                                                            : 'bg-green-500 hover:bg-green-600'
-                                                        }`}
-                                                      >
-                                                        {acceptingCall === call.callid ? (
-                                                          <>
-                                                            <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                                                            Receiving...
-                                                          </>
-                                                        ) : (
-                                                          <>
-                                                            <PhoneCall className="h-4 w-4 mr-2" />
-                                                            Receive Call
-                                                          </>
-                                                        )}
-                                                      </Button>
-                                                    )}
-                                                    
-                                                    {/* Show Transfer Call button when call is answered */}
-                                                    {isAnswered && extChannelId && inboundFrom && (
-                                                      <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        onClick={() => handleOpenTransferDialog(extChannelId, call.callid, inboundFrom)}
-                                                        className={`mt-2 ${isDarkMode ? 'border-gray-600 text-gray-300 hover:bg-[#1e293b]' : 'border-gray-300 text-gray-700 hover:bg-gray-100'}`}
-                                                      >
-                                                        <PhoneForwarded className="h-4 w-4 mr-2" />
-                                                        Transfer Call
-                                                      </Button>
-                                                    )}
                                                   </div>
-                                                </div>
-                                              ))}
+                                                ))
+                                            ) : (
+                                              call.members
+                                                .filter(m => m.outbound)
+                                                .map((member, idx) => (
+                                                  <div key={`outbound-${idx}`} className="text-center">
+                                                    <div className="flex flex-col items-center gap-2">
+                                                      <div className={`p-3 ${isDarkMode ? 'bg-blue-900/30' : 'bg-blue-100'} rounded-full`}>
+                                                        <PhoneIncoming className={`h-5 w-5 ${isDarkMode ? 'text-blue-300' : 'text-blue-600'}`} />
+                                                      </div>
+                                                      <div className="text-center">
+                                                        <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Dialed Lead / Customer</p>
+                                                        <button
+                                                          onClick={() => handleNumberSelect(member.outbound!.to)}
+                                                          className={`mt-1 font-mono text-sm transition-all hover:scale-105 ${
+                                                            selectedFromNumber === member.outbound!.to 
+                                                              ? `${isDarkMode ? 'text-blue-400' : 'text-blue-600'} font-bold` 
+                                                              : `${isDarkMode ? 'text-gray-400 hover:text-blue-400' : 'text-gray-700 hover:text-blue-500'}`
+                                                          }`}
+                                                        >
+                                                          {formatPhoneNumber(member.outbound!.to)}
+                                                        </button>
+                                                        {selectedFromNumber === member.outbound!.to && (
+                                                          <div className="mt-1">
+                                                            <div className={`h-1 w-4 ${isDarkMode ? 'bg-blue-400' : 'bg-blue-500'} rounded-full mx-auto`}></div>
+                                                          </div>
+                                                        )}
+                                                      </div>
+                                                      
+                                                      {/* Show Transfer Call button when outbound call is answered */}
+                                                      {isAnswered && extChannelId && callPhoneNumber && (
+                                                        <Button
+                                                          size="sm"
+                                                          variant="outline"
+                                                          onClick={() => handleOpenTransferDialog(extChannelId, call.callid, callPhoneNumber)}
+                                                          className={`mt-2 ${isDarkMode ? 'border-gray-600 text-gray-300 hover:bg-[#1e293b]' : 'border-gray-300 text-gray-700 hover:bg-gray-100'}`}
+                                                        >
+                                                          <PhoneForwarded className="h-4 w-4 mr-2" />
+                                                          Transfer Call
+                                                        </Button>
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                ))
+                                            )}
                                           </div>
                                         </div>
                                       )

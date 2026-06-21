@@ -47,10 +47,12 @@ export default function MakeCallModal({
     const [selectedExtension, setSelectedExtension] = useState("")
     const [targetNumber, setTargetNumber] = useState("")
 
-    // Fetch available extensions
+    // Fetch available extensions & reset form on close
     useEffect(() => {
         if (open) {
             fetchExtensions()
+        } else {
+            resetForm()
         }
     }, [open])
 

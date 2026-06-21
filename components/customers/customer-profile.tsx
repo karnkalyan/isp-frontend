@@ -2231,10 +2231,100 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     }
   }
 
+  const deleteOntFromOlt = async (serialNumber: string) => {
+    if (!serialNumber) return;
+    const oltId = customer?.serviceDetails?.[0]?.oltId || customer?.oltId;
+    if (!oltId) {
+      console.log("No OLT ID associated with customer for ONT deletion.");
+      return;
+    }
+    
+    try {
+      console.log(`[OLT_DELETE] Fetching ONT details for serial ${serialNumber} from OLT ${oltId}`);
+      const res = await apiRequest<any>(`/olt/${oltId}/onts?search=${encodeURIComponent(serialNumber)}`);
+      if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
+        const ont = res.data[0];
+        const fsp = ont.servicePort || ""; 
+        const ontIdVal = ont.ontId;
+        const servicePorts = ont.ontDetails?.servicePorts;
+
+        // Parse FSP (frame/slot/port)
+        const fspParts = fsp ? fsp.split('/') : [];
+        const frame = fspParts.length > 0 ? parseInt(fspParts[0], 10) : 0;
+        const slot = fspParts.length > 1 ? parseInt(fspParts[1], 10) : 0;
+        const port = fspParts.length > 2 ? parseInt(fspParts[2], 10) : 0;
+        const ont_id = parseInt(ontIdVal, 10);
+
+        if (isNaN(slot) || isNaN(port) || isNaN(ont_id)) {
+          console.warn("[OLT_DELETE] Invalid slot, port, or ont_id parsed from fsp:", fsp, "ontId:", ontIdVal);
+          return;
+        }
+
+        let service_port_indices: number[] = [];
+        if (servicePorts) {
+          try {
+            const ports = typeof servicePorts === 'string'
+              ? JSON.parse(servicePorts)
+              : servicePorts;
+            if (Array.isArray(ports)) {
+              service_port_indices = ports
+                .map((sp: any) => sp.index)
+                .filter((v: any) => v !== undefined && v !== null && !isNaN(v));
+            }
+          } catch (e) {
+            console.error("[OLT_DELETE] Error parsing service ports:", e);
+          }
+        }
+
+        const payload = {
+          action: "deleteOnt",
+          params: {
+            frame,
+            slot,
+            port,
+            ont_id,
+            serial: serialNumber,
+            service_port_indices
+          }
+        };
+
+        console.log(`[OLT_DELETE] Sending deleteOnt action to /device/${oltId}/action`, payload);
+        const actionRes = await apiRequest<any>(`/device/${oltId}/action`, {
+          method: "POST",
+          body: JSON.stringify(payload),
+          headers: { "Content-Type": "application/json" }
+        });
+
+        if (actionRes?.success) {
+          toast({ title: "ONT deleted from OLT successfully" });
+        } else {
+          toast({
+            title: "Warning",
+            description: actionRes?.error || "ONT deletion from OLT returned failure status.",
+            variant: "destructive"
+          });
+        }
+      } else {
+        console.log(`[OLT_DELETE] No ONT details found in DB for serial ${serialNumber}`);
+      }
+    } catch (err: any) {
+      console.error("[OLT_DELETE] Failed to delete ONT from OLT:", err);
+      toast({
+        title: "Error removing ONT from OLT",
+        description: err.message || "Failed to communicate with OLT",
+        variant: "destructive"
+      });
+    }
+  };
+
   const confirmReturnHardware = async (note: string, isFaulty: boolean) => {
     if (!returnHardwareItem) return
     try {
       setActionLoading(true)
+      const isOnt = returnHardwareItem.type === 'ONT' || returnHardwareItem.deviceType === 'ONT';
+      if (isOnt && returnHardwareItem.serialNumber) {
+        await deleteOntFromOlt(returnHardwareItem.serialNumber);
+      }
       await apiRequest(`/inventory/${returnHardwareItem.id}/return`, {
         method: "PUT",
         body: JSON.stringify({
@@ -2279,6 +2369,9 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     if (!deletingDevice || !customer) return
     try {
       setActionLoading(true)
+      if (deletingDevice.deviceType === 'ONT' && deletingDevice.serialNumber) {
+        await deleteOntFromOlt(deletingDevice.serialNumber);
+      }
       await apiRequest(`/customer/${customer.id}/devices/${deletingDevice.id}`, {
         method: "DELETE"
       })

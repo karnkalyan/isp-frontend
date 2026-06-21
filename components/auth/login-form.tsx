@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Eye, EyeOff, Loader2, Mail, AlertCircle } from "lucide-react"
 import toast from "react-hot-toast"
 
@@ -14,6 +14,90 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { useTheme } from "next-themes"
 import { useAuth } from "@/contexts/AuthContext"
 import { apiRequest } from "@/lib/api"
+
+const ROUTE_PERMISSIONS: Record<string, string | string[]> = {
+  "/dashboard/overview": "dashboard_view",
+  "/dashboard/real-time": "dashboard_view",
+  "/admin/users": "users_read",
+  "/admin/roles": "roles_read",
+  "/admin/audit-log": "audit_log_read",
+  "/customers": "customer_read",
+  "/customers/all": "customer_read",
+  "/customers/new": "customer_create",
+  "/customer/dashboard": "dashboard_view",
+  "/customer/router": "dashboard_view",
+  "/customer/contact": "dashboard_view",
+  "/branch": "branches_read",
+  "/department": "departments_read",
+  "/membership": "membership_read",
+  "/leads/create": "lead_create",
+  "/leads": "lead_read",
+  "/leads/qualified": "lead_read",
+  "/leads/unqualified": "lead_read",
+  "/leads/converted": "lead_read",
+  "/leads/follow-ups": "lead_read",
+  "/leads/import": "lead_create",
+  "/leads/reports": "reports_read",
+  "/existing-isp": "existingisp_read",
+  "/sms-campaign": "services_manage",
+  "/tr069": "olt_read",
+  "/nas": "nas_read",
+  "/nas/new": "nas_create",
+  "/fiber/networks": "olt_read",
+  "/fiber/map": "olt_read",
+  "/fiber/olt": "olt_read",
+  "/inventory": "inventory_manage",
+  "/inventory/add": "inventory_manage",
+  "/inventory/bulk": "bulk_inventory_read",
+  "/inventory/import": "inventory_manage",
+  "/inventory/lifecycle": "inventory_read",
+  "/vendors": "settings_read",
+  "/drums": "drums_read",
+  "/drums/assignments": "drums_read",
+  "/services": "services_read",
+  "/services/settings": "services_manage",
+  "/services/add": "services_manage",
+  "/nettv": "services_read",
+  "/radius": "services_read",
+  "/services/aakashsms": "services_read",
+  "/yeaster": "yeaster_read",
+  "/asterisk": "asterisk_read",
+  "/finance/invoices": "billing_read",
+  "/finance/invoice-ranges": "billing_update",
+  "/finance/recharge": "billing_read_self",
+  "/finance/renew": "billing_read_self",
+  "/tasks": "tasks_read_self",
+  "/tickets": "tickets_read_self",
+  "/tickets/create": "tickets_create",
+  "/master-settings": "settings_read",
+  "/dashboard/settings": "settings_read",
+  "/reports": "reports_read",
+  "/messages": "dashboard_view",
+  "/mail": "dashboard_view",
+  "/mail/templates": "settings_read",
+  "/notifications": "dashboard_view",
+  "/notices": "dashboard_view",
+};
+
+const getRequiredPermission = (path: string): string | string[] | undefined => {
+  if (ROUTE_PERMISSIONS[path]) return ROUTE_PERMISSIONS[path];
+  const sortedKeys = Object.keys(ROUTE_PERMISSIONS).sort((a, b) => b.length - a.length);
+  for (const key of sortedKeys) {
+    if (path.startsWith(key)) {
+      return ROUTE_PERMISSIONS[key];
+    }
+  }
+  return undefined;
+};
+
+const checkPermissionForUser = (userObj: any, permission?: string | string[]): boolean => {
+  if (!permission) return true;
+  if (!userObj?.role?.permissions) return false;
+  const userPermissions: string[] = userObj.role.permissions.map((p: any) => p.name);
+  return Array.isArray(permission)
+    ? permission.some(p => userPermissions.includes(p))
+    : userPermissions.includes(permission);
+};
 
 function GoogleIcon({ className }: { className?: string }) {
   return (
@@ -37,6 +121,18 @@ export function LoginForm() {
   })
 
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const email = localStorage.getItem("remembered-email");
+      const isRemembered = localStorage.getItem("remember-me") === "true";
+      if (email && isRemembered) {
+        setFormData(prev => ({ ...prev, email }));
+        setRememberMe(true);
+      }
+    }
+  }, []);
   const { resolvedTheme } = useTheme()
   const isDarkMode = resolvedTheme === "dark"
 
@@ -52,6 +148,14 @@ export function LoginForm() {
     // Clear any stale branch context from previous sessions to prevent Access Denied errors
     if (typeof window !== "undefined") {
       localStorage.removeItem("selected-branch-id")
+      
+      // Save rememberMe configuration
+      localStorage.setItem("remember-me", rememberMe ? "true" : "false")
+      if (rememberMe && formData.email) {
+        localStorage.setItem("remembered-email", formData.email)
+      } else {
+        localStorage.removeItem("remembered-email")
+      }
     }
     
     toast.success("Signed in successfully!")
@@ -63,6 +167,19 @@ export function LoginForm() {
       redirectPath = "/customer/dashboard"
     } else if (roleName === 'field staff') {
       redirectPath = "/tasks"
+    }
+
+    // Redirect to from path if present and user has permission
+    const fromPath = searchParams ? searchParams.get("from") : null
+    if (fromPath) {
+      const decodedFrom = decodeURIComponent(fromPath)
+      // Check if not login/forgot-password to avoid loops
+      if (decodedFrom && decodedFrom !== "/login" && decodedFrom !== "/forgot-password") {
+        const reqPermission = getRequiredPermission(decodedFrom)
+        if (checkPermissionForUser(data.user, reqPermission)) {
+          redirectPath = decodedFrom
+        }
+      }
     }
     
     // Small delay to ensure cookies are settled before redirecting
