@@ -23,6 +23,16 @@ function formatBytes(val: any) {
   return `${(num / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
+function formatDuration(seconds: number) {
+  if (!seconds || seconds <= 0) return "0s";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
 type CustomerProfile = {
   id: number
   idNumber?: string | null
@@ -139,6 +149,8 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
   const [rebooting, setRebooting] = useState(false)
   const [rebootProgress, setRebootProgress] = useState(60)
   const [rebootDialogOpen, setRebootDialogOpen] = useState(false)
+  const [radiusUsage, setRadiusUsage] = useState<any[]>([])
+  const [radiusUsageLoading, setRadiusUsageLoading] = useState(false)
 
   const handleReboot = async () => {
     if (!serial) return
@@ -237,6 +249,26 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
       password: "",
     })
   }, [selectedSsid?.instance])
+
+  const loadRadiusUsage = async () => {
+    setRadiusUsageLoading(true)
+    try {
+      const response = await apiRequest<{ success: boolean; data: any[] }>("/customer/profile/radius/usage")
+      if (response && response.success) {
+        setRadiusUsage(response.data)
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to load daily usage data")
+    } finally {
+      setRadiusUsageLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (routerSubTab === "stats") {
+      loadRadiusUsage()
+    }
+  }, [routerSubTab])
 
   const updateWifi = async () => {
     if (!serial || !selectedSsid) return
@@ -360,41 +392,42 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
   )
 
   const renderDiagnosticsTab = () => {
-    const cpu = Number(deviceInfo?.cpuUsage ?? 0)
-    const tempVal = deviceInfo?.cpuTemp
+    const resolvedDeviceInfo = deviceInfo?.deviceInfo || deviceInfo;
+    const cpu = Number(resolvedDeviceInfo?.cpuUsage ?? 0)
+    const tempVal = resolvedDeviceInfo?.cpuTemp
     const temp = tempVal !== "N/A" && tempVal ? parseFloat(String(tempVal)) : null
-    const rx = deviceInfo?.rxPower || "N/A"
+    const rx = resolvedDeviceInfo?.rxPower || "N/A"
     
     // Severity coloring for temp
-    let tempColor = "text-emerald-400"
-    let tempBg = "bg-emerald-500/10 border-emerald-500/20"
+    let tempColor = "text-emerald-600 dark:text-emerald-400"
+    let tempBg = "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20"
     if (temp && temp >= 70) {
-      tempColor = "text-rose-400"
-      tempBg = "bg-rose-500/10 border-rose-500/20"
+      tempColor = "text-rose-600 dark:text-rose-400"
+      tempBg = "bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/20"
     } else if (temp && temp >= 50) {
-      tempColor = "text-amber-400"
-      tempBg = "bg-amber-500/10 border-amber-500/20"
+      tempColor = "text-amber-600 dark:text-amber-400"
+      tempBg = "bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20"
     }
 
     // GPON Optical RX Power evaluation
     let rxStatus = "Unknown"
-    let rxColor = "text-slate-400"
-    let rxBg = "bg-slate-500/10 border-slate-500/20"
+    let rxColor = "text-slate-500 dark:text-slate-400"
+    let rxBg = "bg-slate-50 dark:bg-slate-500/10 border-slate-200 dark:border-slate-500/20"
     if (rx !== "N/A" && rx) {
       const val = parseFloat(String(rx).replace(/[^\d.-]/g, ""))
       if (!isNaN(val)) {
         if (val >= -27 && val <= -8) {
           rxStatus = "Optimal"
-          rxColor = "text-emerald-400"
-          rxBg = "bg-emerald-500/10 border-emerald-500/20"
+          rxColor = "text-emerald-600 dark:text-emerald-400"
+          rxBg = "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20"
         } else if (val >= -29 && val < -27) {
           rxStatus = "Marginal"
-          rxColor = "text-amber-400"
-          rxBg = "bg-amber-500/10 border-amber-500/20"
+          rxColor = "text-amber-600 dark:text-amber-400"
+          rxBg = "bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20"
         } else {
           rxStatus = "Critical"
-          rxColor = "text-rose-400"
-          rxBg = "bg-rose-500/10 border-rose-500/20"
+          rxColor = "text-rose-600 dark:text-rose-400"
+          rxBg = "bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/20"
         }
       }
     }
@@ -404,33 +437,33 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
         {/* Performance Gauges */}
         <div className="grid gap-4 md:grid-cols-3">
           {/* CPU Gauge */}
-          <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 backdrop-blur-sm">
+          <div className="rounded-xl border bg-muted/40 p-5">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-slate-400">CPU Usage</span>
-              <Cpu className="h-5 w-5 text-blue-400" />
+              <span className="text-sm font-semibold text-muted-foreground">CPU Usage</span>
+              <Cpu className="h-5 w-5 text-primary" />
             </div>
             <div className="mt-4 flex items-baseline gap-2">
-              <span className="text-3xl font-extrabold text-white">{cpu}%</span>
+              <span className="text-3xl font-extrabold text-foreground">{cpu}%</span>
             </div>
-            <div className="mt-3 h-2 w-full rounded-full bg-slate-850 overflow-hidden">
+            <div className="mt-3 h-2 w-full rounded-full bg-muted overflow-hidden">
               <div 
-                className="h-full rounded-full bg-blue-500 transition-all duration-500" 
+                className="h-full rounded-full bg-primary transition-all duration-500" 
                 style={{ width: `${cpu}%` }}
               ></div>
             </div>
-            <p className="mt-2 text-xs text-slate-400">Processes and background workloads</p>
+            <p className="mt-2 text-xs text-muted-foreground">Processes and background workloads</p>
           </div>
 
           {/* Temperature Gauge */}
-          <div className={`rounded-xl border p-5 backdrop-blur-sm ${tempBg}`}>
+          <div className={`rounded-xl border p-5 ${tempBg}`}>
             <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-slate-400">CPU Temp</span>
+              <span className="text-sm font-semibold text-muted-foreground">CPU Temp</span>
               <Thermometer className={`h-5 w-5 ${tempColor}`} />
             </div>
             <div className="mt-4 flex items-baseline gap-2">
               <span className={`text-3xl font-extrabold ${tempColor}`}>{temp ? `${temp}°C` : "N/A"}</span>
             </div>
-            <div className="mt-3 h-2 w-full rounded-full bg-slate-850 overflow-hidden">
+            <div className="mt-3 h-2 w-full rounded-full bg-muted overflow-hidden">
               <div 
                 className={`h-full rounded-full transition-all duration-500 ${
                   temp && temp >= 70 ? "bg-rose-500" : temp && temp >= 50 ? "bg-amber-500" : "bg-emerald-500"
@@ -438,13 +471,13 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
                 style={{ width: temp ? `${Math.min(100, Math.max(0, temp))}%` : "0%" }}
               ></div>
             </div>
-            <p className="mt-2 text-xs text-slate-400">Thermal condition inside the chassis</p>
+            <p className="mt-2 text-xs text-muted-foreground">Thermal condition inside the chassis</p>
           </div>
 
           {/* Optical RX Power Gauge */}
-          <div className={`rounded-xl border p-5 backdrop-blur-sm ${rxBg}`}>
+          <div className={`rounded-xl border p-5 ${rxBg}`}>
             <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-slate-400">Rx Power (GPON)</span>
+              <span className="text-sm font-semibold text-muted-foreground">Rx Power (GPON)</span>
               <ShieldAlert className={`h-5 w-5 ${rxColor}`} />
             </div>
             <div className="mt-4 flex items-baseline justify-between">
@@ -453,7 +486,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
                 {rxStatus}
               </span>
             </div>
-            <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
+            <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
               <span>Limit: -27 to -8 dBm</span>
               <span>Input optical signal level</span>
             </div>
@@ -462,39 +495,39 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
 
         {/* Basic Info & Reboot */}
         <div className="grid gap-4 lg:grid-cols-3">
-          <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 lg:col-span-2">
-            <h3 className="text-lg font-bold text-white mb-4">Device Specifications</h3>
+          <div className="rounded-xl border bg-muted/40 p-6 lg:col-span-2">
+            <h3 className="text-lg font-bold text-foreground mb-4">Device Specifications</h3>
             <div className="grid gap-4 sm:grid-cols-2">
               {[
-                ["Model Name", deviceInfo?.modelName || profile.tr069Devices?.[0]?.modelName || "N/A"],
-                ["Manufacturer", deviceInfo?.manufacturer || profile.tr069Devices?.[0]?.manufacturer || "N/A"],
-                ["Product Class", deviceInfo?.productClass || profile.tr069Devices?.[0]?.productClass || "N/A"],
+                ["Model Name", resolvedDeviceInfo?.modelName || deviceInfo?.modelName || profile.tr069Devices?.[0]?.modelName || "N/A"],
+                ["Manufacturer", resolvedDeviceInfo?.manufacturer || deviceInfo?.manufacturer || profile.tr069Devices?.[0]?.manufacturer || "N/A"],
+                ["Product Class", resolvedDeviceInfo?.productClass || deviceInfo?.productClass || profile.tr069Devices?.[0]?.productClass || "N/A"],
                 ["Serial Number", serial || "N/A"],
-                ["Firmware Version", deviceInfo?.softwareVersion || deviceInfo?.deviceInfo?.softwareVersion || "N/A"],
+                ["Firmware Version", resolvedDeviceInfo?.softwareVersion || resolvedDeviceInfo?.firmwareVersion || deviceInfo?.softwareVersion || "N/A"],
                 ["Uptime", deviceInfo?.uptime || "N/A"],
                 ["Last Contact", formatDate(deviceInfo?.lastContact || profile.tr069Devices?.[0]?.lastContact)],
                 ["Status", deviceInfo?.status || profile.tr069Devices?.[0]?.status || "N/A"]
               ].map(([lbl, val]) => (
-                <div key={lbl} className="rounded-lg border border-slate-800/60 bg-slate-950/40 p-3">
-                  <div className="text-xs text-slate-400 font-semibold">{lbl}</div>
-                  <div className="mt-1 text-sm font-medium text-slate-200">{val}</div>
+                <div key={lbl} className="rounded-lg border bg-card p-3">
+                  <div className="text-xs text-muted-foreground font-semibold">{lbl}</div>
+                  <div className="mt-1 text-sm font-medium text-foreground">{val}</div>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 flex flex-col justify-between">
+          <div className="rounded-xl border bg-muted/40 p-6 flex flex-col justify-between">
             <div>
-              <h3 className="text-lg font-bold text-white mb-2">Remote Maintenance</h3>
-              <p className="text-sm text-slate-400 leading-relaxed">
+              <h3 className="text-lg font-bold text-foreground mb-2">Remote Maintenance</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">
                 If your internet connection feels slow or certain devices fail to load pages, a soft reboot of your router can flush temporary cache and restore optimal performance.
               </p>
             </div>
-            <div className="mt-6 pt-4 border-t border-slate-800">
+            <div className="mt-6 pt-4 border-t">
               <Button
                 onClick={() => setRebootDialogOpen(true)}
                 disabled={rebooting}
-                className="w-full bg-rose-600 hover:bg-rose-700 text-white font-semibold flex items-center justify-center gap-2 py-3 rounded-lg shadow-lg shadow-rose-950/20"
+                className="w-full bg-rose-600 hover:bg-rose-700 text-white font-semibold flex items-center justify-center gap-2 py-3 rounded-lg shadow-sm"
               >
                 <RefreshCw className="h-4 w-4" />
                 Reboot Device
@@ -519,8 +552,8 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Networks List */}
         <div className="space-y-4 lg:col-span-1">
-          <h3 className="text-lg font-bold text-white mb-1">Wi-Fi Channels</h3>
-          <p className="text-xs text-slate-400 mb-4">Manage primary and high-speed bands</p>
+          <h3 className="text-lg font-bold text-foreground mb-1">Wi-Fi Channels</h3>
+          <p className="text-xs text-muted-foreground mb-4">Manage primary and high-speed bands</p>
           
           {filteredSsids.length > 0 ? (
             <div className="space-y-3">
@@ -536,24 +569,24 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
                     }}
                     className={`w-full rounded-xl border p-4 text-left transition-all ${
                       isSelected 
-                        ? "border-blue-500 bg-blue-600/10 shadow-lg shadow-blue-500/5 text-white" 
-                        : "border-slate-800 bg-slate-900/30 text-slate-300 hover:bg-slate-900/60"
+                        ? "border-blue-500 bg-blue-500/10 shadow-sm text-blue-600 dark:text-blue-400 font-semibold" 
+                        : "border-border bg-card text-foreground hover:bg-muted/50"
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Radio className={`h-4 w-4 ${isSelected ? "text-blue-400 animate-pulse" : "text-slate-400"}`} />
+                        <Radio className={`h-4 w-4 ${isSelected ? "text-blue-600 dark:text-blue-400 animate-pulse" : "text-muted-foreground"}`} />
                         <span className="font-semibold text-sm">
                           {idx === 5 ? "5.0 GHz Ultra-Band" : "2.4 GHz Main Band"}
                         </span>
                       </div>
-                      <Badge className={ssid.enable ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-slate-800 text-slate-400"}>
+                      <Badge className={ssid.enable ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20" : "bg-muted text-muted-foreground border-transparent"}>
                         {ssid.status || (ssid.enable ? "Enabled" : "Disabled")}
                       </Badge>
                     </div>
                     <div className="mt-3 flex flex-col gap-1">
                       <div className="text-lg font-bold truncate">{ssid.ssid || "Unnamed network"}</div>
-                      <div className="text-xs text-slate-400 flex items-center justify-between mt-1">
+                      <div className="text-xs text-muted-foreground flex items-center justify-between mt-1">
                         <span>Ch: {ssid.channel || "Auto"}</span>
                         <span>MAC: {ssid.bssid || "N/A"}</span>
                       </div>
@@ -563,47 +596,47 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
               })}
             </div>
           ) : (
-            <div className="py-10 text-center rounded-xl border border-slate-800 bg-slate-900/20 text-slate-400">
+            <div className="py-10 text-center rounded-xl border border-border bg-muted/20 text-muted-foreground">
               No editable WiFi networks found.
             </div>
           )}
         </div>
 
         {/* Configurations Form */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 lg:col-span-2">
+        <div className="rounded-xl border bg-muted/40 p-6 lg:col-span-2">
           {activeSsid ? (
             <div className="space-y-5">
               <div>
-                <h3 className="text-lg font-bold text-white mb-1">
+                <h3 className="text-lg font-bold text-foreground mb-1">
                   Configure WiFi - {getSsidIndex(activeSsid.instance) === 5 ? "5.0 GHz Ultra-Band" : "2.4 GHz Main Band"}
                 </h3>
-                <p className="text-xs text-slate-400">Change SSID name and login credentials below</p>
+                <p className="text-xs text-muted-foreground">Change SSID name and login credentials below</p>
               </div>
 
               <div className="space-y-4 pt-2">
                 <div className="space-y-2">
-                  <Label className="text-slate-300">SSID (WiFi Network Name)</Label>
+                  <Label>SSID (WiFi Network Name)</Label>
                   <Input 
                     value={wifiForm.ssid} 
                     onChange={(event) => setWifiForm({ ...wifiForm, ssid: event.target.value })} 
-                    className="border-slate-800 bg-slate-950 text-slate-100 rounded-lg focus:border-blue-500 focus:ring-blue-500/20"
+                    className="border-border bg-background text-foreground rounded-lg focus:border-blue-500 focus:ring-blue-500/20"
                     placeholder="Enter network name"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-slate-300">New WPA2 Pre-Shared Key (Password)</Label>
+                  <Label>New WPA2 Pre-Shared Key (Password)</Label>
                   <Input 
                     type="password" 
                     value={wifiForm.password} 
                     onChange={(event) => setWifiForm({ ...wifiForm, password: event.target.value })} 
-                    className="border-slate-800 bg-slate-950 text-slate-100 rounded-lg focus:border-blue-500 focus:ring-blue-500/20"
+                    className="border-border bg-background text-foreground rounded-lg focus:border-blue-500 focus:ring-blue-500/20"
                     placeholder="Leave blank to keep current password"
                   />
-                  <p className="text-xs text-slate-500">Security requires a password of at least 8 characters</p>
+                  <p className="text-xs text-muted-foreground/80">Security requires a password of at least 8 characters</p>
                 </div>
               </div>
 
-              <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-4 mt-6">
+              <div className="rounded-lg border bg-card p-4 mt-6">
                 <InfoGrid rows={[
                   ["Encryption Method", activeSsid.encryptionMode || activeSsid.security?.encryption || "AES (WPA2)"],
                   ["Auth Mode", activeSsid.authenticationMode || activeSsid.security?.mode || "WPA2-PSK"],
@@ -612,11 +645,11 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
                 ]} />
               </div>
 
-              <div className="pt-4 border-t border-slate-800 flex justify-end">
+              <div className="pt-4 border-t flex justify-end">
                 <Button 
                   onClick={updateWifi} 
                   disabled={savingWifi || !serial} 
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center gap-2 px-6 py-2.5 rounded-lg shadow-lg shadow-blue-950/20 animate-pulse-subtle"
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center gap-2 px-6 py-2.5 rounded-lg shadow-sm"
                 >
                   {savingWifi ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wifi className="h-4 w-4" />}
                   Save WiFi Credentials
@@ -624,7 +657,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
               </div>
             </div>
           ) : (
-            <div className="py-20 text-center text-slate-400">
+            <div className="py-20 text-center text-muted-foreground">
               Please select a Wi-Fi network from the list to begin configuration.
             </div>
           )}
@@ -635,10 +668,10 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
 
   const renderDevicesTab = () => {
     return (
-      <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
+      <div className="rounded-xl border bg-muted/40 p-6">
         <div className="mb-4">
-          <h3 className="text-lg font-bold text-white mb-1">Connected Clients</h3>
-          <p className="text-xs text-slate-400">Devices currently associated with your router's LAN or WiFi interfaces</p>
+          <h3 className="text-lg font-bold text-foreground mb-1">Connected Clients</h3>
+          <p className="text-xs text-muted-foreground">Devices currently associated with your router's LAN or WiFi interfaces</p>
         </div>
 
         {connectedDevices.length > 0 ? (
@@ -659,29 +692,29 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
               return (
                 <div 
                   key={`${client.macAddress}-${index}`} 
-                  className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/30 p-4 transition-all hover:bg-slate-950/60"
+                  className="flex items-center justify-between rounded-xl border bg-card p-4 transition-all hover:bg-muted/50"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                       <Icon className="h-5 w-5" />
                     </div>
                     <div className="min-w-0">
-                      <div className="font-semibold text-slate-200 truncate">{client.hostName || "Unnamed Device"}</div>
-                      <div className="text-xs text-slate-400 font-mono mt-0.5 truncate">{client.macAddress || "MAC N/A"}</div>
+                      <div className="font-semibold text-foreground truncate">{client.hostName || "Unnamed Device"}</div>
+                      <div className="text-xs text-muted-foreground font-mono mt-0.5 truncate">{client.macAddress || "MAC N/A"}</div>
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
-                    <Badge className={client.active ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-slate-800 text-slate-400"}>
+                    <Badge className={client.active ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20" : "bg-muted text-muted-foreground border-transparent"}>
                       {client.active ? "Active" : "Idle"}
                     </Badge>
-                    <span className="text-xs font-mono text-slate-300 mt-0.5">{client.ipAddress || "No IP"}</span>
+                    <span className="text-xs font-mono text-muted-foreground mt-0.5">{client.ipAddress || "No IP"}</span>
                   </div>
                 </div>
               )
             })}
           </div>
         ) : (
-          <div className="py-16 text-center text-slate-400">
+          <div className="py-16 text-center text-muted-foreground">
             No connected devices detected by the router.
           </div>
         )}
@@ -691,10 +724,10 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
 
   const renderPortsTab = () => {
     return (
-      <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
+      <div className="rounded-xl border bg-muted/40 p-6">
         <div className="mb-6">
-          <h3 className="text-lg font-bold text-white mb-1">Ethernet & LAN Interfaces</h3>
-          <p className="text-xs text-slate-400">Physical LAN port connections on the back of your ONT device</p>
+          <h3 className="text-lg font-bold text-foreground mb-1">Ethernet & LAN Interfaces</h3>
+          <p className="text-xs text-muted-foreground">Physical LAN port connections on the back of your ONT device</p>
         </div>
 
         {lanInterfaces.length > 0 ? (
@@ -706,8 +739,8 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
                   key={port.name || port.index} 
                   className={`rounded-xl border p-5 transition-all ${
                     isActive 
-                      ? "border-emerald-500/20 bg-emerald-500/5" 
-                      : "border-slate-800 bg-slate-950/20"
+                      ? "border-emerald-500/20 bg-emerald-500/5 dark:bg-emerald-500/10" 
+                      : "border-border bg-card"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-4">
@@ -716,31 +749,31 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
                       <div className={`flex h-12 w-12 items-center justify-center rounded-lg border-2 transition-colors ${
                         isActive 
                           ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400" 
-                          : "border-slate-800 bg-slate-905 text-slate-600"
+                          : "border-border bg-muted text-muted-foreground"
                       }`}>
                         <Network className="h-6 w-6" />
                       </div>
                       <div>
-                        <h4 className="font-bold text-slate-200">{port.name || `Ethernet Port ${port.index}`}</h4>
-                        <div className="text-xs text-slate-400 mt-0.5">
+                        <h4 className="font-bold text-foreground">{port.name || `Ethernet Port ${port.index}`}</h4>
+                        <div className="text-xs text-muted-foreground mt-0.5">
                           {port.maxBitRate ? `Link Speed: ${port.maxBitRate} Mbps` : "No Carrier"}
                         </div>
                       </div>
                     </div>
-                    <Badge className={isActive ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-slate-800 text-slate-400 border-slate-800"}>
+                    <Badge className={isActive ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20" : "bg-muted text-muted-foreground border-transparent"}>
                       {port.status || "Down"}
                     </Badge>
                   </div>
 
                   {isActive && port.stats && (
-                    <div className="mt-4 pt-4 border-t border-slate-800/60 grid grid-cols-2 gap-2 text-xs">
-                      <div className="rounded bg-slate-950/40 p-2 border border-slate-850">
-                        <div className="text-slate-400">Bytes Received</div>
-                        <div className="mt-1 font-semibold text-slate-200">{formatBytes(port.stats.bytesReceived)}</div>
+                    <div className="mt-4 pt-4 border-t border-border grid grid-cols-2 gap-2 text-xs">
+                      <div className="rounded bg-background p-2 border border-border">
+                        <div className="text-muted-foreground">Bytes Received</div>
+                        <div className="mt-1 font-semibold text-foreground">{formatBytes(port.stats.bytesReceived)}</div>
                       </div>
-                      <div className="rounded bg-slate-950/40 p-2 border border-slate-850">
-                        <div className="text-slate-400">Bytes Sent</div>
-                        <div className="mt-1 font-semibold text-slate-200">{formatBytes(port.stats.bytesSent)}</div>
+                      <div className="rounded bg-background p-2 border border-border">
+                        <div className="text-muted-foreground">Bytes Sent</div>
+                        <div className="mt-1 font-semibold text-foreground">{formatBytes(port.stats.bytesSent)}</div>
                       </div>
                     </div>
                   )}
@@ -749,7 +782,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
             })}
           </div>
         ) : (
-          <div className="py-16 text-center text-slate-400">
+          <div className="py-16 text-center text-muted-foreground">
             No physical Ethernet ports details reported by the ONT.
           </div>
         )}
@@ -769,14 +802,14 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
     return (
       <div className="space-y-6">
         <div>
-          <h3 className="text-lg font-bold text-white mb-1">Traffic & Bandwidth Statistics</h3>
-          <p className="text-xs text-slate-400">Review cumulative data transmission across your router's interfaces</p>
+          <h3 className="text-lg font-bold text-foreground mb-1">Traffic & Bandwidth Statistics</h3>
+          <p className="text-xs text-muted-foreground">Review cumulative data transmission across your router's interfaces and internet usage history</p>
         </div>
 
         {/* LAN Statistics */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-          <h4 className="font-bold text-white mb-4 flex items-center gap-2">
-            <Network className="h-4 w-4 text-blue-400" />
+        <div className="rounded-xl border bg-muted/40 p-5">
+          <h4 className="font-bold text-foreground mb-4 flex items-center gap-2">
+            <Network className="h-4 w-4 text-primary" />
             Physical Ethernet Stats
           </h4>
           
@@ -784,7 +817,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead>
-                  <tr className="border-b border-slate-850 text-slate-400 font-semibold">
+                  <tr className="border-b text-muted-foreground font-semibold">
                     <th className="py-2.5">Port</th>
                     <th className="py-2.5">Data Sent</th>
                     <th className="py-2.5">Data Received</th>
@@ -792,10 +825,10 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
                     <th className="py-2.5">Packets Received</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-850 text-slate-200">
+                <tbody className="divide-y text-foreground">
                   {activeLanPorts.map((port: any) => (
                     <tr key={port.name || port.index}>
-                      <td className="py-3 font-semibold text-blue-400">{port.name || `LAN ${port.index}`}</td>
+                      <td className="py-3 font-semibold text-primary">{port.name || `LAN ${port.index}`}</td>
                       <td className="py-3 font-mono">{formatBytes(port.stats.bytesSent)}</td>
                       <td className="py-3 font-mono">{formatBytes(port.stats.bytesReceived)}</td>
                       <td className="py-3 font-mono">{Number(port.stats.packetsSent || 0).toLocaleString()}</td>
@@ -806,14 +839,14 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
               </table>
             </div>
           ) : (
-            <p className="text-xs text-slate-500 py-3">No active ethernet ports transmitting traffic.</p>
+            <p className="text-xs text-muted-foreground py-3">No active ethernet ports transmitting traffic.</p>
           )}
         </div>
 
         {/* Wi-Fi Statistics */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-          <h4 className="font-bold text-white mb-4 flex items-center gap-2">
-            <Radio className="h-4 w-4 text-blue-400" />
+        <div className="rounded-xl border bg-muted/40 p-5">
+          <h4 className="font-bold text-foreground mb-4 flex items-center gap-2">
+            <Radio className="h-4 w-4 text-primary" />
             Wireless Network Stats
           </h4>
           
@@ -821,7 +854,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead>
-                  <tr className="border-b border-slate-850 text-slate-400 font-semibold">
+                  <tr className="border-b text-muted-foreground font-semibold">
                     <th className="py-2.5">SSID Network</th>
                     <th className="py-2.5">Data Sent</th>
                     <th className="py-2.5">Data Received</th>
@@ -829,14 +862,14 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
                     <th className="py-2.5">Packets Received</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-850 text-slate-200">
+                <tbody className="divide-y text-foreground">
                   {wifiStats.map((ssid: any) => {
                     const idx = getSsidIndex(ssid.instance);
                     return (
                       <tr key={ssid.instance}>
                         <td className="py-3">
-                          <span className="font-semibold text-blue-400">{ssid.ssid}</span>
-                          <span className="text-xs text-slate-500 ml-2">({idx === 5 ? "5G" : "2.4G"})</span>
+                          <span className="font-semibold text-primary">{ssid.ssid}</span>
+                          <span className="text-xs text-muted-foreground ml-2">({idx === 5 ? "5G" : "2.4G"})</span>
                         </td>
                         <td className="py-3 font-mono">{formatBytes(ssid.stats.bytesSent)}</td>
                         <td className="py-3 font-mono">{formatBytes(ssid.stats.bytesReceived)}</td>
@@ -849,7 +882,56 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
               </table>
             </div>
           ) : (
-            <p className="text-xs text-slate-500 py-3">No wireless traffic statistics reported.</p>
+            <p className="text-xs text-muted-foreground py-3">No wireless traffic statistics reported.</p>
+          )}
+        </div>
+
+        {/* Daily Usage History (RADIUS) */}
+        <div className="rounded-xl border bg-muted/40 p-5">
+          <h4 className="font-bold text-foreground mb-4 flex items-center gap-2">
+            <Activity className="h-4 w-4 text-primary" />
+            Daily Internet Usage History
+          </h4>
+
+          {radiusUsageLoading ? (
+            <div className="flex items-center justify-center py-6 text-muted-foreground text-sm">
+              <Loader2 className="h-5 w-5 animate-spin mr-2 text-primary" />
+              Loading daily usage stats...
+            </div>
+          ) : radiusUsage.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead>
+                  <tr className="border-b text-muted-foreground font-semibold">
+                    <th className="py-2.5">Date</th>
+                    <th className="py-2.5">Upload</th>
+                    <th className="py-2.5">Download</th>
+                    <th className="py-2.5">Total Volume</th>
+                    <th className="py-2.5">Active Duration</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y text-foreground">
+                  {radiusUsage.map((usage: any) => (
+                    <tr key={usage.date}>
+                      <td className="py-3 font-semibold text-primary">
+                        {new Date(usage.date).toLocaleDateString(undefined, {
+                          weekday: "short",
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </td>
+                      <td className="py-3 font-mono">{formatBytes(usage.upload)}</td>
+                      <td className="py-3 font-mono">{formatBytes(usage.download)}</td>
+                      <td className="py-3 font-mono font-bold text-primary">{formatBytes(usage.total)}</td>
+                      <td className="py-3 font-mono text-muted-foreground">{formatDuration(usage.duration)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground py-3">No internet usage history found for this subscriber.</p>
           )}
         </div>
       </div>
@@ -870,20 +952,20 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
     const isDeviceOnline = (deviceInfo?.status || profile?.tr069Devices?.[0]?.status || "Offline") === "Online";
 
     return (
-      <div className="rounded-2xl border border-blue-500/20 bg-slate-950 p-6 text-slate-100 shadow-2xl backdrop-blur-md dark:border-blue-500/10">
+      <div className="rounded-2xl border border-blue-500/20 bg-card p-6 text-card-foreground shadow-lg dark:border-blue-500/10">
         {/* Router Header */}
-        <div className="mb-6 flex flex-col justify-between gap-4 border-b border-slate-800 pb-5 md:flex-row md:items-center">
+        <div className="mb-6 flex flex-col justify-between gap-4 border-b pb-5 md:flex-row md:items-center">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
               <Network className="h-6 w-6 animate-pulse" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-slate-100">Router Control Center</h2>
-              <p className="text-xs text-slate-400">Manage and monitor your home router in real-time</p>
+              <h2 className="text-xl font-bold text-foreground">Router Control Center</h2>
+              <p className="text-xs text-muted-foreground">Manage and monitor your home router in real-time</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Badge className={`${isDeviceOnline ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-rose-500/10 text-rose-400 border-rose-500/20"} px-3 py-1 font-semibold border`}>
+            <Badge className={`${isDeviceOnline ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20" : "bg-rose-100 text-rose-800 dark:bg-rose-500/10 dark:text-rose-400 border-rose-200 dark:border-rose-500/20"} px-3 py-1 font-semibold border`}>
               {isDeviceOnline ? "● Connected" : "○ Disconnected"}
             </Badge>
             <Button
@@ -891,7 +973,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
               size="sm"
               onClick={() => loadDeviceData(serial)}
               disabled={deviceLoading}
-              className="border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white"
+              className="border-input bg-background hover:bg-accent hover:text-accent-foreground"
             >
               <RefreshCw className={`h-4 w-4 ${deviceLoading ? "animate-spin" : ""}`} />
             </Button>
@@ -899,7 +981,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
         </div>
 
         {/* Sub-navigation */}
-        <div className="mb-6 flex flex-wrap gap-2 border-b border-slate-800/60 pb-4">
+        <div className="mb-6 flex flex-wrap gap-2 border-b border-border/60 pb-4">
           {[
             { id: "diagnostics", label: "Diagnostics", icon: Activity },
             { id: "wifi", label: "Wi-Fi Networks", icon: Wifi },
@@ -915,8 +997,8 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
                 onClick={() => setRouterSubTab(tab.id as any)}
                 className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-250 ${
                   active
-                    ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
-                    : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                    ? "bg-primary text-primary-foreground shadow-sm font-semibold"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
                 <Icon className="h-4 w-4" />
@@ -928,14 +1010,14 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
 
         {/* Reboot Progress Overlay */}
         {rebooting && (
-          <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/90 text-white backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/95 text-foreground backdrop-blur-md">
             <div className="relative flex h-24 w-24 items-center justify-center">
-              <div className="absolute inset-0 rounded-full border-4 border-slate-855"></div>
-              <div className="absolute inset-0 rounded-full border-4 border-blue-500 border-t-transparent animate-spin"></div>
-              <span className="text-xl font-bold text-blue-400">{rebootProgress}s</span>
+              <div className="absolute inset-0 rounded-full border-4 border-border"></div>
+              <div className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+              <span className="text-xl font-bold text-primary">{rebootProgress}s</span>
             </div>
             <h3 className="mt-6 text-xl font-bold">Rebooting Router...</h3>
-            <p className="mt-2 text-sm text-slate-400 max-w-md text-center">
+            <p className="mt-2 text-sm text-muted-foreground max-w-md text-center">
               Your device is restarting. Please wait while we establish a new connection. This usually takes around 60 seconds.
             </p>
           </div>
@@ -944,22 +1026,22 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
         {/* Reboot Confirmation Dialog */}
         {rebootDialogOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-            <div className="w-[95vw] max-w-md rounded-xl border border-slate-800 bg-slate-900 p-6 text-slate-100 shadow-2xl">
+            <div className="w-[95vw] max-w-md rounded-xl border bg-card p-6 text-card-foreground shadow-lg">
               <h3 className="text-lg font-bold">Reboot Router</h3>
-              <p className="mt-2 text-sm text-slate-400 leading-relaxed">
+              <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
                 Are you sure you want to reboot your router? This will temporarily disconnect all connected devices from the internet.
               </p>
               <div className="mt-6 flex justify-end gap-3">
                 <Button
                   variant="outline"
                   onClick={() => setRebootDialogOpen(false)}
-                  className="border-slate-800 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
+                  className="border bg-muted hover:bg-muted/80 text-foreground"
                 >
                   Cancel
                 </Button>
                 <Button
                   onClick={handleReboot}
-                  className="bg-blue-600 text-white hover:bg-blue-700 font-semibold"
+                  className="bg-rose-600 text-white hover:bg-rose-700 font-semibold"
                 >
                   Confirm Reboot
                 </Button>
@@ -970,8 +1052,8 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
 
         {/* Sub-tab Content Panels */}
         {deviceLoading && !rebooting ? (
-          <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+          <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <p className="mt-4 text-sm font-medium">Fetching real-time data from router...</p>
           </div>
         ) : (
