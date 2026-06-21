@@ -66,7 +66,9 @@ const radiusTables = [
   { key: "radusergroup", label: "Radusergroup" },
   { key: "radgroupreply", label: "Groupreply" },
   { key: "radgroupcheck", label: "Groupcheck" },
+  { key: "radpostauth", label: "Postauth" },
   { key: "nas", label: "NAS" },
+  { key: "nasreload", label: "NAS reload" },
   { key: "radacct", label: "Accounting" },
 ]
 
@@ -77,7 +79,7 @@ function RawRadiusTable({ table, search }: { table: string; search: string }) {
   const fetchRows = async () => {
     setLoading(true)
     try {
-      const response = await ServicesAPI.getRadiusTable(table, table === "radacct" ? 1000 : 2000, 0)
+      const response = await ServicesAPI.getRadiusTable(table, ["radacct", "radpostauth", "nasreload"].includes(table) ? 1000 : 2000, 0)
       setRows(response.data?.rows || [])
     } catch (error: any) {
       toast.error(error.message || `Failed to load ${table}`)
@@ -433,6 +435,8 @@ export function RadiusDashboard() {
               <AttributeTable title="Radreply" rows={selectedUser?.radreply || []} />
               <AttributeTable title="Radusergroup" rows={selectedUser?.radusergroup || []} />
               <AttributeTable title="Groupreply" rows={selectedUser?.radgroupreply || []} />
+              <AttributeTable title="Groupcheck" rows={selectedUser?.radgroupcheck || []} />
+              <AttributeTable title="Postauth" rows={selectedUser?.radpostauth || []} />
               <AttributeTable title="Recent Accounting" rows={selectedUser?.radacct || accounting || []} />
             </div>
           )}

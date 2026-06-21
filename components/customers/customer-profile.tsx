@@ -1324,6 +1324,23 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const [newPortalPassword, setNewPortalPassword] = useState("")
   const [portalPasswordSubmitting, setPortalPasswordSubmitting] = useState(false)
   const [showPortalPassword, setShowPortalPassword] = useState(false)
+  const [radiusPasswordOpen, setRadiusPasswordOpen] = useState(false)
+  const [radiusPasswordUser, setRadiusPasswordUser] = useState<{ id: number; username: string } | null>(null)
+  const [newRadiusPassword, setNewRadiusPassword] = useState("")
+  const [radiusPasswordSubmitting, setRadiusPasswordSubmitting] = useState(false)
+
+  const getFallbackPortalEmail = useCallback((cust: Customer | null) => {
+    if (!cust) return ""
+    if (cust.email) {
+      const email = cust.email.trim().replace(/\s+/g, '').toLowerCase()
+      if (email.includes('@')) {
+        return email
+      }
+    }
+    const username = String(cust.customerUniqueId || `customer-${cust.id}`).trim().replace(/\s+/g, '').toLowerCase()
+    return `${username}@customer.local`
+  }, [])
+
 
   // ========== Hardware Dialog Steps ==========
   const [hwDialogStep, setHwDialogStep] = useState<1 | 2>(1)
@@ -2012,12 +2029,48 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       toast({ title: "Success", description: "Portal password updated successfully" });
       setPortalPasswordOpen(false);
       setNewPortalPassword("");
+      fetchCustomerData();
     } catch (error: any) {
       toast({ title: "Error", description: error.message || "Failed to update portal password", variant: "destructive" });
     } finally {
       setPortalPasswordSubmitting(false);
     }
   };
+
+  const openRadiusPasswordDialog = (connectionUser: { id: number; username: string }) => {
+    setRadiusPasswordUser({ id: connectionUser.id, username: connectionUser.username })
+    setNewRadiusPassword("")
+    setRadiusPasswordOpen(true)
+  }
+
+  const handleChangeRadiusPassword = async () => {
+    if (!radiusPasswordUser) return
+    if (!newRadiusPassword.trim() || newRadiusPassword.length < 4) {
+      toast({ title: "Validation Error", description: "Password must be at least 4 characters", variant: "destructive" })
+      return
+    }
+    setRadiusPasswordSubmitting(true)
+    try {
+      const response = await apiRequest<any>(`/customer/${customerId}/connection-users/${radiusPasswordUser.id}/password`, {
+        method: "PUT",
+        body: JSON.stringify({ newPassword: newRadiusPassword })
+      })
+      toast({
+        title: "Success",
+        description: response?.data?.radiusUpdated === false
+          ? "Local password updated. Radius update failed or is unavailable."
+          : "Radius / PPPoE password updated successfully"
+      })
+      setRadiusPasswordOpen(false)
+      setRadiusPasswordUser(null)
+      setNewRadiusPassword("")
+      fetchCustomerData()
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to update Radius password", variant: "destructive" })
+    } finally {
+      setRadiusPasswordSubmitting(false)
+    }
+  }
 
   useEffect(() => {
     if (activeTab === "radius" && customerId) {
@@ -2729,18 +2782,22 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       <Dialog open={portalPasswordOpen} onOpenChange={setPortalPasswordOpen}>
         <DialogContent className="w-[95vw] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Change Portal Password</DialogTitle>
-            <DialogDescription>Set a new password for this subscriber's portal login.</DialogDescription>
+            <DialogTitle>{customer?.portalUser ? "Change Portal Password" : "Create Portal Account"}</DialogTitle>
+            <DialogDescription>
+              {customer?.portalUser
+                ? "Set a new password for this subscriber's portal login."
+                : `Create a new portal login account for email/username: ${customer?.portalUser?.email || getFallbackPortalEmail(customer)}`}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="new-portal-password">New Password</Label>
+              <Label htmlFor="new-portal-password">Password</Label>
               <Input
                 id="new-portal-password"
                 type="password"
                 value={newPortalPassword}
                 onChange={(e) => setNewPortalPassword(e.target.value)}
-                placeholder="Enter new password (min 4 characters)"
+                placeholder="Enter password (min 4 characters)"
               />
             </div>
           </div>
@@ -2748,6 +2805,34 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
             <Button variant="outline" onClick={() => setPortalPasswordOpen(false)}>Cancel</Button>
             <Button onClick={handleChangePortalPassword} disabled={portalPasswordSubmitting}>
               {portalPasswordSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {customer?.portalUser ? "Update Password" : "Create Account"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={radiusPasswordOpen} onOpenChange={setRadiusPasswordOpen}>
+        <DialogContent className="w-[95vw] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Change Radius Password</DialogTitle>
+            <DialogDescription>{radiusPasswordUser?.username || "Connection user"}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-radius-password">New Password</Label>
+              <Input
+                id="new-radius-password"
+                type="password"
+                value={newRadiusPassword}
+                onChange={(e) => setNewRadiusPassword(e.target.value)}
+                placeholder="Enter new password (min 4 characters)"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRadiusPasswordOpen(false)}>Cancel</Button>
+            <Button onClick={handleChangeRadiusPassword} disabled={radiusPasswordSubmitting}>
+              {radiusPasswordSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Update Password
             </Button>
           </DialogFooter>
@@ -3171,13 +3256,9 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                 <div className="grid grid-cols-1 gap-2 text-sm">
                   <div className="flex justify-between p-1.5 rounded bg-slate-50 dark:bg-slate-800/40">
                     <span className="text-muted-foreground">Portal Username/Email:</span>
-                    <span className="font-mono font-medium">{customer.portalUser?.email || `${customer.customerUniqueId?.toLowerCase().replace(/\s+/g, '')}@customer.isp`}</span>
+                    <span className="font-mono font-medium">{customer.portalUser?.email || getFallbackPortalEmail(customer)}</span>
                   </div>
-                  <div className="flex justify-between p-1.5 rounded bg-slate-50 dark:bg-slate-800/40">
-                    <span className="text-muted-foreground">Default Password:</span>
-                    <span className="font-mono font-medium">{customer.customerUniqueId?.toLowerCase().replace(/\s+/g, '')}</span>
-                  </div>
-                  {customer.portalUser && (
+                  {customer.portalUser ? (
                     <div className="flex items-center justify-between p-1.5 rounded bg-slate-50 dark:bg-slate-800/40">
                       <span className="text-muted-foreground">Password Hash:</span>
                       <div className="flex items-center gap-1.5">
@@ -3198,15 +3279,18 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                         </Button>
                       </div>
                     </div>
-                  )}
-                  {customer.portalUser && (
-                    <div className="flex justify-end mt-2">
-                      <Button size="sm" variant="outline" onClick={() => setPortalPasswordOpen(true)} className="gap-1.5">
-                        <Key className="h-3.5 w-3.5" />
-                        Change Password
-                      </Button>
+                  ) : (
+                    <div className="flex justify-between p-1.5 rounded bg-slate-50 dark:bg-slate-800/40">
+                      <span className="text-muted-foreground">Default Password (Initial):</span>
+                      <span className="font-mono font-medium">{customer.customerUniqueId?.toLowerCase().replace(/\s+/g, '') || "N/A"}</span>
                     </div>
                   )}
+                  <div className="flex justify-end mt-2">
+                    <Button size="sm" variant="outline" onClick={() => setPortalPasswordOpen(true)} className="gap-1.5">
+                      <Key className="h-3.5 w-3.5" />
+                      {customer.portalUser ? "Change Password" : "Create Portal Account"}
+                    </Button>
+                  </div>
                 </div>
               </div>
             </CardContainer>
@@ -3247,6 +3331,14 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                           ) : (
                             <Eye className="h-3.5 w-3.5 text-muted-foreground" />
                           )}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => openRadiusPasswordDialog(connectionUser)}
+                        >
+                          Change
                         </Button>
                       </div>
                     </div>
@@ -4033,61 +4125,95 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 <span className="ml-2 text-muted-foreground">Loading auth logs...</span>
               </div>
-            ) : radiusAuthLogs.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Shield className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p>No radius authentication logs found.</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 dark:border-slate-700">
-                      <th className="text-left py-2 px-3 font-medium text-muted-foreground">Date</th>
-                      <th className="text-left py-2 px-3 font-medium text-muted-foreground">Username</th>
-                      <th className="text-left py-2 px-3 font-medium text-muted-foreground">Password</th>
-                      <th className="text-left py-2 px-3 font-medium text-muted-foreground">MAC</th>
-                      <th className="text-left py-2 px-3 font-medium text-muted-foreground">Called ID</th>
-                      <th className="text-left py-2 px-3 font-medium text-muted-foreground">Framed IP</th>
-                      <th className="text-left py-2 px-3 font-medium text-muted-foreground">NAS IP</th>
-                      <th className="text-left py-2 px-3 font-medium text-muted-foreground">NAS Port</th>
-                      <th className="text-left py-2 px-3 font-medium text-muted-foreground">Reply</th>
-                      <th className="text-left py-2 px-3 font-medium text-muted-foreground">Reason</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {radiusAuthLogs.map((log: any, idx: number) => (
-                      <tr key={log.id || idx} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                        <td className="py-2 px-3 whitespace-nowrap text-xs">
-                          {new Date(log.date).toLocaleString()}
-                        </td>
-                        <td className="py-2 px-3 font-mono text-xs">{log.username}</td>
-                        <td className="py-2 px-3">
-                          {log.reply === 'Access-Reject' ? (
-                            <span className="font-mono text-xs bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 px-2 py-0.5 rounded">
-                              {log.password}
-                            </span>
-                          ) : (
-                            <span className="font-mono text-xs text-muted-foreground">••••••••</span>
-                          )}
-                        </td>
-                        <td className="py-2 px-3 font-mono text-xs">{log.mac}</td>
-                        <td className="py-2 px-3 font-mono text-xs">{log.calledId || "N/A"}</td>
-                        <td className="py-2 px-3 font-mono text-xs">{log.framedIp || "N/A"}</td>
-                        <td className="py-2 px-3 font-mono text-xs">{log.nasIp || "N/A"}</td>
-                        <td className="py-2 px-3 font-mono text-xs">{log.nasPort || "N/A"}</td>
-                        <td className="py-2 px-3">
-                          <Badge variant={log.reply === 'Access-Accept' ? 'default' : 'destructive'} className="text-xs">
-                            {log.reply}
-                          </Badge>
-                        </td>
-                        <td className="py-2 px-3 text-xs">{log.reason}</td>
+            ) : (() => {
+              const logsToRender = (radiusAuthLogs && radiusAuthLogs.length > 0)
+                ? radiusAuthLogs
+                : (customer?.connectionUsers && customer.connectionUsers.length > 0)
+                  ? customer.connectionUsers.map((user: any) => ({
+                      id: `virtual-${user.id}`,
+                      date: null,
+                      username: user.username,
+                      password: "N/A",
+                      mac: "N/A",
+                      calledId: "N/A",
+                      framedIp: "N/A",
+                      nasIp: "N/A",
+                      nasPort: "N/A",
+                      reply: "N/A",
+                      reason: "No radius logs found (using database profile)"
+                    }))
+                  : [];
+
+              return (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 dark:border-slate-700">
+                        <th className="text-left py-2 px-3 font-medium text-muted-foreground">Date</th>
+                        <th className="text-left py-2 px-3 font-medium text-muted-foreground">Username</th>
+                        <th className="text-left py-2 px-3 font-medium text-muted-foreground">Password</th>
+                        <th className="text-left py-2 px-3 font-medium text-muted-foreground">MAC</th>
+                        <th className="text-left py-2 px-3 font-medium text-muted-foreground">Called ID</th>
+                        <th className="text-left py-2 px-3 font-medium text-muted-foreground">Framed IP</th>
+                        <th className="text-left py-2 px-3 font-medium text-muted-foreground">NAS IP</th>
+                        <th className="text-left py-2 px-3 font-medium text-muted-foreground">NAS Port</th>
+                        <th className="text-left py-2 px-3 font-medium text-muted-foreground">Reply</th>
+                        <th className="text-left py-2 px-3 font-medium text-muted-foreground">Reason</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                    </thead>
+                    <tbody>
+                      {logsToRender.length === 0 ? (
+                        <tr>
+                          <td colSpan={10} className="text-center py-8 text-muted-foreground">
+                            No connection user saved for this customer.
+                          </td>
+                        </tr>
+                      ) : (
+                        logsToRender.map((log: any, idx: number) => (
+                          <tr key={log.id || idx} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                            <td className="py-2 px-3 whitespace-nowrap text-xs">
+                              {log.date ? new Date(log.date).toLocaleString() : "N/A"}
+                            </td>
+                            <td className="py-2 px-3 font-mono text-xs">{log.username}</td>
+                            <td className="py-2 px-3">
+                              {log.reply === 'Access-Reject' ? (
+                                <span className="font-mono text-xs bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 px-2 py-0.5 rounded">
+                                  {log.password}
+                                </span>
+                              ) : log.password === 'N/A' ? (
+                                <span className="font-mono text-xs text-muted-foreground">N/A</span>
+                              ) : (
+                                <span className="font-mono text-xs text-muted-foreground">••••••••</span>
+                              )}
+                            </td>
+                            <td className="py-2 px-3 font-mono text-xs">{log.mac || "N/A"}</td>
+                            <td className="py-2 px-3 font-mono text-xs">{log.calledId || "N/A"}</td>
+                            <td className="py-2 px-3 font-mono text-xs">{log.framedIp || "N/A"}</td>
+                            <td className="py-2 px-3 font-mono text-xs">{log.nasIp || "N/A"}</td>
+                            <td className="py-2 px-3 font-mono text-xs">{log.nasPort || "N/A"}</td>
+                            <td className="py-2 px-3">
+                              <Badge 
+                                variant={
+                                  log.reply === 'Access-Accept' 
+                                    ? 'default' 
+                                    : log.reply === 'Access-Reject' 
+                                      ? 'destructive' 
+                                      : 'secondary'
+                                } 
+                                className="text-xs"
+                              >
+                                {log.reply || "N/A"}
+                              </Badge>
+                            </td>
+                            <td className="py-2 px-3 text-xs">{log.reason || "N/A"}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
           </CardContainer>
         </TabsContent>
 

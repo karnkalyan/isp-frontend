@@ -106,6 +106,14 @@ export function SystemSettings() {
     allowStaffCompensation: false,
     tscPercentage: 10,
     freeCustomerSecretKey: "admin123",
+    customerIdPrefix: "CUS",
+    customerIdIncludeMembership: true,
+    customerIdIncludeBranch: false,
+    customerIdIncludeSubBranch: false,
+    customerIdPaddingLength: 5,
+    customerIdIncludeNamePart: true,
+    customerIdNamePartLength: 5,
+    showLicenseTab: true,
     // NEW: global discount settings for members
     newMemberDiscount: {
       enabled: true,
@@ -226,6 +234,14 @@ export function SystemSettings() {
             allowStaffCompensation: data.allowStaffCompensation === 'true',
             tscPercentage: parseInt(data.tscPercentage || '10'),
             freeCustomerSecretKey: data.freeCustomerSecretKey || 'admin123',
+            customerIdPrefix: data.customerIdPrefix !== undefined ? data.customerIdPrefix : prev.customerIdPrefix,
+            customerIdIncludeMembership: data.customerIdIncludeMembership !== 'false',
+            customerIdIncludeBranch: data.customerIdIncludeBranch === 'true',
+            customerIdIncludeSubBranch: data.customerIdIncludeSubBranch === 'true',
+            customerIdPaddingLength: parseInt(data.customerIdPaddingLength || '5'),
+            customerIdIncludeNamePart: data.customerIdIncludeNamePart !== 'false',
+            customerIdNamePartLength: parseInt(data.customerIdNamePartLength || '5'),
+            showLicenseTab: data.showLicenseTab !== 'false',
             newMemberDiscount: data.newMemberDiscount ? JSON.parse(data.newMemberDiscount) : prev.newMemberDiscount,
             renewalDiscount: data.renewalDiscount ? JSON.parse(data.renewalDiscount) : prev.renewalDiscount,
           }))
@@ -350,6 +366,7 @@ export function SystemSettings() {
         method: "POST",
         body: JSON.stringify({ settings: settingsArray }),
       })
+      window.dispatchEvent(new CustomEvent("system-settings-saved", { detail: settings }))
       const response = await apiRequest<{ data?: ActiveIsp }>("/isp/active", {
         method: "PUT",
         body: JSON.stringify(ispInfo),
@@ -633,6 +650,145 @@ export function SystemSettings() {
           </div>
         </CardContainer>
 
+        <CardContainer title="Customer ID Generation" description="Configure settings for generating unique customer IDs and view a live preview of the pattern.">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="customerIdPrefix">ID Prefix</Label>
+                  <Input
+                    id="customerIdPrefix"
+                    type="text"
+                    value={settings.customerIdPrefix}
+                    onChange={(e) => updateSetting("customerIdPrefix", e.target.value)}
+                    placeholder="e.g. CUS"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="customerIdPaddingLength">ID Padding Length</Label>
+                  <Input
+                    id="customerIdPaddingLength"
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={settings.customerIdPaddingLength}
+                    onChange={(e) => updateSetting("customerIdPaddingLength", Number(e.target.value))}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Include Membership Code</Label>
+                  <p className="text-xs text-muted-foreground">Add membership type code (e.g. GEN, LIFE) to ID</p>
+                </div>
+                <Switch
+                  checked={settings.customerIdIncludeMembership}
+                  onCheckedChange={(v) => updateSetting("customerIdIncludeMembership", v)}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Include Branch Code</Label>
+                  <p className="text-xs text-muted-foreground">Add current branch prefix/code to customer ID</p>
+                </div>
+                <Switch
+                  checked={settings.customerIdIncludeBranch}
+                  onCheckedChange={(v) => updateSetting("customerIdIncludeBranch", v)}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Include Sub-Branch Code</Label>
+                  <p className="text-xs text-muted-foreground">Add sub-branch prefix/code to customer ID</p>
+                </div>
+                <Switch
+                  checked={settings.customerIdIncludeSubBranch}
+                  onCheckedChange={(v) => updateSetting("customerIdIncludeSubBranch", v)}
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t">
+                <div className="space-y-0.5">
+                  <Label>Include Name Initials</Label>
+                  <p className="text-xs text-muted-foreground">Append character prefix of customer name at the end</p>
+                </div>
+                <Switch
+                  checked={settings.customerIdIncludeNamePart}
+                  onCheckedChange={(v) => updateSetting("customerIdIncludeNamePart", v)}
+                />
+              </div>
+
+              {settings.customerIdIncludeNamePart && (
+                <div className="space-y-2 pl-4 border-l-2 border-slate-200 dark:border-slate-700">
+                  <Label htmlFor="customerIdNamePartLength">Name Characters Length</Label>
+                  <Input
+                    id="customerIdNamePartLength"
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={settings.customerIdNamePartLength}
+                    onChange={(e) => updateSetting("customerIdNamePartLength", Number(e.target.value))}
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col justify-between p-6 rounded-lg border bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800">
+              <div>
+                <h4 className="font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Live Preview
+                </h4>
+                <p className="text-xs text-muted-foreground mt-1">
+                  This shows what the customer ID will look like for a newly registered user (e.g. sequence number 123, name John Doe).
+                </p>
+                
+                <div className="mt-6 p-4 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 shadow-sm flex items-center justify-center">
+                  <span className="font-mono text-lg font-bold tracking-wider text-primary select-all">
+                    {(() => {
+                      const parts = []
+                      const prefix = settings.customerIdPrefix || ""
+                      if (prefix) parts.push(prefix)
+                      
+                      if (settings.customerIdIncludeMembership) {
+                        parts.push("MEM")
+                      }
+                      if (settings.customerIdIncludeBranch) {
+                        parts.push("BR01")
+                      }
+                      if (settings.customerIdIncludeSubBranch) {
+                        parts.push("SUB02")
+                      }
+                      
+                      const padded = "123".padStart(Number(settings.customerIdPaddingLength || 5), "0")
+                      parts.push(padded)
+                      
+                      if (settings.customerIdIncludeNamePart) {
+                        const namePartLength = Number(settings.customerIdNamePartLength || 5)
+                        const mockName = "JOHNDOE"
+                        let namePart = mockName.substring(0, namePartLength).toUpperCase()
+                        if (namePart.length < namePartLength) {
+                          namePart = namePart.padEnd(namePartLength, "X")
+                        }
+                        parts.push(namePart)
+                      }
+                      
+                      return parts.join("-")
+                    })()}
+                  </span>
+                </div>
+              </div>
+
+              <div className="text-[10px] text-muted-foreground mt-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+                Note: The actual branch and sub-branch codes will dynamically load from the ones selected in the customer registration form. Membership code will be determined by the selected membership type.
+              </div>
+            </div>
+          </div>
+        </CardContainer>
+
         <CardContainer title="Global Membership Discounts" description="Set default discounts applied to members (first install + renewals)">
           <div className="space-y-4">
             {/* New Member Discount */}
@@ -899,6 +1055,17 @@ export function SystemSettings() {
                 <Switch
                   checked={settings.smsNotifications}
                   onCheckedChange={(checked) => updateSetting("smsNotifications", checked)}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Show License Tab</Label>
+                  <div className="text-sm text-muted-foreground">Toggle visibility of the License tab in Master Settings</div>
+                </div>
+                <Switch
+                  checked={settings.showLicenseTab}
+                  onCheckedChange={(checked) => updateSetting("showLicenseTab", checked)}
                 />
               </div>
             </div>

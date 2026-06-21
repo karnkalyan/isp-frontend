@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { SystemSettings } from "./system-settings"
 import { MailSettings } from "./mail-settings"
 import { BranchSettings } from "./branch-settings"
@@ -8,9 +8,35 @@ import { LicenseSettings } from "./license-settings"
 import { RolesList } from "@/components/admin/roles-list"
 import { RolePermissionsMatrix } from "@/components/admin/role-permissions-matrix"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { apiRequest } from "@/lib/api"
 
 export function MasterSettingsTabs() {
   const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null)
+  const [showLicense, setShowLicense] = useState(true)
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const data = await apiRequest<Record<string, string>>("/settings")
+        if (data && typeof data === 'object') {
+          setShowLicense(data.showLicenseTab !== 'false')
+        }
+      } catch (e) {
+        console.error("Failed to load settings in MasterSettingsTabs:", e)
+      }
+    }
+    fetchSettings()
+  }, [])
+
+  useEffect(() => {
+    const handleSettingsSaved = (e: CustomEvent<any>) => {
+      if (e.detail && e.detail.showLicenseTab !== undefined) {
+        setShowLicense(e.detail.showLicenseTab)
+      }
+    }
+    window.addEventListener("system-settings-saved" as any, handleSettingsSaved)
+    return () => window.removeEventListener("system-settings-saved" as any, handleSettingsSaved)
+  }, [])
 
   return (
     <div className="w-full">
@@ -21,7 +47,7 @@ export function MasterSettingsTabs() {
           <TabsTrigger value="branch">Service & Branch Settings</TabsTrigger>
           <TabsTrigger value="enhancements">Enhancements & Customer Types</TabsTrigger>
           <TabsTrigger value="roles">Role & Sidebar Management</TabsTrigger>
-          <TabsTrigger value="license">License</TabsTrigger>
+          {showLicense && <TabsTrigger value="license">License</TabsTrigger>}
         </TabsList>
         <TabsContent value="system">
           <SystemSettings />
@@ -50,9 +76,11 @@ export function MasterSettingsTabs() {
             </div>
           </div>
         </TabsContent>
-        <TabsContent value="license">
-          <LicenseSettings />
-        </TabsContent>
+        {showLicense && (
+          <TabsContent value="license">
+            <LicenseSettings />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   )
