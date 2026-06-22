@@ -118,6 +118,47 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     setIsAuthorized(true);
   }, [pathname, user, loading, router, hasPermission, mounted]);
 
+  useEffect(() => {
+    if (!mounted || loading || !user) return;
+    
+    const checkLoginNotifications = async () => {
+      const toasted = sessionStorage.getItem("login-items-toasted");
+      if (toasted === "true") return;
+
+      try {
+        const { apiRequest } = await import("@/lib/api");
+        
+        // Fetch tasks
+        const tasks = await apiRequest<any[]>("/tasks").catch(() => []);
+        const activeTasks = Array.isArray(tasks) ? tasks.filter((t: any) => 
+          (t.assignedToId === user.id || t.assignedTo?.id === user.id) &&
+          ["PENDING", "ACCEPTED", "IN_PROGRESS"].includes(t.status)
+        ) : [];
+
+        // Fetch tickets
+        const ticketsRes = await apiRequest<any>("/tickets?limit=100").catch(() => null);
+        const ticketsList = ticketsRes?.data || [];
+        const activeTickets = Array.isArray(ticketsList) ? ticketsList.filter((t: any) => 
+          (t.assignedToId === user.id || t.assignedTo?.id === user.id) &&
+          ["OPEN", "IN_PROGRESS"].includes(t.status)
+        ) : [];
+
+        if (activeTasks.length > 0 || activeTickets.length > 0) {
+          toast.success(
+            `Welcome back, ${user.name || user.email || "User"}! You have ${activeTasks.length} active task(s) and ${activeTickets.length} open ticket(s) assigned to you.`,
+            { duration: 8000 }
+          );
+        }
+      } catch (err) {
+        console.error("Error fetching login notification counts:", err);
+      } finally {
+        sessionStorage.setItem("login-items-toasted", "true");
+      }
+    };
+
+    checkLoginNotifications();
+  }, [user, loading, mounted]);
+
   return (
     <div
       className="flex h-full"

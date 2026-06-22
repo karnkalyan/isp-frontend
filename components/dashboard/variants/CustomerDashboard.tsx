@@ -62,6 +62,18 @@ type CustomerProfile = {
     packageName?: string | null
     price?: number | null
     packageDuration?: string | null
+    referenceId?: string | null
+    packagePlanDetails?: {
+      planName?: string | null
+      downSpeed?: number | null
+      upSpeed?: number | null
+    } | null
+  } | null
+  packagePrice?: {
+    packageName?: string | null
+    price?: number | null
+    packageDuration?: string | null
+    referenceId?: string | null
     packagePlanDetails?: {
       planName?: string | null
       downSpeed?: number | null
@@ -397,13 +409,13 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
         <div className="space-y-3">
           <div className="flex justify-between items-center text-sm">
             <span className="text-muted-foreground">ONT Status (ACS):</span>
-            <Badge variant={(deviceInfo?.status || profile.ontRealtimeStatus || profile.tr069Devices?.[0]?.status) === "online" ? "success" : "destructive"}>
+            <Badge variant={String(deviceInfo?.status || profile.ontRealtimeStatus || profile.tr069Devices?.[0]?.status || "offline").toLowerCase() === "online" ? "success" : "destructive"}>
               {String(deviceInfo?.status || profile.ontRealtimeStatus || profile.tr069Devices?.[0]?.status || "offline").toUpperCase()}
             </Badge>
           </div>
           <div className="flex justify-between items-center text-sm">
             <span className="text-muted-foreground">Radius Link:</span>
-            <Badge variant={profile.radiusRealtimeStatus === "online" ? "success" : "destructive"}>
+            <Badge variant={String(profile.radiusRealtimeStatus || "offline").toLowerCase() === "online" ? "success" : "destructive"}>
               {String(profile.radiusRealtimeStatus || "offline").toUpperCase()}
             </Badge>
           </div>
@@ -1201,27 +1213,61 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
                               <span className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Invoice Item Breakdown</span>
                               <span className="text-xs font-mono text-muted-foreground">Order ID: #{order.id}</span>
                             </div>
-                            {order.items && order.items.length > 0 ? (
-                              <div className="space-y-3">
-                                {order.items.map((item: any) => (
-                                  <div key={item.id} className="flex justify-between items-center text-sm py-2 border-b border-border/40 last:border-0">
-                                    <div className="flex flex-col flex-1 pr-4">
-                                      <span className="font-medium text-foreground">{item.itemName}</span>
-                                      {item.referenceId && (
-                                        <span className="text-xs text-muted-foreground font-mono mt-0.5">Ref: {item.referenceId}</span>
-                                      )}
-                                    </div>
-                                    <span className="font-mono text-foreground font-medium">{money(item.itemPrice)}</span>
+                            {(() => {
+                              const resolvedItems = order.items && order.items.length > 0 
+                                ? order.items.map((item: any, idx: number) => ({
+                                    sn: idx + 1,
+                                    itemName: item.itemName,
+                                    referenceId: item.referenceId || 'N/A',
+                                    qty: 1,
+                                    price: item.itemPrice,
+                                    total: item.itemPrice
+                                  }))
+                                : [
+                                    {
+                                      sn: 1,
+                                      itemName: order.packagePrice?.packageName || profile.packagePrice?.packageName || profile.subscribedPkg?.packageName || 'ARR-100-MBPS',
+                                      referenceId: order.packagePrice?.referenceId || profile.packagePrice?.referenceId || profile.subscribedPkg?.referenceId || 'N/A',
+                                      qty: 1,
+                                      price: order.packagePrice?.price ?? order.totalAmount,
+                                      total: order.totalAmount
+                                    }
+                                  ];
+                              return (
+                                <div className="space-y-4">
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                      <thead>
+                                        <tr className="border-b border-border text-[10px] font-semibold text-muted-foreground uppercase">
+                                          <th className="py-2 px-2 text-center">S.N.</th>
+                                          <th className="py-2 px-2">Item Name</th>
+                                          <th className="py-2 px-2">Reference ID</th>
+                                          <th className="py-2 px-2 text-center">Qty</th>
+                                          <th className="py-2 px-2 text-right">Unit Price</th>
+                                          <th className="py-2 px-2 text-right">Total</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-border/40 text-xs">
+                                        {resolvedItems.map((item: any) => (
+                                          <tr key={item.sn} className="hover:bg-muted/10">
+                                            <td className="py-2 px-2 text-center font-mono text-[10px]">{item.sn}</td>
+                                            <td className="py-2 px-2 font-medium text-foreground">{item.itemName}</td>
+                                            <td className="py-2 px-2 font-mono text-[10px] text-muted-foreground">{item.referenceId}</td>
+                                            <td className="py-2 px-2 text-center">{item.qty}</td>
+                                            <td className="py-2 px-2 text-right font-mono">{money(item.price)}</td>
+                                            <td className="py-2 px-2 text-right font-mono font-medium">{money(item.total)}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
                                   </div>
-                                ))}
-                                <div className="flex justify-between items-center pt-3 border-t border-border font-bold text-foreground">
-                                  <span>Total Amount</span>
-                                  <span className="text-base font-mono text-primary">{money(order.totalAmount)}</span>
+                                  <div className="flex justify-between items-center pt-3 border-t border-border font-bold text-sm text-foreground">
+                                    <span>Total Amount</span>
+                                    <span className="text-base font-mono text-primary">{money(order.totalAmount)}</span>
+                                  </div>
                                 </div>
-                              </div>
-                            ) : (
-                              <p className="text-xs text-muted-foreground">No specific items listed for this order.</p>
-                            )}
+                              );
+                            })()}
                           </div>
                         </td>
                       </tr>

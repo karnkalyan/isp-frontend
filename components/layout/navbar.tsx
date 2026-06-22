@@ -11,6 +11,8 @@ import { UserNav } from "@/components/layout/user-nav";
 import { SearchModal } from "@/components/layout/search-modal";
 import { MessagesDropdown } from "@/components/layout/messages-dropdown";
 import { NotificationsDropdown } from "@/components/layout/notifications-dropdown";
+import { TasksDropdown } from "@/components/layout/tasks-dropdown";
+import { TicketsDropdown } from "@/components/layout/tickets-dropdown";
 import { InquiryDialog } from "@/components/layout/inquery";
 import { BranchSwitcher } from "@/components/layout/branch-switcher";
 import { useAuth } from "@/contexts/AuthContext";
@@ -228,6 +230,8 @@ export function Navbar({ onMenuClick }: NavbarProps) {
               {showSearch ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
             </Button>
 
+             {!isCustomer && <TasksDropdown className="hidden md:flex" />}
+            {!isCustomer && <TicketsDropdown className="hidden md:flex" />}
             {!isCustomer && <MessagesDropdown className="hidden md:flex" />}
             {!isCustomer && <NotificationsDropdown className="hidden md:flex" />}
             <ThemeToggle />

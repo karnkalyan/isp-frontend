@@ -3130,13 +3130,13 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">ONT Status (ACS):</span>
-                    <Badge className={customer.ontRealtimeStatus === 'online' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}>
+                    <Badge className={String(customer.ontRealtimeStatus || '').toLowerCase() === 'online' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}>
                       {String(customer.ontRealtimeStatus || 'N/A').toUpperCase()}
                     </Badge>
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Radius Link:</span>
-                    <Badge className={customer.radiusRealtimeStatus === 'online' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}>
+                    <Badge className={String(customer.radiusRealtimeStatus || '').toLowerCase() === 'online' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}>
                       {String(customer.radiusRealtimeStatus || 'N/A').toUpperCase()}
                     </Badge>
                   </div>
@@ -3199,7 +3199,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                   <div className="grid grid-cols-1 gap-2">
                     <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                       <span className="text-muted-foreground">Session Status:</span>
-                      <Badge className={customer.radiusAccounting.status === 'online' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}>
+                      <Badge className={String(customer.radiusAccounting.status || '').toLowerCase() === 'online' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}>
                         {String(customer.radiusAccounting.status).toUpperCase()}
                       </Badge>
                     </div>
@@ -3254,7 +3254,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                     <div className="flex items-center gap-2 mb-2">
                       <Server className="h-5 w-5 text-primary" />
                       <h4 className="font-medium">OLT: {olt.name}</h4>
-                      <Badge className={olt.status === "online" ? "bg-green-500" : "bg-red-500"}>{olt.status}</Badge>
+                      <Badge className={String(olt.status || '').toLowerCase() === "online" ? "bg-green-500" : "bg-red-500"}>{olt.status}</Badge>
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div>Model:</div><div className="font-medium">{olt.model}</div>
@@ -3562,48 +3562,82 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
             <div className="space-y-4">
               {customer.orders.length > 0 ? (
                 <div className="space-y-3">
-                  {customer.orders.map((order) => (
-                    <div key={order.id} className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <FileText className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium">Order #{order.id}</span>
-                            <Badge variant={order.isPaid ? "default" : "secondary"} className={order.isPaid ? "bg-green-500" : "bg-amber-500"}>
-                              {order.isPaid ? "Paid" : "Pending"}
-                            </Badge>
-                            <Badge variant="outline" className={order.isActive ? "border-green-500 text-green-500" : "border-red-500 text-red-500"}>
-                              {order.isActive ? "Active" : "Inactive"}
-                            </Badge>
-                          </div>
-                          <div className="text-sm text-muted-foreground mt-1">
-                            Order Date: {formatDate(order.orderDate)} | Package: {order.packageStart} to {order.packageEnd}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-bold text-lg">{formatPrice(order.totalAmount)}</div>
-                          <div className="text-sm text-muted-foreground">{order.items.length} items</div>
-                        </div>
-                      </div>
-
-                      <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
-                        <div className="text-sm font-medium mb-2">Order Items:</div>
-                        <div className="space-y-2">
-                          {order.items.map((item) => (
-                            <div key={item.id} className="flex justify-between text-sm p-2 rounded bg-slate-100 dark:bg-slate-800">
-                              <div>
-                                <div>{item.itemName}</div>
-                                {item.referenceId && (
-                                  <div className="text-xs text-muted-foreground">Ref: {item.referenceId}</div>
-                                )}
-                              </div>
-                              <div className="font-medium">{formatPrice(item.itemPrice)}</div>
+                  {customer.orders.map((order) => {
+                    const resolvedItems = order.items && order.items.length > 0 
+                      ? order.items.map((item: any, idx: number) => ({
+                          sn: idx + 1,
+                          itemName: item.itemName,
+                          referenceId: item.referenceId || 'N/A',
+                          qty: 1,
+                          price: item.itemPrice,
+                          total: item.itemPrice
+                        }))
+                      : [
+                          {
+                            sn: 1,
+                            itemName: order.packagePrice?.packageName || customer.packagePrice?.packageName || customer.subscribedPkg?.packageName || 'ARR-100-MBPS',
+                            referenceId: order.packagePrice?.referenceId || customer.packagePrice?.referenceId || customer.subscribedPkg?.referenceId || 'N/A',
+                            qty: 1,
+                            price: order.packagePrice?.price ?? order.totalAmount,
+                            total: order.totalAmount
+                          }
+                        ];
+                    return (
+                      <div key={order.id} className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-muted-foreground" />
+                              <span className="font-medium">Order #{order.id}</span>
+                              <Badge variant={order.isPaid ? "default" : "secondary"} className={order.isPaid ? "bg-green-500" : "bg-amber-500"}>
+                                {order.isPaid ? "Paid" : "Pending"}
+                              </Badge>
+                              <Badge variant="outline" className={order.isActive ? "border-green-500 text-green-500" : "border-red-500 text-red-500"}>
+                                {order.isActive ? "Active" : "Inactive"}
+                              </Badge>
                             </div>
-                          ))}
+                            <div className="text-sm text-muted-foreground mt-1">
+                              Order Date: {formatDate(order.orderDate)} | Package: {order.packageStart} to {order.packageEnd}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold text-lg">{formatPrice(order.totalAmount)}</div>
+                            <div className="text-sm text-muted-foreground">{resolvedItems.length} items</div>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+                          <div className="text-sm font-medium mb-2">Order Items:</div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                              <thead>
+                                <tr className="border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-muted-foreground uppercase">
+                                  <th className="py-2 px-3 text-center">S.N.</th>
+                                  <th className="py-2 px-3">Item Name</th>
+                                  <th className="py-2 px-3">Reference ID</th>
+                                  <th className="py-2 px-3 text-center">Qty</th>
+                                  <th className="py-2 px-3 text-right">Unit Price</th>
+                                  <th className="py-2 px-3 text-right">Total</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
+                                {resolvedItems.map((item) => (
+                                  <tr key={item.sn} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
+                                    <td className="py-2.5 px-3 text-center font-mono text-xs">{item.sn}</td>
+                                    <td className="py-2.5 px-3 font-medium text-foreground">{item.itemName}</td>
+                                    <td className="py-2.5 px-3 font-mono text-xs text-muted-foreground">{item.referenceId}</td>
+                                    <td className="py-2.5 px-3 text-center">{item.qty}</td>
+                                    <td className="py-2.5 px-3 text-right font-mono">{formatPrice(item.price)}</td>
+                                    <td className="py-2.5 px-3 text-right font-mono font-medium">{formatPrice(item.total)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center p-4 text-muted-foreground">No order history found</div>
