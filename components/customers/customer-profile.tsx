@@ -461,6 +461,16 @@ interface Customer {
     createdAt: string
     updatedAt: string
   } | null
+  ontRealtimeStatus?: string
+  radiusRealtimeStatus?: string
+  radiusAccounting?: {
+    status: string
+    sessionDownload: number
+    sessionUpload: number
+    nasIp: string
+    framedIp: string
+    onlineDuration: number
+  } | null
 }
 
 interface PackageOption {
@@ -3094,7 +3104,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
             </CardContainer>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <CardContainer title="Connection Information" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
               <div className="space-y-3">
                 <div className="grid grid-cols-1 gap-2">
@@ -3117,6 +3127,18 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Subscribed Package:</span>
                     <span className="font-medium">{customer.subscribedPkg?.packageName || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                    <span className="text-muted-foreground">ONT Status (ACS):</span>
+                    <Badge className={customer.ontRealtimeStatus === 'online' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}>
+                      {String(customer.ontRealtimeStatus || 'N/A').toUpperCase()}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                    <span className="text-muted-foreground">Radius Link:</span>
+                    <Badge className={customer.radiusRealtimeStatus === 'online' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}>
+                      {String(customer.radiusRealtimeStatus || 'N/A').toUpperCase()}
+                    </Badge>
                   </div>
                 </div>
               </div>
@@ -3162,7 +3184,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Package Status:</span>
                     <span className="font-medium">
-                      <Badge className={customer.subscribedPkg?.isActive ? "bg-green-500" : "bg-red-500"}>
+                      <Badge className={customer.subscribedPkg?.isActive ? "bg-green-500 text-white" : "bg-red-500 text-white"}>
                         {customer.subscribedPkg?.isActive ? "Active" : "Inactive"}
                       </Badge>
                     </span>
@@ -3170,6 +3192,57 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                 </div>
               </div>
             </CardContainer>
+
+            {customer.radiusAccounting && (
+              <CardContainer title="Radius Session Info" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 gap-2">
+                    <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                      <span className="text-muted-foreground">Session Status:</span>
+                      <Badge className={customer.radiusAccounting.status === 'online' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}>
+                        {String(customer.radiusAccounting.status).toUpperCase()}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                      <span className="text-muted-foreground">Upload Traffic:</span>
+                      <span className="font-medium">
+                        {(() => {
+                          const bytes = customer.radiusAccounting.sessionUpload;
+                          if (!bytes || bytes <= 0) return "0 B";
+                          const sizes = ["B", "KB", "MB", "GB", "TB"];
+                          const i = Math.floor(Math.log(bytes) / Math.log(1024));
+                          return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${sizes[i]}`;
+                        })()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                      <span className="text-muted-foreground">Download Traffic:</span>
+                      <span className="font-medium">
+                        {(() => {
+                          const bytes = customer.radiusAccounting.sessionDownload;
+                          if (!bytes || bytes <= 0) return "0 B";
+                          const sizes = ["B", "KB", "MB", "GB", "TB"];
+                          const i = Math.floor(Math.log(bytes) / Math.log(1024));
+                          return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${sizes[i]}`;
+                        })()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                      <span className="text-muted-foreground">NAS IP:</span>
+                      <span className="font-medium font-mono">{customer.radiusAccounting.nasIp}</span>
+                    </div>
+                    <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                      <span className="text-muted-foreground">Framed IP:</span>
+                      <span className="font-medium font-mono">{customer.radiusAccounting.framedIp}</span>
+                    </div>
+                    <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                      <span className="text-muted-foreground">Online Duration:</span>
+                      <span className="font-medium">{formatDuration(customer.radiusAccounting.onlineDuration)}</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContainer>
+            )}
           </div>
 
           {/* Network Infrastructure Card */}

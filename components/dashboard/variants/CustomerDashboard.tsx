@@ -99,6 +99,16 @@ type CustomerProfile = {
     isActive?: boolean
     isTrial?: boolean
   } | null
+  ontRealtimeStatus?: string | null
+  radiusRealtimeStatus?: string | null
+  radiusAccounting?: {
+    status: string
+    sessionDownload: number
+    sessionUpload: number
+    nasIp: string
+    framedIp: string
+    onlineDuration: number
+  } | null
 }
 
 type DeviceData = {
@@ -383,10 +393,23 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
           <p className="text-xs text-muted-foreground">active support tickets</p>
         </div>
       </CardContainer>
-      <CardContainer title="Router">
-        <div className="space-y-2">
-          <div className="text-2xl font-bold">{deviceInfo?.status || profile.tr069Devices?.[0]?.status || "N/A"}</div>
-          <p className="text-xs text-muted-foreground">Last contact: {formatDate(deviceInfo?.lastContact || profile.tr069Devices?.[0]?.lastContact)}</p>
+      <CardContainer title="Device & Link Status">
+        <div className="space-y-3">
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-muted-foreground">ONT Status (ACS):</span>
+            <Badge variant={(deviceInfo?.status || profile.ontRealtimeStatus || profile.tr069Devices?.[0]?.status) === "online" ? "success" : "destructive"}>
+              {String(deviceInfo?.status || profile.ontRealtimeStatus || profile.tr069Devices?.[0]?.status || "offline").toUpperCase()}
+            </Badge>
+          </div>
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-muted-foreground">Radius Link:</span>
+            <Badge variant={profile.radiusRealtimeStatus === "online" ? "success" : "destructive"}>
+              {String(profile.radiusRealtimeStatus || "offline").toUpperCase()}
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground pt-1 border-t">
+            Last contact: {formatDate(deviceInfo?.lastContact || profile.tr069Devices?.[0]?.lastContact)}
+          </p>
         </div>
       </CardContainer>
     </div>
@@ -541,10 +564,11 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
   }
 
   const renderWifiTab = () => {
-    // Filter SSIDs for Index 1 and 5 only
+    // Filter enabled and active SSIDs dynamically
     const filteredSsids = ssids.filter((ssid: any) => {
-      const idx = getSsidIndex(ssid.instance);
-      return idx === 1 || idx === 5;
+      const isEnable = ssid.enable === true || ssid.enable === 'true';
+      const isUp = ssid.status === 'Up' || ssid.status?.toLowerCase() === 'up' || ssid.status?.toLowerCase() === 'enabled';
+      return isEnable && isUp;
     });
 
     const activeSsid = filteredSsids.find((ssid: any) => ssid.instance === selectedSsidInstance) || filteredSsids[0]
@@ -1290,6 +1314,18 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
               ["Firmware", deviceInfo?.deviceInfo?.softwareVersion || deviceInfo?.deviceInfo?.firmwareVersion || "N/A"],
             ]} />
           </CardContainer>
+          {profile.radiusAccounting && (
+            <CardContainer title="Radius Session Info">
+              <InfoGrid rows={[
+                ["Session Status", String(profile.radiusAccounting.status).toUpperCase()],
+                ["Session Upload", formatBytes(profile.radiusAccounting.sessionUpload)],
+                ["Session Download", formatBytes(profile.radiusAccounting.sessionDownload)],
+                ["NAS IP", profile.radiusAccounting.nasIp],
+                ["Framed IP", profile.radiusAccounting.framedIp],
+                ["Online Duration", formatDuration(profile.radiusAccounting.onlineDuration)],
+              ]} />
+            </CardContainer>
+          )}
           <CardContainer title="Recent Billing">
             {recentOrders.length > 0 ? (
               <div className="space-y-2">
