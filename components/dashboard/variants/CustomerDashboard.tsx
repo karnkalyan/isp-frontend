@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { Laptop, Loader2, Send, Ticket, Wifi, Activity, Cpu, Thermometer, ShieldAlert, RefreshCw, Network, Radio, ArrowUpDown, Smartphone, Tv, HardDrive } from "lucide-react"
+import { useEffect, useMemo, useState, Fragment } from "react"
+import { Laptop, Loader2, Send, Ticket, Wifi, Activity, Cpu, Thermometer, ShieldAlert, RefreshCw, Network, Radio, ArrowUpDown, Smartphone, Tv, HardDrive, ChevronDown, ChevronUp } from "lucide-react"
 import toast from "react-hot-toast"
 import { apiRequest } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
@@ -151,6 +151,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
   const [rebootDialogOpen, setRebootDialogOpen] = useState(false)
   const [radiusUsage, setRadiusUsage] = useState<any[]>([])
   const [radiusUsageLoading, setRadiusUsageLoading] = useState(false)
+  const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null)
 
   const handleReboot = async () => {
     if (!serial) return
@@ -581,7 +582,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
                         </span>
                       </div>
                       <Badge className={ssid.enable ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20" : "bg-muted text-muted-foreground border-transparent"}>
-                        {ssid.status || (ssid.enable ? "Enabled" : "Disabled")}
+                        {ssid.enable ? "Enabled" : "Disabled"}
                       </Badge>
                     </div>
                     <div className="mt-3 flex flex-col gap-1">
@@ -1141,15 +1142,69 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
               </tr>
             </thead>
             <tbody>
-              {recentOrders.map((order) => (
-                <tr key={order.id} className="border-b">
-                  <td className="py-3 font-mono">{order.invoiceId || `ORDER-${order.id}`}</td>
-                  <td className="py-3">{formatDate(order.orderDate)}</td>
-                  <td className="py-3">{formatDate(order.packageStart)} - {formatDate(order.packageEnd)}</td>
-                  <td className="py-3 font-medium">{money(order.totalAmount)}</td>
-                  <td className="py-3"><Badge variant={order.isPaid ? "success" : "destructive"}>{order.isPaid ? "Paid" : "Unpaid"}</Badge></td>
-                </tr>
-              ))}
+              {recentOrders.map((order) => {
+                const isExpanded = expandedOrderId === order.id
+                return (
+                  <Fragment key={order.id}>
+                    <tr 
+                      className="border-b hover:bg-muted/30 cursor-pointer transition-colors"
+                      onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
+                    >
+                      <td className="py-3 font-mono">
+                        <div className="flex items-center gap-2">
+                          {isExpanded ? (
+                            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          )}
+                          <span>{order.invoiceId || `ORDER-${order.id}`}</span>
+                        </div>
+                      </td>
+                      <td className="py-3">{formatDate(order.orderDate)}</td>
+                      <td className="py-3">{formatDate(order.packageStart)} - {formatDate(order.packageEnd)}</td>
+                      <td className="py-3 font-medium">{money(order.totalAmount)}</td>
+                      <td className="py-3">
+                        <Badge variant={order.isPaid ? "success" : "destructive"}>
+                          {order.isPaid ? "Paid" : "Unpaid"}
+                        </Badge>
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr className="bg-muted/5">
+                        <td colSpan={5} className="p-4 border-b">
+                          <div className="rounded-xl border border-border bg-card p-4 space-y-4 shadow-sm">
+                            <div className="flex items-center justify-between border-b border-border pb-2">
+                              <span className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Invoice Item Breakdown</span>
+                              <span className="text-xs font-mono text-muted-foreground">Order ID: #{order.id}</span>
+                            </div>
+                            {order.items && order.items.length > 0 ? (
+                              <div className="space-y-3">
+                                {order.items.map((item: any) => (
+                                  <div key={item.id} className="flex justify-between items-center text-sm py-2 border-b border-border/40 last:border-0">
+                                    <div className="flex flex-col flex-1 pr-4">
+                                      <span className="font-medium text-foreground">{item.itemName}</span>
+                                      {item.referenceId && (
+                                        <span className="text-xs text-muted-foreground font-mono mt-0.5">Ref: {item.referenceId}</span>
+                                      )}
+                                    </div>
+                                    <span className="font-mono text-foreground font-medium">{money(item.itemPrice)}</span>
+                                  </div>
+                                ))}
+                                <div className="flex justify-between items-center pt-3 border-t border-border font-bold text-foreground">
+                                  <span>Total Amount</span>
+                                  <span className="text-base font-mono text-primary">{money(order.totalAmount)}</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-xs text-muted-foreground">No specific items listed for this order.</p>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })}
             </tbody>
           </table>
         </div>
