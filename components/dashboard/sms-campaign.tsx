@@ -24,6 +24,8 @@ import {
   Clock,
   XCircle,
   X,
+  FileSpreadsheet,
+  Upload,
 } from "lucide-react"
 import {
   Select,
@@ -99,6 +101,132 @@ export function SmsCampaign() {
   const lowerPackages = React.useMemo(() => new Set(selectedPackages.map(v => v.toLowerCase().trim())), [selectedPackages]);
   const lowerMemberships = React.useMemo(() => new Set(selectedMemberships.map(v => v.toLowerCase().trim())), [selectedMemberships]);
 
+  // CSV Filter states & helpers
+  const [useCsvFilter, setUseCsvFilter] = useState(false)
+  const [csvRows, setCsvRows] = useState<any[]>([])
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([])
+  const [selectedCsvColumns, setSelectedCsvColumns] = useState<string[]>([])
+  const [csvFileName, setCsvFileName] = useState("")
+
+  const mapCsvHeaderToRecipientKey = (header: string): string => {
+    const h = header.toLowerCase().trim().replace(/[^a-z0-9]/g, "");
+    if (h === "firstname" || h === "first") return "firstName";
+    if (h === "middlename" || h === "middle") return "middleName";
+    if (h === "lastname" || h === "last") return "lastName";
+    if (h === "phonenumber" || h === "phone" || h === "contact" || h === "mobile") return "phone";
+    if (h === "secondarycontactnumber" || h === "secondaryphone" || h === "secondarycontact") return "secondaryContactNumber";
+    if (h === "email" || h === "emailaddress") return "email";
+    if (h === "source") return "source";
+    if (h === "status") return "status";
+    if (h === "address") return "address";
+    if (h === "street") return "street";
+    if (h === "district") return "district";
+    if (h === "province" || h === "state") return "province";
+    if (h === "gender") return "gender";
+    if (h === "notes") return "notes";
+    if (h === "age") return "age";
+    if (h === "fulladdress") return "fullAddress";
+    return header;
+  };
+
+  const isCsvMatch = useCallback((r: any) => {
+    if (!useCsvFilter || csvRows.length === 0 || selectedCsvColumns.length === 0) return true;
+    return csvRows.some(csvRow => {
+      return selectedCsvColumns.every(colName => {
+        const recipientKey = mapCsvHeaderToRecipientKey(colName);
+        const recipientValue = String(r[recipientKey] || "").toLowerCase().trim();
+        const csvValue = String(csvRow[colName] || "").toLowerCase().trim();
+        return recipientValue !== "" && recipientValue === csvValue;
+      });
+    });
+  }, [useCsvFilter, csvRows, selectedCsvColumns]);
+
+  const parseCSV = (text: string) => {
+    const lines: string[][] = [];
+    let row: string[] = [];
+    let inQuotes = false;
+    let currentValue = "";
+    
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const nextChar = text[i + 1];
+      
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          currentValue += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        row.push(currentValue.trim());
+        currentValue = "";
+      } else if ((char === '\r' || char === '\n') && !inQuotes) {
+        if (char === '\r' && nextChar === '\n') {
+          i++;
+        }
+        row.push(currentValue.trim());
+        if (row.length > 0 && (row.length > 1 || row[0] !== "")) {
+          lines.push(row);
+        }
+        row = [];
+        currentValue = "";
+      } else {
+        currentValue += char;
+      }
+    }
+    if (currentValue !== "" || row.length > 0) {
+      row.push(currentValue.trim());
+      lines.push(row);
+    }
+    return lines;
+  };
+
+  const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setCsvFileName(file.name)
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const text = event.target?.result as string
+      if (!text) return
+
+      try {
+        const rows = parseCSV(text)
+        if (rows.length === 0) {
+          toast.error("The CSV file is empty.")
+          return
+        }
+
+        const headers = rows[0]
+        const dataRows = rows.slice(1).map(row => {
+          const obj: any = {}
+          headers.forEach((header, index) => {
+            obj[header] = row[index] || ""
+          })
+          return obj
+        })
+
+        setCsvHeaders(headers)
+        setCsvRows(dataRows)
+        setUseCsvFilter(true)
+        
+        // Auto-select common column names for filtering
+        const commonHeaders = headers.filter(h => {
+          const mapped = mapCsvHeaderToRecipientKey(h)
+          return ["phone", "firstName", "lastName"].includes(mapped)
+        })
+        setSelectedCsvColumns(commonHeaders.length > 0 ? commonHeaders : [headers[0]])
+        toast.success(`Loaded ${dataRows.length} rows from CSV.`)
+      } catch (err) {
+        console.error(err)
+        toast.error("Failed to parse CSV file.")
+      }
+    }
+    reader.readAsText(file)
+  }
+
   const addressOptions = React.useMemo(() => {
     const values = new Set<string>();
     selectedAddresses.forEach(val => values.add(val.trim()));
@@ -109,12 +237,13 @@ export function SmsCampaign() {
       if (lowerGenders.size > 0 && (!r.gender || !lowerGenders.has(r.gender.trim().toLowerCase()))) return;
       if (lowerPackages.size > 0 && (!r.packageName || !lowerPackages.has(r.packageName.trim().toLowerCase()))) return;
       if (lowerMemberships.size > 0 && (!r.membershipName || !lowerMemberships.has(r.membershipName.trim().toLowerCase()))) return;
+      if (!isCsvMatch(r)) return;
 
       if (r.address) values.add(r.address.trim());
     });
 
     return Array.from(values).sort().map(val => ({ value: val, label: val }));
-  }, [rawRecipients, selectedAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerPackages, lowerMemberships]);
+  }, [rawRecipients, selectedAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerPackages, lowerMemberships, isCsvMatch]);
 
   const streetOptions = React.useMemo(() => {
     const values = new Set<string>();
@@ -126,12 +255,13 @@ export function SmsCampaign() {
       if (lowerGenders.size > 0 && (!r.gender || !lowerGenders.has(r.gender.trim().toLowerCase()))) return;
       if (lowerPackages.size > 0 && (!r.packageName || !lowerPackages.has(r.packageName.trim().toLowerCase()))) return;
       if (lowerMemberships.size > 0 && (!r.membershipName || !lowerMemberships.has(r.membershipName.trim().toLowerCase()))) return;
+      if (!isCsvMatch(r)) return;
 
       if (r.street) values.add(r.street.trim());
     });
 
     return Array.from(values).sort().map(val => ({ value: val, label: val }));
-  }, [rawRecipients, selectedStreets, lowerAddresses, lowerDistricts, lowerGenders, lowerPackages, lowerMemberships]);
+  }, [rawRecipients, selectedStreets, lowerAddresses, lowerDistricts, lowerGenders, lowerPackages, lowerMemberships, isCsvMatch]);
 
   const districtOptions = React.useMemo(() => {
     const values = new Set<string>();
@@ -143,12 +273,13 @@ export function SmsCampaign() {
       if (lowerGenders.size > 0 && (!r.gender || !lowerGenders.has(r.gender.trim().toLowerCase()))) return;
       if (lowerPackages.size > 0 && (!r.packageName || !lowerPackages.has(r.packageName.trim().toLowerCase()))) return;
       if (lowerMemberships.size > 0 && (!r.membershipName || !lowerMemberships.has(r.membershipName.trim().toLowerCase()))) return;
+      if (!isCsvMatch(r)) return;
 
       if (r.district) values.add(r.district.trim());
     });
 
     return Array.from(values).sort().map(val => ({ value: val, label: val }));
-  }, [rawRecipients, selectedDistricts, lowerAddresses, lowerStreets, lowerGenders, lowerPackages, lowerMemberships]);
+  }, [rawRecipients, selectedDistricts, lowerAddresses, lowerStreets, lowerGenders, lowerPackages, lowerMemberships, isCsvMatch]);
 
   const genderOptions = React.useMemo(() => {
     const values = new Set<string>();
@@ -160,12 +291,13 @@ export function SmsCampaign() {
       if (lowerDistricts.size > 0 && (!r.district || !lowerDistricts.has(r.district.trim().toLowerCase()))) return;
       if (lowerPackages.size > 0 && (!r.packageName || !lowerPackages.has(r.packageName.trim().toLowerCase()))) return;
       if (lowerMemberships.size > 0 && (!r.membershipName || !lowerMemberships.has(r.membershipName.trim().toLowerCase()))) return;
+      if (!isCsvMatch(r)) return;
 
       if (r.gender) values.add(r.gender.trim());
     });
 
     return Array.from(values).sort().map(val => ({ value: val, label: val }));
-  }, [rawRecipients, selectedGenders, lowerAddresses, lowerStreets, lowerDistricts, lowerPackages, lowerMemberships]);
+  }, [rawRecipients, selectedGenders, lowerAddresses, lowerStreets, lowerDistricts, lowerPackages, lowerMemberships, isCsvMatch]);
 
   const packageOptions = React.useMemo(() => {
     const values = new Set<string>();
@@ -177,12 +309,13 @@ export function SmsCampaign() {
       if (lowerDistricts.size > 0 && (!r.district || !lowerDistricts.has(r.district.trim().toLowerCase()))) return;
       if (lowerGenders.size > 0 && (!r.gender || !lowerGenders.has(r.gender.trim().toLowerCase()))) return;
       if (lowerMemberships.size > 0 && (!r.membershipName || !lowerMemberships.has(r.membershipName.trim().toLowerCase()))) return;
+      if (!isCsvMatch(r)) return;
 
       if (r.packageName) values.add(r.packageName.trim());
     });
 
     return Array.from(values).sort().map(val => ({ value: val, label: val }));
-  }, [rawRecipients, selectedPackages, lowerAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerMemberships]);
+  }, [rawRecipients, selectedPackages, lowerAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerMemberships, isCsvMatch]);
 
   const membershipOptions = React.useMemo(() => {
     const values = new Set<string>();
@@ -194,12 +327,13 @@ export function SmsCampaign() {
       if (lowerDistricts.size > 0 && (!r.district || !lowerDistricts.has(r.district.trim().toLowerCase()))) return;
       if (lowerGenders.size > 0 && (!r.gender || !lowerGenders.has(r.gender.trim().toLowerCase()))) return;
       if (lowerPackages.size > 0 && (!r.packageName || !lowerPackages.has(r.packageName.trim().toLowerCase()))) return;
+      if (!isCsvMatch(r)) return;
 
       if (r.membershipName) values.add(r.membershipName.trim());
     });
 
     return Array.from(values).sort().map(val => ({ value: val, label: val }));
-  }, [rawRecipients, selectedMemberships, lowerAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerPackages]);
+  }, [rawRecipients, selectedMemberships, lowerAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerPackages, isCsvMatch]);
 
   const filteredRecipients = React.useMemo(() => {
     return rawRecipients.filter(r => {
@@ -209,9 +343,10 @@ export function SmsCampaign() {
       if (lowerGenders.size > 0 && (!r.gender || !lowerGenders.has(r.gender.trim().toLowerCase()))) return false;
       if (lowerPackages.size > 0 && (!r.packageName || !lowerPackages.has(r.packageName.trim().toLowerCase()))) return false;
       if (lowerMemberships.size > 0 && (!r.membershipName || !lowerMemberships.has(r.membershipName.trim().toLowerCase()))) return false;
+      if (!isCsvMatch(r)) return false;
       return true;
     });
-  }, [rawRecipients, lowerAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerPackages, lowerMemberships]);
+  }, [rawRecipients, lowerAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerPackages, lowerMemberships, isCsvMatch]);
 
   // Keep recipients and recipientsCount in sync with filteredRecipients
   useEffect(() => {
@@ -516,25 +651,50 @@ export function SmsCampaign() {
         ? filteredRaw.map((c: any) => ({
             recipientId: c.id,
             name: c.firstName ? `${c.firstName} ${c.lastName || ""}`.trim() : `${c.lead?.firstName || ""} ${c.lead?.lastName || ""}`.trim(),
-            phone: c.phoneNumber || c.lead?.phoneNumber,
+            phone: c.phoneNumber || c.lead?.phoneNumber || "",
+            firstName: c.firstName || c.lead?.firstName || "",
+            middleName: c.middleName || c.lead?.middleName || "",
+            lastName: c.lastName || c.lead?.lastName || "",
+            email: c.email || c.lead?.email || "",
+            secondaryContactNumber: c.secondaryContactNumber || c.secondaryPhone || c.lead?.secondaryContactNumber || "",
+            source: c.source || c.lead?.source || "",
+            status: c.status || c.lead?.status || "",
             address: c.address || c.lead?.address || "",
             street: c.street || c.lead?.street || "",
             district: c.district || c.lead?.district || "",
+            province: c.province || c.state || c.lead?.province || "",
             gender: c.gender || c.lead?.gender || "",
+            notes: c.notes || c.lead?.notes || "",
+            age: c.age || "",
+            fullAddress: c.fullAddress || c.lead?.address || "",
             packageName: c.subscribedPkg?.packageName || c.packagePrice?.packageName || "",
             membershipName: c.membership?.name || ""
           }))
-        : filteredRaw.map((l: any) => ({
-            recipientId: l.id,
-            name: `${l.firstName || ""} ${l.lastName || ""}`.trim(),
-            phone: l.phoneNumber,
-            address: l.address || "",
-            street: l.street || "",
-            district: l.district || "",
-            gender: l.gender || "",
-            packageName: l.interestedPackage?.packageName || "",
-            membershipName: l.membership?.name || ""
-          }))
+        : filteredRaw.map((l: any) => {
+            const meta = l.metadata ? (typeof l.metadata === 'string' ? JSON.parse(l.metadata) : l.metadata) : null;
+            return {
+              recipientId: l.id,
+              name: `${l.firstName || ""} ${l.lastName || ""}`.trim(),
+              phone: l.phoneNumber || "",
+              firstName: l.firstName || "",
+              middleName: l.middleName || "",
+              lastName: l.lastName || "",
+              email: l.email || "",
+              secondaryContactNumber: l.secondaryContactNumber || "",
+              source: l.source || "",
+              status: l.status || "",
+              address: l.address || "",
+              street: l.street || "",
+              district: l.district || "",
+              province: l.province || "",
+              gender: l.gender || "",
+              notes: l.notes || "",
+              age: meta?.age || "",
+              fullAddress: meta?.fullAddress || l.address || "",
+              packageName: l.interestedPackage?.packageName || "",
+              membershipName: l.membership?.name || ""
+            };
+          })
 
       const validRecipients = data.filter((r: any) => r.phone)
       setRawRecipients(validRecipients)
@@ -556,6 +716,8 @@ export function SmsCampaign() {
       return
     }
 
+    const isCsvActive = useCsvFilter && csvRows.length > 0 && selectedCsvColumns.length > 0;
+
     if (targetingScope === "select" && selectedRecipients.length === 0) {
       toast.error("Please select at least one recipient.")
       return
@@ -568,11 +730,19 @@ export function SmsCampaign() {
 
     setSending(true)
     try {
-      const recipientData = selectedRecipients.map(r => ({
-        phone: r.phone,
-        recipientId: r.recipientId,
-        name: r.name
-      }))
+      const recipientData = targetingScope === "select"
+        ? selectedRecipients.map(r => ({
+            phone: r.phone,
+            recipientId: r.recipientId,
+            name: r.name
+          }))
+        : (isCsvActive
+            ? filteredRecipients.map(r => ({
+                phone: r.phone,
+                recipientId: r.recipientId,
+                name: r.name
+              }))
+            : []);
       const scopedBranchIds = Array.from(getSelectedBranchScope())
       const dynamicFiltersList: string[] = []
       selectedAddresses.forEach(val => dynamicFiltersList.push(`address:${val}`))
@@ -598,11 +768,11 @@ export function SmsCampaign() {
       const res = await apiRequest<any>("/service/sms/campaigns", {
         method: "POST",
         body: JSON.stringify({
-          to: targetingScope === "select" ? recipientData : [],
+          to: recipientData,
           text: message,
           type: recipientType,
           provider: selectedProvider,
-          selectAll: targetingScope === "all",
+          selectAll: targetingScope === "all" && !isCsvActive,
           filters: campaignFilters,
         })
       })
@@ -649,7 +819,8 @@ export function SmsCampaign() {
       selectedDistricts.length > 0 ||
       selectedGenders.length > 0 ||
       selectedPackages.length > 0 ||
-      selectedMemberships.length > 0,
+      selectedMemberships.length > 0 ||
+      (useCsvFilter && csvRows.length > 0),
     filters.status !== "all",
   ].filter(Boolean).length
 
@@ -951,6 +1122,109 @@ export function SmsCampaign() {
                 <p className="text-[10px] text-muted-foreground italic mt-1">
                   No options available. Verify other audience filters match active leads or customers first.
                 </p>
+              )}
+            </div>
+
+            {/* CSV Filter Section */}
+            <div className="space-y-2 pt-2 border-t border-border/50">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold text-foreground/70 uppercase tracking-wider flex items-center gap-1.5">
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-green-500" /> Filter by CSV
+                </Label>
+                {csvRows.length > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-muted-foreground font-medium">Enable</span>
+                    <Checkbox
+                      checked={useCsvFilter}
+                      onCheckedChange={(checked) => setUseCsvFilter(!!checked)}
+                      id="enable-csv-filter"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {!csvFileName ? (
+                <div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs h-8 border-dashed flex items-center gap-2 hover:bg-green-500/5 hover:border-green-500/30 hover:text-green-600 transition-colors"
+                    onClick={() => document.getElementById("csv-filter-upload")?.click()}
+                  >
+                    <Upload className="h-3.5 w-3.5" /> Upload filter CSV
+                  </Button>
+                  <input
+                    id="csv-filter-upload"
+                    type="file"
+                    accept=".csv"
+                    className="hidden"
+                    onChange={handleCsvUpload}
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Upload a CSV file to match recipients against specific columns.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-accent/40 rounded-lg p-2.5 border border-border space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FileSpreadsheet className="h-4 w-4 text-green-500 shrink-0" />
+                      <span className="text-xs font-medium truncate text-foreground/90">
+                        {csvFileName}
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0 rounded-full"
+                      onClick={() => {
+                        setCsvFileName("")
+                        setCsvRows([])
+                        setCsvHeaders([])
+                        setSelectedCsvColumns([])
+                        setUseCsvFilter(false)
+                      }}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+
+                  <div className="text-[10px] text-muted-foreground flex justify-between">
+                    <span>Rows: {csvRows.length}</span>
+                    <span className="font-semibold text-green-600">
+                      {useCsvFilter ? "Filter Active" : "Filter Inactive"}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-semibold text-foreground/60 uppercase tracking-wider block">
+                      Match columns:
+                    </span>
+                    <div className="grid grid-cols-2 gap-2 max-h-[120px] overflow-y-auto pr-1">
+                      {csvHeaders.map((header) => (
+                        <label
+                          key={header}
+                          className="flex items-center gap-1.5 text-xs text-foreground/80 cursor-pointer hover:text-foreground transition-colors truncate"
+                          title={header}
+                        >
+                          <Checkbox
+                            checked={selectedCsvColumns.includes(header)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSelectedCsvColumns((prev) => [...prev, header])
+                              } else {
+                                setSelectedCsvColumns((prev) => prev.filter((h) => h !== header))
+                              }
+                            }}
+                          />
+                          <span className="truncate">{header}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
 

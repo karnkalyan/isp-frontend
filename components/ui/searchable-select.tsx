@@ -56,6 +56,40 @@ export function SearchableSelect({
     return options.filter(opt => selectedValues.includes(opt.value))
   }, [options, selectedValues])
 
+  const filteredOptions = React.useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    
+    const matches = query
+      ? options.filter(option =>
+          (option.label && option.label.toLowerCase().includes(query)) ||
+          (option.value && option.value.toLowerCase().includes(query)) ||
+          (option.description && option.description.toLowerCase().includes(query))
+        )
+      : options;
+
+    const capped: Option[] = []
+    const added = new Set<string>()
+
+    // 1. Show selected items first
+    for (const opt of matches) {
+      if (selectedValues.includes(opt.value)) {
+        capped.push(opt)
+        added.add(opt.value)
+      }
+    }
+
+    // 2. Add matching suggestions up to 100
+    for (const opt of matches) {
+      if (capped.length >= 100) break
+      if (!added.has(opt.value)) {
+        capped.push(opt)
+        added.add(opt.value)
+      }
+    }
+
+    return capped
+  }, [options, searchQuery, selectedValues])
+
   // Remove a single tag without closing popover
   const handleTagRemove = (val: string, e: React.MouseEvent) => {
     e.preventDefault()
@@ -153,14 +187,7 @@ export function SearchableSelect({
           <CommandList>
             <CommandEmpty>{emptyMessage}</CommandEmpty>
             <CommandGroup className="max-h-[300px] overflow-auto">
-              {options
-                    .filter(option =>
-                  (option.label && option.label.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                  (option.value && option.value.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                  (option.description && option.description.toLowerCase().includes(searchQuery.toLowerCase()))
-                )
-
-                .map(option => (
+              {filteredOptions.map(option => (
                   <CommandItem
                     key={option.value}
                     value={option.value}
