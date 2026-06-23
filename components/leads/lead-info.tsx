@@ -164,6 +164,13 @@ interface Lead {
   }
   nextFollowUp?: string
   followUps?: any[]
+  smsLogs?: Array<{
+    id: number
+    status: string
+    errorMessage?: string | null
+    sentAt: string
+    message: string
+  }>
   customers?: Array<{
     id: string
     firstName: string
@@ -871,7 +878,8 @@ export default function LeadDetailsPage() {
         province: data.province || "",
         gender: data.gender || "",
         secondaryContactNumber: data.secondaryContactNumber || "",
-        metadata: data.metadata || {}
+        metadata: data.metadata || {},
+        smsLogs: data.smsLogs || []
       };
 
       setLead(processedLead);
@@ -2031,27 +2039,34 @@ export default function LeadDetailsPage() {
           <div className="lg:col-span-2 space-y-6">
             {/* Tabs for Map/Notes/Follow-ups */}
             <Tabs defaultValue="location" className="w-full">
-              <TabsList className="grid w-full grid-cols-3 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
+              <TabsList className="grid w-full grid-cols-4 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
                 <TabsTrigger
                   value="location"
-                  className="data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-gray-900 rounded-md"
+                  className="data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-gray-900 rounded-md text-xs sm:text-sm"
                 >
-                  <MapPinIcon className="h-4 w-4 mr-2" />
+                  <MapPinIcon className="h-4 w-4 mr-1 sm:mr-2" />
                   Location
                 </TabsTrigger>
                 <TabsTrigger
                   value="notes"
-                  className="data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-gray-900 rounded-md"
+                  className="data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-gray-900 rounded-md text-xs sm:text-sm"
                 >
-                  <MessageSquare className="h-4 w-4 mr-2" />
+                  <MessageSquare className="h-4 w-4 mr-1 sm:mr-2" />
                   Notes
                 </TabsTrigger>
                 <TabsTrigger
                   value="followups"
-                  className="data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-gray-900 rounded-md"
+                  className="data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-gray-900 rounded-md text-xs sm:text-sm"
                 >
-                  <Clock className="h-4 w-4 mr-2" />
-                  Follow-ups ({leadFollowUps.length})
+                  <Clock className="h-4 w-4 mr-1 sm:mr-2" />
+                  Followups ({leadFollowUps.length})
+                </TabsTrigger>
+                <TabsTrigger
+                  value="sms"
+                  className="data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-gray-900 rounded-md text-xs sm:text-sm"
+                >
+                  <MessageSquare className="h-4 w-4 mr-1 sm:mr-2 text-indigo-500" />
+                  SMS Logs ({lead.smsLogs?.length || 0})
                 </TabsTrigger>
               </TabsList>
 
@@ -2515,6 +2530,69 @@ export default function LeadDetailsPage() {
                                 </div>
                               )}
                             </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* SMS Tab */}
+              <TabsContent value="sms" className="mt-4">
+                <Card className="rounded-xl border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-950 shadow-sm">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100 dark:border-gray-800">
+                      <div>
+                        <h3 className="font-bold text-gray-900 dark:text-gray-100">SMS History</h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Messages broadcasted to this lead.
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800/30">
+                        {lead.smsLogs?.length || 0} Total
+                      </Badge>
+                    </div>
+
+                    {!lead.smsLogs || lead.smsLogs.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500 dark:text-gray-400 italic text-sm">
+                        No SMS logs found for this lead.
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {lead.smsLogs.map((log) => (
+                          <div
+                            key={log.id}
+                            className="p-4 rounded-xl border border-gray-100 dark:border-gray-800 bg-white/50 dark:bg-gray-900/50 shadow-xs space-y-3"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-center gap-2">
+                                <Badge
+                                  className={
+                                    log.status === "sent"
+                                      ? "bg-green-500/10 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800/30 hover:bg-green-500/10"
+                                      : log.status === "failed"
+                                      ? "bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800/30 hover:bg-red-500/10"
+                                      : "bg-gray-500/10 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-800/30 hover:bg-gray-500/10"
+                                  }
+                                >
+                                  {log.status}
+                                </Badge>
+                                <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                                  {formatDate(log.sentAt)}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-950/40 p-3 rounded-lg border border-gray-100/50 dark:border-gray-800/30 whitespace-pre-wrap font-mono text-xs">
+                              {log.message}
+                            </div>
+
+                            {log.errorMessage && (
+                              <div className="text-xs text-red-500 dark:text-red-400 flex items-center gap-1.5 bg-red-500/5 p-2 rounded-md border border-red-500/10">
+                                <span className="font-semibold">Error:</span> {log.errorMessage}
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>

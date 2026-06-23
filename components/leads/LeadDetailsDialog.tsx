@@ -289,6 +289,44 @@ export function LeadDetailsDialog({ open, onOpenChange, lead }: LeadDetailsDialo
                         </div>
                     )}
 
+                    {/* SMS History */}
+                    {lead.smsLogs && lead.smsLogs.length > 0 && (
+                        <div className="space-y-2">
+                            <Label className="text-sm font-medium flex items-center gap-2">
+                                <MessageSquare className="h-4 w-4 text-indigo-500" />
+                                SMS History
+                            </Label>
+                            <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                                {lead.smsLogs.map((log: any) => (
+                                    <div key={log.id} className="p-3 bg-gray-50 rounded-lg border border-gray-100 space-y-1">
+                                        <div className="flex justify-between items-center">
+                                            <Badge
+                                                className={
+                                                    log.status === "sent"
+                                                        ? "bg-green-500/10 text-green-700 border-green-200 hover:bg-green-500/10"
+                                                        : log.status === "failed"
+                                                        ? "bg-red-500/10 text-red-700 border-red-200 hover:bg-red-500/10"
+                                                        : "bg-gray-500/10 text-gray-700 border-gray-200 hover:bg-gray-500/10"
+                                                }
+                                            >
+                                                {log.status}
+                                            </Badge>
+                                            <span className="text-[10px] text-gray-500">{formatDate(log.sentAt)}</span>
+                                        </div>
+                                        <p className="text-xs text-gray-700 whitespace-pre-wrap font-mono bg-white p-2 rounded border border-gray-100">
+                                            {log.message}
+                                        </p>
+                                        {log.errorMessage && (
+                                            <p className="text-[11px] text-red-500 font-semibold">
+                                                Error: {log.errorMessage}
+                                            </p>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Timeline */}
                     <div className="space-y-2">
                         <Label className="text-sm font-medium flex items-center gap-2">

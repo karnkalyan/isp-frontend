@@ -59,7 +59,9 @@ import {
   RotateCcw,
   Eye,
   EyeOff,
-  Key
+  Key,
+  Tv,
+  WifiOff
 } from "lucide-react"
 import { apiRequest, getDynamicBaseUrl } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
@@ -1329,6 +1331,10 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const [radiusAuthLoading, setRadiusAuthLoading] = useState(false)
   const [visiblePasswords, setVisiblePasswords] = useState<Record<number, boolean>>({})
 
+  // ========== Radius Active Sessions ==========
+  const [activeSessions, setActiveSessions] = useState<any[]>([])
+  const [activeSessionsLoading, setActiveSessionsLoading] = useState(false)
+
   // ========== Portal Password Dialog States ==========
   const [portalPasswordOpen, setPortalPasswordOpen] = useState(false)
   const [newPortalEmail, setNewPortalEmail] = useState("")
@@ -2026,6 +2032,102 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     }
   }, [customerId])
 
+  // ========== Fetch Radius Active Sessions ==========
+  const fetchActiveSessions = useCallback(async () => {
+    if (!customer?.connectionUsers || customer.connectionUsers.length === 0) return
+    setActiveSessionsLoading(true)
+    try {
+      const allSessions: any[] = []
+      for (const u of customer.connectionUsers) {
+        try {
+          const res = await apiRequest<any>(`/sessions/${u.username}`)
+          if (res && res.online === true) {
+            allSessions.push({
+              username: u.username,
+              acctsessionid: res.session_id,
+              framedipaddress: res.framed_ip,
+              nasipaddress: res.nas_ip,
+              acctstarttime: res.started_at,
+              data_in: res.data_in,
+              data_out: res.data_out
+            })
+          }
+        } catch (err: any) {
+          // If no active session found (404), skip it silently
+          console.log(`No active session for ${u.username}:`, err.message)
+        }
+      }
+      setActiveSessions(allSessions)
+    } catch (error) {
+      console.error("Error fetching customer active sessions:", error)
+      setActiveSessions([])
+    } finally {
+      setActiveSessionsLoading(false)
+    }
+  }, [customer?.connectionUsers])
+
+  const handleDisconnectSessionId = async (sessionId: string) => {
+    try {
+      setActionLoading(true)
+      const response = await apiRequest<{ success: boolean; message: string }>(`/disconnect/session/${sessionId}`, {
+        method: 'POST'
+      })
+      if (response.success) {
+        toast({
+          title: "Success",
+          description: response.message || "Session disconnected successfully",
+        })
+        fetchActiveSessions()
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to disconnect session",
+          variant: "destructive",
+        })
+      }
+    } catch (error: any) {
+      console.error("Error disconnecting session:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to disconnect session",
+        variant: "destructive",
+      })
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleDisconnectAllSessions = async (username: string) => {
+    try {
+      setActionLoading(true)
+      const response = await apiRequest<{ success: boolean; message: string }>(`/disconnect/${username}/all`, {
+        method: 'POST'
+      })
+      if (response.success) {
+        toast({
+          title: "Success",
+          description: response.message || "All sessions disconnected successfully",
+        })
+        fetchActiveSessions()
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to disconnect sessions",
+          variant: "destructive",
+        })
+      }
+    } catch (error: any) {
+      console.error("Error disconnecting sessions:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to disconnect sessions",
+        variant: "destructive",
+      })
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   const handleChangePortalPassword = async () => {
     const isEditing = !!customer?.portalUser;
     if (!isEditing && (!newPortalPassword.trim() || newPortalPassword.length < 4)) {
@@ -2098,8 +2200,9 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   useEffect(() => {
     if (activeTab === "radius" && customerId) {
       fetchRadiusAuthLogs()
+      fetchActiveSessions()
     }
-  }, [activeTab, customerId, fetchRadiusAuthLogs])
+  }, [activeTab, customerId, fetchRadiusAuthLogs, fetchActiveSessions])
 
   useEffect(() => {
     const fetchPackages = async () => {
@@ -2342,6 +2445,107 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       })
     } finally {
       setRenewLoading(false)
+    }
+  }
+
+  const handleReprovisionRadius = async () => {
+    try {
+      setActionLoading(true)
+      const response = await apiRequest<{ success: boolean; message: string }>(`/customer/${customerId}/reprovision/radius`, {
+        method: 'POST'
+      })
+      if (response.success) {
+        toast({
+          title: "Success",
+          description: response.message || "Radius reprovisioned successfully",
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: "Radius reprovisioning failed",
+          variant: "destructive",
+        })
+      }
+    } catch (error: any) {
+      console.error("Error reprovisioning Radius:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Radius reprovisioning failed",
+        variant: "destructive",
+      })
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleReprovisionNettv = async () => {
+    try {
+      setActionLoading(true)
+      const response = await apiRequest<{ success: boolean; message: string }>(`/customer/${customerId}/reprovision/nettv`, {
+        method: 'POST'
+      })
+      if (response.success) {
+        toast({
+          title: "Success",
+          description: response.message || "NetTV reprovisioned successfully",
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: "NetTV reprovisioning failed",
+          variant: "destructive",
+        })
+      }
+    } catch (error: any) {
+      console.error("Error reprovisioning NetTV:", error)
+      toast({
+        title: "Error",
+        description: error.message || "NetTV reprovisioning failed",
+        variant: "destructive",
+      })
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleDisconnectSession = async () => {
+    const connectionUser = customer?.connectionUsers?.[0]
+    if (!connectionUser) {
+      toast({
+        title: "Error",
+        description: "No connection user found for this customer",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      setActionLoading(true)
+      const response = await apiRequest<{ success: boolean; message: string }>(`/disconnect/${connectionUser.username}`, {
+        method: 'POST'
+      })
+      if (response.success) {
+        toast({
+          title: "Success",
+          description: response.message || "Radius session disconnected successfully",
+        })
+        fetchActiveSessions()
+      } else {
+        toast({
+          title: "Error",
+          description: "Disconnection failed",
+          variant: "destructive",
+        })
+      }
+    } catch (error: any) {
+      console.error("Error disconnecting session:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to disconnect session",
+        variant: "destructive",
+      })
+    } finally {
+      setActionLoading(false)
     }
   }
 
@@ -2930,6 +3134,15 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         </Button>
         <Button size="sm" className="h-9 bg-gradient-to-r from-red-500 to-rose-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={() => setResetMacOpen(true)}>
           <RefreshCw className="mr-2 h-4 w-4" /> MAC RESET
+        </Button>
+        <Button size="sm" className="h-9 bg-gradient-to-r from-indigo-500 to-violet-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={handleReprovisionRadius} disabled={actionLoading}>
+          <Key className="mr-2 h-4 w-4" /> Reprovision Radius
+        </Button>
+        <Button size="sm" className="h-9 bg-gradient-to-r from-pink-500 to-purple-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={handleReprovisionNettv} disabled={actionLoading}>
+          <Tv className="mr-2 h-4 w-4" /> Reprovision NetTV
+        </Button>
+        <Button size="sm" className="h-9 bg-gradient-to-r from-yellow-500 to-amber-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={handleDisconnectSession} disabled={actionLoading}>
+          <WifiOff className="mr-2 h-4 w-4" /> Disconnect Session
         </Button>
         <Button size="sm" className="h-9 bg-gradient-to-r from-red-500 to-rose-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={handleDeleteCustomer} disabled={actionLoading}>
           {actionLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
@@ -4251,6 +4464,106 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         </TabsContent>
 
         <TabsContent value="radius" className="space-y-4">
+          <CardContainer title="Active RADIUS Sessions" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm text-muted-foreground">Currently active PPPoE/Hotspot sessions on the RADIUS server.</p>
+              <Button size="sm" variant="outline" onClick={fetchActiveSessions} disabled={activeSessionsLoading} className="gap-2">
+                <RefreshCw className={`h-4 w-4 ${activeSessionsLoading ? 'animate-spin' : ''}`} />
+                Refresh Sessions
+              </Button>
+            </div>
+            {activeSessionsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <span className="ml-2 text-muted-foreground">Loading active sessions...</span>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {activeSessions.length === 0 ? (
+                  <div className="text-center py-6 text-muted-foreground text-sm">
+                    No active sessions found on the RADIUS server.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 dark:border-slate-700">
+                          <th className="text-left py-2 px-3 font-medium text-muted-foreground">Username</th>
+                          <th className="text-left py-2 px-3 font-medium text-muted-foreground">IP Address</th>
+                          <th className="text-left py-2 px-3 font-medium text-muted-foreground">NAS IP</th>
+                          <th className="text-left py-2 px-3 font-medium text-muted-foreground">Start Time</th>
+                          <th className="text-left py-2 px-3 font-medium text-muted-foreground">Uptime</th>
+                          <th className="text-left py-2 px-3 font-medium text-muted-foreground">Usage (DL/UL)</th>
+                          <th className="text-right py-2 px-3 font-medium text-muted-foreground">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {activeSessions.map((session: any, idx: number) => {
+                          const usageStr = `${session.data_out || "0 B"} / ${session.data_in || "0 B"}`;
+
+                          // Compute uptime from acctstarttime (started_at)
+                          let uptimeStr = "N/A";
+                          if (session.acctstarttime) {
+                            const diffSec = Math.floor((Date.now() - new Date(session.acctstarttime).getTime()) / 1000);
+                            uptimeStr = diffSec > 0 ? formatDuration(diffSec) : "00:00:00";
+                          }
+
+                          return (
+                            <tr key={session.acctsessionid || idx} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                              <td className="py-2 px-3 font-mono text-xs">{session.username}</td>
+                              <td className="py-2 px-3 font-mono text-xs">{session.framedipaddress || "N/A"}</td>
+                              <td className="py-2 px-3 font-mono text-xs">{session.nasipaddress || "N/A"}</td>
+                              <td className="py-2 px-3 text-xs">
+                                {session.acctstarttime ? new Date(session.acctstarttime).toLocaleString() : "N/A"}
+                              </td>
+                              <td className="py-2 px-3 text-xs font-mono">
+                                {uptimeStr}
+                              </td>
+                              <td className="py-2 px-3 text-xs font-mono">{usageStr}</td>
+                              <td className="py-2 px-3 text-right">
+                                <div className="flex justify-end gap-2">
+                                  <Button 
+                                    size="sm" 
+                                    variant="destructive" 
+                                    className="h-7 px-2 text-xs"
+                                    onClick={() => handleDisconnectSessionId(session.acctsessionid)}
+                                    disabled={actionLoading}
+                                  >
+                                    Disconnect
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {customer?.connectionUsers && customer.connectionUsers.length > 0 && activeSessions.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                    {customer.connectionUsers.map((u) => {
+                      const userHasSession = activeSessions.some(s => s.username === u.username);
+                      if (!userHasSession) return null;
+                      return (
+                        <Button
+                          key={u.id}
+                          size="sm"
+                          variant="outline"
+                          className="text-xs text-red-600 hover:text-red-700 border-red-200 hover:bg-red-50 dark:border-red-900/30 dark:hover:bg-red-950/20"
+                          onClick={() => handleDisconnectAllSessions(u.username)}
+                          disabled={actionLoading}
+                        >
+                          Disconnect All Sessions for {u.username}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContainer>
+
           <CardContainer title="Radius Login Details" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
             <div className="flex items-center justify-between mb-4">
               <p className="text-sm text-muted-foreground">Authentication logs from RADIUS server for all connection users.</p>
