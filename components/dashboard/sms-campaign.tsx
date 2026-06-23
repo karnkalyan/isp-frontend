@@ -26,6 +26,8 @@ import {
   X,
   FileSpreadsheet,
   Upload,
+  Plus,
+  Phone,
 } from "lucide-react"
 import {
   Select,
@@ -99,6 +101,8 @@ export function SmsCampaign() {
   const [fullAddressKeywords, setFullAddressKeywords] = useState<string[]>([])
   const [debouncedFullAddressKeywords, setDebouncedFullAddressKeywords] = useState<string[]>([])
   const [fullAddressInput, setFullAddressInput] = useState("")
+  const [manualNumbers, setManualNumbers] = useState<string[]>([])
+  const [manualNumberInput, setManualNumberInput] = useState("")
 
   // Restored states to fix TypeScript compilation
   const [credit, setCredit] = useState<any>(null)
@@ -886,12 +890,12 @@ export function SmsCampaign() {
 
     const isCsvActive = useCsvFilter && csvRows.length > 0 && selectedCsvColumns.length > 0;
 
-    if (targetingScope === "select" && selectedRecipients.length === 0) {
-      toast.error("Please select at least one recipient.")
+    if (targetingScope === "select" && selectedRecipients.length === 0 && manualNumbers.length === 0) {
+      toast.error("Please select at least one recipient or add manual numbers.")
       return
     }
 
-    if (targetingScope === "all" && recipientsCount === 0) {
+    if (targetingScope === "all" && recipientsCount === 0 && manualNumbers.length === 0) {
       toast.error("No recipients found with valid phone numbers matching current filters.")
       return
     }
@@ -911,6 +915,14 @@ export function SmsCampaign() {
                 name: r.name
               }))
             : []);
+      // Merge manual numbers (deduplicated against existing recipients)
+      const existingPhones = new Set(recipientData.map((r: any) => r.phone))
+      manualNumbers.forEach(num => {
+        if (!existingPhones.has(num)) {
+          recipientData.push({ phone: num, recipientId: null as any, name: 'Manual' })
+          existingPhones.add(num)
+        }
+      })
       const scopedBranchIds = Array.from(getSelectedBranchScope())
       const dynamicFiltersList: string[] = []
       selectedAddresses.forEach(val => dynamicFiltersList.push(`address:${val}`))
@@ -952,6 +964,8 @@ export function SmsCampaign() {
       toast.success(`SMS campaign queued for ${queued} recipients${skipped ? `, ${skipped} skipped` : ""}.`)
       setMessage("")
       setSelectedRecipients([])
+      setManualNumbers([])
+      setManualNumberInput('')
       fetchCredit(selectedProvider)
       fetchCampaigns()
     } catch (err: any) {
@@ -1516,6 +1530,91 @@ export function SmsCampaign() {
               </div>
             </div>
 
+            {/* Manual Number Entry */}
+            <div className="space-y-1.5 pt-2 border-t border-border/50">
+              <Label className="text-xs font-semibold text-foreground/70 uppercase tracking-wider flex items-center gap-1.5">
+                <Phone className="h-3 w-3" />
+                Manual Numbers
+              </Label>
+              <div className="flex gap-1.5">
+                <Input
+                  placeholder="Enter phone number(s)..."
+                  className="h-8 text-xs bg-background border-input flex-1"
+                  value={manualNumberInput}
+                  onChange={(e) => setManualNumberInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
+                      e.preventDefault()
+                      const parts = manualNumberInput.split(/[,\s]+/).map(s => s.replace(/\D/g, '').trim()).filter(Boolean)
+                      const newNums: string[] = []
+                      parts.forEach(num => {
+                        let cleaned = num
+                        if (cleaned.length === 13 && cleaned.startsWith('977')) cleaned = cleaned.slice(3)
+                        if (cleaned.length === 10 && cleaned.startsWith('9') && !manualNumbers.includes(cleaned)) {
+                          newNums.push(cleaned)
+                        }
+                      })
+                      if (newNums.length > 0) setManualNumbers(prev => [...prev, ...newNums])
+                      else if (parts.length > 0) toast.error('Invalid number. Must be 10 digits starting with 9.')
+                      setManualNumberInput('')
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-2"
+                  onClick={() => {
+                    const parts = manualNumberInput.split(/[,\s]+/).map(s => s.replace(/\D/g, '').trim()).filter(Boolean)
+                    const newNums: string[] = []
+                    parts.forEach(num => {
+                      let cleaned = num
+                      if (cleaned.length === 13 && cleaned.startsWith('977')) cleaned = cleaned.slice(3)
+                      if (cleaned.length === 10 && cleaned.startsWith('9') && !manualNumbers.includes(cleaned)) {
+                        newNums.push(cleaned)
+                      }
+                    })
+                    if (newNums.length > 0) setManualNumbers(prev => [...prev, ...newNums])
+                    else if (parts.length > 0) toast.error('Invalid number. Must be 10 digits starting with 9.')
+                    setManualNumberInput('')
+                  }}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              {manualNumbers.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {manualNumbers.map((num) => (
+                    <Badge
+                      key={num}
+                      variant="secondary"
+                      className="text-[10px] px-2 py-0.5 gap-1 font-mono"
+                    >
+                      {num}
+                      <button
+                        type="button"
+                        className="ml-0.5 hover:text-red-500 transition-colors"
+                        onClick={() => setManualNumbers(prev => prev.filter(n => n !== num))}
+                      >
+                        <X className="h-2.5 w-2.5" />
+                      </button>
+                    </Badge>
+                  ))}
+                  <button
+                    type="button"
+                    className="text-[10px] text-muted-foreground hover:text-red-500 transition-colors underline"
+                    onClick={() => setManualNumbers([])}
+                  >
+                    Clear all
+                  </button>
+                </div>
+              )}
+              <p className="text-[10px] text-muted-foreground italic">
+                Add numbers manually. Press Enter or comma to add. Supports multiple numbers separated by comma or space.
+              </p>
+            </div>
+
             {targetingScope === "all" ? (
               /* All Matching Summary Card */
               <div className="p-4 rounded-lg bg-blue-600/5 border border-blue-600/20 mt-2">
@@ -1735,7 +1834,7 @@ export function SmsCampaign() {
                 <div className="flex items-center gap-2 text-amber-600 bg-amber-500/5 px-3 py-1.5 rounded-full border border-amber-500/10">
                   <AlertCircle className="h-4 w-4" />
                   <span className="text-xs font-medium">
-                    Estimated Cost: {(targetingScope === "all" ? recipientsCount : selectedRecipients.length) * getSmsParts(message)} Credits
+                    Estimated Cost: {((targetingScope === "all" ? recipientsCount : selectedRecipients.length) + manualNumbers.length) * getSmsParts(message)} Credits
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-emerald-600 bg-emerald-500/5 px-3 py-1.5 rounded-full border border-emerald-500/10">
@@ -1746,7 +1845,7 @@ export function SmsCampaign() {
               <Button
                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12 shadow-lg shadow-emerald-600/20 transition-all active:scale-[0.98]"
                 onClick={handleSend}
-                disabled={sending || loading || (targetingScope === "all" ? recipientsCount === 0 : selectedRecipients.length === 0) || !message.trim()}
+                disabled={sending || loading || ((targetingScope === "all" ? recipientsCount === 0 : selectedRecipients.length === 0) && manualNumbers.length === 0) || !message.trim()}
               >
                 {sending ? (
                   <>
@@ -1756,7 +1855,7 @@ export function SmsCampaign() {
                 ) : (
                   <>
                     <Send className="mr-2 h-5 w-5" />
-                    Queue SMS Campaign ({targetingScope === "all" ? `${recipientsCount} recipients` : `${selectedRecipients.length} recipients`})
+                    Queue SMS Campaign ({(targetingScope === "all" ? recipientsCount : selectedRecipients.length) + manualNumbers.length} recipients)
                   </>
                 )}
               </Button>
