@@ -107,6 +107,7 @@ export function SmsCampaign() {
   const [csvHeaders, setCsvHeaders] = useState<string[]>([])
   const [selectedCsvColumns, setSelectedCsvColumns] = useState<string[]>([])
   const [csvFileName, setCsvFileName] = useState("")
+  const [csvMatchType, setCsvMatchType] = useState<"and" | "or">("or")
 
   const mapCsvHeaderToRecipientKey = (header: string): string => {
     const h = header.toLowerCase().trim().replace(/[^a-z0-9]/g, "");
@@ -131,15 +132,51 @@ export function SmsCampaign() {
 
   const isCsvMatch = useCallback((r: any) => {
     if (!useCsvFilter || csvRows.length === 0 || selectedCsvColumns.length === 0) return true;
+    
+    const cleanPhone = (phone: string): string => {
+      const digits = phone.replace(/\D/g, "");
+      return digits.length >= 10 ? digits.slice(-10) : digits;
+    };
+
     return csvRows.some(csvRow => {
-      return selectedCsvColumns.every(colName => {
-        const recipientKey = mapCsvHeaderToRecipientKey(colName);
-        const recipientValue = String(r[recipientKey] || "").toLowerCase().trim();
-        const csvValue = String(csvRow[colName] || "").toLowerCase().trim();
-        return recipientValue !== "" && recipientValue === csvValue;
-      });
+      if (csvMatchType === "and") {
+        return selectedCsvColumns.every(colName => {
+          const recipientKey = mapCsvHeaderToRecipientKey(colName);
+          const isPhoneField = recipientKey === "phone" || recipientKey === "secondaryContactNumber";
+          
+          const rawRecipientValue = String(r[recipientKey] || "");
+          const rawCsvValue = String(csvRow[colName] || "");
+          
+          if (!rawRecipientValue || !rawCsvValue) return false;
+          
+          const recipientValue = isPhoneField ? cleanPhone(rawRecipientValue) : rawRecipientValue.toLowerCase().trim();
+          const csvValue = isPhoneField ? cleanPhone(rawCsvValue) : rawCsvValue.toLowerCase().trim();
+          
+          return recipientValue !== "" && recipientValue === csvValue;
+        });
+      } else {
+        return selectedCsvColumns.some(colName => {
+          const recipientKey = mapCsvHeaderToRecipientKey(colName);
+          const isPhoneField = recipientKey === "phone" || recipientKey === "secondaryContactNumber";
+          
+          const rawRecipientValue = String(r[recipientKey] || "");
+          const rawCsvValue = String(csvRow[colName] || "");
+          
+          if (!rawRecipientValue || !rawCsvValue) return false;
+          
+          const recipientValue = isPhoneField ? cleanPhone(rawRecipientValue) : rawRecipientValue.toLowerCase().trim();
+          const csvValue = isPhoneField ? cleanPhone(rawCsvValue) : rawCsvValue.toLowerCase().trim();
+          
+          return recipientValue !== "" && recipientValue === csvValue;
+        });
+      }
     });
-  }, [useCsvFilter, csvRows, selectedCsvColumns]);
+  }, [useCsvFilter, csvRows, selectedCsvColumns, csvMatchType]);
+
+  const csvMatchedCount = React.useMemo(() => {
+    if (csvRows.length === 0) return 0;
+    return rawRecipients.filter(isCsvMatch).length;
+  }, [rawRecipients, isCsvMatch]);
 
   const parseCSV = (text: string) => {
     const lines: string[][] = [];
@@ -1191,14 +1228,34 @@ export function SmsCampaign() {
                     </Button>
                   </div>
 
-                  <div className="text-[10px] text-muted-foreground flex justify-between">
-                    <span>Rows: {csvRows.length}</span>
-                    <span className="font-semibold text-green-600">
-                      {useCsvFilter ? "Filter Active" : "Filter Inactive"}
-                    </span>
+                  <div className="text-[10px] text-muted-foreground flex flex-col gap-1">
+                    <div className="flex justify-between">
+                      <span>Rows in CSV: {csvRows.length}</span>
+                      <span className="font-semibold text-green-600">
+                        {useCsvFilter ? `${csvMatchedCount} Matched` : "Filter Inactive"}
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-border/30">
+                    <span className="text-[10px] font-semibold text-foreground/60 uppercase tracking-wider">
+                      Match Type:
+                    </span>
+                    <Select
+                      value={csvMatchType}
+                      onValueChange={(val: "and" | "or") => setCsvMatchType(val)}
+                    >
+                      <SelectTrigger className="h-6 text-[10px] px-2 w-[90px] bg-background">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="and">AND (All)</SelectItem>
+                        <SelectItem value="or">OR (Any)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5 border-t border-border/30 pt-1">
                     <span className="text-[10px] font-semibold text-foreground/60 uppercase tracking-wider block">
                       Match columns:
                     </span>
