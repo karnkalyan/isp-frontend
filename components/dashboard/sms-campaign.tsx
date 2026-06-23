@@ -83,9 +83,9 @@ export function SmsCampaign() {
   const [selectedGenders, setSelectedGenders] = useState<string[]>([])
   const [selectedPackages, setSelectedPackages] = useState<string[]>([])
   const [selectedMemberships, setSelectedMemberships] = useState<string[]>([])
-  const [fullAddressKeyword, setFullAddressKeyword] = useState("")
-  const [debouncedFullAddressKeyword, setDebouncedFullAddressKeyword] = useState("")
-  const [isFiltering, setIsFiltering] = useState(false)
+  const [fullAddressKeywords, setFullAddressKeywords] = useState<string[]>([])
+  const [debouncedFullAddressKeywords, setDebouncedFullAddressKeywords] = useState<string[]>([])
+  const [fullAddressInput, setFullAddressInput] = useState("")
 
   // Restored states to fix TypeScript compilation
   const [credit, setCredit] = useState<any>(null)
@@ -104,36 +104,60 @@ export function SmsCampaign() {
   const [csvFileName, setCsvFileName] = useState("")
   const [csvMatchType, setCsvMatchType] = useState<"and" | "or">("or")
 
-  // Debounce the fullAddressKeyword input
+  // Debounce the fullAddressKeywords array
   useEffect(() => {
-    if (fullAddressKeyword !== debouncedFullAddressKeyword) {
-      setIsFiltering(true)
-    }
     const handler = setTimeout(() => {
-      setDebouncedFullAddressKeyword(fullAddressKeyword)
+      setDebouncedFullAddressKeywords(fullAddressKeywords)
     }, 500)
     return () => clearTimeout(handler)
-  }, [fullAddressKeyword, debouncedFullAddressKeyword])
+  }, [fullAddressKeywords])
 
-  // Trigger loading spinner during filtering
+  // Trigger loading state immediately when any filter changes
   useEffect(() => {
-    setIsFiltering(true)
-    const timer = setTimeout(() => {
-      setIsFiltering(false)
-    }, 400)
-    return () => clearTimeout(timer)
+    setLoading(true)
   }, [
+    recipientType,
+    filters,
+    selectedHeadOffices,
+    selectedBranches,
+    selectedSubBranches,
+    fullAddressKeywords,
     selectedAddresses,
     selectedStreets,
     selectedDistricts,
     selectedGenders,
     selectedPackages,
     selectedMemberships,
-    debouncedFullAddressKeyword,
     useCsvFilter,
     selectedCsvColumns,
     csvMatchType
   ])
+
+  const addFullAddressKeyword = (keyword: string) => {
+    const clean = keyword.trim()
+    if (!clean) return
+    if (!fullAddressKeywords.includes(clean)) {
+      setFullAddressKeywords([...fullAddressKeywords, clean])
+    }
+    setFullAddressInput("")
+  }
+
+  const removeFullAddressKeyword = (keyword: string) => {
+    setFullAddressKeywords(fullAddressKeywords.filter(k => k !== keyword))
+  }
+
+  const handleFullAddressInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault()
+      addFullAddressKeyword(fullAddressInput)
+    } else if (e.key === "Backspace" && !fullAddressInput && fullAddressKeywords.length > 0) {
+      removeFullAddressKeyword(fullAddressKeywords[fullAddressKeywords.length - 1])
+    }
+  }
+
+  const handleFullAddressInputBlur = () => {
+    addFullAddressKeyword(fullAddressInput)
+  }
 
   // Lowercased sets for highly optimized filtering
   const lowerAddresses = React.useMemo(() => new Set(selectedAddresses.map(v => v.toLowerCase().trim())), [selectedAddresses]);
@@ -308,12 +332,9 @@ export function SmsCampaign() {
       if (lowerGenders.size > 0 && (!r.gender || !lowerGenders.has(r.gender.trim().toLowerCase()))) return;
       if (lowerPackages.size > 0 && (!r.packageName || !lowerPackages.has(r.packageName.trim().toLowerCase()))) return;
       if (lowerMemberships.size > 0 && (!r.membershipName || !lowerMemberships.has(r.membershipName.trim().toLowerCase()))) return;
-      if (debouncedFullAddressKeyword.trim()) {
-        const keywords = debouncedFullAddressKeyword.split(',').map(k => k.toLowerCase().trim()).filter(Boolean);
-        if (keywords.length > 0) {
-          const hasMatch = keywords.some(kw => r.fullAddress && r.fullAddress.toLowerCase().includes(kw));
-          if (!hasMatch) return;
-        }
+      if (debouncedFullAddressKeywords.length > 0) {
+        const hasMatch = debouncedFullAddressKeywords.some(kw => r.fullAddress && r.fullAddress.toLowerCase().includes(kw.toLowerCase().trim()));
+        if (!hasMatch) return;
       }
       if (!isCsvMatch(r)) return;
 
@@ -321,7 +342,7 @@ export function SmsCampaign() {
     });
 
     return Array.from(values).sort().map(val => ({ value: val, label: val }));
-  }, [rawRecipients, selectedAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerPackages, lowerMemberships, debouncedFullAddressKeyword, isCsvMatch]);
+  }, [rawRecipients, selectedAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerPackages, lowerMemberships, debouncedFullAddressKeywords, isCsvMatch]);
 
   const streetOptions = React.useMemo(() => {
     const values = new Set<string>();
@@ -333,12 +354,9 @@ export function SmsCampaign() {
       if (lowerGenders.size > 0 && (!r.gender || !lowerGenders.has(r.gender.trim().toLowerCase()))) return;
       if (lowerPackages.size > 0 && (!r.packageName || !lowerPackages.has(r.packageName.trim().toLowerCase()))) return;
       if (lowerMemberships.size > 0 && (!r.membershipName || !lowerMemberships.has(r.membershipName.trim().toLowerCase()))) return;
-      if (debouncedFullAddressKeyword.trim()) {
-        const keywords = debouncedFullAddressKeyword.split(',').map(k => k.toLowerCase().trim()).filter(Boolean);
-        if (keywords.length > 0) {
-          const hasMatch = keywords.some(kw => r.fullAddress && r.fullAddress.toLowerCase().includes(kw));
-          if (!hasMatch) return;
-        }
+      if (debouncedFullAddressKeywords.length > 0) {
+        const hasMatch = debouncedFullAddressKeywords.some(kw => r.fullAddress && r.fullAddress.toLowerCase().includes(kw.toLowerCase().trim()));
+        if (!hasMatch) return;
       }
       if (!isCsvMatch(r)) return;
 
@@ -346,7 +364,7 @@ export function SmsCampaign() {
     });
 
     return Array.from(values).sort().map(val => ({ value: val, label: val }));
-  }, [rawRecipients, selectedStreets, lowerAddresses, lowerDistricts, lowerGenders, lowerPackages, lowerMemberships, debouncedFullAddressKeyword, isCsvMatch]);
+  }, [rawRecipients, selectedStreets, lowerAddresses, lowerDistricts, lowerGenders, lowerPackages, lowerMemberships, debouncedFullAddressKeywords, isCsvMatch]);
 
   const districtOptions = React.useMemo(() => {
     const values = new Set<string>();
@@ -358,12 +376,9 @@ export function SmsCampaign() {
       if (lowerGenders.size > 0 && (!r.gender || !lowerGenders.has(r.gender.trim().toLowerCase()))) return;
       if (lowerPackages.size > 0 && (!r.packageName || !lowerPackages.has(r.packageName.trim().toLowerCase()))) return;
       if (lowerMemberships.size > 0 && (!r.membershipName || !lowerMemberships.has(r.membershipName.trim().toLowerCase()))) return;
-      if (debouncedFullAddressKeyword.trim()) {
-        const keywords = debouncedFullAddressKeyword.split(',').map(k => k.toLowerCase().trim()).filter(Boolean);
-        if (keywords.length > 0) {
-          const hasMatch = keywords.some(kw => r.fullAddress && r.fullAddress.toLowerCase().includes(kw));
-          if (!hasMatch) return;
-        }
+      if (debouncedFullAddressKeywords.length > 0) {
+        const hasMatch = debouncedFullAddressKeywords.some(kw => r.fullAddress && r.fullAddress.toLowerCase().includes(kw.toLowerCase().trim()));
+        if (!hasMatch) return;
       }
       if (!isCsvMatch(r)) return;
 
@@ -371,7 +386,7 @@ export function SmsCampaign() {
     });
 
     return Array.from(values).sort().map(val => ({ value: val, label: val }));
-  }, [rawRecipients, selectedDistricts, lowerAddresses, lowerStreets, lowerGenders, lowerPackages, lowerMemberships, debouncedFullAddressKeyword, isCsvMatch]);
+  }, [rawRecipients, selectedDistricts, lowerAddresses, lowerStreets, lowerGenders, lowerPackages, lowerMemberships, debouncedFullAddressKeywords, isCsvMatch]);
 
   const genderOptions = React.useMemo(() => {
     const values = new Set<string>();
@@ -383,12 +398,9 @@ export function SmsCampaign() {
       if (lowerDistricts.size > 0 && (!r.district || !lowerDistricts.has(r.district.trim().toLowerCase()))) return;
       if (lowerPackages.size > 0 && (!r.packageName || !lowerPackages.has(r.packageName.trim().toLowerCase()))) return;
       if (lowerMemberships.size > 0 && (!r.membershipName || !lowerMemberships.has(r.membershipName.trim().toLowerCase()))) return;
-      if (debouncedFullAddressKeyword.trim()) {
-        const keywords = debouncedFullAddressKeyword.split(',').map(k => k.toLowerCase().trim()).filter(Boolean);
-        if (keywords.length > 0) {
-          const hasMatch = keywords.some(kw => r.fullAddress && r.fullAddress.toLowerCase().includes(kw));
-          if (!hasMatch) return;
-        }
+      if (debouncedFullAddressKeywords.length > 0) {
+        const hasMatch = debouncedFullAddressKeywords.some(kw => r.fullAddress && r.fullAddress.toLowerCase().includes(kw.toLowerCase().trim()));
+        if (!hasMatch) return;
       }
       if (!isCsvMatch(r)) return;
 
@@ -396,7 +408,7 @@ export function SmsCampaign() {
     });
 
     return Array.from(values).sort().map(val => ({ value: val, label: val }));
-  }, [rawRecipients, selectedGenders, lowerAddresses, lowerStreets, lowerDistricts, lowerPackages, lowerMemberships, debouncedFullAddressKeyword, isCsvMatch]);
+  }, [rawRecipients, selectedGenders, lowerAddresses, lowerStreets, lowerDistricts, lowerPackages, lowerMemberships, debouncedFullAddressKeywords, isCsvMatch]);
 
   const packageOptions = React.useMemo(() => {
     const values = new Set<string>();
@@ -408,12 +420,9 @@ export function SmsCampaign() {
       if (lowerDistricts.size > 0 && (!r.district || !lowerDistricts.has(r.district.trim().toLowerCase()))) return;
       if (lowerGenders.size > 0 && (!r.gender || !lowerGenders.has(r.gender.trim().toLowerCase()))) return;
       if (lowerMemberships.size > 0 && (!r.membershipName || !lowerMemberships.has(r.membershipName.trim().toLowerCase()))) return;
-      if (debouncedFullAddressKeyword.trim()) {
-        const keywords = debouncedFullAddressKeyword.split(',').map(k => k.toLowerCase().trim()).filter(Boolean);
-        if (keywords.length > 0) {
-          const hasMatch = keywords.some(kw => r.fullAddress && r.fullAddress.toLowerCase().includes(kw));
-          if (!hasMatch) return;
-        }
+      if (debouncedFullAddressKeywords.length > 0) {
+        const hasMatch = debouncedFullAddressKeywords.some(kw => r.fullAddress && r.fullAddress.toLowerCase().includes(kw.toLowerCase().trim()));
+        if (!hasMatch) return;
       }
       if (!isCsvMatch(r)) return;
 
@@ -421,7 +430,7 @@ export function SmsCampaign() {
     });
 
     return Array.from(values).sort().map(val => ({ value: val, label: val }));
-  }, [rawRecipients, selectedPackages, lowerAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerMemberships, debouncedFullAddressKeyword, isCsvMatch]);
+  }, [rawRecipients, selectedPackages, lowerAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerMemberships, debouncedFullAddressKeywords, isCsvMatch]);
 
   const membershipOptions = React.useMemo(() => {
     const values = new Set<string>();
@@ -433,12 +442,9 @@ export function SmsCampaign() {
       if (lowerDistricts.size > 0 && (!r.district || !lowerDistricts.has(r.district.trim().toLowerCase()))) return;
       if (lowerGenders.size > 0 && (!r.gender || !lowerGenders.has(r.gender.trim().toLowerCase()))) return;
       if (lowerPackages.size > 0 && (!r.packageName || !lowerPackages.has(r.packageName.trim().toLowerCase()))) return;
-      if (debouncedFullAddressKeyword.trim()) {
-        const keywords = debouncedFullAddressKeyword.split(',').map(k => k.toLowerCase().trim()).filter(Boolean);
-        if (keywords.length > 0) {
-          const hasMatch = keywords.some(kw => r.fullAddress && r.fullAddress.toLowerCase().includes(kw));
-          if (!hasMatch) return;
-        }
+      if (debouncedFullAddressKeywords.length > 0) {
+        const hasMatch = debouncedFullAddressKeywords.some(kw => r.fullAddress && r.fullAddress.toLowerCase().includes(kw.toLowerCase().trim()));
+        if (!hasMatch) return;
       }
       if (!isCsvMatch(r)) return;
 
@@ -446,7 +452,7 @@ export function SmsCampaign() {
     });
 
     return Array.from(values).sort().map(val => ({ value: val, label: val }));
-  }, [rawRecipients, selectedMemberships, lowerAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerPackages, debouncedFullAddressKeyword, isCsvMatch]);
+  }, [rawRecipients, selectedMemberships, lowerAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerPackages, debouncedFullAddressKeywords, isCsvMatch]);
 
   const filteredRecipients = React.useMemo(() => {
     return rawRecipients.filter(r => {
@@ -456,17 +462,14 @@ export function SmsCampaign() {
       if (lowerGenders.size > 0 && (!r.gender || !lowerGenders.has(r.gender.trim().toLowerCase()))) return false;
       if (lowerPackages.size > 0 && (!r.packageName || !lowerPackages.has(r.packageName.trim().toLowerCase()))) return false;
       if (lowerMemberships.size > 0 && (!r.membershipName || !lowerMemberships.has(r.membershipName.trim().toLowerCase()))) return false;
-      if (debouncedFullAddressKeyword.trim()) {
-        const keywords = debouncedFullAddressKeyword.split(',').map(k => k.toLowerCase().trim()).filter(Boolean);
-        if (keywords.length > 0) {
-          const hasMatch = keywords.some(kw => r.fullAddress && r.fullAddress.toLowerCase().includes(kw));
-          if (!hasMatch) return false;
-        }
+      if (debouncedFullAddressKeywords.length > 0) {
+        const hasMatch = debouncedFullAddressKeywords.some(kw => r.fullAddress && r.fullAddress.toLowerCase().includes(kw.toLowerCase().trim()));
+        if (!hasMatch) return false;
       }
       if (!isCsvMatch(r)) return false;
       return true;
     });
-  }, [rawRecipients, lowerAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerPackages, lowerMemberships, debouncedFullAddressKeyword, isCsvMatch]);
+  }, [rawRecipients, lowerAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerPackages, lowerMemberships, debouncedFullAddressKeywords, isCsvMatch]);
 
   // Keep recipients and recipientsCount in sync with filteredRecipients
   useEffect(() => {
@@ -557,10 +560,20 @@ export function SmsCampaign() {
     fetchCampaigns()
   }, [])
 
-  // Fetch recipients count when filters, recipientType or debounced keyword change
+  // Fetch recipients count when filters, recipientType or debounced keywords change (DEBOUNCED BY 500ms)
   useEffect(() => {
-    fetchRecipients()
-  }, [recipientType, filters, selectedHeadOffices, selectedBranches, selectedSubBranches, debouncedFullAddressKeyword])
+    const handler = setTimeout(() => {
+      fetchRecipients()
+    }, 500)
+    return () => clearTimeout(handler)
+  }, [
+    recipientType,
+    filters,
+    selectedHeadOffices,
+    selectedBranches,
+    selectedSubBranches,
+    debouncedFullAddressKeywords
+  ])
 
   // Debounced search for manual recipient selection
   useEffect(() => {
@@ -749,8 +762,8 @@ export function SmsCampaign() {
         if (filters.oltPort) params.append("oltPort", filters.oltPort)
         if (filters.splitterId !== "all") params.append("splitterId", filters.splitterId)
       }
-      if (debouncedFullAddressKeyword.trim()) {
-        params.append("area", debouncedFullAddressKeyword.trim())
+      if (debouncedFullAddressKeywords.length > 0) {
+        params.append("area", debouncedFullAddressKeywords.join(","))
       }
 
       const res = await apiRequest<any>(`${endpoint}?${params.toString()}`)
@@ -826,7 +839,7 @@ export function SmsCampaign() {
     } finally {
       setLoading(false)
     }
-  }, [recipientType, filters.status, filters.oltId, filters.oltPort, filters.splitterId, getSelectedBranchScope, debouncedFullAddressKeyword])
+  }, [recipientType, filters.status, filters.oltId, filters.oltPort, filters.splitterId, getSelectedBranchScope, debouncedFullAddressKeywords])
 
   const handleSend = async () => {
     if (!message.trim()) {
@@ -874,9 +887,9 @@ export function SmsCampaign() {
       selectedGenders.forEach(val => dynamicFiltersList.push(`gender:${val}`))
       selectedPackages.forEach(val => dynamicFiltersList.push(`package:${val}`))
       selectedMemberships.forEach(val => dynamicFiltersList.push(`membership:${val}`))
-      if (fullAddressKeyword.trim()) {
-        dynamicFiltersList.push(`fullAddress:${fullAddressKeyword.trim()}`)
-      }
+      fullAddressKeywords.forEach(val => {
+        dynamicFiltersList.push(`fullAddress:${val.trim()}`)
+      })
 
       const campaignFilters: any = {
         status: filters.status,
@@ -930,9 +943,9 @@ export function SmsCampaign() {
     setSelectedDistricts([])
     setSelectedGenders([])
     setSelectedPackages([])
-    setSelectedMemberships([])
-    setFullAddressKeyword("")
-    setDebouncedFullAddressKeyword("")
+    setFullAddressKeywords([])
+    setDebouncedFullAddressKeywords([])
+    setFullAddressInput("")
   }
 
   const activeFilterCount = [
@@ -948,7 +961,7 @@ export function SmsCampaign() {
       selectedGenders.length > 0 ||
       selectedPackages.length > 0 ||
       selectedMemberships.length > 0 ||
-      fullAddressKeyword.trim() !== "" ||
+      fullAddressKeywords.length > 0 ||
       (useCsvFilter && csvRows.length > 0),
     filters.status !== "all",
   ].filter(Boolean).length
@@ -978,7 +991,7 @@ export function SmsCampaign() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Campaign Filters */}
         <Card className="bg-card border-border shadow-sm relative overflow-hidden">
-          {(loading || isFiltering) && (
+          {loading && (
             <div className="absolute inset-0 bg-background/60 backdrop-blur-[1px] flex flex-col items-center justify-center z-50">
               <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
               <span className="text-xs text-muted-foreground mt-2 font-medium">Updating filters...</span>
@@ -1207,18 +1220,34 @@ export function SmsCampaign() {
               />
             </div>
 
-            {/* Full Address Keyword Filter */}
+            {/* Full Address Keywords Tag Filter */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-foreground/70 uppercase tracking-wider flex items-center gap-1.5">
-                <MapPin className="h-3 w-3 text-red-500" /> Target Full Address (Keyword)
+                <MapPin className="h-3 w-3 text-red-500" /> Target Full Address (Keywords)
               </Label>
-              <Input
-                value={fullAddressKeyword}
-                onChange={(e) => setFullAddressKeyword(e.target.value)}
-                placeholder="Type keyword (e.g. Chandragiri)..."
-                className="bg-background border-input text-foreground h-9"
-                disabled={loading}
-              />
+              <div className="flex flex-wrap gap-1.5 p-1.5 border border-input rounded-md bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-input min-h-[38px] items-center">
+                {fullAddressKeywords.map((tag, idx) => (
+                  <Badge key={idx} variant="secondary" className="gap-1 pr-1 pl-2 py-0.5 text-xs bg-indigo-500/10 text-indigo-500 border-indigo-500/20 hover:bg-indigo-500/20">
+                    {tag}
+                    <button
+                      type="button"
+                      onClick={() => removeFullAddressKeyword(tag)}
+                      className="rounded-full hover:bg-indigo-500/25 p-0.5 transition-colors"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+                <input
+                  value={fullAddressInput}
+                  onChange={(e) => setFullAddressInput(e.target.value)}
+                  onKeyDown={handleFullAddressInputKeyDown}
+                  onBlur={handleFullAddressInputBlur}
+                  placeholder={fullAddressKeywords.length === 0 ? "Type keyword and press Enter..." : "Add..."}
+                  className="flex-1 bg-transparent border-none outline-none focus:ring-0 text-sm h-6 min-w-[120px] text-foreground placeholder:text-muted-foreground"
+                  disabled={loading}
+                />
+              </div>
             </div>
 
             {/* Gender Filter */}
