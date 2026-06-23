@@ -91,77 +91,127 @@ export function SmsCampaign() {
   const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null)
   const [logsLoading, setLogsLoading] = useState(false)
 
+  // Lowercased sets for highly optimized filtering
+  const lowerAddresses = React.useMemo(() => new Set(selectedAddresses.map(v => v.toLowerCase().trim())), [selectedAddresses]);
+  const lowerStreets = React.useMemo(() => new Set(selectedStreets.map(v => v.toLowerCase().trim())), [selectedStreets]);
+  const lowerDistricts = React.useMemo(() => new Set(selectedDistricts.map(v => v.toLowerCase().trim())), [selectedDistricts]);
+  const lowerGenders = React.useMemo(() => new Set(selectedGenders.map(v => v.toLowerCase().trim())), [selectedGenders]);
+  const lowerPackages = React.useMemo(() => new Set(selectedPackages.map(v => v.toLowerCase().trim())), [selectedPackages]);
+  const lowerMemberships = React.useMemo(() => new Set(selectedMemberships.map(v => v.toLowerCase().trim())), [selectedMemberships]);
+
   const addressOptions = React.useMemo(() => {
     const values = new Set<string>();
+    selectedAddresses.forEach(val => values.add(val.trim()));
+
     rawRecipients.forEach(r => {
+      if (lowerStreets.size > 0 && (!r.street || !lowerStreets.has(r.street.trim().toLowerCase()))) return;
+      if (lowerDistricts.size > 0 && (!r.district || !lowerDistricts.has(r.district.trim().toLowerCase()))) return;
+      if (lowerGenders.size > 0 && (!r.gender || !lowerGenders.has(r.gender.trim().toLowerCase()))) return;
+      if (lowerPackages.size > 0 && (!r.packageName || !lowerPackages.has(r.packageName.trim().toLowerCase()))) return;
+      if (lowerMemberships.size > 0 && (!r.membershipName || !lowerMemberships.has(r.membershipName.trim().toLowerCase()))) return;
+
       if (r.address) values.add(r.address.trim());
     });
+
     return Array.from(values).sort().map(val => ({ value: val, label: val }));
-  }, [rawRecipients]);
+  }, [rawRecipients, selectedAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerPackages, lowerMemberships]);
 
   const streetOptions = React.useMemo(() => {
     const values = new Set<string>();
+    selectedStreets.forEach(val => values.add(val.trim()));
+
     rawRecipients.forEach(r => {
+      if (lowerAddresses.size > 0 && (!r.address || !lowerAddresses.has(r.address.trim().toLowerCase()))) return;
+      if (lowerDistricts.size > 0 && (!r.district || !lowerDistricts.has(r.district.trim().toLowerCase()))) return;
+      if (lowerGenders.size > 0 && (!r.gender || !lowerGenders.has(r.gender.trim().toLowerCase()))) return;
+      if (lowerPackages.size > 0 && (!r.packageName || !lowerPackages.has(r.packageName.trim().toLowerCase()))) return;
+      if (lowerMemberships.size > 0 && (!r.membershipName || !lowerMemberships.has(r.membershipName.trim().toLowerCase()))) return;
+
       if (r.street) values.add(r.street.trim());
     });
+
     return Array.from(values).sort().map(val => ({ value: val, label: val }));
-  }, [rawRecipients]);
+  }, [rawRecipients, selectedStreets, lowerAddresses, lowerDistricts, lowerGenders, lowerPackages, lowerMemberships]);
 
   const districtOptions = React.useMemo(() => {
     const values = new Set<string>();
+    selectedDistricts.forEach(val => values.add(val.trim()));
+
     rawRecipients.forEach(r => {
+      if (lowerAddresses.size > 0 && (!r.address || !lowerAddresses.has(r.address.trim().toLowerCase()))) return;
+      if (lowerStreets.size > 0 && (!r.street || !lowerStreets.has(r.street.trim().toLowerCase()))) return;
+      if (lowerGenders.size > 0 && (!r.gender || !lowerGenders.has(r.gender.trim().toLowerCase()))) return;
+      if (lowerPackages.size > 0 && (!r.packageName || !lowerPackages.has(r.packageName.trim().toLowerCase()))) return;
+      if (lowerMemberships.size > 0 && (!r.membershipName || !lowerMemberships.has(r.membershipName.trim().toLowerCase()))) return;
+
       if (r.district) values.add(r.district.trim());
     });
+
     return Array.from(values).sort().map(val => ({ value: val, label: val }));
-  }, [rawRecipients]);
+  }, [rawRecipients, selectedDistricts, lowerAddresses, lowerStreets, lowerGenders, lowerPackages, lowerMemberships]);
 
   const genderOptions = React.useMemo(() => {
     const values = new Set<string>();
+    selectedGenders.forEach(val => values.add(val.trim()));
+
     rawRecipients.forEach(r => {
+      if (lowerAddresses.size > 0 && (!r.address || !lowerAddresses.has(r.address.trim().toLowerCase()))) return;
+      if (lowerStreets.size > 0 && (!r.street || !lowerStreets.has(r.street.trim().toLowerCase()))) return;
+      if (lowerDistricts.size > 0 && (!r.district || !lowerDistricts.has(r.district.trim().toLowerCase()))) return;
+      if (lowerPackages.size > 0 && (!r.packageName || !lowerPackages.has(r.packageName.trim().toLowerCase()))) return;
+      if (lowerMemberships.size > 0 && (!r.membershipName || !lowerMemberships.has(r.membershipName.trim().toLowerCase()))) return;
+
       if (r.gender) values.add(r.gender.trim());
     });
+
     return Array.from(values).sort().map(val => ({ value: val, label: val }));
-  }, [rawRecipients]);
+  }, [rawRecipients, selectedGenders, lowerAddresses, lowerStreets, lowerDistricts, lowerPackages, lowerMemberships]);
 
   const packageOptions = React.useMemo(() => {
     const values = new Set<string>();
+    selectedPackages.forEach(val => values.add(val.trim()));
+
     rawRecipients.forEach(r => {
+      if (lowerAddresses.size > 0 && (!r.address || !lowerAddresses.has(r.address.trim().toLowerCase()))) return;
+      if (lowerStreets.size > 0 && (!r.street || !lowerStreets.has(r.street.trim().toLowerCase()))) return;
+      if (lowerDistricts.size > 0 && (!r.district || !lowerDistricts.has(r.district.trim().toLowerCase()))) return;
+      if (lowerGenders.size > 0 && (!r.gender || !lowerGenders.has(r.gender.trim().toLowerCase()))) return;
+      if (lowerMemberships.size > 0 && (!r.membershipName || !lowerMemberships.has(r.membershipName.trim().toLowerCase()))) return;
+
       if (r.packageName) values.add(r.packageName.trim());
     });
+
     return Array.from(values).sort().map(val => ({ value: val, label: val }));
-  }, [rawRecipients]);
+  }, [rawRecipients, selectedPackages, lowerAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerMemberships]);
 
   const membershipOptions = React.useMemo(() => {
     const values = new Set<string>();
+    selectedMemberships.forEach(val => values.add(val.trim()));
+
     rawRecipients.forEach(r => {
+      if (lowerAddresses.size > 0 && (!r.address || !lowerAddresses.has(r.address.trim().toLowerCase()))) return;
+      if (lowerStreets.size > 0 && (!r.street || !lowerStreets.has(r.street.trim().toLowerCase()))) return;
+      if (lowerDistricts.size > 0 && (!r.district || !lowerDistricts.has(r.district.trim().toLowerCase()))) return;
+      if (lowerGenders.size > 0 && (!r.gender || !lowerGenders.has(r.gender.trim().toLowerCase()))) return;
+      if (lowerPackages.size > 0 && (!r.packageName || !lowerPackages.has(r.packageName.trim().toLowerCase()))) return;
+
       if (r.membershipName) values.add(r.membershipName.trim());
     });
+
     return Array.from(values).sort().map(val => ({ value: val, label: val }));
-  }, [rawRecipients]);
+  }, [rawRecipients, selectedMemberships, lowerAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerPackages]);
 
   const filteredRecipients = React.useMemo(() => {
     return rawRecipients.filter(r => {
-      if (selectedAddresses.length > 0) {
-        if (!r.address || !selectedAddresses.map(v => v.toLowerCase()).includes(r.address.trim().toLowerCase())) return false;
-      }
-      if (selectedStreets.length > 0) {
-        if (!r.street || !selectedStreets.map(v => v.toLowerCase()).includes(r.street.trim().toLowerCase())) return false;
-      }
-      if (selectedDistricts.length > 0) {
-        if (!r.district || !selectedDistricts.map(v => v.toLowerCase()).includes(r.district.trim().toLowerCase())) return false;
-      }
-      if (selectedGenders.length > 0) {
-        if (!r.gender || !selectedGenders.map(v => v.toLowerCase()).includes(r.gender.trim().toLowerCase())) return false;
-      }
-      if (selectedPackages.length > 0) {
-        if (!r.packageName || !selectedPackages.map(v => v.toLowerCase()).includes(r.packageName.trim().toLowerCase())) return false;
-      }
-      if (selectedMemberships.length > 0) {
-        if (!r.membershipName || !selectedMemberships.map(v => v.toLowerCase()).includes(r.membershipName.trim().toLowerCase())) return false;
-      }
+      if (lowerAddresses.size > 0 && (!r.address || !lowerAddresses.has(r.address.trim().toLowerCase()))) return false;
+      if (lowerStreets.size > 0 && (!r.street || !lowerStreets.has(r.street.trim().toLowerCase()))) return false;
+      if (lowerDistricts.size > 0 && (!r.district || !lowerDistricts.has(r.district.trim().toLowerCase()))) return false;
+      if (lowerGenders.size > 0 && (!r.gender || !lowerGenders.has(r.gender.trim().toLowerCase()))) return false;
+      if (lowerPackages.size > 0 && (!r.packageName || !lowerPackages.has(r.packageName.trim().toLowerCase()))) return false;
+      if (lowerMemberships.size > 0 && (!r.membershipName || !lowerMemberships.has(r.membershipName.trim().toLowerCase()))) return false;
       return true;
     });
-  }, [rawRecipients, selectedAddresses, selectedStreets, selectedDistricts, selectedGenders, selectedPackages, selectedMemberships]);
+  }, [rawRecipients, lowerAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerPackages, lowerMemberships]);
 
   // Keep recipients and recipientsCount in sync with filteredRecipients
   useEffect(() => {
