@@ -15,12 +15,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 
 function formatBytes(val: any) {
+  if (val === "N/A" || val === undefined || val === null) return "N/A";
   const num = Number(val);
-  if (isNaN(num) || num <= 0) return "0 B";
+  if (isNaN(num)) return "N/A";
+  if (num <= 0) return "0 B";
   if (num < 1024) return `${num} B`;
   if (num < 1024 * 1024) return `${(num / 1024).toFixed(2)} KB`;
   if (num < 1024 * 1024 * 1024) return `${(num / (1024 * 1024)).toFixed(2)} MB`;
   return `${(num / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+function formatPackets(val: any) {
+  if (val === "N/A" || val === undefined || val === null) return "N/A";
+  const num = Number(val);
+  if (isNaN(num)) return "N/A";
+  return num.toLocaleString();
 }
 
 function formatDuration(seconds: number) {
@@ -614,7 +623,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
                       <div className="flex items-center gap-2">
                         <Radio className={`h-4 w-4 ${isSelected ? "text-blue-600 dark:text-blue-400 animate-pulse" : "text-muted-foreground"}`} />
                         <span className="font-semibold text-sm">
-                          {idx === 5 ? "5.0 GHz Ultra-Band" : "2.4 GHz Main Band"}
+                          {idx >= 5 ? "5.0 GHz Ultra-Band" : "2.4 GHz Main Band"}
                         </span>
                       </div>
                       <Badge className={ssid.enable ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20" : "bg-muted text-muted-foreground border-transparent"}>
@@ -645,7 +654,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
             <div className="space-y-5">
               <div>
                 <h3 className="text-lg font-bold text-foreground mb-1">
-                  Configure WiFi - {getSsidIndex(activeSsid.instance) === 5 ? "5.0 GHz Ultra-Band" : "2.4 GHz Main Band"}
+                  Configure WiFi - {getSsidIndex(activeSsid.instance) >= 5 ? "5.0 GHz Ultra-Band" : "2.4 GHz Main Band"}
                 </h3>
                 <p className="text-xs text-muted-foreground">Change SSID name and login credentials below</p>
               </div>
@@ -828,10 +837,11 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
   }
 
   const renderStatsTab = () => {
-    // Collect filtered SSIDs that contain stats
+    // Collect active/enabled SSIDs that contain stats
     const wifiStats = ssids.filter((ssid: any) => {
-      const idx = getSsidIndex(ssid.instance);
-      return (idx === 1 || idx === 5) && ssid.stats;
+      const isEnable = ssid.enable === true || ssid.enable === 'true';
+      const isUp = ssid.status === 'Up' || ssid.status?.toLowerCase() === 'up' || ssid.status?.toLowerCase() === 'enabled';
+      return isEnable && isUp && ssid.stats;
     });
 
     const activeLanPorts = lanInterfaces.filter((port: any) => port.status?.toLowerCase() === "up" && port.stats);
@@ -868,8 +878,8 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
                       <td className="py-3 font-semibold text-primary">{port.name || `LAN ${port.index}`}</td>
                       <td className="py-3 font-mono">{formatBytes(port.stats.bytesSent)}</td>
                       <td className="py-3 font-mono">{formatBytes(port.stats.bytesReceived)}</td>
-                      <td className="py-3 font-mono">{Number(port.stats.packetsSent || 0).toLocaleString()}</td>
-                      <td className="py-3 font-mono">{Number(port.stats.packetsReceived || 0).toLocaleString()}</td>
+                      <td className="py-3 font-mono">{formatPackets(port.stats.packetsSent)}</td>
+                      <td className="py-3 font-mono">{formatPackets(port.stats.packetsReceived)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -906,12 +916,12 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
                       <tr key={ssid.instance}>
                         <td className="py-3">
                           <span className="font-semibold text-primary">{ssid.ssid}</span>
-                          <span className="text-xs text-muted-foreground ml-2">({idx === 5 ? "5G" : "2.4G"})</span>
+                          <span className="text-xs text-muted-foreground ml-2">({idx >= 5 ? "5G" : "2.4G"})</span>
                         </td>
                         <td className="py-3 font-mono">{formatBytes(ssid.stats.bytesSent)}</td>
                         <td className="py-3 font-mono">{formatBytes(ssid.stats.bytesReceived)}</td>
-                        <td className="py-3 font-mono">{Number(ssid.stats.packetsSent || 0).toLocaleString()}</td>
-                        <td className="py-3 font-mono">{Number(ssid.stats.packetsReceived || 0).toLocaleString()}</td>
+                        <td className="py-3 font-mono">{formatPackets(ssid.stats.packetsSent)}</td>
+                        <td className="py-3 font-mono">{formatPackets(ssid.stats.packetsReceived)}</td>
                       </tr>
                     )
                   })}
