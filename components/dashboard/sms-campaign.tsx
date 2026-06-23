@@ -84,6 +84,7 @@ export function SmsCampaign() {
   const [selectedPackages, setSelectedPackages] = useState<string[]>([])
   const [selectedMemberships, setSelectedMemberships] = useState<string[]>([])
   const [fullAddressKeyword, setFullAddressKeyword] = useState("")
+  const [debouncedFullAddressKeyword, setDebouncedFullAddressKeyword] = useState("")
   const [isFiltering, setIsFiltering] = useState(false)
 
   // Restored states to fix TypeScript compilation
@@ -103,6 +104,17 @@ export function SmsCampaign() {
   const [csvFileName, setCsvFileName] = useState("")
   const [csvMatchType, setCsvMatchType] = useState<"and" | "or">("or")
 
+  // Debounce the fullAddressKeyword input
+  useEffect(() => {
+    if (fullAddressKeyword !== debouncedFullAddressKeyword) {
+      setIsFiltering(true)
+    }
+    const handler = setTimeout(() => {
+      setDebouncedFullAddressKeyword(fullAddressKeyword)
+    }, 500)
+    return () => clearTimeout(handler)
+  }, [fullAddressKeyword, debouncedFullAddressKeyword])
+
   // Trigger loading spinner during filtering
   useEffect(() => {
     setIsFiltering(true)
@@ -117,7 +129,7 @@ export function SmsCampaign() {
     selectedGenders,
     selectedPackages,
     selectedMemberships,
-    fullAddressKeyword,
+    debouncedFullAddressKeyword,
     useCsvFilter,
     selectedCsvColumns,
     csvMatchType
@@ -296,9 +308,12 @@ export function SmsCampaign() {
       if (lowerGenders.size > 0 && (!r.gender || !lowerGenders.has(r.gender.trim().toLowerCase()))) return;
       if (lowerPackages.size > 0 && (!r.packageName || !lowerPackages.has(r.packageName.trim().toLowerCase()))) return;
       if (lowerMemberships.size > 0 && (!r.membershipName || !lowerMemberships.has(r.membershipName.trim().toLowerCase()))) return;
-      if (fullAddressKeyword.trim()) {
-        const kw = fullAddressKeyword.toLowerCase().trim();
-        if (!r.fullAddress || !r.fullAddress.toLowerCase().includes(kw)) return;
+      if (debouncedFullAddressKeyword.trim()) {
+        const keywords = debouncedFullAddressKeyword.split(',').map(k => k.toLowerCase().trim()).filter(Boolean);
+        if (keywords.length > 0) {
+          const hasMatch = keywords.some(kw => r.fullAddress && r.fullAddress.toLowerCase().includes(kw));
+          if (!hasMatch) return;
+        }
       }
       if (!isCsvMatch(r)) return;
 
@@ -306,7 +321,7 @@ export function SmsCampaign() {
     });
 
     return Array.from(values).sort().map(val => ({ value: val, label: val }));
-  }, [rawRecipients, selectedAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerPackages, lowerMemberships, fullAddressKeyword, isCsvMatch]);
+  }, [rawRecipients, selectedAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerPackages, lowerMemberships, debouncedFullAddressKeyword, isCsvMatch]);
 
   const streetOptions = React.useMemo(() => {
     const values = new Set<string>();
@@ -318,9 +333,12 @@ export function SmsCampaign() {
       if (lowerGenders.size > 0 && (!r.gender || !lowerGenders.has(r.gender.trim().toLowerCase()))) return;
       if (lowerPackages.size > 0 && (!r.packageName || !lowerPackages.has(r.packageName.trim().toLowerCase()))) return;
       if (lowerMemberships.size > 0 && (!r.membershipName || !lowerMemberships.has(r.membershipName.trim().toLowerCase()))) return;
-      if (fullAddressKeyword.trim()) {
-        const kw = fullAddressKeyword.toLowerCase().trim();
-        if (!r.fullAddress || !r.fullAddress.toLowerCase().includes(kw)) return;
+      if (debouncedFullAddressKeyword.trim()) {
+        const keywords = debouncedFullAddressKeyword.split(',').map(k => k.toLowerCase().trim()).filter(Boolean);
+        if (keywords.length > 0) {
+          const hasMatch = keywords.some(kw => r.fullAddress && r.fullAddress.toLowerCase().includes(kw));
+          if (!hasMatch) return;
+        }
       }
       if (!isCsvMatch(r)) return;
 
@@ -328,7 +346,7 @@ export function SmsCampaign() {
     });
 
     return Array.from(values).sort().map(val => ({ value: val, label: val }));
-  }, [rawRecipients, selectedStreets, lowerAddresses, lowerDistricts, lowerGenders, lowerPackages, lowerMemberships, fullAddressKeyword, isCsvMatch]);
+  }, [rawRecipients, selectedStreets, lowerAddresses, lowerDistricts, lowerGenders, lowerPackages, lowerMemberships, debouncedFullAddressKeyword, isCsvMatch]);
 
   const districtOptions = React.useMemo(() => {
     const values = new Set<string>();
@@ -340,9 +358,12 @@ export function SmsCampaign() {
       if (lowerGenders.size > 0 && (!r.gender || !lowerGenders.has(r.gender.trim().toLowerCase()))) return;
       if (lowerPackages.size > 0 && (!r.packageName || !lowerPackages.has(r.packageName.trim().toLowerCase()))) return;
       if (lowerMemberships.size > 0 && (!r.membershipName || !lowerMemberships.has(r.membershipName.trim().toLowerCase()))) return;
-      if (fullAddressKeyword.trim()) {
-        const kw = fullAddressKeyword.toLowerCase().trim();
-        if (!r.fullAddress || !r.fullAddress.toLowerCase().includes(kw)) return;
+      if (debouncedFullAddressKeyword.trim()) {
+        const keywords = debouncedFullAddressKeyword.split(',').map(k => k.toLowerCase().trim()).filter(Boolean);
+        if (keywords.length > 0) {
+          const hasMatch = keywords.some(kw => r.fullAddress && r.fullAddress.toLowerCase().includes(kw));
+          if (!hasMatch) return;
+        }
       }
       if (!isCsvMatch(r)) return;
 
@@ -350,7 +371,7 @@ export function SmsCampaign() {
     });
 
     return Array.from(values).sort().map(val => ({ value: val, label: val }));
-  }, [rawRecipients, selectedDistricts, lowerAddresses, lowerStreets, lowerGenders, lowerPackages, lowerMemberships, fullAddressKeyword, isCsvMatch]);
+  }, [rawRecipients, selectedDistricts, lowerAddresses, lowerStreets, lowerGenders, lowerPackages, lowerMemberships, debouncedFullAddressKeyword, isCsvMatch]);
 
   const genderOptions = React.useMemo(() => {
     const values = new Set<string>();
@@ -362,9 +383,12 @@ export function SmsCampaign() {
       if (lowerDistricts.size > 0 && (!r.district || !lowerDistricts.has(r.district.trim().toLowerCase()))) return;
       if (lowerPackages.size > 0 && (!r.packageName || !lowerPackages.has(r.packageName.trim().toLowerCase()))) return;
       if (lowerMemberships.size > 0 && (!r.membershipName || !lowerMemberships.has(r.membershipName.trim().toLowerCase()))) return;
-      if (fullAddressKeyword.trim()) {
-        const kw = fullAddressKeyword.toLowerCase().trim();
-        if (!r.fullAddress || !r.fullAddress.toLowerCase().includes(kw)) return;
+      if (debouncedFullAddressKeyword.trim()) {
+        const keywords = debouncedFullAddressKeyword.split(',').map(k => k.toLowerCase().trim()).filter(Boolean);
+        if (keywords.length > 0) {
+          const hasMatch = keywords.some(kw => r.fullAddress && r.fullAddress.toLowerCase().includes(kw));
+          if (!hasMatch) return;
+        }
       }
       if (!isCsvMatch(r)) return;
 
@@ -372,7 +396,7 @@ export function SmsCampaign() {
     });
 
     return Array.from(values).sort().map(val => ({ value: val, label: val }));
-  }, [rawRecipients, selectedGenders, lowerAddresses, lowerStreets, lowerDistricts, lowerPackages, lowerMemberships, fullAddressKeyword, isCsvMatch]);
+  }, [rawRecipients, selectedGenders, lowerAddresses, lowerStreets, lowerDistricts, lowerPackages, lowerMemberships, debouncedFullAddressKeyword, isCsvMatch]);
 
   const packageOptions = React.useMemo(() => {
     const values = new Set<string>();
@@ -384,9 +408,12 @@ export function SmsCampaign() {
       if (lowerDistricts.size > 0 && (!r.district || !lowerDistricts.has(r.district.trim().toLowerCase()))) return;
       if (lowerGenders.size > 0 && (!r.gender || !lowerGenders.has(r.gender.trim().toLowerCase()))) return;
       if (lowerMemberships.size > 0 && (!r.membershipName || !lowerMemberships.has(r.membershipName.trim().toLowerCase()))) return;
-      if (fullAddressKeyword.trim()) {
-        const kw = fullAddressKeyword.toLowerCase().trim();
-        if (!r.fullAddress || !r.fullAddress.toLowerCase().includes(kw)) return;
+      if (debouncedFullAddressKeyword.trim()) {
+        const keywords = debouncedFullAddressKeyword.split(',').map(k => k.toLowerCase().trim()).filter(Boolean);
+        if (keywords.length > 0) {
+          const hasMatch = keywords.some(kw => r.fullAddress && r.fullAddress.toLowerCase().includes(kw));
+          if (!hasMatch) return;
+        }
       }
       if (!isCsvMatch(r)) return;
 
@@ -394,7 +421,7 @@ export function SmsCampaign() {
     });
 
     return Array.from(values).sort().map(val => ({ value: val, label: val }));
-  }, [rawRecipients, selectedPackages, lowerAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerMemberships, fullAddressKeyword, isCsvMatch]);
+  }, [rawRecipients, selectedPackages, lowerAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerMemberships, debouncedFullAddressKeyword, isCsvMatch]);
 
   const membershipOptions = React.useMemo(() => {
     const values = new Set<string>();
@@ -406,9 +433,12 @@ export function SmsCampaign() {
       if (lowerDistricts.size > 0 && (!r.district || !lowerDistricts.has(r.district.trim().toLowerCase()))) return;
       if (lowerGenders.size > 0 && (!r.gender || !lowerGenders.has(r.gender.trim().toLowerCase()))) return;
       if (lowerPackages.size > 0 && (!r.packageName || !lowerPackages.has(r.packageName.trim().toLowerCase()))) return;
-      if (fullAddressKeyword.trim()) {
-        const kw = fullAddressKeyword.toLowerCase().trim();
-        if (!r.fullAddress || !r.fullAddress.toLowerCase().includes(kw)) return;
+      if (debouncedFullAddressKeyword.trim()) {
+        const keywords = debouncedFullAddressKeyword.split(',').map(k => k.toLowerCase().trim()).filter(Boolean);
+        if (keywords.length > 0) {
+          const hasMatch = keywords.some(kw => r.fullAddress && r.fullAddress.toLowerCase().includes(kw));
+          if (!hasMatch) return;
+        }
       }
       if (!isCsvMatch(r)) return;
 
@@ -416,7 +446,7 @@ export function SmsCampaign() {
     });
 
     return Array.from(values).sort().map(val => ({ value: val, label: val }));
-  }, [rawRecipients, selectedMemberships, lowerAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerPackages, fullAddressKeyword, isCsvMatch]);
+  }, [rawRecipients, selectedMemberships, lowerAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerPackages, debouncedFullAddressKeyword, isCsvMatch]);
 
   const filteredRecipients = React.useMemo(() => {
     return rawRecipients.filter(r => {
@@ -426,14 +456,17 @@ export function SmsCampaign() {
       if (lowerGenders.size > 0 && (!r.gender || !lowerGenders.has(r.gender.trim().toLowerCase()))) return false;
       if (lowerPackages.size > 0 && (!r.packageName || !lowerPackages.has(r.packageName.trim().toLowerCase()))) return false;
       if (lowerMemberships.size > 0 && (!r.membershipName || !lowerMemberships.has(r.membershipName.trim().toLowerCase()))) return false;
-      if (fullAddressKeyword.trim()) {
-        const kw = fullAddressKeyword.toLowerCase().trim();
-        if (!r.fullAddress || !r.fullAddress.toLowerCase().includes(kw)) return false;
+      if (debouncedFullAddressKeyword.trim()) {
+        const keywords = debouncedFullAddressKeyword.split(',').map(k => k.toLowerCase().trim()).filter(Boolean);
+        if (keywords.length > 0) {
+          const hasMatch = keywords.some(kw => r.fullAddress && r.fullAddress.toLowerCase().includes(kw));
+          if (!hasMatch) return false;
+        }
       }
       if (!isCsvMatch(r)) return false;
       return true;
     });
-  }, [rawRecipients, lowerAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerPackages, lowerMemberships, fullAddressKeyword, isCsvMatch]);
+  }, [rawRecipients, lowerAddresses, lowerStreets, lowerDistricts, lowerGenders, lowerPackages, lowerMemberships, debouncedFullAddressKeyword, isCsvMatch]);
 
   // Keep recipients and recipientsCount in sync with filteredRecipients
   useEffect(() => {
@@ -524,10 +557,10 @@ export function SmsCampaign() {
     fetchCampaigns()
   }, [])
 
-  // Fetch recipients count when filters or recipientType change
+  // Fetch recipients count when filters, recipientType or debounced keyword change
   useEffect(() => {
     fetchRecipients()
-  }, [recipientType, filters, selectedHeadOffices, selectedBranches, selectedSubBranches])
+  }, [recipientType, filters, selectedHeadOffices, selectedBranches, selectedSubBranches, debouncedFullAddressKeyword])
 
   // Debounced search for manual recipient selection
   useEffect(() => {
@@ -716,6 +749,9 @@ export function SmsCampaign() {
         if (filters.oltPort) params.append("oltPort", filters.oltPort)
         if (filters.splitterId !== "all") params.append("splitterId", filters.splitterId)
       }
+      if (debouncedFullAddressKeyword.trim()) {
+        params.append("area", debouncedFullAddressKeyword.trim())
+      }
 
       const res = await apiRequest<any>(`${endpoint}?${params.toString()}`)
       const raw = Array.isArray(res) ? res : (res?.data || [])
@@ -790,7 +826,7 @@ export function SmsCampaign() {
     } finally {
       setLoading(false)
     }
-  }, [recipientType, filters.status, filters.oltId, filters.oltPort, filters.splitterId, getSelectedBranchScope])
+  }, [recipientType, filters.status, filters.oltId, filters.oltPort, filters.splitterId, getSelectedBranchScope, debouncedFullAddressKeyword])
 
   const handleSend = async () => {
     if (!message.trim()) {
@@ -896,6 +932,7 @@ export function SmsCampaign() {
     setSelectedPackages([])
     setSelectedMemberships([])
     setFullAddressKeyword("")
+    setDebouncedFullAddressKeyword("")
   }
 
   const activeFilterCount = [
