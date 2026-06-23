@@ -74,12 +74,8 @@ export function SmsCampaign() {
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [searching, setSearching] = useState(false)
   const [recipientsCount, setRecipientsCount] = useState(0)
-  const [areaInput, setAreaInput] = useState("")
-  const [selectedAreas, setSelectedAreas] = useState<string[]>([])
-
-  useEffect(() => {
-    setFilters(prev => ({ ...prev, area: selectedAreas.join(",") }))
-  }, [selectedAreas])
+  const [rawRecipients, setRawRecipients] = useState<any[]>([])
+  const [selectedDynamicFilters, setSelectedDynamicFilters] = useState<string[]>([])
 
   // Restored states to fix TypeScript compilation
   const [credit, setCredit] = useState<any>(null)
@@ -89,6 +85,97 @@ export function SmsCampaign() {
   const [campaignLogs, setCampaignLogs] = useState<any[]>([])
   const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null)
   const [logsLoading, setLogsLoading] = useState(false)
+
+  const dynamicOptions = React.useMemo(() => {
+    const optionsMap = new Map<string, { label: string; value: string; type: string }>();
+
+    rawRecipients.forEach(r => {
+      if (r.address && r.address.trim()) {
+        const val = r.address.trim();
+        const key = `address:${val.toLowerCase()}`;
+        if (!optionsMap.has(key)) {
+          optionsMap.set(key, { label: val, value: `address:${val}`, type: "Address" });
+        }
+      }
+      if (r.street && r.street.trim()) {
+        const val = r.street.trim();
+        const key = `street:${val.toLowerCase()}`;
+        if (!optionsMap.has(key)) {
+          optionsMap.set(key, { label: val, value: `street:${val}`, type: "Street" });
+        }
+      }
+      if (r.district && r.district.trim()) {
+        const val = r.district.trim();
+        const key = `district:${val.toLowerCase()}`;
+        if (!optionsMap.has(key)) {
+          optionsMap.set(key, { label: val, value: `district:${val}`, type: "District" });
+        }
+      }
+      if (r.gender && r.gender.trim()) {
+        const val = r.gender.trim();
+        const key = `gender:${val.toLowerCase()}`;
+        if (!optionsMap.has(key)) {
+          optionsMap.set(key, { label: val, value: `gender:${val}`, type: "Gender" });
+        }
+      }
+      if (r.packageName && r.packageName.trim()) {
+        const val = r.packageName.trim();
+        const key = `package:${val.toLowerCase()}`;
+        if (!optionsMap.has(key)) {
+          optionsMap.set(key, { label: val, value: `package:${val}`, type: "Package" });
+        }
+      }
+      if (r.membershipName && r.membershipName.trim()) {
+        const val = r.membershipName.trim();
+        const key = `membership:${val.toLowerCase()}`;
+        if (!optionsMap.has(key)) {
+          optionsMap.set(key, { label: val, value: `membership:${val}`, type: "Membership" });
+        }
+      }
+    });
+
+    return Array.from(optionsMap.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }, [rawRecipients]);
+
+  const filteredRecipients = React.useMemo(() => {
+    if (selectedDynamicFilters.length === 0) {
+      return rawRecipients;
+    }
+
+    const filtersByType: Record<string, string[]> = {};
+    selectedDynamicFilters.forEach(f => {
+      const parts = f.split(":");
+      const type = parts[0];
+      const val = parts.slice(1).join(":");
+      if (type && val) {
+        if (!filtersByType[type]) {
+          filtersByType[type] = [];
+        }
+        filtersByType[type].push(val.toLowerCase());
+      }
+    });
+
+    return rawRecipients.filter(r => {
+      return Object.entries(filtersByType).every(([type, values]) => {
+        let recipientValue = "";
+        if (type === "address") recipientValue = r.address;
+        else if (type === "street") recipientValue = r.street;
+        else if (type === "district") recipientValue = r.district;
+        else if (type === "gender") recipientValue = r.gender;
+        else if (type === "package") recipientValue = r.packageName;
+        else if (type === "membership") recipientValue = r.membershipName;
+
+        if (!recipientValue) return false;
+        return values.includes(recipientValue.trim().toLowerCase());
+      });
+    });
+  }, [rawRecipients, selectedDynamicFilters]);
+
+  // Keep recipients and recipientsCount in sync with filteredRecipients
+  useEffect(() => {
+    setRecipients(filteredRecipients);
+    setRecipientsCount(filteredRecipients.length);
+  }, [filteredRecipients]);
 
   // Derive hierarchy: Head Office (parentId null) -> Branches -> Sub-Branches
   const headOffices = React.useMemo(() => allBranchData.filter((b: any) => b.parentId === null), [allBranchData])
@@ -364,9 +451,6 @@ export function SmsCampaign() {
         if (filters.oltId !== "all") params.append("oltId", filters.oltId)
         if (filters.oltPort) params.append("oltPort", filters.oltPort)
         if (filters.splitterId !== "all") params.append("splitterId", filters.splitterId)
-        if (filters.area) params.append("area", filters.area)
-      } else {
-        if (filters.area) params.append("area", filters.area)
       }
 
       const res = await apiRequest<any>(`${endpoint}?${params.toString()}`)
@@ -385,28 +469,39 @@ export function SmsCampaign() {
         })
       }
 
-      // Extract phone numbers
+      // Keep full enriched recipient objects
       const data = recipientType === "customer"
         ? filteredRaw.map((c: any) => ({
             recipientId: c.id,
             name: c.firstName ? `${c.firstName} ${c.lastName || ""}`.trim() : `${c.lead?.firstName || ""} ${c.lead?.lastName || ""}`.trim(),
-            phone: c.phoneNumber || c.lead?.phoneNumber
+            phone: c.phoneNumber || c.lead?.phoneNumber,
+            address: c.address || c.lead?.address || "",
+            street: c.street || c.lead?.street || "",
+            district: c.district || c.lead?.district || "",
+            gender: c.gender || c.lead?.gender || "",
+            packageName: c.subscribedPkg?.packageName || c.packagePrice?.packageName || "",
+            membershipName: c.membership?.name || ""
           }))
         : filteredRaw.map((l: any) => ({
             recipientId: l.id,
             name: `${l.firstName || ""} ${l.lastName || ""}`.trim(),
-            phone: l.phoneNumber
+            phone: l.phoneNumber,
+            address: l.address || "",
+            street: l.street || "",
+            district: l.district || "",
+            gender: l.gender || "",
+            packageName: l.interestedPackage?.packageName || "",
+            membershipName: l.membership?.name || ""
           }))
 
       const validRecipients = data.filter((r: any) => r.phone)
-      setRecipients(validRecipients)
-      setRecipientsCount(validRecipients.length)
+      setRawRecipients(validRecipients)
     } catch (err) {
-      console.error("Failed to fetch recipients")
+      console.error("Failed to fetch recipients", err)
     } finally {
       setLoading(false)
     }
-  }, [recipientType, filters, getSelectedBranchScope])
+  }, [recipientType, filters.status, filters.oltId, filters.oltPort, filters.splitterId, getSelectedBranchScope])
 
   const handleSend = async () => {
     if (!message.trim()) {
@@ -441,6 +536,7 @@ export function SmsCampaign() {
         status: filters.status,
         area: filters.area,
         branchIds: scopedBranchIds,
+        dynamicFilters: selectedDynamicFilters,
       }
 
       if (recipientType === "customer") {
@@ -483,6 +579,7 @@ export function SmsCampaign() {
     setSelectedHeadOffices([])
     setSelectedBranches([])
     setSelectedSubBranches([])
+    setSelectedDynamicFilters([])
   }
 
   const activeFilterCount = [
@@ -492,7 +589,7 @@ export function SmsCampaign() {
     filters.oltId !== "all",
     filters.oltPort !== "",
     filters.splitterId !== "all",
-    filters.area !== "",
+    selectedDynamicFilters.length > 0,
     filters.status !== "all",
   ].filter(Boolean).length
 
@@ -699,70 +796,25 @@ export function SmsCampaign() {
             {/* Area / Location Filter */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-foreground/70 uppercase tracking-wider flex items-center gap-1.5">
-                <MapPin className="h-3 w-3" /> Area / Location
+                <MapPin className="h-3 w-3" /> Target Filters (Street, Address, District, Gender, Package, Membership)
               </Label>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Type area (e.g. Kathmandu) & press Enter..."
-                    className="pl-9 bg-background border-input"
-                    value={areaInput}
-                    onChange={(e) => setAreaInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        if (areaInput.trim() && !selectedAreas.includes(areaInput.trim())) {
-                          setSelectedAreas(prev => [...prev, areaInput.trim()]);
-                          setAreaInput("");
-                        }
-                      }
-                    }}
-                  />
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    if (areaInput.trim() && !selectedAreas.includes(areaInput.trim())) {
-                      setSelectedAreas(prev => [...prev, areaInput.trim()]);
-                      setAreaInput("");
-                    }
-                  }}
-                  className="h-10 px-3 bg-muted/30 hover:bg-muted"
-                >
-                  Add
-                </Button>
-              </div>
-
-              {/* Render Area Badges */}
-              {selectedAreas.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mt-2 p-2 rounded-md bg-muted/40 border border-border">
-                  {selectedAreas.map((area) => (
-                    <Badge
-                      key={area}
-                      variant="secondary"
-                      className="text-[10px] pl-2 pr-1 py-0.5 gap-1 flex items-center bg-background border border-border text-foreground font-medium"
-                    >
-                      {area}
-                      <button
-                        type="button"
-                        onClick={() => setSelectedAreas(prev => prev.filter(a => a !== area))}
-                        className="rounded-full hover:bg-muted p-0.5"
-                      >
-                        <X className="h-2.5 w-2.5 text-muted-foreground hover:text-foreground" />
-                      </button>
-                    </Badge>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => setSelectedAreas([])}
-                    className="text-[10px] text-muted-foreground hover:text-destructive underline ml-auto pl-1"
-                  >
-                    Clear all
-                  </button>
-                </div>
+              <SearchableSelect
+                options={dynamicOptions.map(opt => ({
+                  value: opt.value,
+                  label: opt.label,
+                  description: opt.type
+                }))}
+                value={selectedDynamicFilters}
+                onValueChange={(val) => setSelectedDynamicFilters(val as string[])}
+                placeholder="Search and select street, address, district, gender, package, membership..."
+                multiple
+                clearable
+                disabled={loading || rawRecipients.length === 0}
+              />
+              {rawRecipients.length === 0 && !loading && (
+                <p className="text-[10px] text-muted-foreground italic">
+                  No options available. Verify other audience filters match active leads or customers first.
+                </p>
               )}
             </div>
 

@@ -147,6 +147,15 @@ interface Customer {
   street?: string
   district?: string
   state?: string
+  branch?: {
+    id: number
+    name: string
+  } | null
+  subBranch?: {
+    id: number
+    name: string
+  } | null
+  convertedAt?: string
 }
 
 interface PaginationInfo {
@@ -178,6 +187,7 @@ export function CustomersList() {
     totalPages: 1
   })
   const router = useRouter()
+  const [connectionStatuses, setConnectionStatuses] = useState<Record<string, { radius: string; acs: string; loading: boolean }>>({})
 
   const handleOutboundCall = async (phoneNumber?: string) => {
     if (!voipEnabled) {
@@ -251,6 +261,57 @@ export function CustomersList() {
     fetchVoipStatus()
   }, [pagination.page])
 
+  useEffect(() => {
+    if (customers.length === 0) return
+
+    // Initialize statuses for these customers if not already present
+    setConnectionStatuses(prev => {
+      const next = { ...prev }
+      customers.forEach(c => {
+        if (!next[c.id]) {
+          next[c.id] = { radius: 'pending', acs: 'pending', loading: false }
+        }
+      })
+      return next
+    })
+
+    // Asynchronously fetch status for each customer in the list
+    customers.forEach(async (customer) => {
+      const cid = customer.id.toString()
+      // Only fetch if not already loaded or currently loading
+      if (connectionStatuses[cid] && connectionStatuses[cid].radius !== 'pending' && connectionStatuses[cid].radius !== 'loading') return
+
+      setConnectionStatuses(prev => ({
+        ...prev,
+        [cid]: { ...prev[cid], loading: true }
+      }))
+
+      try {
+        const res = await apiRequest<any>(`/customer/${cid}`)
+        if (res) {
+          setConnectionStatuses(prev => ({
+            ...prev,
+            [cid]: {
+              radius: res.radiusRealtimeStatus || 'offline',
+              acs: res.ontRealtimeStatus || 'offline',
+              loading: false
+            }
+          }))
+        }
+      } catch (err) {
+        console.error(`Failed to fetch status for customer ${cid}`, err)
+        setConnectionStatuses(prev => ({
+          ...prev,
+          [cid]: {
+            radius: 'error',
+            acs: 'error',
+            loading: false
+          }
+        }))
+      }
+    })
+  }, [customers])
+
   const toggleSelectAll = () => {
     if (selectedCustomers.length === customers.length) {
       setSelectedCustomers([])
@@ -275,8 +336,32 @@ export function CustomersList() {
     router.push(`/customers/${customerId}/invoices`)
   }
 
-  const handleCheckConnection = (customerId: string) => {
-    toast.loading("Checking connection status...", { duration: 2000 })
+  const handleCheckConnection = async (customerId: string) => {
+    const loadingToast = toast.loading("Checking connection status...")
+    setConnectionStatuses(prev => ({
+      ...prev,
+      [customerId]: { radius: 'loading', acs: 'loading', loading: true }
+    }))
+    try {
+      const res = await apiRequest<any>(`/customer/${customerId}`)
+      if (res) {
+        setConnectionStatuses(prev => ({
+          ...prev,
+          [customerId]: {
+            radius: res.radiusRealtimeStatus || 'offline',
+            acs: res.ontRealtimeStatus || 'offline',
+            loading: false
+          }
+        }))
+        toast.success(`Status: Radius is ${res.radiusRealtimeStatus || 'offline'}, ACS is ${res.ontRealtimeStatus || 'offline'}`, { id: loadingToast })
+      }
+    } catch (err: any) {
+      setConnectionStatuses(prev => ({
+        ...prev,
+        [customerId]: { radius: 'error', acs: 'error', loading: false }
+      }))
+      toast.error("Failed to check connection status", { id: loadingToast })
+    }
   }
 
   const handleDeleteCustomer = (customerId: string) => {
@@ -473,9 +558,12 @@ export function CustomersList() {
                       </div>
                     </th>
                     <th className="h-12 px-4 text-left align-middle font-medium">Customer</th>
+                    <th className="h-12 px-4 text-left align-middle font-medium">Radius Username</th>
+                    <th className="h-12 px-4 text-left align-middle font-medium">Branch / Sub-branch</th>
                     <th className="h-12 px-4 text-left align-middle font-medium">Plan</th>
                     <th className="h-12 px-4 text-left align-middle font-medium">Status</th>
                     <th className="h-12 px-4 text-left align-middle font-medium">Connection</th>
+                    <th className="h-12 px-4 text-left align-middle font-medium">Expiration</th>
                     <th className="h-12 px-4 text-left align-middle font-medium"></th>
                   </tr>
                 </thead>
@@ -538,8 +626,22 @@ export function CustomersList() {
                                   {customer.secondaryPhone}
                                 </button>
                               )}
+                              <div className="text-[10px] text-muted-foreground mt-1 font-semibold">
+                                Registered: {formatDate(customer.convertedAt || customer.createdAt)}
+                              </div>
                             </div>
                           </div>
+                        </td>
+                        <td className="p-4 align-middle font-mono text-xs">
+                          {customer.connectionUsers?.[0]?.username || 'N/A'}
+                        </td>
+                        <td className="p-4 align-middle">
+                          <div className="text-sm font-medium">{customer.branch?.name || 'N/A'}</div>
+                          {customer.subBranch?.name && (
+                            <div className="text-xs text-muted-foreground">
+                              Sub-branch: {customer.subBranch.name}
+                            </div>
+                          )}
                         </td>
                         <td className="p-4 align-middle">
                           <div>
@@ -563,18 +665,52 @@ export function CustomersList() {
                           </div>
                         </td>
                         <td className="p-4 align-middle">
-                          <div className="flex flex-col gap-1">
+                          <div className="flex flex-col gap-1.5">
                             <div className="flex items-center gap-2">
                               {getConnectionTypeBadge(connectionType)}
+                              {deviceModel && (
+                                <span className="text-xs text-muted-foreground">
+                                  ({deviceModel})
+                                </span>
+                              )}
                             </div>
-                            {deviceModel && (
-                              <div className="text-xs text-muted-foreground">
-                                Device: {deviceModel}
-                              </div>
-                            )}
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Radius:</span>
+                              {connectionStatuses[customerId]?.loading ? (
+                                <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                              ) : (
+                                <Badge
+                                  variant="outline"
+                                  className={
+                                    connectionStatuses[customerId]?.radius === 'online'
+                                      ? 'bg-green-500/10 text-green-500 border-green-500/20 text-[10px] px-1.5 py-0'
+                                      : 'bg-red-500/10 text-red-500 border-red-500/20 text-[10px] px-1.5 py-0'
+                                  }
+                                >
+                                  {connectionStatuses[customerId]?.radius || 'offline'}
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">ACS:</span>
+                              {connectionStatuses[customerId]?.loading ? (
+                                <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                              ) : (
+                                <Badge
+                                  variant="outline"
+                                  className={
+                                    connectionStatuses[customerId]?.acs === 'online'
+                                      ? 'bg-green-500/10 text-green-500 border-green-500/20 text-[10px] px-1.5 py-0'
+                                      : 'bg-red-500/10 text-red-500 border-red-500/20 text-[10px] px-1.5 py-0'
+                                  }
+                                >
+                                  {connectionStatuses[customerId]?.acs || 'offline'}
+                                </Badge>
+                              )}
+                            </div>
                             {/* VLAN details: show actual VLAN IDs with names if available */}
                             {serviceDetail?.vlanDetails && serviceDetail.vlanDetails.length > 0 ? (
-                              <div className="text-xs text-muted-foreground space-y-0.5">
+                              <div className="text-xs text-muted-foreground space-y-0.5 mt-1">
                                 {serviceDetail.vlanDetails.map(vlan => (
                                   <div key={vlan.id}>
                                     VLAN {vlan.vlanId}: {vlan.name}
@@ -582,11 +718,31 @@ export function CustomersList() {
                                 ))}
                               </div>
                             ) : serviceDetail?.vlanId ? (
-                              <div className="text-xs text-muted-foreground">
+                              <div className="text-xs text-muted-foreground mt-1">
                                 VLAN: {serviceDetail.vlanId}
                               </div>
                             ) : null}
                           </div>
+                        </td>
+                        <td className="p-4 align-middle">
+                          {customer.customerSubscriptions?.[0]?.planEnd ? (
+                            <div className="flex flex-col gap-1">
+                              <span className="font-medium text-xs">
+                                {formatDate(customer.customerSubscriptions[0].planEnd)}
+                              </span>
+                              {new Date(customer.customerSubscriptions[0].planEnd).getTime() < Date.now() ? (
+                                <Badge variant="outline" className="bg-red-500/10 text-red-500 border-red-500/20 text-[10px] w-fit px-1.5 py-0">
+                                  Expired
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20 text-[10px] w-fit px-1.5 py-0">
+                                  Active
+                                </Badge>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">N/A</span>
+                          )}
                         </td>
                         <td className="p-4 align-middle" onClick={(e) => e.stopPropagation()}>
                           <DropdownMenu>
