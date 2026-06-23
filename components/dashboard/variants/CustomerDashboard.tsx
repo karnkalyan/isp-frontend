@@ -750,8 +750,8 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
-                    <Badge className={client.active ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20" : "bg-muted text-muted-foreground border-transparent"}>
-                      {client.active ? "Active" : "Idle"}
+                    <Badge className={client.active === true || client.active === 'true' ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20" : "bg-red-100 text-red-800 dark:bg-red-500/10 dark:text-red-400 border-red-200 dark:border-red-500/20"}>
+                      {client.active === true || client.active === 'true' ? "Online" : "Offline"}
                     </Badge>
                     <span className="text-xs font-mono text-muted-foreground mt-0.5">{client.ipAddress || "No IP"}</span>
                   </div>
