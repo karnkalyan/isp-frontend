@@ -88,6 +88,7 @@ export function SmsCampaign() {
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [searching, setSearching] = useState(false)
   const [recipientsCount, setRecipientsCount] = useState(0)
+  const [duplicateCount, setDuplicateCount] = useState(0)
   const [rawRecipients, setRawRecipients] = useState<any[]>([])
   const [selectedAddresses, setSelectedAddresses] = useState<string[]>([])
   const [selectedStreets, setSelectedStreets] = useState<string[]>([])
@@ -640,15 +641,21 @@ export function SmsCampaign() {
           ? filteredRaw.map((c: any) => ({
               recipientId: c.id,
               name: c.firstName ? `${c.firstName} ${c.lastName || ""}`.trim() : `${c.lead?.firstName || ""} ${c.lead?.lastName || ""}`.trim(),
-              phone: cleanAndValidatePhone(c.phoneNumber || c.lead?.phoneNumber) || ""
+              phone: cleanAndValidatePhone(c.phoneNumber || c.lead?.phoneNumber) || cleanAndValidatePhone(c.secondaryContactNumber || c.secondaryPhone || c.lead?.secondaryContactNumber) || ""
             }))
           : filteredRaw.map((l: any) => ({
               recipientId: l.id,
               name: `${l.firstName || ""} ${l.lastName || ""}`.trim(),
-              phone: cleanAndValidatePhone(l.phoneNumber) || ""
+              phone: cleanAndValidatePhone(l.phoneNumber) || cleanAndValidatePhone(l.secondaryContactNumber) || ""
             }))
 
-        setSearchResults(data.filter((r: any) => r.phone))
+        const validSearchData = data.filter((r: any) => r.phone)
+        const seenSearchPhones = new Set<string>()
+        setSearchResults(validSearchData.filter((r: any) => {
+          if (seenSearchPhones.has(r.phone)) return false
+          seenSearchPhones.add(r.phone)
+          return true
+        }))
       } catch (err) {
         console.error("Failed to search recipients", err)
       } finally {
@@ -799,7 +806,7 @@ export function SmsCampaign() {
         ? filteredRaw.map((c: any) => ({
             recipientId: c.id,
             name: c.firstName ? `${c.firstName} ${c.lastName || ""}`.trim() : `${c.lead?.firstName || ""} ${c.lead?.lastName || ""}`.trim(),
-            phone: cleanAndValidatePhone(c.phoneNumber || c.lead?.phoneNumber) || "",
+            phone: cleanAndValidatePhone(c.phoneNumber || c.lead?.phoneNumber) || cleanAndValidatePhone(c.secondaryContactNumber || c.secondaryPhone || c.lead?.secondaryContactNumber) || "",
             firstName: c.firstName || c.lead?.firstName || "",
             middleName: c.middleName || c.lead?.middleName || "",
             lastName: c.lastName || c.lead?.lastName || "",
@@ -823,7 +830,7 @@ export function SmsCampaign() {
             return {
               recipientId: l.id,
               name: `${l.firstName || ""} ${l.lastName || ""}`.trim(),
-              phone: cleanAndValidatePhone(l.phoneNumber) || "",
+              phone: cleanAndValidatePhone(l.phoneNumber) || cleanAndValidatePhone(l.secondaryContactNumber) || "",
               firstName: l.firstName || "",
               middleName: l.middleName || "",
               lastName: l.lastName || "",
@@ -845,7 +852,20 @@ export function SmsCampaign() {
           })
 
       const validRecipients = data.filter((r: any) => r.phone)
-      setRawRecipients(validRecipients)
+      // Deduplicate by phone number - keep first occurrence
+      const seenPhones = new Set<string>()
+      const uniqueRecipients: any[] = []
+      let dupes = 0
+      validRecipients.forEach((r: any) => {
+        if (seenPhones.has(r.phone)) {
+          dupes++
+          return
+        }
+        seenPhones.add(r.phone)
+        uniqueRecipients.push(r)
+      })
+      setDuplicateCount(dupes)
+      setRawRecipients(uniqueRecipients)
     } catch (err) {
       console.error("Failed to fetch recipients", err)
     } finally {
@@ -1509,6 +1529,11 @@ export function SmsCampaign() {
                     )}
                   </Badge>
                 </div>
+                {duplicateCount > 0 && (
+                  <p className="text-[10px] text-amber-600 font-medium mt-1">
+                    {duplicateCount} duplicate phone {duplicateCount === 1 ? 'number' : 'numbers'} removed
+                  </p>
+                )}
                 <p className="text-[10px] text-muted-foreground italic">
                   Broadcasts to all valid phone numbers matching the current filters.
                 </p>
