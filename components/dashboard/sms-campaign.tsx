@@ -75,7 +75,12 @@ export function SmsCampaign() {
   const [searching, setSearching] = useState(false)
   const [recipientsCount, setRecipientsCount] = useState(0)
   const [rawRecipients, setRawRecipients] = useState<any[]>([])
-  const [selectedDynamicFilters, setSelectedDynamicFilters] = useState<string[]>([])
+  const [selectedAddresses, setSelectedAddresses] = useState<string[]>([])
+  const [selectedStreets, setSelectedStreets] = useState<string[]>([])
+  const [selectedDistricts, setSelectedDistricts] = useState<string[]>([])
+  const [selectedGenders, setSelectedGenders] = useState<string[]>([])
+  const [selectedPackages, setSelectedPackages] = useState<string[]>([])
+  const [selectedMemberships, setSelectedMemberships] = useState<string[]>([])
 
   // Restored states to fix TypeScript compilation
   const [credit, setCredit] = useState<any>(null)
@@ -86,90 +91,77 @@ export function SmsCampaign() {
   const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null)
   const [logsLoading, setLogsLoading] = useState(false)
 
-  const dynamicOptions = React.useMemo(() => {
-    const optionsMap = new Map<string, { label: string; value: string; type: string }>();
-
+  const addressOptions = React.useMemo(() => {
+    const values = new Set<string>();
     rawRecipients.forEach(r => {
-      if (r.address && r.address.trim()) {
-        const val = r.address.trim();
-        const key = `address:${val.toLowerCase()}`;
-        if (!optionsMap.has(key)) {
-          optionsMap.set(key, { label: val, value: `address:${val}`, type: "Address" });
-        }
-      }
-      if (r.street && r.street.trim()) {
-        const val = r.street.trim();
-        const key = `street:${val.toLowerCase()}`;
-        if (!optionsMap.has(key)) {
-          optionsMap.set(key, { label: val, value: `street:${val}`, type: "Street" });
-        }
-      }
-      if (r.district && r.district.trim()) {
-        const val = r.district.trim();
-        const key = `district:${val.toLowerCase()}`;
-        if (!optionsMap.has(key)) {
-          optionsMap.set(key, { label: val, value: `district:${val}`, type: "District" });
-        }
-      }
-      if (r.gender && r.gender.trim()) {
-        const val = r.gender.trim();
-        const key = `gender:${val.toLowerCase()}`;
-        if (!optionsMap.has(key)) {
-          optionsMap.set(key, { label: val, value: `gender:${val}`, type: "Gender" });
-        }
-      }
-      if (r.packageName && r.packageName.trim()) {
-        const val = r.packageName.trim();
-        const key = `package:${val.toLowerCase()}`;
-        if (!optionsMap.has(key)) {
-          optionsMap.set(key, { label: val, value: `package:${val}`, type: "Package" });
-        }
-      }
-      if (r.membershipName && r.membershipName.trim()) {
-        const val = r.membershipName.trim();
-        const key = `membership:${val.toLowerCase()}`;
-        if (!optionsMap.has(key)) {
-          optionsMap.set(key, { label: val, value: `membership:${val}`, type: "Membership" });
-        }
-      }
+      if (r.address) values.add(r.address.trim());
     });
+    return Array.from(values).sort().map(val => ({ value: val, label: val }));
+  }, [rawRecipients]);
 
-    return Array.from(optionsMap.values()).sort((a, b) => a.label.localeCompare(b.label));
+  const streetOptions = React.useMemo(() => {
+    const values = new Set<string>();
+    rawRecipients.forEach(r => {
+      if (r.street) values.add(r.street.trim());
+    });
+    return Array.from(values).sort().map(val => ({ value: val, label: val }));
+  }, [rawRecipients]);
+
+  const districtOptions = React.useMemo(() => {
+    const values = new Set<string>();
+    rawRecipients.forEach(r => {
+      if (r.district) values.add(r.district.trim());
+    });
+    return Array.from(values).sort().map(val => ({ value: val, label: val }));
+  }, [rawRecipients]);
+
+  const genderOptions = React.useMemo(() => {
+    const values = new Set<string>();
+    rawRecipients.forEach(r => {
+      if (r.gender) values.add(r.gender.trim());
+    });
+    return Array.from(values).sort().map(val => ({ value: val, label: val }));
+  }, [rawRecipients]);
+
+  const packageOptions = React.useMemo(() => {
+    const values = new Set<string>();
+    rawRecipients.forEach(r => {
+      if (r.packageName) values.add(r.packageName.trim());
+    });
+    return Array.from(values).sort().map(val => ({ value: val, label: val }));
+  }, [rawRecipients]);
+
+  const membershipOptions = React.useMemo(() => {
+    const values = new Set<string>();
+    rawRecipients.forEach(r => {
+      if (r.membershipName) values.add(r.membershipName.trim());
+    });
+    return Array.from(values).sort().map(val => ({ value: val, label: val }));
   }, [rawRecipients]);
 
   const filteredRecipients = React.useMemo(() => {
-    if (selectedDynamicFilters.length === 0) {
-      return rawRecipients;
-    }
-
-    const filtersByType: Record<string, string[]> = {};
-    selectedDynamicFilters.forEach(f => {
-      const parts = f.split(":");
-      const type = parts[0];
-      const val = parts.slice(1).join(":");
-      if (type && val) {
-        if (!filtersByType[type]) {
-          filtersByType[type] = [];
-        }
-        filtersByType[type].push(val.toLowerCase());
-      }
-    });
-
     return rawRecipients.filter(r => {
-      return Object.entries(filtersByType).every(([type, values]) => {
-        let recipientValue = "";
-        if (type === "address") recipientValue = r.address;
-        else if (type === "street") recipientValue = r.street;
-        else if (type === "district") recipientValue = r.district;
-        else if (type === "gender") recipientValue = r.gender;
-        else if (type === "package") recipientValue = r.packageName;
-        else if (type === "membership") recipientValue = r.membershipName;
-
-        if (!recipientValue) return false;
-        return values.includes(recipientValue.trim().toLowerCase());
-      });
+      if (selectedAddresses.length > 0) {
+        if (!r.address || !selectedAddresses.map(v => v.toLowerCase()).includes(r.address.trim().toLowerCase())) return false;
+      }
+      if (selectedStreets.length > 0) {
+        if (!r.street || !selectedStreets.map(v => v.toLowerCase()).includes(r.street.trim().toLowerCase())) return false;
+      }
+      if (selectedDistricts.length > 0) {
+        if (!r.district || !selectedDistricts.map(v => v.toLowerCase()).includes(r.district.trim().toLowerCase())) return false;
+      }
+      if (selectedGenders.length > 0) {
+        if (!r.gender || !selectedGenders.map(v => v.toLowerCase()).includes(r.gender.trim().toLowerCase())) return false;
+      }
+      if (selectedPackages.length > 0) {
+        if (!r.packageName || !selectedPackages.map(v => v.toLowerCase()).includes(r.packageName.trim().toLowerCase())) return false;
+      }
+      if (selectedMemberships.length > 0) {
+        if (!r.membershipName || !selectedMemberships.map(v => v.toLowerCase()).includes(r.membershipName.trim().toLowerCase())) return false;
+      }
+      return true;
     });
-  }, [rawRecipients, selectedDynamicFilters]);
+  }, [rawRecipients, selectedAddresses, selectedStreets, selectedDistricts, selectedGenders, selectedPackages, selectedMemberships]);
 
   // Keep recipients and recipientsCount in sync with filteredRecipients
   useEffect(() => {
@@ -532,11 +524,19 @@ export function SmsCampaign() {
         name: r.name
       }))
       const scopedBranchIds = Array.from(getSelectedBranchScope())
+      const dynamicFiltersList: string[] = []
+      selectedAddresses.forEach(val => dynamicFiltersList.push(`address:${val}`))
+      selectedStreets.forEach(val => dynamicFiltersList.push(`street:${val}`))
+      selectedDistricts.forEach(val => dynamicFiltersList.push(`district:${val}`))
+      selectedGenders.forEach(val => dynamicFiltersList.push(`gender:${val}`))
+      selectedPackages.forEach(val => dynamicFiltersList.push(`package:${val}`))
+      selectedMemberships.forEach(val => dynamicFiltersList.push(`membership:${val}`))
+
       const campaignFilters: any = {
         status: filters.status,
         area: filters.area,
         branchIds: scopedBranchIds,
-        dynamicFilters: selectedDynamicFilters,
+        dynamicFilters: dynamicFiltersList,
       }
 
       if (recipientType === "customer") {
@@ -579,7 +579,12 @@ export function SmsCampaign() {
     setSelectedHeadOffices([])
     setSelectedBranches([])
     setSelectedSubBranches([])
-    setSelectedDynamicFilters([])
+    setSelectedAddresses([])
+    setSelectedStreets([])
+    setSelectedDistricts([])
+    setSelectedGenders([])
+    setSelectedPackages([])
+    setSelectedMemberships([])
   }
 
   const activeFilterCount = [
@@ -589,7 +594,12 @@ export function SmsCampaign() {
     filters.oltId !== "all",
     filters.oltPort !== "",
     filters.splitterId !== "all",
-    selectedDynamicFilters.length > 0,
+    selectedAddresses.length > 0 ||
+      selectedStreets.length > 0 ||
+      selectedDistricts.length > 0 ||
+      selectedGenders.length > 0 ||
+      selectedPackages.length > 0 ||
+      selectedMemberships.length > 0,
     filters.status !== "all",
   ].filter(Boolean).length
 
@@ -793,26 +803,102 @@ export function SmsCampaign() {
               </div>
             )}
 
-            {/* Area / Location Filter */}
+            {/* Address Filter */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-foreground/70 uppercase tracking-wider flex items-center gap-1.5">
-                <MapPin className="h-3 w-3" /> Target Filters (Street, Address, District, Gender, Package, Membership)
+                <MapPin className="h-3 w-3 text-blue-500" /> Target Address
               </Label>
               <SearchableSelect
-                options={dynamicOptions.map(opt => ({
-                  value: opt.value,
-                  label: opt.label,
-                  description: opt.type
-                }))}
-                value={selectedDynamicFilters}
-                onValueChange={(val) => setSelectedDynamicFilters(val as string[])}
-                placeholder="Search and select street, address, district, gender, package, membership..."
+                options={addressOptions}
+                value={selectedAddresses}
+                onValueChange={(val) => setSelectedAddresses(val as string[])}
+                placeholder="Search addresses..."
+                multiple
+                clearable
+                disabled={loading || rawRecipients.length === 0}
+              />
+            </div>
+
+            {/* Street Filter */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-foreground/70 uppercase tracking-wider flex items-center gap-1.5">
+                <MapPin className="h-3 w-3 text-emerald-500" /> Target Street
+              </Label>
+              <SearchableSelect
+                options={streetOptions}
+                value={selectedStreets}
+                onValueChange={(val) => setSelectedStreets(val as string[])}
+                placeholder="Search streets..."
+                multiple
+                clearable
+                disabled={loading || rawRecipients.length === 0}
+              />
+            </div>
+
+            {/* District Filter */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-foreground/70 uppercase tracking-wider flex items-center gap-1.5">
+                <MapPin className="h-3 w-3 text-purple-500" /> Target District
+              </Label>
+              <SearchableSelect
+                options={districtOptions}
+                value={selectedDistricts}
+                onValueChange={(val) => setSelectedDistricts(val as string[])}
+                placeholder="Search districts..."
+                multiple
+                clearable
+                disabled={loading || rawRecipients.length === 0}
+              />
+            </div>
+
+            {/* Gender Filter */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-foreground/70 uppercase tracking-wider flex items-center gap-1.5">
+                <MapPin className="h-3 w-3 text-pink-500" /> Target Gender
+              </Label>
+              <SearchableSelect
+                options={genderOptions}
+                value={selectedGenders}
+                onValueChange={(val) => setSelectedGenders(val as string[])}
+                placeholder="Search genders..."
+                multiple
+                clearable
+                disabled={loading || rawRecipients.length === 0}
+              />
+            </div>
+
+            {/* Package Filter */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-foreground/70 uppercase tracking-wider flex items-center gap-1.5">
+                <MapPin className="h-3 w-3 text-indigo-500" /> Target Package
+              </Label>
+              <SearchableSelect
+                options={packageOptions}
+                value={selectedPackages}
+                onValueChange={(val) => setSelectedPackages(val as string[])}
+                placeholder="Search packages..."
+                multiple
+                clearable
+                disabled={loading || rawRecipients.length === 0}
+              />
+            </div>
+
+            {/* Membership Filter */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-foreground/70 uppercase tracking-wider flex items-center gap-1.5">
+                <MapPin className="h-3 w-3 text-amber-500" /> Target Membership
+              </Label>
+              <SearchableSelect
+                options={membershipOptions}
+                value={selectedMemberships}
+                onValueChange={(val) => setSelectedMemberships(val as string[])}
+                placeholder="Search memberships..."
                 multiple
                 clearable
                 disabled={loading || rawRecipients.length === 0}
               />
               {rawRecipients.length === 0 && !loading && (
-                <p className="text-[10px] text-muted-foreground italic">
+                <p className="text-[10px] text-muted-foreground italic mt-1">
                   No options available. Verify other audience filters match active leads or customers first.
                 </p>
               )}
