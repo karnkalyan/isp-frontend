@@ -18,6 +18,7 @@ import Link from "next/link"
 import { apiRequest } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
 import { Badge } from "@/components/ui/badge"
+import { useWebSocket } from "@/contexts/WebSocketContext"
 
 interface TicketsDropdownProps {
   className?: string
@@ -28,6 +29,7 @@ export function TicketsDropdown({ className }: TicketsDropdownProps) {
   const [tickets, setTickets] = useState<any[]>([])
   const { resolvedTheme } = useTheme()
   const { user } = useAuth()
+  const { on } = useWebSocket()
   const isDarkMode = resolvedTheme === "dark"
 
   const fetchTickets = async () => {
@@ -58,11 +60,20 @@ export function TicketsDropdown({ className }: TicketsDropdownProps) {
 
   useEffect(() => {
     fetchTickets()
-
-    // Poll every 30s for real-time ticket updates
-    const interval = setInterval(fetchTickets, 30000)
-    return () => clearInterval(interval)
   }, [user])
+
+  useEffect(() => {
+    const unsubscribeNotification = on("system.notification", () => {
+      fetchTickets()
+    })
+    const unsubscribeData = on("data.updated", () => {
+      fetchTickets()
+    })
+    return () => {
+      unsubscribeNotification()
+      unsubscribeData()
+    }
+  }, [on])
 
   const activeCount = tickets.length
 

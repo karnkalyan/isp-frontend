@@ -357,7 +357,7 @@ export function TR069DeviceWanConnections({ deviceId }: TR069DeviceWanConnection
             pppoeDetails = {
                 username: conn.username || getStr("Username") || "N/A",
                 password: getStr("Password") || "",
-                acName: getStr("PPPoEACName") || "Kisan-BNG",
+                acName: getStr("PPPoEACName") || "N/A",
                 remoteIP: conn.remoteIPAddress || getStr("RemoteIPAddress") || "N/A",
                 sessionId: getStr("PPPoESessionID") || "N/A",
                 lcpEcho: getInt("PPPLCPEcho"),

@@ -18,6 +18,7 @@ import Link from "next/link"
 import { apiRequest } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
 import { Badge } from "@/components/ui/badge"
+import { useWebSocket } from "@/contexts/WebSocketContext"
 
 interface TasksDropdownProps {
   className?: string
@@ -28,6 +29,7 @@ export function TasksDropdown({ className }: TasksDropdownProps) {
   const [tasks, setTasks] = useState<any[]>([])
   const { resolvedTheme } = useTheme()
   const { user } = useAuth()
+  const { on } = useWebSocket()
   const isDarkMode = resolvedTheme === "dark"
 
   const fetchTasks = async () => {
@@ -58,11 +60,20 @@ export function TasksDropdown({ className }: TasksDropdownProps) {
 
   useEffect(() => {
     fetchTasks()
-    
-    // Poll every 30s for real-time task updates
-    const interval = setInterval(fetchTasks, 30000)
-    return () => clearInterval(interval)
   }, [user])
+
+  useEffect(() => {
+    const unsubscribeNotification = on("system.notification", () => {
+      fetchTasks()
+    })
+    const unsubscribeData = on("data.updated", () => {
+      fetchTasks()
+    })
+    return () => {
+      unsubscribeNotification()
+      unsubscribeData()
+    }
+  }, [on])
 
   const activeCount = tasks.length
 
