@@ -33,6 +33,9 @@ export interface WanConnection {
     remoteIPAddress?: string;
     transportType?: string;
     authenticationProtocol?: string;
+    ipv6Address?: string;
+    ipv6Gateway?: string;
+    ipv6Prefix?: string;
     parameters: Record<string, any>;
 }
 

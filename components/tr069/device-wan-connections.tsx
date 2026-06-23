@@ -421,15 +421,15 @@ export function TR069DeviceWanConnections({ deviceId }: TR069DeviceWanConnection
         };
 
         const ipv6Details = {
-            ipv6Address: getStr("X_ALU-COM_IPv6IPAddress"),
-            ipv6AddressOrigin: getStr("X_ALU-COM_IPv6IPAddressOrigin") || "AutoConfigured",
-            ipv6Prefix: getStr("X_ALU-COM_IPv6Prefix"),
-            ipv6PrefixOrigin: getStr("X_ALU-COM_IPv6PrefixOrigin") || "PrefixDelegation",
-            ipv6PrefixDelegationEnabled: getBool("X_ALU-COM_IPv6PrefixDelegationEnabled"),
-            ipv6DNSServers: getStr("X_ALU-COM_IPv6DNSServers").split(",").filter(s => s.trim()),
-            ipv6DefaultGateway: getStr("X_ALU-COM_DefaultIPv6Gateway"),
-            ipv6ConnStatus: getStr("X_ALU-COM_IPv6ConnStatus") || "Unconfigured",
-            ipv6NAEnabled: getBool("X_ALU_COM_IPv6NAEnabled"),
+            ipv6Address: conn.ipv6Address || getStr("X_ALU-COM_IPv6IPAddress") || getStr("X_CT-COM_IPv6IPAddress") || getStr("X_CMS_IPv6IPAddress") || getStr("IPv6Address") || "",
+            ipv6AddressOrigin: getStr("X_ALU-COM_IPv6IPAddressOrigin") || getStr("X_CT-COM_IPv6IPAddressOrigin") || getStr("X_CMS_IPv6IPAddressOrigin") || getStr("IPv6AddressOrigin") || "AutoConfigured",
+            ipv6Prefix: conn.ipv6Prefix || getStr("X_ALU-COM_IPv6Prefix") || getStr("X_CT-COM_IPv6Prefix") || getStr("X_CMS_IPv6Prefix") || getStr("IPv6Prefix") || "",
+            ipv6PrefixOrigin: getStr("X_ALU-COM_IPv6PrefixOrigin") || getStr("X_CT-COM_IPv6PrefixOrigin") || getStr("X_CMS_IPv6PrefixOrigin") || getStr("IPv6PrefixOrigin") || "PrefixDelegation",
+            ipv6PrefixDelegationEnabled: getBool("X_ALU-COM_IPv6PrefixDelegationEnabled") || getBool("X_CT-COM_IPv6PrefixDelegationEnabled") || getBool("X_CMS_IPv6PrefixDelegationEnabled") || getBool("IPv6PrefixDelegationEnabled"),
+            ipv6DNSServers: (getStr("X_ALU-COM_IPv6DNSServers") || getStr("X_CT-COM_IPv6DNSServers") || getStr("X_CMS_IPv6DNSServers") || getStr("IPv6DNSServers") || "").split(",").filter(s => s.trim()),
+            ipv6DefaultGateway: conn.ipv6Gateway || getStr("X_ALU-COM_DefaultIPv6Gateway") || getStr("X_CT-COM_DefaultIPv6Gateway") || getStr("X_CMS_DefaultIPv6Gateway") || getStr("IPv6DefaultGateway") || "",
+            ipv6ConnStatus: getStr("X_ALU-COM_IPv6ConnStatus") || getStr("X_CT-COM_IPv6ConnStatus") || getStr("X_CMS_IPv6ConnStatus") || getStr("IPv6ConnStatus") || "Unconfigured",
+            ipv6NAEnabled: getBool("X_ALU_COM_IPv6NAEnabled") || getBool("X_CT-COM_IPv6NAEnabled") || getBool("X_CMS_IPv6NAEnabled") || getBool("IPv6NAEnabled"),
         };
 
         const portTriggering = {
@@ -1010,36 +1010,44 @@ export function TR069DeviceWanConnections({ deviceId }: TR069DeviceWanConnection
                                         )}
 
                                         {/* IPv6 Details */}
-                                        {details.ipv6Details && details.ipv6Details.ipv6Address && (
+                                        {details.ipv6Details && (details.ipv6Details.ipv6Address || details.ipv6Details.ipv6Prefix || details.ipv6Details.ipv6DefaultGateway) && (
                                             <div>
                                                 <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
                                                     <Radio className="h-4 w-4" />
                                                     IPv6 Configuration
                                                 </h4>
                                                 <div className="grid grid-cols-2 gap-2 text-sm">
-                                                    <div className="bg-muted/30 p-2 rounded col-span-2">
-                                                        <div className="text-xs text-muted-foreground">IPv6 Address</div>
-                                                        <div className="font-mono text-xs">{details.ipv6Details.ipv6Address}</div>
-                                                    </div>
+                                                    {details.ipv6Details.ipv6Address && (
+                                                        <div className="bg-muted/30 p-2 rounded col-span-2">
+                                                            <div className="text-xs text-muted-foreground">IPv6 Address</div>
+                                                            <div className="font-mono text-xs">{details.ipv6Details.ipv6Address}</div>
+                                                        </div>
+                                                    )}
+                                                    {details.ipv6Details.ipv6DefaultGateway && (
+                                                        <div className="bg-muted/30 p-2 rounded col-span-2">
+                                                            <div className="text-xs text-muted-foreground">IPv6 Default Gateway</div>
+                                                            <div className="font-mono text-xs">{details.ipv6Details.ipv6DefaultGateway}</div>
+                                                        </div>
+                                                    )}
                                                     <div className="bg-muted/30 p-2 rounded">
-                                                        <div className="text-xs text-muted-foreground">Address Origin</div>
-                                                        <div className="font-mono">{details.ipv6Details.ipv6AddressOrigin}</div>
-                                                    </div>
-                                                    <div className="bg-muted/30 p-2 rounded">
-                                                        <div className="text-xs text-muted-foreground">Prefix</div>
-                                                        <div className="font-mono">{details.ipv6Details.ipv6Prefix || "N/A"}</div>
-                                                    </div>
-                                                    <div className="bg-muted/30 p-2 rounded">
-                                                        <div className="text-xs text-muted-foreground">Prefix Delegation</div>
-                                                        <div className="font-mono">{details.ipv6Details.ipv6PrefixDelegationEnabled ? 'Enabled' : 'Disabled'}</div>
-                                                    </div>
-                                                    <div className="bg-muted/30 p-2 rounded">
-                                                        <div className="text-xs text-muted-foreground">Status</div>
-                                                        <div className="font-mono">{details.ipv6Details.ipv6ConnStatus}</div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
+                                                         <div className="text-xs text-muted-foreground">Address Origin</div>
+                                                         <div className="font-mono">{details.ipv6Details.ipv6AddressOrigin}</div>
+                                                     </div>
+                                                     <div className="bg-muted/30 p-2 rounded">
+                                                         <div className="text-xs text-muted-foreground">Prefix</div>
+                                                         <div className="font-mono">{details.ipv6Details.ipv6Prefix || "N/A"}</div>
+                                                     </div>
+                                                     <div className="bg-muted/30 p-2 rounded">
+                                                         <div className="text-xs text-muted-foreground">Prefix Delegation</div>
+                                                         <div className="font-mono">{details.ipv6Details.ipv6PrefixDelegationEnabled ? 'Enabled' : 'Disabled'}</div>
+                                                     </div>
+                                                     <div className="bg-muted/30 p-2 rounded">
+                                                         <div className="text-xs text-muted-foreground">Status</div>
+                                                         <div className="font-mono">{details.ipv6Details.ipv6ConnStatus}</div>
+                                                     </div>
+                                                 </div>
+                                             </div>
+                                         )}
 
                                         {/* Access Control List */}
                                         <div>

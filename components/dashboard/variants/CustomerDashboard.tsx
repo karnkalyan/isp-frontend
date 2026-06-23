@@ -224,6 +224,75 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
   const plan = profile?.subscribedPkg
   const planDetails = plan?.packagePlanDetails
 
+  const ipv6Info = useMemo(() => {
+    const conns = deviceData.wanInfo?.data?.wanConnections;
+    if (!Array.isArray(conns)) return null;
+    for (const conn of conns) {
+      let address = conn?.ipv6Address;
+      let prefix = conn?.ipv6Prefix;
+      let gateway = conn?.ipv6Gateway;
+
+      if (conn?.parameters && typeof conn.parameters === "object") {
+        for (const [key, val] of Object.entries(conn.parameters)) {
+          if (!address && (key.endsWith("IPv6IPAddress") || key.endsWith("IPv6Address")) && val) {
+            address = String(val);
+          }
+          if (!prefix && key.endsWith("IPv6Prefix") && val) {
+            prefix = String(val);
+          }
+          if (!gateway && (key.endsWith("DefaultIPv6Gateway") || key.endsWith("IPv6Gateway")) && val) {
+            gateway = String(val);
+          }
+        }
+      }
+
+      const hasAddr = address && address !== "N/A" && address !== "";
+      const hasPrefix = prefix && prefix !== "N/A" && prefix !== "";
+      const hasGateway = gateway && gateway !== "N/A" && gateway !== "";
+
+      if (hasAddr || hasPrefix || hasGateway) {
+        return {
+          address: hasAddr ? String(address) : null,
+          prefix: hasPrefix ? String(prefix) : null,
+          gateway: hasGateway ? String(gateway) : null,
+        };
+      }
+    }
+    return null;
+  }, [deviceData.wanInfo]);
+
+  const connectionDetailsRows = useMemo(() => {
+    const baseRows: Array<[string, any]> = [
+      ["PPPoE Username", wanConnection?.username || profile?.connectionUsers?.[0]?.username || "N/A"],
+      ["WAN IP", wanConnection?.externalIPAddress || wanConnection?.ipAddress || profile?.tr069Devices?.[0]?.ipAddress || "N/A"],
+      ["Branch", profile?.branch?.name || "N/A"],
+      ["Plan End", formatDate(profile?.activeSubscription?.planEnd)],
+      ["Model", deviceInfo?.deviceInfo?.modelName || profile?.tr069Devices?.[0]?.modelName || "N/A"],
+      ["Firmware", deviceInfo?.deviceInfo?.softwareVersion || deviceInfo?.deviceInfo?.firmwareVersion || "N/A"],
+    ];
+    if (ipv6Info?.address) baseRows.push(["IPv6 Address", ipv6Info.address]);
+    if (ipv6Info?.prefix) baseRows.push(["IPv6 Prefix", ipv6Info.prefix]);
+    if (ipv6Info?.gateway) baseRows.push(["IPv6 Gateway", ipv6Info.gateway]);
+    return baseRows;
+  }, [wanConnection, profile, deviceInfo, ipv6Info]);
+
+  const overviewRows = useMemo(() => {
+    const baseRows: Array<[string, any]> = [
+      ["PPPoE Username", wanConnection?.username || profile?.connectionUsers?.[0]?.username || "N/A"],
+      ["WAN IP", wanConnection?.externalIPAddress || wanConnection?.ipAddress || profile?.tr069Devices?.[0]?.ipAddress || "N/A"],
+      ["Branch", profile?.branch?.name || "N/A"],
+      ["Plan End", formatDate(profile?.activeSubscription?.planEnd)],
+      ["Model", deviceInfo?.deviceInfo?.modelName || profile?.tr069Devices?.[0]?.modelName || "N/A"],
+      ["Firmware", deviceInfo?.deviceInfo?.softwareVersion || deviceInfo?.deviceInfo?.firmwareVersion || "N/A"],
+      ["RX Power", deviceInfo?.deviceInfo?.rxPower || "N/A"],
+      ["Uptime", deviceInfo?.uptime || deviceInfo?.deviceInfo?.uptime || "N/A"],
+    ];
+    if (ipv6Info?.address) baseRows.push(["IPv6 Address", ipv6Info.address]);
+    if (ipv6Info?.prefix) baseRows.push(["IPv6 Prefix", ipv6Info.prefix]);
+    if (ipv6Info?.gateway) baseRows.push(["IPv6 Gateway", ipv6Info.gateway]);
+    return baseRows;
+  }, [wanConnection, profile, deviceInfo, ipv6Info]);
+
   const customerName = useMemo(() => {
     const parts = [profile?.lead?.firstName, profile?.lead?.middleName, profile?.lead?.lastName].filter(Boolean)
     return parts.join(" ") || user?.name || "Customer"
@@ -1377,14 +1446,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
         {dashboardStats}
         <div className="grid gap-4 lg:grid-cols-2">
           <CardContainer title="Connection Details">
-            <InfoGrid rows={[
-              ["PPPoE Username", wanConnection?.username || profile.connectionUsers?.[0]?.username || "N/A"],
-              ["WAN IP", wanConnection?.externalIPAddress || wanConnection?.ipAddress || profile.tr069Devices?.[0]?.ipAddress || "N/A"],
-              ["Branch", profile.branch?.name || "N/A"],
-              ["Plan End", formatDate(profile.activeSubscription?.planEnd)],
-              ["Model", deviceInfo?.deviceInfo?.modelName || profile.tr069Devices?.[0]?.modelName || "N/A"],
-              ["Firmware", deviceInfo?.deviceInfo?.softwareVersion || deviceInfo?.deviceInfo?.firmwareVersion || "N/A"],
-            ]} />
+            <InfoGrid rows={connectionDetailsRows} />
           </CardContainer>
           {profile.radiusAccounting && (
             <CardContainer title="Radius Session Info">
@@ -1520,16 +1582,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
           <div className="grid gap-4 lg:grid-cols-2">
             <CardContainer title="Connection Details">
               <InfoGrid
-                rows={[
-                  ["PPPoE Username", wanConnection?.username || profile.connectionUsers?.[0]?.username || "N/A"],
-                  ["WAN IP", wanConnection?.externalIPAddress || wanConnection?.ipAddress || profile.tr069Devices?.[0]?.ipAddress || "N/A"],
-                  ["Branch", profile.branch?.name || "N/A"],
-                  ["Plan End", formatDate(profile.activeSubscription?.planEnd)],
-                  ["Model", deviceInfo?.deviceInfo?.modelName || profile.tr069Devices?.[0]?.modelName || "N/A"],
-                  ["Firmware", deviceInfo?.deviceInfo?.softwareVersion || deviceInfo?.deviceInfo?.firmwareVersion || "N/A"],
-                  ["RX Power", deviceInfo?.deviceInfo?.rxPower || "N/A"],
-                  ["Uptime", deviceInfo?.uptime || deviceInfo?.deviceInfo?.uptime || "N/A"],
-                ]}
+                rows={overviewRows}
               />
             </CardContainer>
 

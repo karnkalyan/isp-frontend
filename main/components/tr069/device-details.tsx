@@ -76,6 +76,9 @@ export function TR069DeviceDetails({ deviceId }: TR069DeviceDetailsProps) {
 
   const managementIP = tr069Conn?.externalIPAddress || "N/A";
   const ipAddress = internetConn?.externalIPAddress || tr069Conn?.externalIPAddress || "N/A";
+  const ipv6Address = internetConn?.ipv6Address || tr069Conn?.ipv6Address || "N/A";
+  const ipv6Gateway = internetConn?.ipv6Gateway || tr069Conn?.ipv6Gateway || "N/A";
+  const ipv6Prefix = internetConn?.ipv6Prefix || tr069Conn?.ipv6Prefix || "N/A";
   const macAddress = internetConn?.macAddress || tr069Conn?.macAddress || "N/A";
   const username = internetConn?.username || "N/A";
 
@@ -219,6 +222,51 @@ export function TR069DeviceDetails({ deviceId }: TR069DeviceDetailsProps) {
                 <Copy className="h-3.5 w-3.5" />
               </button>
             </div>
+
+            {ipv6Address !== "N/A" && (
+              <>
+                <div className="text-muted-foreground">IPv6 Address</div>
+                <div className="flex items-center gap-1">
+                  {ipv6Address}
+                  <button
+                    onClick={() => copyToClipboard(ipv6Address, "IPv6 Address")}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </>
+            )}
+
+            {ipv6Gateway !== "N/A" && (
+              <>
+                <div className="text-muted-foreground">IPv6 Gateway</div>
+                <div className="flex items-center gap-1">
+                  {ipv6Gateway}
+                  <button
+                    onClick={() => copyToClipboard(ipv6Gateway, "IPv6 Gateway")}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </>
+            )}
+
+            {ipv6Prefix !== "N/A" && (
+              <>
+                <div className="text-muted-foreground">IPv6 Prefix</div>
+                <div className="flex items-center gap-1">
+                  {ipv6Prefix}
+                  <button
+                    onClick={() => copyToClipboard(ipv6Prefix, "IPv6 Prefix")}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </>
+            )}
 
             <div className="text-muted-foreground">Management IP Address</div>
             <div className="flex items-center gap-1">
