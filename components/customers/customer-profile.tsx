@@ -2040,7 +2040,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       const allSessions: any[] = []
       for (const u of customer.connectionUsers) {
         try {
-          const res = await apiRequest<any>(`/sessions/${u.username}`)
+          const res = await apiRequest<any>(`/customer/sessions/${u.username}`)
           if (res && res.online === true) {
             allSessions.push({
               username: u.username,
@@ -2069,7 +2069,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const handleDisconnectSessionId = async (sessionId: string) => {
     try {
       setActionLoading(true)
-      const response = await apiRequest<{ success: boolean; message: string }>(`/disconnect/session/${sessionId}`, {
+      const response = await apiRequest<{ success: boolean; message: string }>(`/customer/disconnect/session/${sessionId}`, {
         method: 'POST'
       })
       if (response.success) {
@@ -2100,7 +2100,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const handleDisconnectAllSessions = async (username: string) => {
     try {
       setActionLoading(true)
-      const response = await apiRequest<{ success: boolean; message: string }>(`/disconnect/${username}/all`, {
+      const response = await apiRequest<{ success: boolean; message: string }>(`/customer/disconnect/${username}/all`, {
         method: 'POST'
       })
       if (response.success) {
@@ -2521,7 +2521,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
 
     try {
       setActionLoading(true)
-      const response = await apiRequest<{ success: boolean; message: string }>(`/disconnect/${connectionUser.username}`, {
+      const response = await apiRequest<{ success: boolean; message: string }>(`/customer/disconnect/${connectionUser.username}`, {
         method: 'POST'
       })
       if (response.success) {
