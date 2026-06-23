@@ -51,6 +51,18 @@ const getSmsParts = (text: string) => {
   }
 }
 
+const cleanAndValidatePhone = (phone: any): string | null => {
+  if (!phone) return null
+  let cleaned = String(phone).replace(/\D/g, "").trim()
+  if (cleaned.length === 13 && cleaned.startsWith("977")) {
+    cleaned = cleaned.slice(3)
+  }
+  if (cleaned.length === 10 && cleaned.startsWith("9")) {
+    return cleaned
+  }
+  return null
+}
+
 export function SmsCampaign() {
   const [recipientType, setRecipientType] = useState("customer")
   const [filters, setFilters] = useState({
@@ -628,12 +640,12 @@ export function SmsCampaign() {
           ? filteredRaw.map((c: any) => ({
               recipientId: c.id,
               name: c.firstName ? `${c.firstName} ${c.lastName || ""}`.trim() : `${c.lead?.firstName || ""} ${c.lead?.lastName || ""}`.trim(),
-              phone: c.phoneNumber || c.lead?.phoneNumber
+              phone: cleanAndValidatePhone(c.phoneNumber || c.lead?.phoneNumber) || ""
             }))
           : filteredRaw.map((l: any) => ({
               recipientId: l.id,
               name: `${l.firstName || ""} ${l.lastName || ""}`.trim(),
-              phone: l.phoneNumber
+              phone: cleanAndValidatePhone(l.phoneNumber) || ""
             }))
 
         setSearchResults(data.filter((r: any) => r.phone))
@@ -787,7 +799,7 @@ export function SmsCampaign() {
         ? filteredRaw.map((c: any) => ({
             recipientId: c.id,
             name: c.firstName ? `${c.firstName} ${c.lastName || ""}`.trim() : `${c.lead?.firstName || ""} ${c.lead?.lastName || ""}`.trim(),
-            phone: c.phoneNumber || c.lead?.phoneNumber || "",
+            phone: cleanAndValidatePhone(c.phoneNumber || c.lead?.phoneNumber) || "",
             firstName: c.firstName || c.lead?.firstName || "",
             middleName: c.middleName || c.lead?.middleName || "",
             lastName: c.lastName || c.lead?.lastName || "",
@@ -811,7 +823,7 @@ export function SmsCampaign() {
             return {
               recipientId: l.id,
               name: `${l.firstName || ""} ${l.lastName || ""}`.trim(),
-              phone: l.phoneNumber || "",
+              phone: cleanAndValidatePhone(l.phoneNumber) || "",
               firstName: l.firstName || "",
               middleName: l.middleName || "",
               lastName: l.lastName || "",
