@@ -846,6 +846,22 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
 
     const activeLanPorts = lanInterfaces.filter((port: any) => port.status?.toLowerCase() === "up" && port.stats);
 
+    const getWlanStat = (ssid: any, statKey: string, paramFallbackKeys: string[]) => {
+      const val = ssid?.stats?.[statKey];
+      if (val !== "N/A" && val !== undefined && val !== null && val !== "") {
+        return val;
+      }
+      if (ssid?.parameters) {
+        for (const fallbackKey of paramFallbackKeys) {
+          const paramVal = ssid.parameters[fallbackKey];
+          if (paramVal !== "N/A" && paramVal !== undefined && paramVal !== null && paramVal !== "") {
+            return paramVal;
+          }
+        }
+      }
+      return "N/A";
+    };
+
     return (
       <div className="space-y-6">
         <div>
@@ -918,10 +934,10 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
                           <span className="font-semibold text-primary">{ssid.ssid}</span>
                           <span className="text-xs text-muted-foreground ml-2">({idx >= 5 ? "5G" : "2.4G"})</span>
                         </td>
-                        <td className="py-3 font-mono">{formatBytes(ssid.stats.bytesSent)}</td>
-                        <td className="py-3 font-mono">{formatBytes(ssid.stats.bytesReceived)}</td>
-                        <td className="py-3 font-mono">{formatPackets(ssid.stats.packetsSent)}</td>
-                        <td className="py-3 font-mono">{formatPackets(ssid.stats.packetsReceived)}</td>
+                        <td className="py-3 font-mono">{formatBytes(getWlanStat(ssid, 'bytesSent', ['TotalBytesSent', 'BytesSent', 'Stats.BytesSent']))}</td>
+                        <td className="py-3 font-mono">{formatBytes(getWlanStat(ssid, 'bytesReceived', ['TotalBytesReceived', 'BytesReceived', 'Stats.BytesReceived']))}</td>
+                        <td className="py-3 font-mono">{formatPackets(getWlanStat(ssid, 'packetsSent', ['TotalPacketsSent', 'PacketsSent', 'Stats.PacketsSent']))}</td>
+                        <td className="py-3 font-mono">{formatPackets(getWlanStat(ssid, 'packetsReceived', ['TotalPacketsReceived', 'PacketsReceived', 'Stats.PacketsReceived']))}</td>
                       </tr>
                     )
                   })}
