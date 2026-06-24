@@ -2087,9 +2087,10 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       }
     } catch (error: any) {
       console.error("Error disconnecting session:", error)
+      const detail = error?.detail || error?.error || error?.message || "Failed to disconnect session"
       toast({
-        title: "Error",
-        description: error.message || "Failed to disconnect session",
+        title: "Disconnect Failed",
+        description: detail,
         variant: "destructive",
       })
     } finally {
