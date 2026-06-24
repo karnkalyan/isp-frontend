@@ -33,6 +33,7 @@ interface ActiveCall {
     duration?: number
     isHeld?: boolean
     ispId: number
+    note?: string
 }
 
 interface ActiveCallsProps {
@@ -376,6 +377,13 @@ export default function ActiveCalls({ ispId, realTimeApi }: ActiveCallsProps) {
                                         <code className="text-xs bg-muted px-2 py-1 rounded">{call.channelId}</code>
                                     </div>
                                 </div>
+
+                                {call.note && (
+                                    <div className="mt-3 p-2 text-xs rounded bg-muted/50 border-l-2 border-blue-500 text-foreground">
+                                        <span className="font-semibold text-muted-foreground">Call Log Information: </span>
+                                        {call.note}
+                                    </div>
+                                )}
 
                                 <div className="mt-4 flex gap-2">
                                     <Button

@@ -18,6 +18,12 @@ type Branch = {
   code: string
 }
 
+type User = {
+  id: number
+  name: string
+  email: string
+}
+
 const REPORT_TYPES = [
   { value: "leads", label: "Leads Report", description: "Export sales leads database, sources, and assignment logs." },
   { value: "customers", label: "Customers Report", description: "Export customer details, statuses, and RADIUS username links." },
@@ -35,6 +41,8 @@ const REPORT_TYPES = [
 export default function ReportsPage() {
   const [branches, setBranches] = useState<Branch[]>([])
   const [loadingBranches, setLoadingBranches] = useState(true)
+  const [users, setUsers] = useState<User[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(true)
   const [overview, setOverview] = useState<any>(null)
   
   // Single selection state
@@ -46,7 +54,8 @@ export default function ReportsPage() {
     endDate: "",
     status: "ALL",
     branchId: "ALL",
-    drumStatus: "ALL"
+    drumStatus: "ALL",
+    userId: "ALL"
   })
 
   // Export processing state
@@ -63,7 +72,18 @@ export default function ReportsPage() {
         setLoadingBranches(false)
       }
     }
+    const fetchUsers = async () => {
+      try {
+        const data = await apiRequest<User[]>("/users")
+        setUsers(Array.isArray(data) ? data : [])
+      } catch (err) {
+        console.error("Failed to load users", err)
+      } finally {
+        setLoadingUsers(false)
+      }
+    }
     fetchBranches()
+    fetchUsers()
     fetchOverview()
   }, [])
 
@@ -130,6 +150,7 @@ export default function ReportsPage() {
   const hasDateFilter = ["leads", "tasks", "tickets", "sms-logs"].includes(selectedReport)
   const hasStatusFilter = ["leads", "customers", "tasks", "tickets", "drums", "sms-logs"].includes(selectedReport)
   const hasBranchFilter = ["leads", "customers", "tasks", "tickets", "users"].includes(selectedReport)
+  const hasUserFilter = ["sms-logs"].includes(selectedReport)
 
   const handleExport = (format: string) => {
     const params: Record<string, string> = {}
@@ -143,6 +164,9 @@ export default function ReportsPage() {
     if (hasBranchFilter) {
       params.branchId = filters.branchId
     }
+    if (hasUserFilter) {
+      params.userId = filters.userId
+    }
     triggerDownload(selectedReport, format, params)
   }
 
@@ -154,7 +178,8 @@ export default function ReportsPage() {
       endDate: "",
       status: "ALL",
       branchId: "ALL",
-      drumStatus: "ALL"
+      drumStatus: "ALL",
+      userId: "ALL"
     })
   }
 
@@ -323,6 +348,24 @@ export default function ReportsPage() {
                           <SelectItem value="ALL">All Branches</SelectItem>
                           {branches.map(b => (
                             <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  
+                  {/* User Filters */}
+                  {hasUserFilter && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Filter by Assigned User</Label>
+                      <Select value={filters.userId} onValueChange={(v) => setFilters(prev => ({ ...prev, userId: v }))} disabled={loadingUsers}>
+                        <SelectTrigger className="h-9 border-slate-200 dark:border-slate-800 bg-background">
+                          <SelectValue placeholder="All Users" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-popover border-border">
+                          <SelectItem value="ALL">All Users</SelectItem>
+                          {users.map(u => (
+                            <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>

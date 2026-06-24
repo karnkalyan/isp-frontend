@@ -63,6 +63,7 @@ interface CallMember {
 interface NumberCall {
   callid: string
   members: CallMember[]
+  note?: string
 }
 
 interface CallListItem {
@@ -176,6 +177,68 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
   const assignedExtension = String(user?.yeastarExt || user?.extId || "").trim()
   
   const router = useRouter()
+
+  const [callNotes, setCallNotes] = useState<Record<string, string>>({})
+  const [savingNote, setSavingNote] = useState<Record<string, boolean>>({})
+
+  // Synchronize incoming notes
+  useEffect(() => {
+    if (callData?.data?.calllist) {
+      const notesToSync: Record<string, string> = {}
+      callData.data.calllist.forEach(ext => {
+        if (ext.numbercalls) {
+          ext.numbercalls.forEach(call => {
+            if (call.callid && call.note !== undefined) {
+              notesToSync[call.callid] = call.note
+            }
+          })
+        }
+      })
+      setCallNotes(prev => {
+        const next = { ...prev }
+        Object.entries(notesToSync).forEach(([callid, note]) => {
+          if (next[callid] === undefined) {
+            next[callid] = note
+          }
+        })
+        return next
+      })
+    }
+  }, [callData])
+
+  const handleSaveNote = async (callid: string) => {
+    const note = callNotes[callid] || ""
+    try {
+      setSavingNote(prev => ({ ...prev, [callid]: true }))
+      await apiRequest("/yeaster/calls/active/note", {
+        method: "POST",
+        body: JSON.stringify({ callid, note })
+      })
+      toast.success("Note saved successfully")
+      
+      // Update local callData note state
+      setCallData(prev => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          data: {
+            ...prev.data,
+            calllist: prev.data.calllist.map(ext => ({
+              ...ext,
+              numbercalls: ext.numbercalls.map(call => 
+                call.callid === callid ? { ...call, note } : call
+              )
+            }))
+          }
+        }
+      })
+    } catch (err: any) {
+      console.error("Failed to save note:", err)
+      toast.error(err.message || "Failed to save note")
+    } finally {
+      setSavingNote(prev => ({ ...prev, [callid]: false }))
+    }
+  }
 
   useEffect(() => {
     setIsDarkMode(document.documentElement.classList.contains("dark"))
@@ -1168,6 +1231,35 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
                                                   </div>
                                                 ))
                                             )}
+                                          </div>
+                                          
+                                          {/* Call Notes Input Option */}
+                                          <div className={`mt-4 pt-3 border-t ${isDarkMode ? 'border-[#334155]' : 'border-gray-200'} space-y-2`}>
+                                            <div className="flex items-center justify-between">
+                                              <label className={`text-xs font-semibold ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                Call Notes / Log Information
+                                              </label>
+                                            </div>
+                                            <div className="flex gap-2">
+                                              <textarea
+                                                value={callNotes[call.callid] || ""}
+                                                onChange={(e) => setCallNotes(prev => ({ ...prev, [call.callid]: e.target.value }))}
+                                                placeholder="Enter call details, customer issues, or follow-up details..."
+                                                className={`flex-1 min-h-[60px] p-2 text-xs rounded-lg border ${
+                                                  isDarkMode 
+                                                    ? 'bg-[#1e293b] border-[#334155] text-gray-100 placeholder-gray-500' 
+                                                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                                                }`}
+                                              />
+                                              <Button
+                                                size="sm"
+                                                disabled={savingNote[call.callid]}
+                                                onClick={() => handleSaveNote(call.callid)}
+                                                className="self-end bg-blue-600 hover:bg-blue-700 text-white"
+                                              >
+                                                {savingNote[call.callid] ? "Saving..." : "Save Note"}
+                                              </Button>
+                                            </div>
                                           </div>
                                         </div>
                                       )
