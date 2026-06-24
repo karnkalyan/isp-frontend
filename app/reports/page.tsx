@@ -127,8 +127,8 @@ export default function ReportsPage() {
   }
 
   // Dynamic filter visibility checks
-  const hasDateFilter = ["leads", "tasks", "tickets"].includes(selectedReport)
-  const hasStatusFilter = ["leads", "customers", "tasks", "tickets", "drums"].includes(selectedReport)
+  const hasDateFilter = ["leads", "tasks", "tickets", "sms-logs"].includes(selectedReport)
+  const hasStatusFilter = ["leads", "customers", "tasks", "tickets", "drums", "sms-logs"].includes(selectedReport)
   const hasBranchFilter = ["leads", "customers", "tasks", "tickets", "users"].includes(selectedReport)
 
   const handleExport = (format: string) => {
@@ -294,6 +294,15 @@ export default function ReportsPage() {
                                 <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
                                 <SelectItem value="RESOLVED">Resolved</SelectItem>
                                 <SelectItem value="CLOSED">Closed</SelectItem>
+                              </>
+                            )}
+                            {selectedReport === "sms-logs" && (
+                              <>
+                                <SelectItem value="sent">Sent</SelectItem>
+                                <SelectItem value="failed">Failed</SelectItem>
+                                <SelectItem value="skipped">Skipped</SelectItem>
+                                <SelectItem value="queued">Queued</SelectItem>
+                                <SelectItem value="error">Error</SelectItem>
                               </>
                             )}
                           </SelectContent>
