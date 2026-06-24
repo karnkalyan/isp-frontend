@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { CustomerInvoices } from "@/components/customers/customer-invoices"
 import { CustomerTickets } from "@/components/customers/customer-tickets"
 import { Progress } from "@/components/ui/progress"
-import { toast } from "@/hooks/use-toast"
+import toast from "react-hot-toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   User,
@@ -612,19 +612,11 @@ function DataUsageHistory({ usernames }: DataUsageHistoryProps) {
           }
         }
       } else {
-        toast({
-          title: "Error",
-          description: "Failed to fetch usage data",
-          variant: "destructive",
-        })
+        toast.error("Failed to fetch usage data")
       }
     } catch (error) {
       console.error("Error fetching RADIUS sessions:", error)
-      toast({
-        title: "Error",
-        description: "Failed to fetch usage data",
-        variant: "destructive",
-      })
+      toast.error("Failed to fetch usage data")
     } finally {
       setLoading(false)
     }
@@ -1013,7 +1005,7 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
 
   const handleSubmit = () => {
     if (!formData.brand || !formData.model || !formData.serialNumber) {
-      toast({ title: "Error", description: "Please fill all required fields", variant: "destructive" })
+      toast.error("Please fill all required fields")
       return
     }
     onSave(formData as CustomerDevice)
@@ -1186,11 +1178,11 @@ function EditAssignedDeviceDialog({ open, onOpenChange, device, customerId, onSa
         body: JSON.stringify(formData),
         headers: { "Content-Type": "application/json" }
       })
-      toast({ title: "Success", description: "Device updated successfully" })
+      toast.success("Device updated successfully")
       onSaveSuccess()
       onOpenChange(false)
     } catch (e: any) {
-      toast({ title: "Error", description: e?.message || "Failed to update device", variant: "destructive" })
+      toast.error(e?.message || "Failed to update device")
     } finally {
       setLoading(false)
     }
@@ -1556,17 +1548,17 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   // OLT Provisioning function
   const registerOntOnOlt = useCallback(async (): Promise<boolean> => {
     if (!hwProvisionDetails.oltId) {
-      toast({ title: "No OLT selected", variant: "destructive" })
+      toast.error("No OLT selected")
       return false
     }
     if (!matchedDeviceForOnt || !selectedDiscoveredOnt) {
-      toast({ title: "No matched ONT device", variant: "destructive" })
+      toast.error("No matched ONT device")
       return false
     }
 
     const selectedOlt = olts.find(o => o.id.toString() === hwProvisionDetails.oltId)
     if (!selectedOlt) {
-      toast({ title: "Please select a valid OLT", variant: "destructive" })
+      toast.error("Please select a valid OLT")
       return false
     }
 
@@ -1576,7 +1568,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     if (hwProvisionDetails.useSplitter) {
       const ultimateOlt = findUltimateOltForSplitter(hwProvisionDetails.splitterId)
       if (!ultimateOlt) {
-        toast({ title: "Could not determine OLT from selected splitter", variant: "destructive" })
+        toast.error("Could not determine OLT from selected splitter")
         return false
       }
 
@@ -1590,7 +1582,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     // boardPortStr format like "0/0/1"
     const [frame, slot, port] = boardPortStr.split('/').map(Number)
     if ([frame, slot, port].some(part => Number.isNaN(part) || part === undefined)) {
-      toast({ title: "Invalid OLT port format. Use frame/slot/port, for example 0/0/1.", variant: "destructive" })
+      toast.error("Invalid OLT port format. Use frame/slot/port, for example 0/0/1.")
       return false
     }
 
@@ -1600,7 +1592,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     // Build serial
     const serial = getOntSerialForRegistration(matchedDeviceForOnt, isEpon)
     if (!serial) {
-      toast({ title: "No serial/MAC available for ONT", variant: "destructive" })
+      toast.error("No serial/MAC available for ONT")
       return false
     }
 
@@ -1624,7 +1616,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     const serviceProfileId = serviceProfile ? (serviceProfile.profileId || serviceProfile.id) : null
     if (!isEpon) {
       if (!lineProfileId || !serviceProfileId) {
-        toast({ title: "Please select both line and service profiles", variant: "destructive" })
+        toast.error("Please select both line and service profiles")
         return false
       }
     }
@@ -1650,21 +1642,21 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         headers: { "Content-Type": "application/json" },
       })
       if (response?.success) {
-        toast({ title: "ONT registered on OLT successfully" })
+        toast.success("ONT registered on OLT successfully")
         return true
       } else {
-        toast({ title: "ONT registration failed", description: response?.error || "Failed to register ONT", variant: "destructive" })
+        toast.error(response?.error || "Failed to register ONT")
         return false
       }
     } catch (error: any) {
-      toast({ title: "ONT registration error", description: error?.message || "Error", variant: "destructive" })
+      toast.error(error?.message || "Error")
       return false
     }
   }, [hwProvisionDetails, matchedDeviceForOnt, selectedDiscoveredOnt, findUltimateOltForSplitter, getSplitterPath, splitters, olts, customer, getOntSerialForRegistration])
 
   const handleAutoFindOnt = useCallback(async () => {
     if (!hwProvisionDetails.oltId) {
-      toast({ title: "Please select an OLT first", variant: "destructive" })
+      toast.error("Please select an OLT first")
       return
     }
 
@@ -1672,7 +1664,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
 
     if (hwProvisionDetails.useSplitter) {
       if (!hwProvisionDetails.splitterId) {
-        toast({ title: "Please select a splitter first", variant: "destructive" })
+        toast.error("Please select a splitter first")
         return
       }
 
@@ -1683,25 +1675,25 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       const boardPortStr = lastSplitter?.connectedServiceBoard?.boardPort || ""
 
       if (!boardPortStr) {
-        toast({ title: "Unable to determine board port from splitter", variant: "destructive" })
+        toast.error("Unable to determine board port from splitter")
         return
       }
 
       const parts = boardPortStr.split('/').map(Number)
       if (parts.length !== 3 || parts.some(isNaN)) {
-        toast({ title: `Invalid board port format from splitter: ${boardPortStr}`, variant: "destructive" })
+        toast.error(`Invalid board port format from splitter: ${boardPortStr}`)
         return
       }
       [frame, slot, port] = parts
     } else {
       // Direct OLT mode
       if (!hwProvisionDetails.oltPort) {
-        toast({ title: "Please enter the OLT port (frame/slot/port) for direct connection", variant: "destructive" })
+        toast.error("Please enter the OLT port (frame/slot/port) for direct connection")
         return
       }
       const parts = hwProvisionDetails.oltPort.split('/').map(Number)
       if (parts.length !== 3 || parts.some(isNaN)) {
-        toast({ title: "OLT port must be in format frame/slot/port (e.g., 0/0/1)", variant: "destructive" })
+        toast.error("OLT port must be in format frame/slot/port (e.g., 0/0/1)")
         return
       }
       [frame, slot, port] = parts
@@ -1746,7 +1738,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
 
     if (!hwDevices.length) {
       setMatchedDeviceForOnt(null)
-      toast({ title: "No devices added. Please add a device first.", variant: "destructive" })
+      toast.error("No devices added. Please add a device first.")
       return
     }
 
@@ -1775,7 +1767,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       if (candidateIdentifiers.includes(normalizedOnt)) {
         setMatchedDeviceForOnt(device)
         setSelectedDiscoveredOnt((prev: any) => prev ? ({ ...prev, ont_id: ont.ont_id }) : null)
-        toast({ title: `Matched with device: ${device.brand} ${device.model}` })
+        toast.success(`Matched with device: ${device.brand} ${device.model}`)
         return
       }
 
@@ -1785,7 +1777,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         if (normalizedMac && normalizedMac === normalizedOnt) {
           setMatchedDeviceForOnt(device)
           setSelectedDiscoveredOnt((prev: any) => prev ? ({ ...prev, ont_id: ont.ont_id }) : null)
-          toast({ title: `Matched with device: ${device.brand} ${device.model}` })
+          toast.success(`Matched with device: ${device.brand} ${device.model}`)
           return
         }
       } else {
@@ -1795,7 +1787,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         if ((devicePonHex && devicePonHex === ontIdentifier) || (deviceSerialHex && deviceSerialHex === ontIdentifier)) {
           setMatchedDeviceForOnt(device)
           setSelectedDiscoveredOnt((prev: any) => prev ? ({ ...prev, ont_id: ont.ont_id }) : null)
-          toast({ title: `Matched with device: ${device.brand} ${device.model}` })
+          toast.success(`Matched with device: ${device.brand} ${device.model}`)
           return
         }
       }
@@ -1803,7 +1795,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
 
     // No match found
     setMatchedDeviceForOnt(null)
-    toast({ title: "No matching device found", variant: "destructive" })
+    toast.error("No matching device found")
   }, [hwDevices, hwProvisionDetails.splitterId, splitters, findUltimateOltForSplitter, discoveredOnts, convertToPonHex, toast])
 
   const handleHwProvisionSave = async () => {
@@ -1865,11 +1857,11 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         }
       }
 
-      toast({ title: "Fiber provisioning saved successfully" })
+      toast.success("Fiber provisioning saved successfully")
       setAssignHardwareOpen(false)
       fetchCustomerData()
     } catch (e: any) {
-      toast({ title: "Error saving provision", description: e?.message, variant: "destructive" })
+      toast.error(e?.message)
     } finally {
       setHwProvisionLoading(false)
     }
@@ -1877,16 +1869,16 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
 
   const handleOutboundCall = async (phoneNumber?: string | null) => {
     if (!voipEnabled) {
-      toast({ title: "Calling is disabled because no VOIP service is enabled", variant: "destructive" })
+      toast.error("Calling is disabled because no VOIP service is enabled")
       return
     }
     if (!phoneNumber) {
-      toast({ title: "Phone number is not available", variant: "destructive" })
+      toast.error("Phone number is not available")
       return
     }
     const extension = String(user?.yeastarExt || user?.extId || "").trim()
     if (!extension) {
-      toast({ title: "No VoIP extension is assigned to your user account", variant: "destructive" })
+      toast.error("No VoIP extension is assigned to your user account")
       return
     }
 
@@ -1901,14 +1893,10 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           autoanswer: "yes",
         })
       })
-      toast({ title: `Calling ${phoneNumber}` })
+      toast.success(`Calling ${phoneNumber}`)
     } catch (error: any) {
       const message = String(error?.message || "")
-      toast({
-        title: /yeastar|yeaster|asterisk|voip|configured|enabled/i.test(message) ? "Calling is disabled because no VOIP service is enabled" : "Failed to initiate call",
-        description: /yeastar|yeaster|asterisk|voip|configured|enabled/i.test(message) ? undefined : message,
-        variant: "destructive"
-      })
+      toast.error(/yeastar|yeaster|asterisk|voip|configured|enabled/i.test(message) ? undefined : message)
     }
   }
 
@@ -1959,12 +1947,12 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         method: "POST",
         body: JSON.stringify({ customerId: customer?.id })
       })
-      toast({ title: "Hardware assigned successfully" })
+      toast.success("Hardware assigned successfully")
       setAssignHardwareOpen(false)
       setSelectedHardwareId(null)
       fetchCustomerData()
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" })
+      toast.error(error.message)
     } finally {
       setActionLoading(false)
     }
@@ -1998,12 +1986,12 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         setNewMacAddress(currentMac)
       } else {
         setError("Customer not found")
-        toast({ title: "Error", description: "Customer not found", variant: "destructive" })
+        toast.error("Customer not found")
       }
     } catch (error: any) {
       console.error("Error fetching customer:", error)
       setError(error.message || "Failed to fetch customer data")
-      toast({ title: "Error", description: "Failed to load customer data", variant: "destructive" })
+      toast.error("Failed to load customer data")
     } finally {
       setLoading(false)
     }
@@ -2073,28 +2061,16 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         method: 'POST'
       })
       if (response.success) {
-        toast({
-          title: "Success",
-          description: response.message || "Session disconnected successfully",
-          variant: "success",
-        })
+        toast.success(response.message || "Session disconnected successfully")
         fetchActiveSessions()
         fetchRadiusAuthLogs()
       } else {
-        toast({
-          title: "Error",
-          description: "Failed to disconnect session",
-          variant: "destructive",
-        })
+        toast.error("Failed to disconnect session")
       }
     } catch (error: any) {
       console.error("Error disconnecting session:", error)
       const detail = error?.detail || error?.error || error?.message || "Failed to disconnect session"
-      toast({
-        title: "Disconnect Failed",
-        description: detail,
-        variant: "destructive",
-      })
+      toast.error(detail)
     } finally {
       setActionLoading(false)
     }
@@ -2107,27 +2083,15 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         method: 'POST'
       })
       if (response.success) {
-        toast({
-          title: "Success",
-          description: response.message || "All sessions disconnected successfully",
-          variant: "success",
-        })
+        toast.success(response.message || "All sessions disconnected successfully")
         fetchActiveSessions()
         fetchRadiusAuthLogs()
       } else {
-        toast({
-          title: "Error",
-          description: "Failed to disconnect sessions",
-          variant: "destructive",
-        })
+        toast.error("Failed to disconnect sessions")
       }
     } catch (error: any) {
       console.error("Error disconnecting sessions:", error)
-      toast({
-        title: "Error",
-        description: error.message || "Failed to disconnect sessions",
-        variant: "destructive",
-      })
+      toast.error(error.message || "Failed to disconnect sessions")
     } finally {
       setActionLoading(false)
     }
@@ -2136,15 +2100,15 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const handleChangePortalPassword = async () => {
     const isEditing = !!customer?.portalUser;
     if (!isEditing && (!newPortalPassword.trim() || newPortalPassword.length < 4)) {
-      toast({ title: "Validation Error", description: "Password must be at least 4 characters", variant: "destructive" });
+      toast.error("Password must be at least 4 characters");
       return;
     }
     if (newPortalPassword.trim() && newPortalPassword.length < 4) {
-      toast({ title: "Validation Error", description: "Password must be at least 4 characters", variant: "destructive" });
+      toast.error("Password must be at least 4 characters");
       return;
     }
     if (!newPortalEmail.trim() || !newPortalEmail.includes("@")) {
-      toast({ title: "Validation Error", description: "Please enter a valid email address", variant: "destructive" });
+      toast.error("Please enter a valid email address");
       return;
     }
     setPortalPasswordSubmitting(true);
@@ -2156,12 +2120,12 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           newPassword: newPortalPassword.trim() || undefined 
         })
       });
-      toast({ title: "Success", description: isEditing ? "Portal credentials updated successfully" : "Portal account created successfully" });
+      toast.success(isEditing ? "Portal credentials updated successfully" : "Portal account created successfully");
       setPortalPasswordOpen(false);
       setNewPortalPassword("");
       fetchCustomerData();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message || "Failed to update portal account", variant: "destructive" });
+      toast.error(error.message || "Failed to update portal account");
     } finally {
       setPortalPasswordSubmitting(false);
     }
@@ -2176,7 +2140,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const handleChangeRadiusPassword = async () => {
     if (!radiusPasswordUser) return
     if (!newRadiusPassword.trim() || newRadiusPassword.length < 4) {
-      toast({ title: "Validation Error", description: "Password must be at least 4 characters", variant: "destructive" })
+      toast.error("Password must be at least 4 characters")
       return
     }
     setRadiusPasswordSubmitting(true)
@@ -2185,18 +2149,15 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         method: "PUT",
         body: JSON.stringify({ newPassword: newRadiusPassword })
       })
-      toast({
-        title: "Success",
-        description: response?.data?.radiusUpdated === false
+      toast.success(response?.data?.radiusUpdated === false
           ? "Local password updated. Radius update failed or is unavailable."
-          : "Radius / PPPoE password updated successfully"
-      })
+          : "Radius / PPPoE password updated successfully")
       setRadiusPasswordOpen(false)
       setRadiusPasswordUser(null)
       setNewRadiusPassword("")
       fetchCustomerData()
     } catch (error: any) {
-      toast({ title: "Error", description: error.message || "Failed to update Radius password", variant: "destructive" })
+      toast.error(error.message || "Failed to update Radius password")
     } finally {
       setRadiusPasswordSubmitting(false)
     }
@@ -2276,16 +2237,12 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
 
   const toggleSetting = (setting: keyof typeof networkSettings) => {
     setNetworkSettings((prev) => ({ ...prev, [setting]: !prev[setting] }))
-    toast({ title: "Setting updated", description: `${setting} has been ${!networkSettings[setting] ? "enabled" : "disabled"}.` })
+    toast.success(`${setting} has been ${!networkSettings[setting] ? "enabled" : "disabled"}.`)
   }
 
   const handleChangeUsername = async () => {
     if (!newUsername.trim() || !selectedConnectionUser) {
-      toast({
-        title: "Error",
-        description: "Please fill all required fields",
-        variant: "destructive",
-      })
+      toast.error("Please fill all required fields")
       return
     }
 
@@ -2299,10 +2256,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         })
       })
 
-      toast({
-        title: "Success",
-        description: response.message || "Username changed successfully",
-      })
+      toast.success(response.message || "Username changed successfully")
 
       const updatedCustomer = await apiRequest<Customer>(`/customer/${customerId}`)
       if (updatedCustomer) {
@@ -2313,11 +2267,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       setNewUsername("")
     } catch (error: any) {
       console.error("Error changing username:", error)
-      toast({
-        title: "Error",
-        description: error.message || "Failed to change username",
-        variant: "destructive",
-      })
+      toast.error(error.message || "Failed to change username")
     } finally {
       setActionLoading(false)
     }
@@ -2325,11 +2275,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
 
   const handleChangePackage = async () => {
     if (!selectedPackage) {
-      toast({
-        title: "Error",
-        description: "Please select a package",
-        variant: "destructive",
-      })
+      toast.error("Please select a package")
       return
     }
 
@@ -2342,10 +2288,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         })
       })
 
-      toast({
-        title: "Success",
-        description: response.message || "Package changed successfully",
-      })
+      toast.success(response.message || "Package changed successfully")
 
       const updatedCustomer = await apiRequest<Customer>(`/customer/${customerId}`)
       if (updatedCustomer) {
@@ -2355,11 +2298,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       setChangePackageOpen(false)
     } catch (error: any) {
       console.error("Error changing package:", error)
-      toast({
-        title: "Error",
-        description: error.message || "Failed to change package",
-        variant: "destructive",
-      })
+      toast.error(error.message || "Failed to change package")
     } finally {
       setActionLoading(false)
     }
@@ -2367,21 +2306,13 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
 
   const handleResetMac = async () => {
     if (!newMacAddress.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter a MAC address",
-        variant: "destructive",
-      })
+      toast.error("Please enter a MAC address")
       return
     }
 
     const macRegex = /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/;
     if (!macRegex.test(newMacAddress.trim())) {
-      toast({
-        title: "Error",
-        description: "Invalid MAC address format. Use format like: 00:1A:2B:3C:4D:5E",
-        variant: "destructive",
-      })
+      toast.error("Invalid MAC address format. Use format like: 00:1A:2B:3C:4D:5E")
       return
     }
 
@@ -2394,10 +2325,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         })
       })
 
-      toast({
-        title: "Success",
-        description: response.message || "MAC address reset successfully",
-      })
+      toast.success(response.message || "MAC address reset successfully")
 
       const updatedCustomer = await apiRequest<Customer>(`/customer/${customerId}`)
       if (updatedCustomer) {
@@ -2408,11 +2336,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       setResetMacOpen(false)
     } catch (error: any) {
       console.error("Error resetting MAC:", error)
-      toast({
-        title: "Error",
-        description: error.message || "Failed to reset MAC address",
-        variant: "destructive",
-      })
+      toast.error(error.message || "Failed to reset MAC address")
     } finally {
       setActionLoading(false)
     }
@@ -2430,10 +2354,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         }
       })
 
-      toast({
-        title: "Success",
-        description: "Package renewed successfully",
-      })
+      toast.success("Package renewed successfully")
 
       const updatedCustomer = await apiRequest<Customer>(`/customer/${customerId}`)
       if (updatedCustomer) {
@@ -2443,11 +2364,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       setRenewPackageOpen(false)
     } catch (error: any) {
       console.error("Error renewing package:", error)
-      toast({
-        title: "Error",
-        description: error.message || "Failed to renew package",
-        variant: "destructive",
-      })
+      toast.error(error.message || "Failed to renew package")
     } finally {
       setRenewLoading(false)
     }
@@ -2460,24 +2377,13 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         method: 'POST'
       })
       if (response.success) {
-        toast({
-          title: "Success",
-          description: response.message || "Radius reprovisioned successfully",
-        })
+        toast.success(response.message || "Radius reprovisioned successfully")
       } else {
-        toast({
-          title: "Error",
-          description: "Radius reprovisioning failed",
-          variant: "destructive",
-        })
+        toast.error("Radius reprovisioning failed")
       }
     } catch (error: any) {
       console.error("Error reprovisioning Radius:", error)
-      toast({
-        title: "Error",
-        description: error.message || "Radius reprovisioning failed",
-        variant: "destructive",
-      })
+      toast.error(error.message || "Radius reprovisioning failed")
     } finally {
       setActionLoading(false)
     }
@@ -2490,24 +2396,13 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         method: 'POST'
       })
       if (response.success) {
-        toast({
-          title: "Success",
-          description: response.message || "NetTV reprovisioned successfully",
-        })
+        toast.success(response.message || "NetTV reprovisioned successfully")
       } else {
-        toast({
-          title: "Error",
-          description: "NetTV reprovisioning failed",
-          variant: "destructive",
-        })
+        toast.error("NetTV reprovisioning failed")
       }
     } catch (error: any) {
       console.error("Error reprovisioning NetTV:", error)
-      toast({
-        title: "Error",
-        description: error.message || "NetTV reprovisioning failed",
-        variant: "destructive",
-      })
+      toast.error(error.message || "NetTV reprovisioning failed")
     } finally {
       setActionLoading(false)
     }
@@ -2516,11 +2411,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const handleDisconnectSession = async () => {
     const connectionUser = customer?.connectionUsers?.[0]
     if (!connectionUser) {
-      toast({
-        title: "Error",
-        description: "No connection user found for this customer",
-        variant: "destructive",
-      })
+      toast.error("No connection user found for this customer")
       return
     }
 
@@ -2530,27 +2421,15 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         method: 'POST'
       })
       if (response.success) {
-        toast({
-          title: "Success",
-          description: response.message || "Radius session disconnected successfully",
-          variant: "success",
-        })
+        toast.success(response.message || "Radius session disconnected successfully")
         fetchActiveSessions()
         fetchRadiusAuthLogs()
       } else {
-        toast({
-          title: "Error",
-          description: "Disconnection failed",
-          variant: "destructive",
-        })
+        toast.error("Disconnection failed")
       }
     } catch (error: any) {
       console.error("Error disconnecting session:", error)
-      toast({
-        title: "Error",
-        description: error.message || "Failed to disconnect session",
-        variant: "destructive",
-      })
+      toast.error(error.message || "Failed to disconnect session")
     } finally {
       setActionLoading(false)
     }
@@ -2567,19 +2446,12 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         method: 'DELETE',
       })
 
-      toast({
-        title: "Success",
-        description: "Customer deleted successfully",
-      })
+      toast.success("Customer deleted successfully")
 
       router.push('/customers')
     } catch (error: any) {
       console.error("Error deleting customer:", error)
-      toast({
-        title: "Error",
-        description: error.message || "Failed to delete customer",
-        variant: "destructive",
-      })
+      toast.error(error.message || "Failed to delete customer")
     } finally {
       setActionLoading(false)
     }
@@ -2650,24 +2522,16 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         });
 
         if (actionRes?.success) {
-          toast({ title: "ONT deleted from OLT successfully" });
+          toast.success("ONT deleted from OLT successfully");
         } else {
-          toast({
-            title: "Warning",
-            description: actionRes?.error || "ONT deletion from OLT returned failure status.",
-            variant: "destructive"
-          });
+          toast.error(actionRes?.error || "ONT deletion from OLT returned failure status.");
         }
       } else {
         console.log(`[OLT_DELETE] No ONT details found in DB for serial ${serialNumber}`);
       }
     } catch (err: any) {
       console.error("[OLT_DELETE] Failed to delete ONT from OLT:", err);
-      toast({
-        title: "Error removing ONT from OLT",
-        description: err.message || "Failed to communicate with OLT",
-        variant: "destructive"
-      });
+      toast.error(err.message || "Failed to communicate with OLT");
     }
   };
 
@@ -2686,11 +2550,11 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           note: note || `Returned from customer ${customer?.customerUniqueId || customerId}`,
         }),
       })
-      toast({ title: "Success", description: "Hardware returned successfully" })
+      toast.success("Hardware returned successfully")
       setReturnHardwareItem(null)
       fetchCustomerData()
     } catch (error: any) {
-      toast({ title: "Error", description: error.message || "Failed to return hardware", variant: "destructive" })
+      toast.error(error.message || "Failed to return hardware")
     } finally {
       setActionLoading(false)
     }
@@ -2729,11 +2593,11 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       await apiRequest(`/customer/${customer.id}/devices/${deletingDevice.id}`, {
         method: "DELETE"
       })
-      toast({ title: "Success", description: "Device deleted successfully" })
+      toast.success("Device deleted successfully")
       setDeletingDevice(null)
       fetchCustomerData()
     } catch (error: any) {
-      toast({ title: "Error", description: error.message || "Failed to delete device", variant: "destructive" })
+      toast.error(error.message || "Failed to delete device")
     } finally {
       setActionLoading(false)
       setDeleteDeviceOpen(false)
@@ -4444,7 +4308,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                               document.body.appendChild(link)
                               link.click()
                               document.body.removeChild(link)
-                              toast({ title: "Download started", description: `Downloading ${doc.fileName}` })
+                              toast.success(`Downloading ${doc.fileName}`)
                             }}>Download</Button>
                             <Button size="sm" variant="outline" className="text-xs" onClick={() => {
                               const filePath = doc.filePath.replace(/\\/g, "/")
