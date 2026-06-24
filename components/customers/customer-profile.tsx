@@ -2040,7 +2040,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       const allSessions: any[] = []
       for (const u of customer.connectionUsers) {
         try {
-          const res = await apiRequest<any>(`/customer/sessions/${u.username}`)
+          const res = await apiRequest<any>(`/customer/sessions/${u.username}`, { suppressToast: true })
           if (res && res.online === true) {
             allSessions.push({
               username: u.username,
@@ -2076,8 +2076,10 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         toast({
           title: "Success",
           description: response.message || "Session disconnected successfully",
+          variant: "success",
         })
         fetchActiveSessions()
+        fetchRadiusAuthLogs()
       } else {
         toast({
           title: "Error",
@@ -2108,8 +2110,10 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         toast({
           title: "Success",
           description: response.message || "All sessions disconnected successfully",
+          variant: "success",
         })
         fetchActiveSessions()
+        fetchRadiusAuthLogs()
       } else {
         toast({
           title: "Error",
@@ -2529,8 +2533,10 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         toast({
           title: "Success",
           description: response.message || "Radius session disconnected successfully",
+          variant: "success",
         })
         fetchActiveSessions()
+        fetchRadiusAuthLogs()
       } else {
         toast({
           title: "Error",
