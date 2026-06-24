@@ -28,6 +28,7 @@ import {
   Upload,
   Plus,
   Phone,
+  Download,
 } from "lucide-react"
 import {
   Select,
@@ -42,6 +43,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "sonner"
 import { apiRequest } from "@/lib/api"
+import { getDynamicBaseUrl } from "@/lib/api"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 const getSmsParts = (text: string) => {
   if (!text) return 0
@@ -112,6 +114,8 @@ export function SmsCampaign() {
   const [campaignLogs, setCampaignLogs] = useState<any[]>([])
   const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null)
   const [logsLoading, setLogsLoading] = useState(false)
+  const [logsStatusFilter, setLogsStatusFilter] = useState<string>("all")
+  const [statusCounts, setStatusCounts] = useState<any>({ sent: 0, failed: 0, skipped: 0, queued: 0, error: 0, total: 0 })
 
   // CSV Filter states & helpers
   const [useCsvFilter, setUseCsvFilter] = useState(false)
@@ -745,11 +749,13 @@ export function SmsCampaign() {
     }
   }
 
-  const fetchCampaignLogs = async (campaignId: number) => {
+  const fetchCampaignLogs = async (campaignId: number, status?: string) => {
     setLogsLoading(true)
     try {
-      const res = await apiRequest<any>(`/service/sms/campaigns/${campaignId}/logs?limit=100`)
+      const statusParam = status || logsStatusFilter
+      const res = await apiRequest<any>(`/service/sms/campaigns/${campaignId}/logs?limit=500${statusParam && statusParam !== 'all' ? `&status=${statusParam}` : ''}`)
       setCampaignLogs(res?.data || [])
+      if (res?.statusCounts) setStatusCounts(res.statusCounts)
     } catch (err) {
       console.error("Failed to fetch SMS campaign logs")
     } finally {
@@ -1874,10 +1880,27 @@ export function SmsCampaign() {
               </CardTitle>
               <CardDescription>Track queued, sent, failed, and skipped campaign recipients.</CardDescription>
             </div>
-            <Button variant="outline" size="sm" onClick={fetchCampaigns} className="gap-1.5">
-              <RefreshCw className="h-3.5 w-3.5" />
-              Refresh
-            </Button>
+            <div className="flex gap-2">
+              {selectedCampaignId && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => {
+                    const baseUrl = getDynamicBaseUrl().replace(/\/+$/, '')
+                    const statusParam = logsStatusFilter && logsStatusFilter !== 'all' ? `?status=${logsStatusFilter}` : ''
+                    window.open(`${baseUrl}/service/sms/campaigns/${selectedCampaignId}/export${statusParam}`, '_blank')
+                  }}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Export CSV
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={fetchCampaigns} className="gap-1.5">
+                <RefreshCw className="h-3.5 w-3.5" />
+                Refresh
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -1895,7 +1918,8 @@ export function SmsCampaign() {
                     className={`w-full text-left rounded-md border p-3 transition-colors ${selectedCampaignId === campaign.id || (!selectedCampaignId && activeCampaign?.id === campaign.id) ? "border-indigo-500 bg-indigo-500/5" : "border-border hover:bg-muted/50"}`}
                     onClick={() => {
                       setSelectedCampaignId(campaign.id)
-                      fetchCampaignLogs(campaign.id)
+                      setLogsStatusFilter("all")
+                      fetchCampaignLogs(campaign.id, "all")
                     }}
                   >
                     <div className="flex items-center justify-between gap-2">
@@ -1914,47 +1938,76 @@ export function SmsCampaign() {
                 ))}
               </div>
 
-              <div className="lg:col-span-2 border rounded-md overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Phone</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Error</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {logsLoading ? (
+              <div className="lg:col-span-2 space-y-3">
+                {/* Status counts summary */}
+                {selectedCampaignId && (
+                  <div className="grid grid-cols-5 gap-2">
+                    {([
+                      { key: 'all', label: 'All', count: statusCounts.total, color: 'bg-slate-100 text-slate-700 border-slate-200' },
+                      { key: 'sent', label: 'Sent', count: statusCounts.sent, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+                      { key: 'failed', label: 'Failed', count: statusCounts.failed, color: 'bg-red-50 text-red-700 border-red-200' },
+                      { key: 'skipped', label: 'Skipped', count: statusCounts.skipped, color: 'bg-amber-50 text-amber-700 border-amber-200' },
+                      { key: 'queued', label: 'Queued', count: statusCounts.queued, color: 'bg-blue-50 text-blue-700 border-blue-200' },
+                    ] as const).map(({ key, label, count, color }) => (
+                      <button
+                        key={key}
+                        type="button"
+                        className={`rounded-md border px-2 py-1.5 text-center transition-all ${color} ${logsStatusFilter === key ? 'ring-2 ring-offset-1 ring-indigo-400 font-bold' : 'opacity-80 hover:opacity-100'}`}
+                        onClick={() => {
+                          setLogsStatusFilter(key)
+                          if (selectedCampaignId) fetchCampaignLogs(selectedCampaignId, key)
+                        }}
+                      >
+                        <div className="text-lg font-bold leading-tight">{count}</div>
+                        <div className="text-[10px] font-medium">{label}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Logs table */}
+                <div className="border rounded-md overflow-hidden">
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
-                          <Loader2 className="mx-auto h-5 w-5 animate-spin" />
-                        </TableCell>
+                        <TableHead>Phone</TableHead>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Error</TableHead>
                       </TableRow>
-                    ) : campaignLogs.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
-                          Select a campaign to view logs.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      campaignLogs.map((log) => (
-                        <TableRow key={log.id}>
-                          <TableCell className="font-mono text-xs">{log.phone}</TableCell>
-                          <TableCell className="text-xs">{log.name || "-"}</TableCell>
-                          <TableCell>
-                            <Badge variant={log.status === "sent" ? "default" : log.status === "failed" ? "destructive" : "secondary"} className="gap-1">
-                              {log.status === "sent" && <CheckCircle2 className="h-3 w-3" />}
-                              {log.status === "failed" && <XCircle className="h-3 w-3" />}
-                              {log.status}
-                            </Badge>
+                    </TableHeader>
+                    <TableBody>
+                      {logsLoading ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                            <Loader2 className="mx-auto h-5 w-5 animate-spin" />
                           </TableCell>
-                          <TableCell className="max-w-[260px] truncate text-xs text-muted-foreground">{log.errorMessage || "-"}</TableCell>
                         </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
+                      ) : campaignLogs.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                            {selectedCampaignId ? 'No logs found for this filter.' : 'Select a campaign to view logs.'}
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        campaignLogs.map((log) => (
+                          <TableRow key={log.id}>
+                            <TableCell className="font-mono text-xs">{log.phone}</TableCell>
+                            <TableCell className="text-xs">{log.name || "-"}</TableCell>
+                            <TableCell>
+                              <Badge variant={log.status === "sent" ? "default" : log.status === "failed" ? "destructive" : "secondary"} className="gap-1">
+                                {log.status === "sent" && <CheckCircle2 className="h-3 w-3" />}
+                                {log.status === "failed" && <XCircle className="h-3 w-3" />}
+                                {log.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="max-w-[260px] truncate text-xs text-muted-foreground">{log.errorMessage || "-"}</TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
             </div>
           )}
