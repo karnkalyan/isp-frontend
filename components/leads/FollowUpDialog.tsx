@@ -90,6 +90,15 @@ const OUTCOME_OPTIONS = [
     { value: "converted", label: "Converted to Customer" }
 ]
 
+const formatForDateTimeLocal = (dateInput: string | Date) => {
+    if (!dateInput) return ""
+    const d = new Date(dateInput)
+    if (isNaN(d.getTime())) return ""
+    const offset = d.getTimezoneOffset()
+    const localTime = new Date(d.getTime() - offset * 60 * 1000)
+    return localTime.toISOString().slice(0, 16)
+}
+
 export function FollowUpDialog({
     open,
     onOpenChange,
@@ -117,7 +126,7 @@ export function FollowUpDialog({
                 type: followUp.type,
                 title: followUp.title,
                 description: followUp.description || "",
-                scheduledAt: followUp.scheduledAt.split('T')[0],
+                scheduledAt: formatForDateTimeLocal(followUp.scheduledAt),
                 assignedUserId: followUp.assignedUserId,
                 notes: followUp.notes || "",
                 status: followUp.status,
@@ -127,12 +136,13 @@ export function FollowUpDialog({
             // Set default values for new follow-up
             const tomorrow = new Date()
             tomorrow.setDate(tomorrow.getDate() + 1)
+            tomorrow.setHours(10, 0, 0, 0)
 
             setFormData({
                 type: "CALL",
                 title: `Follow-up with ${lead.firstName} ${lead.lastName}`,
                 description: "",
-                scheduledAt: tomorrow.toISOString().split('T')[0],
+                scheduledAt: formatForDateTimeLocal(tomorrow),
                 assignedUserId: lead.assignedUserId || "",
                 notes: "",
                 status: "SCHEDULED",
@@ -166,16 +176,21 @@ export function FollowUpDialog({
         try {
             setLoading(true)
 
+            const payload = {
+                ...formData,
+                scheduledAt: formData.scheduledAt ? new Date(formData.scheduledAt).toISOString() : ""
+            }
+
             if (followUp) {
                 await apiRequest(`/followup/follow-ups/${followUp.id}`, {
                     method: 'PUT',
-                    body: JSON.stringify(formData)
+                    body: JSON.stringify(payload)
                 })
                 toast.success("Follow-up updated successfully")
             } else {
                 await apiRequest(`/followup/leads/${lead.id}/follow-ups`, {
                     method: 'POST',
-                    body: JSON.stringify(formData)
+                    body: JSON.stringify(payload)
                 })
                 toast.success("Follow-up created successfully")
             }

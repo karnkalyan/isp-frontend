@@ -118,6 +118,7 @@ interface Lead {
   secondaryContactNumber?: string
   source?: string
   status: LeadStatus
+  smsSent?: boolean
   notes?: string
   memberShipId?: string
   membership?: {
@@ -621,6 +622,15 @@ const formatDate = (dateString: string) => {
   }
 }
 
+const formatForDateTimeLocal = (dateInput: string | Date) => {
+  if (!dateInput) return "";
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return "";
+  const offset = d.getTimezoneOffset();
+  const localTime = new Date(d.getTime() - offset * 60 * 1000);
+  return localTime.toISOString().slice(0, 16);
+}
+
 const getGenderDisplay = (gender?: Gender) => {
   if (!gender) return "Not specified";
   const genderMap = {
@@ -1093,6 +1103,7 @@ export default function LeadDetailsPage() {
 
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(10, 0, 0, 0);
 
     if (followUp) {
       setEditingFollowUp(followUp);
@@ -1100,7 +1111,7 @@ export default function LeadDetailsPage() {
         type: followUp.type,
         title: followUp.title,
         description: followUp.description || "",
-        scheduledAt: followUp.scheduledAt.split('T')[0],
+        scheduledAt: formatForDateTimeLocal(followUp.scheduledAt),
         assignedUserId: followUp.assignedUserId || "",
         notes: followUp.notes || "",
         status: followUp.status,
@@ -1112,7 +1123,7 @@ export default function LeadDetailsPage() {
         type: "CALL",
         title: `Follow-up with ${lead.firstName} ${lead.lastName}`,
         description: "",
-        scheduledAt: tomorrow.toISOString().split('T')[0],
+        scheduledAt: formatForDateTimeLocal(tomorrow),
         assignedUserId: lead.assignedUserId || "",
         notes: "",
         status: "SCHEDULED",
@@ -1142,9 +1153,14 @@ export default function LeadDetailsPage() {
         ? `/followup/leads/${lead.id}/follow-ups/${editingFollowUp.id}`
         : `/followup/leads/${lead.id}/follow-ups`;
 
+      const payload = {
+        ...followUpForm,
+        scheduledAt: followUpForm.scheduledAt ? new Date(followUpForm.scheduledAt).toISOString() : ""
+      };
+
       await apiRequest(url, {
         method,
-        body: JSON.stringify(followUpForm)
+        body: JSON.stringify(payload)
       });
       toast.success(`Follow-up ${editingFollowUp ? 'updated' : 'created'} successfully`);
       setShowFollowUpDialog(false);
@@ -1607,8 +1623,13 @@ export default function LeadDetailsPage() {
                       Lead ID: {lead.id}
                     </p>
                     <span className="text-gray-400 dark:text-gray-600">•</span>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                    <p className="text-sm text-gray-600 dark:text-gray-400 flex flex-wrap items-center gap-1.5">
                       Created: {formatDate(lead.createdAt)}  {getStatusBadge(lead.status, lead.convertedToCustomer)}
+                      {lead.smsSent && (
+                        <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 whitespace-nowrap text-[10px] py-0.5 px-1.5 font-medium">
+                          SMS Sent
+                        </Badge>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -1922,7 +1943,14 @@ export default function LeadDetailsPage() {
                   <Label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Status
                   </Label>
-                  <div className="mt-1">{getStatusBadge(lead.status, lead.convertedToCustomer)}</div>
+                  <div className="mt-1 flex flex-wrap gap-1 items-center">
+                    {getStatusBadge(lead.status, lead.convertedToCustomer)}
+                    {lead.smsSent && (
+                      <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 whitespace-nowrap text-[10px] py-0.5 px-1.5 font-medium">
+                        SMS Sent
+                      </Badge>
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">

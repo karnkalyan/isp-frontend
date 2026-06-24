@@ -356,8 +356,11 @@ export function FollowUpTracking() {
     const formatDateForInput = (dateString: string) => {
         if (!dateString) return ""
         try {
-            const date = new Date(dateString)
-            return date.toISOString().slice(0, 16)
+            const d = new Date(dateString)
+            if (isNaN(d.getTime())) return ""
+            const offset = d.getTimezoneOffset()
+            const localTime = new Date(d.getTime() - offset * 60 * 1000)
+            return localTime.toISOString().slice(0, 16)
         } catch (error) {
             return ""
         }
@@ -415,6 +418,7 @@ export function FollowUpTracking() {
                 method: 'PUT',
                 body: JSON.stringify({
                     ...editForm,
+                    scheduledAt: editForm.scheduledAt ? new Date(editForm.scheduledAt).toISOString() : "",
                     outcome: editForm.outcome === 'none' ? '' : editForm.outcome,
                     assignedUserId: editForm.assignedUserId === "unassigned" ? null : Number(editForm.assignedUserId)
                 })

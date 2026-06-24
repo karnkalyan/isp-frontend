@@ -168,7 +168,14 @@ export function LeadDetailsDialog({ open, onOpenChange, lead }: LeadDetailsDialo
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="space-y-2">
                             <Label className="text-sm text-muted-foreground">Status</Label>
-                            {getStatusBadge(lead.status, lead.convertedToCustomer)}
+                            <div className="flex flex-wrap gap-1 items-center">
+                                {getStatusBadge(lead.status, lead.convertedToCustomer)}
+                                {lead.smsSent && (
+                                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 whitespace-nowrap text-[10px] py-0.5 px-1.5 font-medium">
+                                        SMS Sent
+                                    </Badge>
+                                )}
+                            </div>
                         </div>
 
                         <div>

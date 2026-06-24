@@ -139,10 +139,17 @@ export function UnqualifiedLeads() {
                                             <div className="font-medium">
                                                 {lead.firstName} {lead.middleName} {lead.lastName}
                                             </div>
-                                            <Badge variant="outline" className="bg-red-500/10 text-red-500 border-red-500/20 mt-1">
-                                                <TrendingDownIcon className="h-3 w-3 mr-1" />
-                                                Unqualified
-                                            </Badge>
+                                            <div className="flex flex-wrap gap-1 items-center mt-1">
+                                                <Badge variant="outline" className="bg-red-500/10 text-red-500 border-red-500/20">
+                                                    <TrendingDownIcon className="h-3 w-3 mr-1" />
+                                                    Unqualified
+                                                </Badge>
+                                                {lead.smsSent && (
+                                                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 whitespace-nowrap text-[10px] py-0.5 px-1.5 font-medium">
+                                                        SMS Sent
+                                                    </Badge>
+                                                )}
+                                            </div>
                                         </TableCell>
                                         <TableCell>
                                             <div className="space-y-1">

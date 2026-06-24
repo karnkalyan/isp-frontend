@@ -140,7 +140,14 @@ export function LeadTable({ leads, onDelete, showActions = true }: LeadTableProp
                                 </Badge>
                             </TableCell>
                             <TableCell>
-                                {getStatusBadge(lead.status, lead.convertedToCustomer)}
+                                <div className="flex flex-wrap gap-1 items-center">
+                                    {getStatusBadge(lead.status, lead.convertedToCustomer)}
+                                    {lead.smsSent && (
+                                        <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 whitespace-nowrap text-[10px] py-0.5 px-1.5 font-medium">
+                                            SMS Sent
+                                        </Badge>
+                                    )}
+                                </div>
                             </TableCell>
                             <TableCell>
                                 {lead.nextFollowUp ? (

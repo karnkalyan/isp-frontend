@@ -135,6 +135,7 @@ interface Lead {
   secondaryContactNumber?: string
   source?: string
   status: LeadStatus
+  smsSent?: boolean
   notes?: string
   memberShipId?: string
   membership?: {
@@ -1453,7 +1454,7 @@ export function LeadManagement() {
         type: followUp.type,
         title: followUp.title,
         description: followUp.description || "",
-        scheduledAt: followUp.scheduledAt.split('T')[0],
+        scheduledAt: formatForDateTimeLocal(followUp.scheduledAt),
         assignedUserId: followUp.assignedUserId,
         notes: followUp.notes || "",
         status: followUp.status,
@@ -1462,12 +1463,13 @@ export function LeadManagement() {
     } else {
       const tomorrow = new Date()
       tomorrow.setDate(tomorrow.getDate() + 1)
+      tomorrow.setHours(10, 0, 0, 0)
 
       setFollowUpForm({
         type: "CALL",
         title: `Follow-up with ${lead.firstName} ${lead.lastName}`,
         description: "",
-        scheduledAt: tomorrow.toISOString().split('T')[0],
+        scheduledAt: formatForDateTimeLocal(tomorrow),
         assignedUserId: lead.assignedUserId || "",
         notes: "",
         status: "SCHEDULED",
@@ -1483,17 +1485,21 @@ export function LeadManagement() {
 
     try {
       setLoading(true)
+      const payload = {
+        ...followUpForm,
+        scheduledAt: followUpForm.scheduledAt ? new Date(followUpForm.scheduledAt).toISOString() : ""
+      }
 
       if (editingFollowUp) {
         await apiRequest(`/followup/follow-ups/${editingFollowUp.id}`, {
           method: 'PUT',
-          body: JSON.stringify(followUpForm)
+          body: JSON.stringify(payload)
         })
         toast.success("Follow-up updated successfully")
       } else {
         await apiRequest(`/followup/leads/${selectedLead.id}/follow-ups`, {
           method: 'POST',
-          body: JSON.stringify(followUpForm)
+          body: JSON.stringify(payload)
         })
         toast.success("Follow-up created successfully")
       }
@@ -1948,6 +1954,15 @@ export function LeadManagement() {
     } catch (error) {
       return "Invalid date"
     }
+  }
+
+  const formatForDateTimeLocal = (dateInput: string | Date) => {
+    if (!dateInput) return ""
+    const d = new Date(dateInput)
+    if (isNaN(d.getTime())) return ""
+    const offset = d.getTimezoneOffset()
+    const localTime = new Date(d.getTime() - offset * 60 * 1000)
+    return localTime.toISOString().slice(0, 16)
   }
 
   const getPackageDisplayName = (pkg: any) => {
@@ -2983,7 +2998,14 @@ export function LeadManagement() {
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center gap-2">
-                                {getStatusBadge(lead.status)}
+                                <div className="flex flex-wrap gap-1 items-center">
+                                  {getStatusBadge(lead.status)}
+                                  {lead.smsSent && (
+                                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 whitespace-nowrap text-[10px] py-0.5 px-1.5 font-medium">
+                                      SMS Sent
+                                    </Badge>
+                                  )}
+                                </div>
                                 <Button
                                   variant="ghost"
                                   size="icon"
@@ -3680,7 +3702,14 @@ export function LeadManagement() {
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <Label className="text-sm text-muted-foreground mb-1 block">Status</Label>
-                          <div className="mt-1">{getStatusBadge(viewLead.status, viewLead.convertedToCustomer)}</div>
+                          <div className="mt-1 flex flex-wrap gap-1 items-center">
+                            {getStatusBadge(viewLead.status, viewLead.convertedToCustomer)}
+                            {viewLead.smsSent && (
+                              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 whitespace-nowrap text-[10px] py-0.5 px-1.5 font-medium">
+                                SMS Sent
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                         <div>
                           <Label className="text-sm text-muted-foreground mb-1 block">Source</Label>

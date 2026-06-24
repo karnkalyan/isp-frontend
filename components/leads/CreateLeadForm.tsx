@@ -1265,7 +1265,7 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                 type: followUp.type,
                 title: followUp.title,
                 description: followUp.description || "",
-                scheduledAt: followUp.scheduledAt.split('T')[0],
+                scheduledAt: formatForDateTimeLocal(followUp.scheduledAt),
                 assignedUserId: followUp.assignedUserId,
                 notes: followUp.notes || "",
                 status: followUp.status,
@@ -1274,12 +1274,13 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
         } else {
             const tomorrow = new Date()
             tomorrow.setDate(tomorrow.getDate() + 1)
+            tomorrow.setHours(10, 0, 0, 0)
 
             setFollowUpForm({
                 type: "CALL",
                 title: `Follow-up with ${formData.firstName} ${formData.lastName}`,
                 description: "",
-                scheduledAt: tomorrow.toISOString().split('T')[0],
+                scheduledAt: formatForDateTimeLocal(tomorrow),
                 assignedUserId: formData.assignedUserId || "",
                 notes: "",
                 status: "SCHEDULED",
@@ -1298,16 +1299,21 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
             setLoading(true)
             const currentLeadId = selectedLead?.id || leadId
 
+            const payload = {
+                ...followUpForm,
+                scheduledAt: followUpForm.scheduledAt ? new Date(followUpForm.scheduledAt).toISOString() : ""
+            }
+
             if (editingFollowUp) {
                 await apiRequest(`/followup/follow-ups/${editingFollowUp.id}`, {
                     method: 'PUT',
-                    body: JSON.stringify(followUpForm)
+                    body: JSON.stringify(payload)
                 })
                 toast.success("Follow-up updated successfully")
             } else if (currentLeadId) {
                 await apiRequest(`/followup/leads/${currentLeadId}/follow-ups`, {
                     method: 'POST',
-                    body: JSON.stringify(followUpForm)
+                    body: JSON.stringify(payload)
                 })
                 toast.success("Follow-up created successfully")
             }
@@ -1437,6 +1443,15 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
         } catch (error) {
             return "Invalid date"
         }
+    }
+
+    const formatForDateTimeLocal = (dateInput: string | Date) => {
+        if (!dateInput) return ""
+        const d = new Date(dateInput)
+        if (isNaN(d.getTime())) return ""
+        const offset = d.getTimezoneOffset()
+        const localTime = new Date(d.getTime() - offset * 60 * 1000)
+        return localTime.toISOString().slice(0, 16)
     }
 
     if (loading && leadId) {
