@@ -171,6 +171,9 @@ interface Lead {
     errorMessage?: string | null
     sentAt: string
     message: string
+    phone?: string
+    name?: string | null
+    recipientType?: string
   }>
   customers?: Array<{
     id: string
@@ -2612,8 +2615,20 @@ export default function LeadDetailsPage() {
                               </div>
                             </div>
 
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+                              <div>
+                                <span className="font-semibold text-gray-700 dark:text-gray-300">Phone:</span> {log.phone || "N/A"}
+                              </div>
+                              <div>
+                                <span className="font-semibold text-gray-700 dark:text-gray-300">Name:</span> {log.name || "Manual"}
+                              </div>
+                              <div>
+                                <span className="font-semibold text-gray-700 dark:text-gray-300">Type:</span> {log.recipientType || "lead"}
+                              </div>
+                            </div>
+
                             <div className="text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-950/40 p-3 rounded-lg border border-gray-100/50 dark:border-gray-800/30 whitespace-pre-wrap font-mono text-xs">
-                              {log.message}
+                              {log.message || "No message body stored for this SMS log."}
                             </div>
 
                             {log.errorMessage && (

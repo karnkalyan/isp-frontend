@@ -1,6 +1,6 @@
 "use client"
 
-import { type FormEvent, useEffect, useState } from "react"
+import { type FormEvent, useCallback, useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { PageHeader } from "@/components/ui/page-header"
@@ -12,14 +12,18 @@ import { SearchableSelect } from "@/components/ui/searchable-select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Switch } from "@/components/ui/switch"
 import { apiRequest } from "@/lib/api"
 import { toast } from "react-hot-toast"
+import { useAuth } from "@/contexts/AuthContext"
 
 type OptionRecord = { id: number; name?: string; packageName?: string; email?: string; packageDuration?: string }
 
 export default function EditCustomerPage() {
   const params = useParams()
   const router = useRouter()
+  const { user } = useAuth()
   const id = String(params.id)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -32,6 +36,50 @@ export default function EditCustomerPage() {
   const [packages, setPackages] = useState<OptionRecord[]>([])
   const [existingISPs, setExistingISPs] = useState<OptionRecord[]>([])
   const [uploadingDocument, setUploadingDocument] = useState(false)
+  const [showSecretModal, setShowSecretModal] = useState(false)
+  const [typedSecretKey, setTypedSecretKey] = useState("")
+  const [systemSecretKey, setSystemSecretKey] = useState("admin123")
+  const [freeCustomerUnlocked, setFreeCustomerUnlocked] = useState(false)
+  const [freeCustomerSecretKey, setFreeCustomerSecretKey] = useState("")
+
+  const roleStr = typeof user?.role === "string" ? user.role : (user?.role?.name || "")
+  const normalizedRole = roleStr.toLowerCase()
+  const isAdmin = normalizedRole === "admin" || normalizedRole === "isp_admin" || normalizedRole === "administrator" || normalizedRole.startsWith("global ")
+
+  const setField = (field: string, value: any) => setForm((prev: any) => ({ ...prev, [field]: value }))
+
+  const handleVerifySecretKey = useCallback(() => {
+    if (typedSecretKey === systemSecretKey) {
+      setFreeCustomerSecretKey(typedSecretKey)
+      setFreeCustomerUnlocked(true)
+      setField("isFree", true)
+      setShowSecretModal(false)
+      toast.success("Free Customer feature unlocked!")
+    } else {
+      toast.error("Invalid verification key.")
+    }
+  }, [typedSecretKey, systemSecretKey])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey && (e.key === "z" || e.key === "Z")) ||
+        (e.ctrlKey && e.altKey && (e.key === "f" || e.key === "F"))) {
+        e.preventDefault()
+        if (isAdmin) setShowSecretModal(true)
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [isAdmin])
+
+  useEffect(() => {
+    if (!isAdmin) return
+    apiRequest<Record<string, string>>("/settings")
+      .then((data) => {
+        if (data?.freeCustomerSecretKey) setSystemSecretKey(data.freeCustomerSecretKey)
+      })
+      .catch((err) => console.warn("Failed to load settings secret key:", err))
+  }, [isAdmin])
 
   useEffect(() => {
     async function load() {
@@ -66,7 +114,9 @@ export default function EditCustomerPage() {
           installedById: customerData.installedById ? String(customerData.installedById) : "",
           subscribedPkgId: customerData.subscribedPkgId ? String(customerData.subscribedPkgId) : "",
           existingISPId: customerData.existingISPId ? String(customerData.existingISPId) : "",
+          isFree: Boolean(customerData.isFree),
         })
+        setFreeCustomerUnlocked(Boolean(customerData.isFree))
         setCustomerTypes(Array.isArray(typeData) ? typeData : typeData?.data || [])
         setMemberships(Array.isArray(membershipData) ? membershipData : membershipData?.data || [])
         setUsers(Array.isArray(userData) ? userData : userData?.data || [])
@@ -81,8 +131,6 @@ export default function EditCustomerPage() {
     load()
   }, [id])
 
-  const setField = (field: string, value: string) => setForm((prev: any) => ({ ...prev, [field]: value }))
-
   const save = async (event: FormEvent) => {
     event.preventDefault()
     if (!form.customerTypeId) {
@@ -93,7 +141,10 @@ export default function EditCustomerPage() {
     try {
       const response = await apiRequest(`/customer/${id}`, {
         method: "PUT",
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          ...(form.isFree ? { freeCustomerSecretKey } : {})
+        }),
       })
       setCustomer(response.customer)
       toast.success("Customer updated successfully")
@@ -144,6 +195,40 @@ export default function EditCustomerPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        <Dialog open={showSecretModal} onOpenChange={setShowSecretModal}>
+          <DialogContent className="w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Unlock Free Customer Option</DialogTitle>
+              <DialogDescription>
+                Enter the secret verification key to enable the "Free Customer" pricing override feature.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="editSecretKeyInput">Secret Verification Key *</Label>
+                <Input
+                  id="editSecretKeyInput"
+                  type="password"
+                  placeholder="Enter secret key"
+                  value={typedSecretKey}
+                  onChange={(e) => setTypedSecretKey(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleVerifySecretKey()
+                  }}
+                />
+              </div>
+            </div>
+            <DialogFooter className="sm:justify-end gap-2">
+              <Button variant="outline" type="button" onClick={() => setShowSecretModal(false)}>
+                Cancel
+              </Button>
+              <Button type="button" onClick={handleVerifySecretKey} className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-650 hover:to-indigo-700 text-white">
+                Verify & Unlock
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         <PageHeader
           title="Edit Customer"
           description="Update profile, package, and onboarding details"
@@ -237,6 +322,33 @@ export default function EditCustomerPage() {
                     />
                   </div>
                 </div>
+
+                {isAdmin && freeCustomerUnlocked && (
+                  <div className="space-y-4 rounded-lg border border-purple-100 bg-purple-50/50 p-4 dark:border-purple-900/30 dark:bg-purple-900/10">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="space-y-0.5">
+                        <Label className="font-medium text-purple-800 dark:text-purple-400">Free Customer</Label>
+                        <p className="text-xs text-muted-foreground">Enable this to override package and recharge amounts to 0.</p>
+                      </div>
+                      <Switch
+                        checked={Boolean(form.isFree)}
+                        onCheckedChange={(checked) => setField("isFree", checked)}
+                      />
+                    </div>
+                    {form.isFree && (
+                      <div className="space-y-2">
+                        <Label htmlFor="editFreeCustomerSecretKey">Secret Verification Key *</Label>
+                        <Input
+                          id="editFreeCustomerSecretKey"
+                          type="password"
+                          placeholder="Enter secret verification key"
+                          value={freeCustomerSecretKey}
+                          onChange={(e) => setFreeCustomerSecretKey(e.target.value)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="flex justify-end gap-2">
                   <Button type="button" variant="outline" onClick={() => router.push(`/customers/${id}`)}>Cancel</Button>

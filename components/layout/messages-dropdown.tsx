@@ -17,6 +17,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { apiRequest } from "@/lib/api"
+import { useAuth } from "@/contexts/AuthContext"
+import { useWebSocket } from "@/contexts/WebSocketContext"
 
 interface MessagesDropdownProps {
   className?: string
@@ -25,6 +27,8 @@ interface MessagesDropdownProps {
 export function MessagesDropdown({ className }: MessagesDropdownProps) {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<any[]>([])
+  const { user } = useAuth()
+  const { on } = useWebSocket()
   const { resolvedTheme } = useTheme()
   const isDarkMode = resolvedTheme === "dark"
 
@@ -56,20 +60,26 @@ export function MessagesDropdown({ className }: MessagesDropdownProps) {
     return () => window.removeEventListener("messages-updated", handleUpdate)
   }, [])
 
-  const unreadCount = messages.filter((msg) => !msg.isRead).length
+  const myId = Number(user?.id || 0)
+  const incomingMessages = messages.filter((msg) => !myId || msg.receiverId === myId)
+  const unreadCount = incomingMessages.filter((msg) => !msg.isRead).length
 
   const markAllAsRead = async () => {
-      const hasUnread = messages.some((msg) => !msg.isRead)
+      const hasUnread = incomingMessages.some((msg) => !msg.isRead)
       if (!hasUnread) return
       try {
           await apiRequest("/messages/read-all", { method: "PUT", suppressToast: true })
-          setMessages((prev) => prev.map((msg) => ({ ...msg, isRead: true })))
+          setMessages((prev) => prev.map((msg) => (
+            !myId || msg.receiverId === myId ? { ...msg, isRead: true } : msg
+          )))
       } catch (e) {
           console.error(e)
       }
   }
 
   const markOneAsRead = async (id: number | string) => {
+      const target = messages.find((msg) => msg.id === id)
+      if (myId && target?.receiverId !== myId) return
       setMessages((prev) => prev.map((msg) => msg.id === id ? { ...msg, isRead: true } : msg))
       try {
           await apiRequest(`/messages/${id}/read`, { method: "PUT", suppressToast: true })
@@ -77,6 +87,17 @@ export function MessagesDropdown({ className }: MessagesDropdownProps) {
           console.error(e)
       }
   }
+
+  useEffect(() => {
+    const unsubscribe = on("chat.message", (message: any) => {
+      setMessages((prev) => {
+        const exists = prev.some((item) => item.id === message.id)
+        const next = exists ? prev.map((item) => item.id === message.id ? message : item) : [message, ...prev]
+        return next.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      })
+    })
+    return unsubscribe
+  }, [on])
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -118,9 +139,9 @@ export function MessagesDropdown({ className }: MessagesDropdownProps) {
           </Button>
         </DropdownMenuLabel>
         <DropdownMenuGroup className="max-h-[300px] overflow-auto py-1">
-          {messages.length === 0 ? (
+          {incomingMessages.length === 0 ? (
               <div className="p-4 text-center text-sm text-muted-foreground">No messages</div>
-          ) : messages.slice(0, 5).map((message) => (
+          ) : incomingMessages.slice(0, 5).map((message) => (
             <DropdownMenuItem key={message.id} className="focus:bg-transparent" onSelect={() => markOneAsRead(message.id)}>
               <div
                 className={cn(

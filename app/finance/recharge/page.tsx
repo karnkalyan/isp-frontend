@@ -85,6 +85,13 @@ export default function RechargePage() {
     return pkg.initialTotalWithTax ?? pkg.price ?? 0
   }
 
+  const getPackageOptionLabel = (pkg: any) => {
+    const planName = pkg.packagePlanDetails?.planName || "Package"
+    const duration = pkg.packageDuration ? ` (${pkg.packageDuration})` : ""
+    if (selectedCustomer?.isFree) return `${planName} - Free / 0 NPR${duration}`
+    return `${planName} - ${getRechargeAmount(pkg)} NPR${duration}`
+  }
+
   const handleRecharge = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedCustomer) {
@@ -211,7 +218,7 @@ export default function RechargePage() {
                       <SelectContent className="bg-slate-900 border-slate-800 text-white">
                         {packages.filter((pkg) => !pkg.isTrial).map((pkg) => (
                           <SelectItem key={pkg.id} value={String(pkg.id)}>
-                            {pkg.packagePlanDetails?.planName || "Package"} - {getRechargeAmount(pkg)} NPR ({pkg.packageDuration})
+                            {getPackageOptionLabel(pkg)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -240,7 +247,11 @@ export default function RechargePage() {
                         className="bg-slate-950 border-slate-800 text-slate-400 font-semibold"
                       />
                       <p className="text-[10px] text-slate-500">
-                        {selectedCustomer?.isRechargeable ? "Renewal amount for this package." : "New package amount for first payment."}
+                        {selectedCustomer?.isFree
+                          ? "Free customer recharge. Package amount is waived and recorded as 0 NPR."
+                          : selectedCustomer?.isRechargeable
+                            ? "Renewal amount for this package."
+                            : "New package amount for first payment."}
                       </p>
                     </div>
                   </div>

@@ -18,6 +18,7 @@ export type WebSocketEvent =
   | "data.updated"
   | "system.status"
   | "system.notification"
+  | "chat.message"
   | "yeastar.service.available";
 
 export interface WebSocketMessage {

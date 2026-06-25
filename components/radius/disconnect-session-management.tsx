@@ -100,6 +100,7 @@ export function DisconnectSessionManagement() {
   const [loading, setLoading] = useState(false)
   const [disconnecting, setDisconnecting] = useState(false)
   const [rawRecipients, setRawRecipients] = useState<any[]>([])
+  const [activeSessionByUsername, setActiveSessionByUsername] = useState<Record<string, any>>({})
   
   const [selectedRecipients, setSelectedRecipients] = useState<any[]>([])
   const [targetingScope, setTargetingScope] = useState<"all" | "select">("all")
@@ -526,13 +527,13 @@ export function DisconnectSessionManagement() {
           customerName: customer.name,
           phone: customer.phone,
           packageName: customer.packageName,
-          pool: customer.subscribedPkg?.packagePlanDetails?.framedPoolValue || customer.customerSubscriptions?.[0]?.packagePrice?.packagePlanDetails?.framedPoolValue || "N/A",
+          session: activeSessionByUsername[String(cu.username || "").toLowerCase()],
           status: customer.status
         })
       })
     })
     return list
-  }, [filteredRecipients])
+  }, [filteredRecipients, activeSessionByUsername])
 
   // Hierarchy derivation: Head Office (parentId null) -> Branches -> Sub-Branches
   const headOffices = useMemo(() => allBranchData.filter(b => b.parentId === null || !b.parent?.id), [allBranchData])
@@ -651,6 +652,18 @@ export function DisconnectSessionManagement() {
       }
 
       const res = await apiRequest<any>(`${endpoint}?${params.toString()}`)
+      const sessionsRes = await apiRequest<any>("/customer/sessions?limit=10000").catch(() => null)
+      const sessionRows = Array.isArray(sessionsRes)
+        ? sessionsRes
+        : (sessionsRes?.sessions || sessionsRes?.data?.sessions || sessionsRes?.data || [])
+      const sessionMap: Record<string, any> = {}
+      if (Array.isArray(sessionRows)) {
+        sessionRows.forEach((session: any) => {
+          const key = String(session.username || session.userName || session.user_name || "").toLowerCase()
+          if (key) sessionMap[key] = session
+        })
+      }
+      setActiveSessionByUsername(sessionMap)
       const raw = Array.isArray(res) ? res : (res?.data || [])
 
       // Filter locally so Head Office selection includes every nested branch below it.
@@ -686,7 +699,7 @@ export function DisconnectSessionManagement() {
         fullAddress: c.fullAddress || c.address || "",
         packageName: c.subscribedPkg?.packageName || c.packagePrice?.packageName || "",
         membershipName: c.membership?.name || "",
-        connectionUsers: c.connectionUsers || [],
+        connectionUsers: (c.connectionUsers || []).filter((cu: any) => sessionMap[String(cu.username || "").toLowerCase()]),
         subscribedPkg: c.subscribedPkg,
         customerSubscriptions: c.customerSubscriptions
       }))
@@ -748,7 +761,7 @@ export function DisconnectSessionManagement() {
               customerName: customer.name,
               phone: customer.phone,
               packageName: customer.packageName,
-              pool: customer.subscribedPkg?.packagePlanDetails?.framedPoolValue || customer.customerSubscriptions?.[0]?.packagePrice?.packagePlanDetails?.framedPoolValue || "N/A",
+              session: activeSessionByUsername[String(cu.username || "").toLowerCase()],
               status: customer.status
             })
           })
@@ -771,7 +784,7 @@ export function DisconnectSessionManagement() {
     }, 400)
 
     return () => clearTimeout(delayDebounceFn)
-  }, [searchQuery, targetingScope, rawRecipients])
+  }, [searchQuery, targetingScope, rawRecipients, activeSessionByUsername])
 
   const updateFilter = (key: string, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }))
@@ -1447,7 +1460,7 @@ export function DisconnectSessionManagement() {
                         >
                           <div className="flex flex-col">
                             <span className="text-xs font-medium">{rec.username} ({rec.customerName})</span>
-                            <span className="text-[10px] text-muted-foreground">{rec.packageName} • {rec.pool}</span>
+                            <span className="text-[10px] text-muted-foreground">{rec.packageName} • Active session</span>
                           </div>
                           {isAlreadySelected ? (
                             <Badge variant="secondary" className="text-[9px] px-1.5 py-0">Added</Badge>
@@ -1545,22 +1558,21 @@ export function DisconnectSessionManagement() {
                       <TableHead className="w-[150px]">RADIUS Account</TableHead>
                       <TableHead>Customer</TableHead>
                       <TableHead>Plan (Package)</TableHead>
-                      <TableHead>Pool</TableHead>
                       <TableHead className="w-[80px]">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {loading ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
+                        <TableCell colSpan={4} className="h-32 text-center text-muted-foreground">
                           <Loader2 className="mx-auto h-5 w-5 animate-spin" />
                           <span className="text-xs mt-1 block">Loading connection users...</span>
                         </TableCell>
                       </TableRow>
                     ) : connectionUserList.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="h-32 text-center text-muted-foreground italic">
-                          No matching connection users found. Change the filter criteria.
+                        <TableCell colSpan={4} className="h-32 text-center text-muted-foreground italic">
+                          No matching active RADIUS sessions found. Change the filter criteria.
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -1569,7 +1581,6 @@ export function DisconnectSessionManagement() {
                           <TableCell className="font-mono text-xs font-semibold text-foreground">{user.username}</TableCell>
                           <TableCell className="text-xs">{user.customerName}</TableCell>
                           <TableCell className="text-xs">{user.packageName}</TableCell>
-                          <TableCell className="text-xs font-mono">{user.pool}</TableCell>
                           <TableCell>
                             <Badge variant={user.status === "active" ? "default" : "secondary"} className="text-[10px] px-1.5 py-0">
                               {user.status}

@@ -30,6 +30,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { useAuth } from "@/contexts/AuthContext"
+import { useWebSocket } from "@/contexts/WebSocketContext"
 
 interface Message {
   id: number
@@ -44,6 +45,7 @@ interface Message {
 
 export default function MessagesPage() {
   const { user: authUser } = useAuth()
+  const { on } = useWebSocket()
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
   const [content, setContent] = useState("")
@@ -137,6 +139,18 @@ export default function MessagesPage() {
       fetchTeamMembers()
     }
   }, [newChatOpen, myId])
+
+  useEffect(() => {
+    const unsubscribe = on("chat.message", (message: Message) => {
+      setMessages(prev => {
+        const exists = prev.some(item => item.id === message.id)
+        const next = exists ? prev.map(item => item.id === message.id ? message : item) : [message, ...prev]
+        return next.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      })
+      window.dispatchEvent(new CustomEvent("messages-updated"))
+    })
+    return unsubscribe
+  }, [on])
 
   // Mark messages as read when a conversation is selected
   useEffect(() => {
