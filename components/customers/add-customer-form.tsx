@@ -304,6 +304,7 @@ interface Package {
   referenceId: string
   packagePlanDetails?: {
     planName: string
+    planCode?: string
     deviceLimit: number
   }
 }
@@ -1243,7 +1244,7 @@ export function AddCustomerForm() {
   })
 
   const [serviceDetails, setServiceDetails] = useState({
-    connectionType: "fiber", // fiber, wireless
+    connectionType: "fiber", // fiber, wireless, infra_share
     subscribedPkgId: "",
   })
 
@@ -1762,6 +1763,20 @@ export function AddCustomerForm() {
 
   const handleServiceChange = useCallback((field: string, value: string) => {
     setServiceDetails((prev) => ({ ...prev, [field]: value }))
+    if (field === "connectionType" && value !== "fiber") {
+      setProvisionDetails((prev) => ({
+        ...prev,
+        oltId: "",
+        splitterId: "",
+        oltPort: "",
+        splitterPort: "",
+        selectedVlanIds: [],
+        selectedProfileIds: [],
+      }))
+      setSelectedDiscoveredOnt(null)
+      setMatchedDeviceForOnt(null)
+      setAutoFindError(null)
+    }
   }, [])
 
   const handleProvisionChange = useCallback((field: string, value: string | boolean | string[]) => {
@@ -2113,10 +2128,13 @@ export function AddCustomerForm() {
     }
   }, [serviceDetails.connectionType, provisionDetails, matchedDeviceForOnt, selectedDiscoveredOnt, findUltimateOltForSplitter, getSplitterPath, splitters, olts, formValues, getOntSerialForRegistration])
 
-  // Helper to get package name by ID
-  const getPackageNameById = useCallback((pkgId: string): string => {
+  const isFiber = serviceDetails.connectionType === "fiber"
+  const isInfraShare = serviceDetails.connectionType === "infra_share"
+
+  // Helper to get Radius group by package ID. Radius groups are keyed by plan code.
+  const getRadiusGroupByPackageId = useCallback((pkgId: string): string => {
     const pkg = packages.find(p => p.id.toString() === pkgId)
-    return pkg ? pkg.packagePlanDetails?.planName : `pkg_${pkgId}`
+    return pkg ? (pkg.packagePlanDetails?.planCode || pkg.referenceId || pkg.packageName) : `pkg_${pkgId}`
   }, [packages])
 
   // Validation
@@ -2140,7 +2158,7 @@ export function AddCustomerForm() {
     }
 
     // Draft save is allowed without a matched ONT. Provisioning remains strict.
-    if (serviceDetails.connectionType === "fiber" && selectedDiscoveredOnt && !matchedDeviceForOnt) {
+    if (isFiber && selectedDiscoveredOnt && !matchedDeviceForOnt) {
       newErrors.ont = "Autofound ONT and selected device are not matched. Save as draft and update the device before provisioning."
     }
 
@@ -2155,7 +2173,7 @@ export function AddCustomerForm() {
 
     setErrors(newErrors)
     return isValid
-  }, [selectedLead, serviceDetails.connectionType, serviceDetails.subscribedPkgId, referenceDetails.customerTypeId, provisionDetails.splitterId, selectedDiscoveredOnt, matchedDeviceForOnt, wirelessCredentials])
+  }, [selectedLead, isFiber, serviceDetails.connectionType, serviceDetails.subscribedPkgId, referenceDetails.customerTypeId, provisionDetails.splitterId, selectedDiscoveredOnt, matchedDeviceForOnt, wirelessCredentials])
 
   const handleTabChange = useCallback((newTab: string) => {
     setActiveTab(newTab)
@@ -2269,7 +2287,7 @@ export function AddCustomerForm() {
 
     try {
       // Step 1: Register ONT on OLT (if fiber)
-      if (serviceDetails.connectionType === "fiber") {
+      if (isFiber) {
         const ontRegistered = await registerOntOnOlt()
         if (!ontRegistered) {
           setIsProvisioning(false)
@@ -2331,8 +2349,7 @@ export function AddCustomerForm() {
           }).replace(/,/g, '').replace(/ /g, ' ')
           : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(/,/g, '').replace(/ /g, ' ')
 
-        // Get package name for group
-        const packageName = getPackageNameById(serviceDetails.subscribedPkgId)
+        const radiusGroupName = getRadiusGroupByPackageId(serviceDetails.subscribedPkgId)
 
         servicesPayload.push({
           service: "RADIUS",
@@ -2342,7 +2359,7 @@ export function AddCustomerForm() {
             attributes: {
               Expiration: expiryDate,
             },
-            groups: [packageName], // use actual package name, not pkg_id
+            groups: [radiusGroupName],
           }
         })
       }
@@ -2392,7 +2409,7 @@ export function AddCustomerForm() {
     } finally {
       setIsProvisioning(false)
     }
-  }, [createdCustomer, serviceDetails.connectionType, registerOntOnOlt, selectedAddonServices, formValues, wirelessCredentials, provisionResult, getPackageNameById, nettvData])
+  }, [createdCustomer, isFiber, serviceDetails.connectionType, registerOntOnOlt, selectedAddonServices, formValues, wirelessCredentials, provisionResult, getRadiusGroupByPackageId, nettvData])
 
   // Retry failed services
   const handleRetryService = useCallback(async (service: string) => {
@@ -3586,7 +3603,7 @@ export function AddCustomerForm() {
                     <RadioGroup
                       value={serviceDetails.connectionType}
                       onValueChange={(value) => handleServiceChange("connectionType", value)}
-                      className="grid grid-cols-1 md:grid-cols-2 gap-4"
+                      className="grid grid-cols-1 md:grid-cols-3 gap-4"
                     >
                       <div className="flex items-center space-x-2 rounded-lg border p-4 cursor-pointer hover:bg-accent">
                         <RadioGroupItem value="fiber" id="fiber" />
@@ -3600,6 +3617,13 @@ export function AddCustomerForm() {
                         <Label htmlFor="wireless" className="flex items-center cursor-pointer">
                           <Wifi className="mr-2 h-5 w-5" />
                           Wireless
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2 rounded-lg border p-4 cursor-pointer hover:bg-accent">
+                        <RadioGroupItem value="infra_share" id="infra_share" />
+                        <Label htmlFor="infra_share" className="flex items-center cursor-pointer">
+                          <Router className="mr-2 h-5 w-5" />
+                          Infra Share
                         </Label>
                       </div>
                     </RadioGroup>
@@ -3617,7 +3641,7 @@ export function AddCustomerForm() {
                             description: `${pkg.packageDuration} - Rs. ${pkg.price}`,
                           }))}
                         value={serviceDetails.subscribedPkgId}
-                        onValueChange={(value) => handleServiceChange("subscribedPkgId", value)}
+                        onValueChange={(value) => handleServiceChange("subscribedPkgId", Array.isArray(value) ? value[0] || "" : value)}
                         placeholder={loading.packages ? "Loading packages..." : "Select subscribed package"}
                         disabled={loading.packages}
                       />
@@ -3671,22 +3695,26 @@ export function AddCustomerForm() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Cpu className="h-5 w-5" />
-                    {serviceDetails.connectionType === "fiber"
+                    {isFiber
                       ? "Fiber Network Provisioning"
-                      : "Wireless Provisioning"}
+                      : isInfraShare
+                        ? "Infra Share Provisioning"
+                        : "Wireless Provisioning"}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <Alert>
                     <AlertDescription>
-                      {serviceDetails.connectionType === "fiber"
+                      {isFiber
                         ? "Configure splitter, OLT, VLANs, and add devices. Use Autofind to discover and match ONT."
+                        : isInfraShare
+                          ? "Configure subscriber credentials and device access. Infra Share skips OLT and splitter provisioning."
                         : "Configure wireless settings and add credentials."}
                     </AlertDescription>
                   </Alert>
 
                   {/* Fiber-specific fields */}
-                  {serviceDetails.connectionType === "fiber" && (
+                  {isFiber && (
                     <>
                       {/* Connection Method */}
                       <div className="space-y-4">
@@ -3733,21 +3761,21 @@ export function AddCustomerForm() {
                               }))}
                             value={provisionDetails.splitterId}
                             onValueChange={(value) => {
-                              const selectedSplitter = splitters.find(s => s.id.toString() === value)
+                              const selectedValue = Array.isArray(value) ? value[0] || "" : value
+                              const selectedSplitter = splitters.find(s => s.id.toString() === selectedValue)
                               if (selectedSplitter) {
-                                const ultimateOlt = findUltimateOltForSplitter(value)
+                                const ultimateOlt = findUltimateOltForSplitter(selectedValue)
                                 setProvisionDetails((prev) => ({
                                   ...prev,
-                                  splitterId: value,
+                                  splitterId: selectedValue,
                                   oltId: ultimateOlt ? ultimateOlt.id.toString() : '',
                                 }))
                               } else {
-                                setProvisionDetails((prev) => ({ ...prev, splitterId: value }))
+                                setProvisionDetails((prev) => ({ ...prev, splitterId: selectedValue }))
                               }
                             }}
                             placeholder={loading.splitters ? "Loading splitters..." : "Select splitter with available ports"}
                             disabled={loading.splitters}
-                            searchable
                           />
                         </div>
                       )}

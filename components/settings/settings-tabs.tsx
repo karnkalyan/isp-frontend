@@ -9,7 +9,8 @@ import { PaymentMethodsSettings } from "@/components/settings/payment-methods-se
 import { ServiceAreasSettings } from "@/components/settings/service-areas-settings"
 import { PackageCreationSettings } from "@/components/settings/package-creation-settings"
 import { ServicesSyncSettings } from "@/components/settings/services-sync-settings"
-import { Building, Globe, MapPin, Calendar, Settings as SettingsIcon, PlusCircle, RefreshCw } from "lucide-react"
+import { RadiusPoolsSettings } from "@/components/settings/radius-pools-settings"
+import { Building, Globe, MapPin, Calendar, PlusCircle, RefreshCw, Database } from "lucide-react"
 import { CardContainer } from "@/components/ui/card-container"
 
 export function SettingsTabs() {
@@ -52,6 +53,13 @@ export function SettingsTabs() {
         >
           <Calendar className="h-4 w-4" />
          Package Addon Charges
+        </TabsTrigger>
+        <TabsTrigger
+          value="radius-pools"
+          className="flex items-center gap-2 rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-primary data-[state=active]:bg-transparent"
+        >
+          <Database className="h-4 w-4" />
+          RADIUS Pools
         </TabsTrigger>
         <TabsTrigger
           value="services-sync"
@@ -109,6 +117,15 @@ export function SettingsTabs() {
           gradientColor="#10b981"
         >
           <ExtraChargesSettings  />
+        </CardContainer>
+      </TabsContent>
+      <TabsContent value="radius-pools" className="mt-6">
+        <CardContainer
+          title="RADIUS Pool Management"
+          description="Create Framed-Pool values and assign them to Internet Plans"
+          gradientColor="#0ea5e9"
+        >
+          <RadiusPoolsSettings />
         </CardContainer>
       </TabsContent>
       <TabsContent value="services-sync" className="mt-6">

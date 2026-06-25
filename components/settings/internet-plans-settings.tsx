@@ -64,6 +64,13 @@ type BranchItem = {
   code: string
 }
 
+type RadiusPool = {
+  name: string
+  value: string
+  description?: string
+  isActive?: boolean
+}
+
 const NAS_TYPES = ["cisco", "juniper", "mikrotik", "nokia"]
 const PACKAGE_TYPES = ["HOME", "BUSINESS", "CORPORATE", "ENTERPRISE", "STUDENT", "TRIAL"]
 const OP_OPTIONS = [":=", "=", "==", "+=", "!=", ">", ">=", "<", "<=", "=~", "!~", "=*", "!*"]
@@ -112,6 +119,7 @@ export function InternetPlansSettings() {
   const [ispTypes, setIspTypes] = useState<ISPType[]>([])
   const [internetPlans, setInternetPlans] = useState<InternetPlan[]>([])
   const [branches, setBranches] = useState<BranchItem[]>([])
+  const [radiusPools, setRadiusPools] = useState<RadiusPool[]>([])
   const [ispInfo, setIspInfo] = useState<{ id: number; companyName: string } | null>(null)
   const [isAdding, setIsAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -170,6 +178,19 @@ export function InternetPlansSettings() {
       }
     }
     loadIsp()
+  }, [])
+
+  useEffect(() => {
+    async function loadPools() {
+      try {
+        const response = await apiRequest<{ success: boolean; data: RadiusPool[] }>("/settings/radius-pools")
+        setRadiusPools(Array.isArray(response?.data) ? response.data.filter(pool => pool.isActive !== false) : [])
+      } catch (err) {
+        console.error("Failed to load RADIUS pools", err)
+        setRadiusPools([])
+      }
+    }
+    loadPools()
   }, [])
 
   const ISP_TYPE_OPTIONS: Option[] = ispTypes.map((t) => ({
@@ -340,6 +361,12 @@ export function InternetPlansSettings() {
       value: plan.id,
       label: `${plan.name} (${plan.downloadSpeed}/${plan.uploadSpeed} Mbps)`,
     }))
+
+  const framedPoolOptions: Option[] = radiusPools.map((pool) => ({
+    value: pool.value,
+    label: `${pool.name || pool.value} (${pool.value})`,
+    description: pool.description,
+  }))
 
   // NAS Type checkbox toggle
   const toggleNasType = (type: string) => {
@@ -765,12 +792,13 @@ export function InternetPlansSettings() {
             {newPlan.applyFramedPool && (
               <div className="space-y-2">
                 <Label htmlFor="framedPoolValue">Framed Pool Value</Label>
-                <Input
-                  id="framedPoolValue"
+                <SearchableSelect
+                  options={framedPoolOptions}
                   value={newPlan.framedPoolValue}
-                  onChange={(e) => setNewPlan({ ...newPlan, framedPoolValue: e.target.value })}
-                  placeholder="e.g., main-pool"
+                  onValueChange={(v) => setNewPlan({ ...newPlan, framedPoolValue: Array.isArray(v) ? v[0] || "" : v })}
+                  placeholder={framedPoolOptions.length > 0 ? "Choose framed pool" : "Create pools in RADIUS Pools settings"}
                 />
+                <p className="text-xs text-muted-foreground">Saved value is the pool value string, not an internal ID.</p>
               </div>
             )}
           </div>

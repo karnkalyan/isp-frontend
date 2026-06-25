@@ -203,6 +203,7 @@ const menuCategories: MenuCategory[] = [
         submenu: [
           { title: "NAS Servers", href: "/nas", permission: "nas_read" },
           { title: "Add NAS", href: "/nas/new", permission: "nas_create" },
+          { title: "Disconnect Sessions", href: "/radius/disconnect", permission: "customer_update" },
         ],
       },
     ],
