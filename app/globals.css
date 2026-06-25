@@ -970,7 +970,7 @@ html.dark [data-radix-popper-content-wrapper] {
 
 .printable-invoice {
   width: 100%;
-  max-width: 750px;
+  max-width: 1080px;
   min-height: 720px;
   font-family: Arial, Helvetica, sans-serif;
   margin: 0 auto;
@@ -979,8 +979,13 @@ html.dark [data-radix-popper-content-wrapper] {
 
 @media print {
   @page {
-    size: A4 portrait;
-    margin: 10mm;
+    size: A4 landscape;
+    margin: 6mm;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   /* Hide close button and dialog headers */
@@ -997,19 +1002,37 @@ html.dark [data-radix-popper-content-wrapper] {
     visibility: hidden !important;
   }
 
-  html, body, #__next, [role="dialog"], div[role="dialog"] {
+  html,
+  body {
     background: white !important;
     color: black !important;
     overflow: visible !important;
-    height: auto !important;
-    min-height: auto !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
     max-height: none !important;
-    position: static !important;
-    width: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  #__next,
+  [role="dialog"],
+  div[role="dialog"],
+  [data-radix-portal],
+  [data-radix-dialog-content],
+  [data-state="open"] {
+    background: transparent !important;
+    overflow: visible !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    transform: none !important;
+    translate: none !important;
     box-shadow: none !important;
     border: none !important;
     padding: 0 !important;
     margin: 0 !important;
+    inset: auto !important;
   }
 
   #printable-invoice,
@@ -1018,15 +1041,46 @@ html.dark [data-radix-popper-content-wrapper] {
   }
 
   #printable-invoice {
-    position: absolute !important;
+    position: fixed !important;
     left: 0 !important;
     top: 0 !important;
-    width: 100% !important;
+    right: auto !important;
+    bottom: auto !important;
+    width: 285mm !important;
     max-width: 100% !important;
+    height: auto !important;
     min-height: auto !important;
     margin: 0 !important;
     padding: 0 !important;
     box-shadow: none !important;
     border: none !important;
+    overflow: visible !important;
+    page-break-before: avoid !important;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  #printable-invoice .relative.border-2 {
+    min-height: 185mm !important;
+    padding: 4mm !important;
+  }
+
+  #printable-invoice table {
+    width: 100% !important;
+    table-layout: fixed !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  #printable-invoice th,
+  #printable-invoice td {
+    overflow-wrap: anywhere !important;
+    word-break: normal !important;
+  }
+
+  #printable-invoice tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 }

@@ -393,6 +393,7 @@ interface Customer {
   firstName: string
   lastName: string
   middleName: string | null
+  profilePicture?: string | null
   email: string
   phoneNumber: string
   secondaryPhone?: string
@@ -465,6 +466,7 @@ interface Customer {
     id: number
     email: string
     name: string | null
+    profilePicture?: string | null
     status: string
     createdAt: string
     updatedAt: string
@@ -1902,7 +1904,9 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       toast.success(`Calling ${phoneNumber}`)
     } catch (error: any) {
       const message = String(error?.message || "")
-      toast.error(/yeastar|yeaster|asterisk|voip|configured|enabled/i.test(message) ? undefined : message)
+      if (message && !/yeastar|yeaster|asterisk|voip|configured|enabled/i.test(message)) {
+        toast.error(message)
+      }
     }
   }
 
@@ -2219,6 +2223,20 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
 
   useEffect(() => {
     if (customer?.customerUniqueId) {
+      const nettvIsProvisioned = Boolean(customer.subscribedApps?.some((app) => {
+        const serviceCode = String(app.service?.code || "").toUpperCase()
+        const serviceName = String(app.service?.name || "").toUpperCase()
+        const status = String(app.status || "").toLowerCase()
+        return status === "active" && (serviceCode === "NETTV" || serviceName.includes("NETTV"))
+      }))
+
+      if (!nettvIsProvisioned) {
+        setNettvDetails(null)
+        setNettvMessage("NetTV is not provisioned for this customer.")
+        setLoadingNettv(false)
+        return
+      }
+
       const fetchNettv = async () => {
         setLoadingNettv(true)
         try {
@@ -2239,7 +2257,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       }
       fetchNettv()
     }
-  }, [customer?.customerUniqueId])
+  }, [customer?.customerUniqueId, customer?.subscribedApps])
 
   const toggleSetting = (setting: keyof typeof networkSettings) => {
     setNetworkSettings((prev) => ({ ...prev, [setting]: !prev[setting] }))
@@ -2655,6 +2673,22 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     return `${customer.firstName} ${customer.middleName ? customer.middleName + ' ' : ''}${customer.lastName}`
   }
 
+  const getCustomerInitials = () => {
+    if (!customer) return "CU"
+    const parts = [customer.firstName, customer.middleName, customer.lastName]
+      .filter((name): name is string => Boolean(name && name.trim()))
+      .flatMap((name) => name.trim().split(/\s+/))
+
+    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+    return "CU"
+  }
+
+  const getCustomerProfilePictureUrl = () => {
+    const rawPicture = customer?.profilePicture || customer?.portalUser?.profilePicture
+    return rawPicture ? buildApiAssetUrl(rawPicture) : ""
+  }
+
   const getStatusBadge = (status: string) => {
     const statusLower = status.toLowerCase()
     switch (statusLower) {
@@ -2670,6 +2704,12 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   }
 
   const getConnectionType = () => customer?.serviceDetails?.[0]?.connectionType ?? "N/A"
+  const getProvisioningStatus = () => {
+    const serviceStatus = customer?.serviceDetails?.[0]?.status
+    if (serviceStatus) return serviceStatus
+    if (String(customer?.status || '').toLowerCase() === 'active') return 'active'
+    return "N/A"
+  }
   const getMacAddress = () => customer?.devices?.[0]?.macAddress ?? "N/A"
   const getDeviceModel = () => customer?.devices?.[0]?.model ?? "N/A"
   const getVlanId = () => customer?.serviceDetails?.[0]?.vlanId ?? "N/A"
@@ -2980,9 +3020,11 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
             <Avatar className="h-16 w-16 ring-2 ring-primary/20 ring-offset-2">
-              <AvatarImage src={`/placeholder.svg?text=${customer.firstName.charAt(0)}${customer.lastName.charAt(0)}`} alt={getCustomerFullName()} />
+              {getCustomerProfilePictureUrl() && (
+                <AvatarImage src={getCustomerProfilePictureUrl()} alt={getCustomerFullName()} />
+              )}
               <AvatarFallback className="bg-gradient-to-br from-primary to-primary/70 text-white">
-                {customer.firstName.charAt(0)}{customer.lastName.charAt(0)}
+                {getCustomerInitials()}
               </AvatarFallback>
             </Avatar>
             <div>
@@ -3224,6 +3266,12 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Connection Type:</span>
                     <span className="font-medium">{getConnectionType()}</span>
+                  </div>
+                  <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                    <span className="text-muted-foreground">Provisioning Status:</span>
+                    <Badge className={String(getProvisioningStatus()).toLowerCase() === 'active' ? 'bg-green-500 text-white' : 'bg-amber-500 text-white'}>
+                      {String(getProvisioningStatus()).toUpperCase()}
+                    </Badge>
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Device Model:</span>
