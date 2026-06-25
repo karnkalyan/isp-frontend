@@ -133,7 +133,21 @@ export default function RechargePage() {
   }
 
   const customerName = (cust: any) => {
-    return cust.lead ? `${cust.lead.firstName} ${cust.lead.lastName || ""}`.trim() : "Unknown Customer"
+    const name = [
+      cust?.firstName || cust?.lead?.firstName,
+      cust?.middleName || cust?.lead?.middleName,
+      cust?.lastName || cust?.lead?.lastName,
+    ].filter(Boolean).join(" ").trim()
+
+    return name || cust?.name || cust?.customerUniqueId || `Customer ${cust?.id || ""}`.trim()
+  }
+
+  const customerEmail = (cust: any) => cust?.email || cust?.lead?.email || ""
+  const customerPhone = (cust: any) => cust?.phoneNumber || cust?.lead?.phoneNumber || cust?.secondaryPhone || cust?.lead?.secondaryContactNumber || ""
+  const customerCode = (cust: any) => cust?.customerUniqueId || `CUST-${cust?.id}`
+
+  const customerMetaLine = (cust: any) => {
+    return [customerCode(cust), customerPhone(cust), customerEmail(cust)].filter(Boolean).join(" | ")
   }
 
   return (
@@ -175,7 +189,7 @@ export default function RechargePage() {
                     >
                       <div>
                         <div className="text-sm font-semibold text-white">{customerName(c)}</div>
-                        <div className="text-xs text-slate-400">{c.customerUniqueId || `CUST-${c.id}`} | {c.lead?.phoneNumber}</div>
+                        <div className="text-xs text-slate-400">{customerMetaLine(c)}</div>
                       </div>
                       <ArrowRight className="h-4 w-4 text-slate-500" />
                     </div>
@@ -192,7 +206,7 @@ export default function RechargePage() {
                     </div>
                     <div>
                       <h4 className="text-sm font-bold text-white">{customerName(selectedCustomer)}</h4>
-                      <p className="text-xs text-slate-400">{selectedCustomer.customerUniqueId || `CUST-${selectedCustomer.id}`} | {selectedCustomer.lead?.email}</p>
+                      <p className="text-xs text-slate-400">{customerMetaLine(selectedCustomer)}</p>
                     </div>
                   </div>
                   <Button variant="ghost" size="sm" onClick={() => setSelectedCustomer(null)} className="text-xs text-slate-400 hover:text-white">

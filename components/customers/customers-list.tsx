@@ -25,7 +25,7 @@ import { Badge } from "@/components/ui/badge"
 import { CardContainer } from "@/components/ui/card-container"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { toast } from "react-hot-toast"
-import { apiRequest } from "@/lib/api"
+import { apiRequest, buildApiAssetUrl } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
 
 // Updated interface to match actual API response
@@ -144,7 +144,12 @@ interface Customer {
     updatedAt: string
   }>
   firstName: string
+  middleName?: string | null
   lastName: string
+  profilePicture?: string | null
+  portalUser?: {
+    profilePicture?: string | null
+  } | null
   email: string
   phoneNumber: string
   secondaryPhone?: string
@@ -538,7 +543,26 @@ export function CustomersList() {
   }
 
   const getCustomerFullName = (customer: Customer) => {
-    return `${customer.firstName} ${customer.lastName}`.trim()
+    const name = [customer.firstName, customer.middleName, customer.lastName]
+      .filter(Boolean)
+      .join(" ")
+      .trim()
+    return name || customer.customerUniqueId || `Customer ${customer.id}`
+  }
+
+  const getCustomerInitials = (customer: Customer) => {
+    const parts = [customer.firstName, customer.middleName, customer.lastName]
+      .filter((name): name is string => Boolean(name && name.trim()))
+      .flatMap((name) => name.trim().split(/\s+/))
+
+    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+    return "CU"
+  }
+
+  const getCustomerProfilePictureUrl = (customer: Customer) => {
+    const rawPicture = customer.profilePicture || customer.portalUser?.profilePicture
+    return rawPicture ? buildApiAssetUrl(rawPicture) : ""
   }
 
   const handlePageChange = (newPage: number) => {
@@ -662,8 +686,10 @@ export function CustomersList() {
                         <td className="p-4 align-middle">
                           <div className="flex items-center gap-3">
                             <Avatar>
-                              <AvatarImage src={`/placeholder.svg?text=${customer.firstName.charAt(0)}${customer.lastName.charAt(0)}`} alt={fullName} />
-                              <AvatarFallback>{customer.firstName.charAt(0)}{customer.lastName.charAt(0)}</AvatarFallback>
+                              {getCustomerProfilePictureUrl(customer) && (
+                                <AvatarImage src={getCustomerProfilePictureUrl(customer)} alt={fullName} />
+                              )}
+                              <AvatarFallback>{getCustomerInitials(customer)}</AvatarFallback>
                             </Avatar>
                             <div>
                               <div className="font-medium">{fullName}</div>
