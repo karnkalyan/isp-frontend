@@ -78,6 +78,7 @@ export default function RechargePage() {
 
   const getRechargeAmount = (pkg: any, customer = selectedCustomer) => {
     if (!pkg) return 0
+    if (customer?.isFree) return 0
     if (customer?.isRechargeable) {
       return pkg.renewAmountWithTax ?? pkg.price ?? 0
     }

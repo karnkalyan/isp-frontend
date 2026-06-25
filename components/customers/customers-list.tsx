@@ -161,6 +161,7 @@ interface Customer {
     name: string
   } | null
   convertedAt?: string
+  isFree?: boolean
 }
 
 interface PaginationInfo {
@@ -722,6 +723,11 @@ export function CustomersList() {
                         <td className="p-4 align-middle">
                           <div className="flex flex-col gap-1">
                             {getStatusBadge(customer.status)}
+                            {customer.isFree && (
+                              <Badge variant="outline" className="bg-purple-500/10 text-purple-500 border-purple-500/20 text-xs font-bold">
+                                Free Customer
+                              </Badge>
+                            )}
                             {isTrial && (
                               <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20 text-xs">
                                 Trial Active
