@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { toast } from "react-hot-toast"
-import { Save, Plus, Pencil, Trash2, MapPin, Building, Phone, Mail, Globe, User, BarChart3, Settings } from "lucide-react"
+import { Save, Plus, Pencil, Trash2, MapPin, Building, Phone, Mail, Globe, User, BarChart3, Settings, WifiOff } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { apiRequest } from "@/lib/api"
@@ -61,6 +61,7 @@ export default function BranchForm() {
     const [isAdding, setIsAdding] = useState(false)
     const [loading, setLoading] = useState(false)
     const [statsLoading, setStatsLoading] = useState(false)
+    const [disconnectingBranchId, setDisconnectingBranchId] = useState<string | null>(null)
     const [selectedBranchStats, setSelectedBranchStats] = useState<any>(null)
     const [overallStats, setOverallStats] = useState({
         totalBranches: 0,
@@ -289,6 +290,47 @@ export default function BranchForm() {
             toast.error(error.message || "Failed to delete branch")
         } finally {
             setLoading(false)
+        }
+    }
+
+    const disconnectBranchSessions = async (branch: Branch) => {
+        const customerCount = branch._count?.customers || 0
+        const isConfirmed = await confirm({
+            title: "Disconnect Branch Sessions",
+            message: `Disconnect all active RADIUS sessions for ${branch.name}${customerCount ? ` (${customerCount} customers)` : ""}? Sub-branches under this branch are included.`,
+            type: "danger",
+            confirmText: "Disconnect",
+            cancelText: "Cancel",
+        })
+
+        if (!isConfirmed) return
+
+        try {
+            setDisconnectingBranchId(branch.id)
+            const response = await apiRequest<{
+                success: boolean
+                partialSuccess?: boolean
+                message?: string
+                totalUsers?: number
+                disconnected?: any[]
+                failed?: any[]
+            }>(`/customer/disconnect/branch/${branch.id}/all`, {
+                method: "POST",
+                body: JSON.stringify({ includeSubBranches: true }),
+            })
+
+            const disconnected = response?.disconnected?.length || 0
+            const failed = response?.failed?.length || 0
+            if (failed > 0) {
+                toast.error(response?.message || `Disconnected ${disconnected}; ${failed} failed`)
+            } else {
+                toast.success(response?.message || `Disconnected sessions for ${disconnected} users`)
+            }
+        } catch (error: any) {
+            console.error("Branch disconnect error:", error)
+            toast.error(error.message || "Failed to disconnect branch sessions")
+        } finally {
+            setDisconnectingBranchId(null)
         }
     }
 
@@ -790,6 +832,20 @@ export default function BranchForm() {
                                                                 <Settings className="h-4 w-4" />
                                                             </Button>
                                                         )}
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => disconnectBranchSessions(branch)}
+                                                            className="h-8 w-8 text-orange-600 hover:bg-orange-100 dark:text-orange-400 dark:hover:bg-orange-500/20"
+                                                            title="Disconnect RADIUS sessions for this branch"
+                                                            disabled={disconnectingBranchId === branch.id || !(branch._count?.customers || 0)}
+                                                        >
+                                                            {disconnectingBranchId === branch.id ? (
+                                                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-orange-600 dark:border-orange-400 border-t-transparent" />
+                                                            ) : (
+                                                                <WifiOff className="h-4 w-4" />
+                                                            )}
+                                                        </Button>
                                                         <Button
                                                             variant="ghost"
                                                             size="icon"

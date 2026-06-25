@@ -61,9 +61,12 @@ import {
   EyeOff,
   Key,
   Tv,
-  WifiOff
+  WifiOff,
+  Download,
+  ExternalLink,
+  ImageIcon
 } from "lucide-react"
-import { apiRequest, getDynamicBaseUrl } from "@/lib/api"
+import { apiRequest, buildApiAssetUrl, getDynamicBaseUrl } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
 
 // TR-069 components
@@ -306,11 +309,14 @@ interface Customer {
     id: number
     documentType: string
     fileName: string
-    filePath: string
+    filePath?: string
     mimeType: string
     size: number
     uploadedAt: string
     isDeleted: boolean
+    previewUrl?: string | null
+    downloadUrl?: string | null
+    canPreviewInline?: boolean
   }>
   connectionUsers: Array<{
     id: number
@@ -2621,6 +2627,29 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
+  const isImageDocument = (doc: Customer["documents"][number]) => {
+    return /^image\//i.test(doc.mimeType || "") || /\.(png|jpe?g|webp|gif)$/i.test(doc.fileName || "")
+  }
+
+  const isPdfDocument = (doc: Customer["documents"][number]) => {
+    return String(doc.mimeType || "").toLowerCase() === "application/pdf" || /\.pdf$/i.test(doc.fileName || "")
+  }
+
+  const getDocumentPreviewUrl = (doc: Customer["documents"][number]) => {
+    if (doc.previewUrl) return buildApiAssetUrl(doc.previewUrl)
+    if (doc.filePath) return buildApiAssetUrl(`/${doc.filePath.replace(/\\/g, "/")}`)
+    return ""
+  }
+
+  const getDocumentDownloadUrl = (doc: Customer["documents"][number], inline = false) => {
+    const path = doc.downloadUrl || (customer ? `/customer/${customer.id}/documents/${doc.id}/download` : "")
+    if (!path) return getDocumentPreviewUrl(doc)
+    if (/^https?:\/\//i.test(path)) return inline ? `${path}${path.includes("?") ? "&" : "?"}inline=1` : path
+    const baseUrl = getDynamicBaseUrl().replace(/\/+$/, "")
+    const cleanPath = path.startsWith("/") ? path : `/${path}`
+    return `${baseUrl}${cleanPath}${inline ? `${cleanPath.includes("?") ? "&" : "?"}inline=1` : ""}`
+  }
+
   const getCustomerFullName = () => {
     if (!customer) return ""
     return `${customer.firstName} ${customer.middleName ? customer.middleName + ' ' : ''}${customer.lastName}`
@@ -4276,46 +4305,47 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
               {customer.documents.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {customer.documents.map((doc) => (
-                    <div key={doc.id} className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded">
-                          <FileCheck className="h-6 w-6 text-muted-foreground" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <div className="font-medium truncate">{doc.fileName}</div>
-                              <div className="text-sm text-muted-foreground capitalize">{doc.documentType}</div>
+                    <div key={doc.id} className="overflow-hidden rounded-lg border border-slate-200 bg-background dark:border-slate-700">
+                      <div className="h-40 bg-slate-100 dark:bg-slate-800">
+                        {isImageDocument(doc) && getDocumentPreviewUrl(doc) ? (
+                          <img src={getDocumentPreviewUrl(doc)} alt={doc.fileName} className="h-full w-full object-cover" />
+                        ) : isPdfDocument(doc) ? (
+                          <iframe src={getDocumentPreviewUrl(doc) || getDocumentDownloadUrl(doc, true)} title={doc.fileName} className="h-full w-full bg-white" />
+                        ) : (
+                          <div className="flex h-full items-center justify-center text-muted-foreground">
+                            <FileCheck className="h-10 w-10" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              {isImageDocument(doc) ? <ImageIcon className="h-4 w-4 text-primary" /> : <FileText className="h-4 w-4 text-primary" />}
+                              <div className="truncate font-medium">{doc.fileName}</div>
                             </div>
-                            <Badge variant="outline" className={doc.isDeleted ? "border-red-500 text-red-500" : "border-green-500 text-green-500"}>
-                              {doc.isDeleted ? "Deleted" : "Active"}
-                            </Badge>
+                            <div className="text-sm text-muted-foreground capitalize">{doc.documentType}</div>
                           </div>
-                          <div className="text-xs text-muted-foreground mt-2">
-                            Uploaded: {formatDate(doc.uploadedAt)}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            Size: {formatFileSize(doc.size)} | Type: {doc.mimeType}
-                          </div>
-                          <div className="mt-3 flex gap-2">
-                            <Button size="sm" variant="outline" className="text-xs" onClick={() => {
-                              const filePath = doc.filePath.replace(/\\/g, "/")
-                              const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3200"
-                              const url = `${baseUrl}/${filePath}`
-                              const link = document.createElement("a")
-                              link.href = url
-                              link.download = doc.fileName || "file"
-                              document.body.appendChild(link)
-                              link.click()
-                              document.body.removeChild(link)
-                              toast.success(`Downloading ${doc.fileName}`)
-                            }}>Download</Button>
-                            <Button size="sm" variant="outline" className="text-xs" onClick={() => {
-                              const filePath = doc.filePath.replace(/\\/g, "/")
-                              const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3200"
-                              window.open(`${baseUrl}/${filePath}`, "_blank")
-                            }}>Preview</Button>
-                          </div>
+                          <Badge variant="outline" className={doc.isDeleted ? "border-red-500 text-red-500" : "border-green-500 text-green-500"}>
+                            {doc.isDeleted ? "Deleted" : "Active"}
+                          </Badge>
+                        </div>
+                        <div className="mt-2 text-xs text-muted-foreground">
+                          Uploaded: {formatDate(doc.uploadedAt)}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Size: {formatFileSize(doc.size)} | Type: {doc.mimeType}
+                        </div>
+                        <div className="mt-3 flex gap-2">
+                          <Button size="sm" variant="outline" className="h-8 flex-1 text-xs" onClick={() => window.open(getDocumentPreviewUrl(doc) || getDocumentDownloadUrl(doc, true), "_blank")}>
+                            <ExternalLink className="mr-1 h-3.5 w-3.5" /> Preview
+                          </Button>
+                          <Button size="sm" variant="outline" className="h-8 flex-1 text-xs" onClick={() => {
+                            window.open(getDocumentDownloadUrl(doc), "_blank")
+                            toast.success(`Opening ${doc.fileName}`)
+                          }}>
+                            <Download className="mr-1 h-3.5 w-3.5" /> Download
+                          </Button>
                         </div>
                       </div>
                     </div>

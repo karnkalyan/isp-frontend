@@ -1,9 +1,9 @@
 "use client"
 
 import { useEffect, useMemo, useState, Fragment } from "react"
-import { Laptop, Loader2, Send, Ticket, Wifi, Activity, Cpu, Thermometer, ShieldAlert, RefreshCw, Network, Radio, ArrowUpDown, Smartphone, Tv, HardDrive, ChevronDown, ChevronUp } from "lucide-react"
+import { Laptop, Loader2, Send, Ticket, Wifi, Activity, Cpu, Thermometer, ShieldAlert, RefreshCw, Network, Radio, ArrowUpDown, Smartphone, Tv, HardDrive, ChevronDown, ChevronUp, Download, ExternalLink, FileText, ImageIcon } from "lucide-react"
 import toast from "react-hot-toast"
-import { apiRequest } from "@/lib/api"
+import { apiRequest, buildApiAssetUrl, getDynamicBaseUrl } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
 import { CardContainer } from "@/components/ui/card-container"
 import { Badge } from "@/components/ui/badge"
@@ -102,11 +102,15 @@ type CustomerProfile = {
   tickets?: Array<any>
   documents?: Array<{
     id: number
+    customerId?: number
     documentType: string
     fileName: string
     mimeType?: string | null
     size?: number | null
     uploadedAt?: string | null
+    previewUrl?: string | null
+    downloadUrl?: string | null
+    canPreviewInline?: boolean
   }>
   billingSummary?: {
     outstandingAmount: number
@@ -159,6 +163,77 @@ function formatFileSize(value?: number | null) {
   if (value < 1024) return `${value} B`
   if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`
   return `${(value / (1024 * 1024)).toFixed(1)} MB`
+}
+
+type CustomerDocument = NonNullable<CustomerProfile["documents"]>[number]
+
+function isImageDocument(document: CustomerDocument) {
+  return /^image\//i.test(document.mimeType || "") || /\.(png|jpe?g|webp|gif)$/i.test(document.fileName || "")
+}
+
+function isPdfDocument(document: CustomerDocument) {
+  return String(document.mimeType || "").toLowerCase() === "application/pdf" || /\.pdf$/i.test(document.fileName || "")
+}
+
+function getDocumentPreviewUrl(document: CustomerDocument) {
+  return buildApiAssetUrl(document.previewUrl)
+}
+
+function getDocumentActionUrl(document: CustomerDocument, inline = false) {
+  const fallback = document.customerId ? `/customer/${document.customerId}/documents/${document.id}/download` : ""
+  const path = document.downloadUrl || fallback
+  if (!path) return getDocumentPreviewUrl(document)
+  if (/^https?:\/\//i.test(path)) return inline ? `${path}${path.includes("?") ? "&" : "?"}inline=1` : path
+  const base = getDynamicBaseUrl().replace(/\/+$/, "")
+  const cleanPath = path.startsWith("/") ? path : `/${path}`
+  return `${base}${cleanPath}${inline ? `${cleanPath.includes("?") ? "&" : "?"}inline=1` : ""}`
+}
+
+function DocumentPreviewCard({ document, compact = false }: { document: CustomerDocument; compact?: boolean }) {
+  const previewUrl = getDocumentPreviewUrl(document)
+  const inlineUrl = getDocumentActionUrl(document, true)
+  const actionUrl = getDocumentActionUrl(document)
+  const canShowImage = previewUrl && isImageDocument(document)
+  const canShowPdf = (previewUrl || inlineUrl) && isPdfDocument(document)
+
+  return (
+    <div className="overflow-hidden rounded-md border bg-background">
+      <div className={compact ? "h-28 bg-muted/30" : "h-40 bg-muted/30"}>
+        {canShowImage ? (
+          <img src={previewUrl} alt={document.fileName} className="h-full w-full object-cover" />
+        ) : canShowPdf ? (
+          <iframe src={previewUrl || inlineUrl} title={document.fileName} className="h-full w-full bg-white" />
+        ) : (
+          <div className="flex h-full items-center justify-center text-muted-foreground">
+            <FileText className="h-8 w-8" />
+          </div>
+        )}
+      </div>
+      <div className="space-y-2 p-3">
+        <div className="flex items-start gap-2">
+          {canShowImage ? <ImageIcon className="mt-0.5 h-4 w-4 text-primary" /> : <FileText className="mt-0.5 h-4 w-4 text-primary" />}
+          <div className="min-w-0 flex-1">
+            <div className="truncate font-medium">{document.fileName}</div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              {document.documentType} - {document.mimeType || "file"} - {formatFileSize(document.size)} - {formatDate(document.uploadedAt)}
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button asChild size="sm" variant="outline" className="h-8 flex-1">
+            <a href={previewUrl || inlineUrl} target="_blank" rel="noreferrer">
+              <ExternalLink className="mr-2 h-3.5 w-3.5" /> Preview
+            </a>
+          </Button>
+          <Button asChild size="sm" variant="outline" className="h-8 flex-1">
+            <a href={actionUrl} target="_blank" rel="noreferrer">
+              <Download className="mr-2 h-3.5 w-3.5" /> Download
+            </a>
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function getSsidIndex(instance?: string) {
@@ -1235,12 +1310,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
         {(profile.documents || []).length > 0 ? (
           <div className="grid gap-3 md:grid-cols-2">
             {(profile.documents || []).map((document) => (
-              <div key={document.id} className="rounded-md border p-3">
-                <div className="font-medium">{document.fileName}</div>
-                <div className="mt-1 text-xs text-muted-foreground">
-                  {document.documentType} - {document.mimeType || "file"} - {formatFileSize(document.size)} - {formatDate(document.uploadedAt)}
-                </div>
-              </div>
+              <DocumentPreviewCard key={document.id} document={document} />
             ))}
           </div>
         ) : (
@@ -1487,14 +1557,9 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
           </CardContainer>
           <CardContainer title="Documents">
             {(profile.documents || []).length > 0 ? (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {(profile.documents || []).slice(0, 4).map((document) => (
-                  <div key={document.id} className="rounded-md border p-3">
-                    <div className="font-medium">{document.fileName}</div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {document.documentType} - {formatFileSize(document.size)} - {formatDate(document.uploadedAt)}
-                    </div>
-                  </div>
+                  <DocumentPreviewCard key={document.id} document={document} compact />
                 ))}
               </div>
             ) : <p className="text-sm text-muted-foreground">No customer documents uploaded.</p>}
