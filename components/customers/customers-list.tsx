@@ -1,9 +1,14 @@
 "use client"
 import React, { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { MoreHorizontal, ChevronDown, Check, User, FileText, Wifi, AlertTriangle, Ban, Loader2, Phone } from "lucide-react"
+import { MoreHorizontal, ChevronDown, Check, User, FileText, Wifi, AlertTriangle, Ban, Loader2, Phone, MessageSquare, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -188,6 +193,11 @@ export function CustomersList() {
   })
   const router = useRouter()
   const [connectionStatuses, setConnectionStatuses] = useState<Record<string, { radius: string; acs: string; loading: boolean }>>({})
+  const [smsProviders, setSmsProviders] = useState<any[]>([])
+  const [selectedSmsProvider, setSelectedSmsProvider] = useState("")
+  const [smsCustomer, setSmsCustomer] = useState<Customer | null>(null)
+  const [smsMessage, setSmsMessage] = useState("")
+  const [sendingSms, setSendingSms] = useState(false)
 
   const handleOutboundCall = async (phoneNumber?: string) => {
     if (!voipEnabled) {
@@ -256,9 +266,64 @@ export function CustomersList() {
     }
   }
 
+  const fetchSmsProviders = async () => {
+    try {
+      const response = await apiRequest<any>("/service/isp?includeInactive=true")
+      const list = Array.isArray(response) ? response : response?.data || []
+      const providers = list.filter((item: any) =>
+        (item.service?.code === "AAKASHSMS" || item.service?.code === "SPARROWSMS") &&
+        item.isActive !== false &&
+        item.isDeleted !== true
+      )
+      setSmsProviders(providers)
+      const defaultProvider = providers.find((item: any) => item.config?.isDefault === true) || providers[0]
+      if (defaultProvider?.service?.code) setSelectedSmsProvider(defaultProvider.service.code)
+    } catch (error) {
+      console.error("Failed to fetch SMS providers:", error)
+      setSmsProviders([])
+    }
+  }
+
+  const openSmsDialog = (customer: Customer) => {
+    if (!customer.phoneNumber) {
+      toast.error("Phone number is not available")
+      return
+    }
+    setSmsCustomer(customer)
+    setSmsMessage(`Dear ${customer.firstName || "Customer"}, thank you for contacting us.`)
+  }
+
+  const sendManualSms = async () => {
+    if (!smsCustomer) return
+    if (!selectedSmsProvider) return toast.error("No enabled SMS provider is configured")
+    if (!smsMessage.trim()) return toast.error("Message is required")
+    if (!smsCustomer.phoneNumber) return toast.error("Phone number is not available")
+
+    try {
+      setSendingSms(true)
+      await apiRequest("/service/sms/send-bulk", {
+        method: "POST",
+        body: JSON.stringify({
+          to: smsCustomer.phoneNumber,
+          text: smsMessage.trim(),
+          type: "customer",
+          provider: selectedSmsProvider,
+        })
+      })
+      toast.success("SMS sent successfully")
+      setSmsCustomer(null)
+      setSmsMessage("")
+    } catch (error: any) {
+      toast.error(error.message || "Failed to send SMS")
+    } finally {
+      setSendingSms(false)
+    }
+  }
+
   useEffect(() => {
     fetchCustomers(pagination.page, pagination.limit)
     fetchVoipStatus()
+    fetchSmsProviders()
   }, [pagination.page])
 
   useEffect(() => {
@@ -760,8 +825,11 @@ export function CustomersList() {
                               <DropdownMenuItem onClick={() => handleViewInvoices(customerId)}>
                                 <FileText className="mr-2 h-4 w-4" /> View Invoices
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleCheckConnection(customerId)}>
+                               <DropdownMenuItem onClick={() => handleCheckConnection(customerId)}>
                                 <Wifi className="mr-2 h-4 w-4" /> Check Connection
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openSmsDialog(customer)}>
+                                <MessageSquare className="mr-2 h-4 w-4" /> Send SMS
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuSub>
@@ -870,6 +938,57 @@ export function CustomersList() {
           </DropdownMenu>
         </div>
       )}
+
+      {/* Manual SMS Dialog */}
+      <Dialog open={!!smsCustomer} onOpenChange={(open) => !open && setSmsCustomer(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send SMS</DialogTitle>
+            <DialogDescription>
+              Send a manual SMS to {smsCustomer ? `${smsCustomer.firstName} ${smsCustomer.lastName}` : "customer"}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>SMS Provider</Label>
+              <Select value={selectedSmsProvider} onValueChange={setSelectedSmsProvider}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select provider" />
+                </SelectTrigger>
+                <SelectContent>
+                  {smsProviders.length > 0 ? (
+                    smsProviders.map((provider) => (
+                      <SelectItem key={String(provider.service?.code || provider.id)} value={String(provider.service?.code || "")}>
+                        {provider.service?.name || provider.service?.code}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <>
+                      <SelectItem value="AAKASHSMS">Aakash SMS</SelectItem>
+                      <SelectItem value="SPARROWSMS">Sparrow SMS</SelectItem>
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Phone</Label>
+              <Input value={smsCustomer?.phoneNumber || ""} readOnly />
+            </div>
+            <div className="space-y-2">
+              <Label>Message</Label>
+              <Textarea value={smsMessage} onChange={(event) => setSmsMessage(event.target.value)} rows={5} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSmsCustomer(null)}>Cancel</Button>
+            <Button onClick={sendManualSms} disabled={sendingSms}>
+              <Send className="mr-2 h-4 w-4" />
+              {sendingSms ? "Sending..." : "Send SMS"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </CardContainer>
     </>
   )

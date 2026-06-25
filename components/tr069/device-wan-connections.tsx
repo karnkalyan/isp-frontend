@@ -229,9 +229,106 @@ export function TR069DeviceWanConnections({ deviceId }: TR069DeviceWanConnection
     const [formData, setFormData] = useState<WanFormData>(defaultFormData);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    // Edit modal states
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [selectedEditConnection, setSelectedEditConnection] = useState<WanConnection | null>(null);
+    const [editFormData, setEditFormData] = useState({
+        vlanId: "",
+        serviceType: "INTERNET",
+        username: "",
+        password: "",
+        isNat: true,
+        addressingType: "DHCP",
+        externalIp: "",
+        subnet: "",
+        gateway: "",
+        isDNS: true,
+        dnsServers: "",
+    });
+    const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
+
     // Delete confirmation
     const [deleteWanId, setDeleteWanId] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+
+    const openEditModal = (conn: WanConnection) => {
+        const details = getConnectionDetails(conn);
+        setSelectedEditConnection(conn);
+        setEditFormData({
+            vlanId: details.vlanId ? details.vlanId.toString() : "",
+            serviceType: details.serviceType || "INTERNET",
+            username: details.pppoeDetails?.username || "",
+            password: details.pppoeDetails?.password || "",
+            isNat: details.connectionStats?.natEnabled !== false,
+            addressingType: details.addressingType || "DHCP",
+            externalIp: details.ipDetails.externalIPAddress === "N/A" ? "" : details.ipDetails.externalIPAddress,
+            subnet: details.ipDetails.subnetMask === "N/A" ? "" : details.ipDetails.subnetMask,
+            gateway: details.ipDetails.defaultGateway === "N/A" ? "" : details.ipDetails.defaultGateway,
+            isDNS: details.connectionStats?.dnsEnabled !== false,
+            dnsServers: details.dnsServers?.join(",") || "",
+        });
+        setIsEditModalOpen(true);
+    };
+
+    const handleUpdateConnection = async () => {
+        if (!selectedEditConnection) return;
+        const wanId = selectedEditConnection.wanConnectionDeviceIndex;
+        const type = selectedEditConnection.type.toLowerCase();
+
+        if (!editFormData.vlanId) {
+            toast.error("VLAN ID is required");
+            return;
+        }
+
+        if (type === 'ppp') {
+            if (!editFormData.username || !editFormData.password) {
+                toast.error("Username and Password are required for PPPoE");
+                return;
+            }
+        } else if (type === 'ip' && editFormData.addressingType === 'Static') {
+            if (!editFormData.externalIp || !editFormData.subnet || !editFormData.gateway) {
+                toast.error("IP, Subnet, and Gateway are required for Static IPoE");
+                return;
+            }
+        }
+
+        try {
+            setIsSubmittingEdit(true);
+            const response = await apiRequest<any>(`/service/genieacs/devices/${deviceId}/update-wan-connection`, {
+                method: "POST",
+                body: JSON.stringify({
+                    wanId,
+                    type,
+                    vlanId: parseInt(editFormData.vlanId, 10),
+                    serviceType: editFormData.serviceType,
+                    staticConfig: {
+                        username: editFormData.username,
+                        password: editFormData.password,
+                        isNat: editFormData.isNat,
+                        addressingType: editFormData.addressingType,
+                        externalIp: editFormData.externalIp,
+                        subnet: editFormData.subnet,
+                        gateway: editFormData.gateway,
+                        isDNS: editFormData.isDNS,
+                        dnsServers: editFormData.dnsServers,
+                        serviceType: editFormData.serviceType,
+                    }
+                })
+            });
+
+            if (response.success) {
+                toast.success("WAN connection updated successfully");
+                setIsEditModalOpen(false);
+                fetchWanInfo();
+            } else {
+                toast.error(response.error || "Failed to update WAN connection");
+            }
+        } catch (error: any) {
+            toast.error(error.message || "Failed to update WAN connection");
+        } finally {
+            setIsSubmittingEdit(false);
+        }
+    };
 
     useEffect(() => {
         fetchWanInfo();
@@ -737,6 +834,15 @@ export function TR069DeviceWanConnections({ deviceId }: TR069DeviceWanConnection
                                             className="h-8 w-8 p-0"
                                         >
                                             <Info className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => openEditModal(conn)}
+                                            className="h-8 w-8 p-0 text-blue-500 hover:text-blue-600"
+                                            title="Edit Connection"
+                                        >
+                                            <Settings className="h-4 w-4" />
                                         </Button>
                                         <Button
                                             variant="ghost"
@@ -1714,6 +1820,191 @@ export function TR069DeviceWanConnections({ deviceId }: TR069DeviceWanConnection
                         </Button>
                         <Button onClick={handleAddWan} disabled={isSubmitting}>
                             {isSubmitting ? "Creating..." : "Create Connection"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Edit WAN Modal */}
+            <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+                <DialogContent className="sm:max-w-[600px]">
+                    <DialogHeader>
+                        <DialogTitle>Edit WAN Connection</DialogTitle>
+                        <DialogDescription>
+                            Modify parameters for WAN connection (Instance #{selectedEditConnection?.wanConnectionDeviceIndex})
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="grid gap-4 py-4">
+                        {/* Selected Connection Type */}
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label className="text-right">Type</Label>
+                            <Input
+                                value={selectedEditConnection?.type === "PPP" ? "PPP (PPPoE)" : "IP (IPoE)"}
+                                className="col-span-3 bg-muted"
+                                readOnly
+                            />
+                        </div>
+
+                        {/* VLAN ID */}
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="editVlanId" className="text-right">VLAN ID</Label>
+                            <Input
+                                id="editVlanId"
+                                value={editFormData.vlanId}
+                                onChange={(e) => setEditFormData({ ...editFormData, vlanId: e.target.value })}
+                                className="col-span-3"
+                                placeholder="e.g., 528"
+                            />
+                        </div>
+
+                        {/* Service Type */}
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="editServiceType" className="text-right">Service Type</Label>
+                            <Select
+                                value={editFormData.serviceType}
+                                onValueChange={(value) => setEditFormData({ ...editFormData, serviceType: value })}
+                            >
+                                <SelectTrigger className="col-span-3">
+                                    <SelectValue placeholder="Select service type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="INTERNET">INTERNET</SelectItem>
+                                    <SelectItem value="VOIP">VOIP</SelectItem>
+                                    <SelectItem value="TR069">TR069</SelectItem>
+                                    <SelectItem value="OTHER">OTHER</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* PPPoE Specific Fields */}
+                        {selectedEditConnection?.type === "PPP" && (
+                            <>
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="editUsername" className="text-right">Username</Label>
+                                    <Input
+                                        id="editUsername"
+                                        value={editFormData.username}
+                                        onChange={(e) => setEditFormData({ ...editFormData, username: e.target.value })}
+                                        className="col-span-3"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="editPassword" className="text-right">Password</Label>
+                                    <Input
+                                        id="editPassword"
+                                        type="text"
+                                        value={editFormData.password}
+                                        onChange={(e) => setEditFormData({ ...editFormData, password: e.target.value })}
+                                        className="col-span-3"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="editIsNatPPP" className="text-right">NAT Enabled</Label>
+                                    <div className="col-span-3 flex items-center">
+                                        <Checkbox
+                                            id="editIsNatPPP"
+                                            checked={editFormData.isNat}
+                                            onCheckedChange={(checked) => setEditFormData({ ...editFormData, isNat: !!checked })}
+                                        />
+                                    </div>
+                                </div>
+                            </>
+                        )}
+
+                        {/* IPoE Specific Fields */}
+                        {selectedEditConnection?.type === "IP" && (
+                            <>
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="editAddressingType" className="text-right">Addressing Type</Label>
+                                    <Select
+                                        value={editFormData.addressingType}
+                                        onValueChange={(value) => setEditFormData({ ...editFormData, addressingType: value })}
+                                    >
+                                        <SelectTrigger className="col-span-3">
+                                            <SelectValue placeholder="Select addressing type" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="DHCP">DHCP</SelectItem>
+                                            <SelectItem value="Static">Static</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="editIsNatIP" className="text-right">NAT Enabled</Label>
+                                    <div className="col-span-3 flex items-center">
+                                        <Checkbox
+                                            id="editIsNatIP"
+                                            checked={editFormData.isNat}
+                                            onCheckedChange={(checked) => setEditFormData({ ...editFormData, isNat: !!checked })}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="editIsDNS" className="text-right">DNS Enabled</Label>
+                                    <div className="col-span-3 flex items-center">
+                                        <Checkbox
+                                            id="editIsDNS"
+                                            checked={editFormData.isDNS}
+                                            onCheckedChange={(checked) => setEditFormData({ ...editFormData, isDNS: !!checked })}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="editDnsServers" className="text-right">DNS Servers</Label>
+                                    <Input
+                                        id="editDnsServers"
+                                        value={editFormData.dnsServers}
+                                        onChange={(e) => setEditFormData({ ...editFormData, dnsServers: e.target.value })}
+                                        className="col-span-3"
+                                        placeholder="Comma separated, e.g., 9.9.9.9,1.1.1.1"
+                                    />
+                                </div>
+
+                                {editFormData.addressingType === "Static" && (
+                                    <>
+                                        <div className="grid grid-cols-4 items-center gap-4">
+                                            <Label htmlFor="editExternalIp" className="text-right">IP Address</Label>
+                                            <Input
+                                                id="editExternalIp"
+                                                value={editFormData.externalIp}
+                                                onChange={(e) => setEditFormData({ ...editFormData, externalIp: e.target.value })}
+                                                className="col-span-3"
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-4 items-center gap-4">
+                                            <Label htmlFor="editSubnet" className="text-right">Subnet Mask</Label>
+                                            <Input
+                                                id="editSubnet"
+                                                value={editFormData.subnet}
+                                                onChange={(e) => setEditFormData({ ...editFormData, subnet: e.target.value })}
+                                                className="col-span-3"
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-4 items-center gap-4">
+                                            <Label htmlFor="editGateway" className="text-right">Gateway</Label>
+                                            <Input
+                                                id="editGateway"
+                                                value={editFormData.gateway}
+                                                onChange={(e) => setEditFormData({ ...editFormData, gateway: e.target.value })}
+                                                className="col-span-3"
+                                            />
+                                        </div>
+                                    </>
+                                )}
+                            </>
+                        )}
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button onClick={handleUpdateConnection} disabled={isSubmittingEdit}>
+                            {isSubmittingEdit ? "Updating..." : "Update Connection"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

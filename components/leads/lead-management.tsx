@@ -42,6 +42,7 @@ import {
   Clock,
   CalendarDays,
   MessageSquare,
+  Send,
   PhoneCall,
   Mail as MailIcon,
   Users as UsersIcon,
@@ -566,6 +567,11 @@ export function LeadManagement() {
   const [showStatusChangeDialog, setShowStatusChangeDialog] = useState(false)
   const [statusChangeLead, setStatusChangeLead] = useState<Lead | null>(null)
   const [newStatus, setNewStatus] = useState<LeadStatus>('new')
+  const [smsProviders, setSmsProviders] = useState<any[]>([])
+  const [selectedSmsProvider, setSelectedSmsProvider] = useState("")
+  const [smsLead, setSmsLead] = useState<Lead | null>(null)
+  const [smsMessage, setSmsMessage] = useState("")
+  const [sendingSms, setSendingSms] = useState(false)
 
   // Pagination and filter states
   const [searchQuery, setSearchQuery] = useState("")
@@ -720,6 +726,7 @@ export function LeadManagement() {
     fetchExistingISPs()
     fetchSplitters()
     fetchBranches()
+    fetchSmsProviders()
   }, [])
 
   // Fetch leads when active tab or filters change
@@ -1108,6 +1115,63 @@ export function LeadManagement() {
       setSubBranches(level2)
     } catch (error: any) {
       console.error("Failed to fetch branches:", error)
+    }
+  }
+
+  const fetchSmsProviders = async () => {
+    try {
+      const response = await apiRequest<any>("/service/isp?includeInactive=true")
+      const list = Array.isArray(response) ? response : response?.data || []
+      const providers = list.filter((item: any) =>
+        (item.service?.code === "AAKASHSMS" || item.service?.code === "SPARROWSMS") &&
+        item.isActive !== false &&
+        item.isDeleted !== true
+      )
+      setSmsProviders(providers)
+      const defaultProvider = providers.find((item: any) => item.config?.isDefault === true) || providers[0]
+      if (defaultProvider?.service?.code) setSelectedSmsProvider(defaultProvider.service.code)
+    } catch (error) {
+      console.error("Failed to fetch SMS providers:", error)
+      setSmsProviders([])
+    }
+  }
+
+  const openSmsDialog = (lead: Lead) => {
+    if (!lead.phoneNumber) {
+      toast.error("Phone number is not available")
+      return
+    }
+    setSmsLead(lead)
+    setSmsMessage(`Dear ${lead.firstName || "Customer"}, thank you for contacting us.`)
+  }
+
+  const sendManualSms = async () => {
+    if (!smsLead) return
+    if (!selectedSmsProvider) return toast.error("No enabled SMS provider is configured")
+    if (!smsMessage.trim()) return toast.error("Message is required")
+    if (!smsLead.phoneNumber) return toast.error("Phone number is not available")
+
+    try {
+      setSendingSms(true)
+      await apiRequest("/service/sms/send-bulk", {
+        method: "POST",
+        body: JSON.stringify({
+          to: smsLead.phoneNumber,
+          text: smsMessage.trim(),
+          type: "lead",
+          provider: selectedSmsProvider,
+        })
+      })
+      toast.success("SMS sent successfully")
+      setLeads(prev => prev.map(l => l.id === smsLead.id ? { ...l, smsSent: true } : l))
+      setQualifiedLeads(prev => prev.map(l => l.id === smsLead.id ? { ...l, smsSent: true } : l))
+      setUnqualifiedLeads(prev => prev.map(l => l.id === smsLead.id ? { ...l, smsSent: true } : l))
+      setSmsLead(null)
+      setSmsMessage("")
+    } catch (error: any) {
+      toast.error(error.message || "Failed to send SMS")
+    } finally {
+      setSendingSms(false)
     }
   }
 
@@ -3096,6 +3160,17 @@ export function LeadManagement() {
                                 >
                                   <Clock className="h-4 w-4 text-purple-600" />
                                 </Button>
+                                {lead.phoneNumber && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => openSmsDialog(lead)}
+                                    className="h-8 w-8 hover:bg-blue-100"
+                                    title="Send SMS"
+                                  >
+                                    <MessageSquare className="h-4 w-4 text-blue-600" />
+                                  </Button>
+                                )}
                                 {lead.status === 'qualified' && !lead.convertedToCustomer && (
                                   <Button
                                     variant="ghost"
@@ -3294,6 +3369,17 @@ export function LeadManagement() {
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
+                              {lead.phoneNumber && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => openSmsDialog(lead)}
+                                  className="h-8 w-8 hover:bg-blue-100"
+                                  title="Send SMS"
+                                >
+                                  <MessageSquare className="h-4 w-4 text-blue-600" />
+                                </Button>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -3459,6 +3545,17 @@ export function LeadManagement() {
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
+                              {lead.phoneNumber && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => openSmsDialog(lead)}
+                                  className="h-8 w-8 hover:bg-blue-100"
+                                  title="Send SMS"
+                                >
+                                  <MessageSquare className="h-4 w-4 text-blue-600" />
+                                </Button>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -4205,6 +4302,57 @@ export function LeadManagement() {
                   Import Leads
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Send SMS Dialog */}
+      <Dialog open={!!smsLead} onOpenChange={(open) => !open && setSmsLead(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send SMS</DialogTitle>
+            <DialogDescription>
+              Send a manual SMS to {smsLead ? `${smsLead.firstName} ${smsLead.lastName}` : "lead"}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>SMS Provider</Label>
+              <Select value={selectedSmsProvider} onValueChange={setSelectedSmsProvider}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select provider" />
+                </SelectTrigger>
+                <SelectContent>
+                  {smsProviders.length > 0 ? (
+                    smsProviders.map((provider) => (
+                      <SelectItem key={String(provider.service?.code || provider.id)} value={String(provider.service?.code || "")}>
+                        {provider.service?.name || provider.service?.code}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <>
+                      <SelectItem value="AAKASHSMS">Aakash SMS</SelectItem>
+                      <SelectItem value="SPARROWSMS">Sparrow SMS</SelectItem>
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Phone</Label>
+              <Input value={smsLead?.phoneNumber || ""} readOnly />
+            </div>
+            <div className="space-y-2">
+              <Label>Message</Label>
+              <Textarea value={smsMessage} onChange={(event) => setSmsMessage(event.target.value)} rows={5} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSmsLead(null)}>Cancel</Button>
+            <Button onClick={sendManualSms} disabled={sendingSms}>
+              <Send className="mr-2 h-4 w-4" />
+              {sendingSms ? "Sending..." : "Send SMS"}
             </Button>
           </DialogFooter>
         </DialogContent>
