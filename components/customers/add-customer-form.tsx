@@ -4078,6 +4078,45 @@ export function AddCustomerForm() {
                     </>
                   )}
 
+                  {isInfraShare && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Label>Customer Devices</Label>
+                        <Button type="button" variant="outline" size="sm" onClick={() => setDeviceDialogOpen(true)}>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Device
+                        </Button>
+                      </div>
+
+                      {devices.length === 0 ? (
+                        <p className="text-sm text-muted-foreground italic">No devices added yet.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {devices.map((device, index) => (
+                            <div key={index} className="flex items-start justify-between p-3 border rounded-lg">
+                              <div>
+                                <div className="font-medium">{device.brand} {device.model}</div>
+                                <div className="text-sm text-muted-foreground">
+                                  {device.deviceType} • SN: {device.serialNumber} • MAC: {device.macAddress || "N/A"}
+                                  {device.ponSerial && <span> • PON-SN: {device.ponSerial}</span>}
+                                </div>
+                                {device.notes && <div className="text-xs text-gray-500 mt-1">{device.notes}</div>}
+                              </div>
+                              <div className="flex gap-2">
+                                <Button type="button" variant="ghost" size="sm" onClick={() => openDeviceDialogForEdit(index)}>
+                                  Edit
+                                </Button>
+                                <Button type="button" variant="ghost" size="sm" onClick={() => removeDevice(index)}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="space-y-4 rounded-lg border p-4">
                     <div className="space-y-1">
                       <Label>Customer Login</Label>

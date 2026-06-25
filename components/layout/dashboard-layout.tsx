@@ -18,6 +18,7 @@ const pathPermissionMap: Record<string, string> = {
   "/leads": "lead_read",
   "/existing-isp": "existingisp_read",
   "/sms-campaign": "lead_read",
+  "/radius/disconnect": "customer_update",
   "/tr069": "olt_read",
   "/nas": "nas_read",
   "/fiber/olt": "olt_read",
