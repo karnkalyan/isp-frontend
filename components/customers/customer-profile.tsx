@@ -79,6 +79,7 @@ import { TR069DeviceNeighbors } from "@/components/tr069/device-neighbors"
 // Realtime Usage Chart
 import { RealtimeUsageChart } from "@/components/customers/realtime-charts"
 import { CustomerBillingManagement } from "@/components/customers/customer-billing-management"
+import { NetTVDialog } from "@/components/customers/add-customer-form"
 
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -1318,6 +1319,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const [selectedPackage, setSelectedPackage] = useState("")
   const [newMacAddress, setNewMacAddress] = useState("")
   const [actionLoading, setActionLoading] = useState(false)
+  const [serviceActionLoading, setServiceActionLoading] = useState<"radius" | "nettv" | "account" | "disconnect" | null>(null)
+  const [nettvProvisionOpen, setNettvProvisionOpen] = useState(false)
   const [renewLoading, setRenewLoading] = useState(false)
   const [assignHardwareOpen, setAssignHardwareOpen] = useState(false)
   const [hardwareSearch, setHardwareSearch] = useState("")
@@ -2396,12 +2399,13 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
 
   const handleReprovisionRadius = async () => {
     try {
-      setActionLoading(true)
+      setServiceActionLoading("radius")
       const response = await apiRequest<{ success: boolean; message: string }>(`/customer/${customerId}/reprovision/radius`, {
         method: 'POST'
       })
       if (response.success) {
         toast.success(response.message || "Radius reprovisioned successfully")
+        fetchCustomerData()
       } else {
         toast.error("Radius reprovisioning failed")
       }
@@ -2409,18 +2413,21 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       console.error("Error reprovisioning Radius:", error)
       toast.error(error.message || "Radius reprovisioning failed")
     } finally {
-      setActionLoading(false)
+      setServiceActionLoading(null)
     }
   }
 
-  const handleReprovisionNettv = async () => {
+  const handleReprovisionNettv = async (nettvData: any) => {
     try {
-      setActionLoading(true)
+      setServiceActionLoading("nettv")
       const response = await apiRequest<{ success: boolean; message: string }>(`/customer/${customerId}/reprovision/nettv`, {
-        method: 'POST'
+        method: 'POST',
+        body: JSON.stringify({ nettvData }),
+        headers: { "Content-Type": "application/json" },
       })
       if (response.success) {
         toast.success(response.message || "NetTV reprovisioned successfully")
+        fetchCustomerData()
       } else {
         toast.error("NetTV reprovisioning failed")
       }
@@ -2428,7 +2435,28 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       console.error("Error reprovisioning NetTV:", error)
       toast.error(error.message || "NetTV reprovisioning failed")
     } finally {
-      setActionLoading(false)
+      setServiceActionLoading(null)
+    }
+  }
+
+  const handleReprovisionAccount = async () => {
+    try {
+      setServiceActionLoading("account")
+      const response = await apiRequest<{ success: boolean; message: string }>(`/customer/${customerId}/reprovision/account`, {
+        method: 'POST',
+        headers: { "Content-Type": "application/json" },
+      })
+      if (response.success) {
+        toast.success(response.message || "Account reprovisioned successfully")
+        fetchCustomerData()
+      } else {
+        toast.error(response.message || "Account reprovisioning failed")
+      }
+    } catch (error: any) {
+      console.error("Error reprovisioning Account:", error)
+      toast.error(error.message || "Account reprovisioning failed")
+    } finally {
+      setServiceActionLoading(null)
     }
   }
 
@@ -2440,7 +2468,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     }
 
     try {
-      setActionLoading(true)
+      setServiceActionLoading("disconnect")
       const response = await apiRequest<{ success: boolean; message: string }>(`/customer/disconnect/${connectionUser.username}`, {
         method: 'POST'
       })
@@ -2455,7 +2483,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       console.error("Error disconnecting session:", error)
       toast.error(error.message || "Failed to disconnect session")
     } finally {
-      setActionLoading(false)
+      setServiceActionLoading(null)
     }
   }
 
@@ -2763,12 +2791,12 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       detail: getSubscribedApp(["NETTV", "NET TV"]) ? getServiceMessage(getSubscribedApp(["NETTV", "NET TV"])) : "No NetTV subscription",
     },
     {
-      label: "TSHUL",
+      label: "Account",
       icon: CreditCard,
-      app: getSubscribedApp(["TSHUL", "BILLING"]),
-      provisioned: isAppProvisioned(getSubscribedApp(["TSHUL", "BILLING"])),
-      status: isAppProvisioned(getSubscribedApp(["TSHUL", "BILLING"])) ? "Provisioned" : "Not provisioned",
-      detail: getSubscribedApp(["TSHUL", "BILLING"]) ? getServiceMessage(getSubscribedApp(["TSHUL", "BILLING"])) : "No TSHUL subscription",
+      app: getSubscribedApp(["TSHUL", "NEPURIX", "BILLING"]),
+      provisioned: isAppProvisioned(getSubscribedApp(["TSHUL", "NEPURIX", "BILLING"])),
+      status: isAppProvisioned(getSubscribedApp(["TSHUL", "NEPURIX", "BILLING"])) ? "Provisioned" : "Not provisioned",
+      detail: getSubscribedApp(["TSHUL", "NEPURIX", "BILLING"]) ? getServiceMessage(getSubscribedApp(["TSHUL", "NEPURIX", "BILLING"])) : "No account subscription",
     },
   ]
 
@@ -2815,10 +2843,32 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const splitter = serviceDetail?.splitter
   const vlanDetails = serviceDetail?.vlanDetails || []
   const usernames = customer.connectionUsers.map(u => u.username)
+  const customerProfileData = customer as Customer & {
+    address?: string
+    city?: string
+    zipCode?: string
+  }
 
   return (
     <div className="space-y-6">
       {/* Dialogs */}
+      <NetTVDialog
+        open={nettvProvisionOpen}
+        onOpenChange={setNettvProvisionOpen}
+        onConfirm={handleReprovisionNettv}
+        defaultFname={customer.firstName || ""}
+        defaultLname={customer.lastName || ""}
+        defaultEmail={customer.email || ""}
+        defaultUsername={customer.customerUniqueId || customer.connectionUsers?.[0]?.username || ""}
+        defaultAddress={customer.street || customerProfileData.address || ""}
+        defaultCity={customerProfileData.city || customer.district || ""}
+        defaultDistrict={customer.district || customerProfileData.city || ""}
+        defaultProvince={customer.state || ""}
+        defaultZip={customerProfileData.zipCode || ""}
+        defaultPhone={customer.phoneNumber || ""}
+        defaultMobile={customer.secondaryPhone || customer.phoneNumber || ""}
+      />
+
       <Dialog open={changeUsernameOpen} onOpenChange={setChangeUsernameOpen}>
         <DialogContent className="w-[95vw] sm:max-w-md">
           <DialogHeader>
@@ -3118,14 +3168,21 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         <Button size="sm" className="h-9 bg-gradient-to-r from-red-500 to-rose-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={() => setResetMacOpen(true)}>
           <RefreshCw className="mr-2 h-4 w-4" /> MAC RESET
         </Button>
-        <Button size="sm" className="h-9 bg-gradient-to-r from-indigo-500 to-violet-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={handleReprovisionRadius} disabled={actionLoading}>
-          <Key className="mr-2 h-4 w-4" /> Reprovision Radius
+        <Button size="sm" className="h-9 bg-gradient-to-r from-indigo-500 to-violet-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={handleReprovisionRadius} disabled={serviceActionLoading === "radius"}>
+          {serviceActionLoading === "radius" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Key className="mr-2 h-4 w-4" />}
+          Reprovision Radius
         </Button>
-        <Button size="sm" className="h-9 bg-gradient-to-r from-pink-500 to-purple-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={handleReprovisionNettv} disabled={actionLoading}>
-          <Tv className="mr-2 h-4 w-4" /> Reprovision NetTV
+        <Button size="sm" className="h-9 bg-gradient-to-r from-pink-500 to-purple-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={() => setNettvProvisionOpen(true)} disabled={serviceActionLoading === "nettv"}>
+          {serviceActionLoading === "nettv" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Tv className="mr-2 h-4 w-4" />}
+          Reprovision NetTV
         </Button>
-        <Button size="sm" className="h-9 bg-gradient-to-r from-yellow-500 to-amber-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={handleDisconnectSession} disabled={actionLoading}>
-          <WifiOff className="mr-2 h-4 w-4" /> Disconnect Session
+        <Button size="sm" className="h-9 bg-gradient-to-r from-cyan-500 to-blue-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={handleReprovisionAccount} disabled={serviceActionLoading === "account"}>
+          {serviceActionLoading === "account" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
+          Reprovision Account
+        </Button>
+        <Button size="sm" className="h-9 bg-gradient-to-r from-yellow-500 to-amber-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={handleDisconnectSession} disabled={serviceActionLoading === "disconnect"}>
+          {serviceActionLoading === "disconnect" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <WifiOff className="mr-2 h-4 w-4" />}
+          Disconnect Session
         </Button>
         <Button size="sm" className="h-9 bg-gradient-to-r from-red-500 to-rose-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={handleDeleteCustomer} disabled={actionLoading}>
           {actionLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}

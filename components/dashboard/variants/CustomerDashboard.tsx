@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, Fragment } from "react"
-import { Laptop, Loader2, Send, Ticket, Wifi, Activity, Cpu, Thermometer, ShieldAlert, RefreshCw, Network, Radio, ArrowUpDown, Smartphone, Tv, HardDrive, ChevronDown, ChevronUp, Download, ExternalLink, FileText, ImageIcon } from "lucide-react"
+import { Laptop, Loader2, Send, Ticket, Wifi, Activity, Cpu, Thermometer, ShieldAlert, RefreshCw, Network, Radio, ArrowUpDown, Smartphone, Tv, HardDrive, ChevronDown, ChevronUp, Download, ExternalLink, FileText, ImageIcon, MessageSquare } from "lucide-react"
 import toast from "react-hot-toast"
 import { apiRequest, buildApiAssetUrl, getDynamicBaseUrl } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
@@ -258,6 +258,8 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
   const [radiusUsage, setRadiusUsage] = useState<any[]>([])
   const [radiusUsageLoading, setRadiusUsageLoading] = useState(false)
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null)
+  const [chatMessage, setChatMessage] = useState("")
+  const [sendingChat, setSendingChat] = useState(false)
 
   const handleReboot = async () => {
     if (!serial) return
@@ -500,6 +502,29 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
     }
   }
 
+  const sendSupportChat = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const message = chatMessage.trim()
+    if (!message) {
+      toast.error("Please type a message")
+      return
+    }
+
+    setSendingChat(true)
+    try {
+      await apiRequest("/messages", {
+        method: "POST",
+        body: JSON.stringify({ content: message }),
+      })
+      setChatMessage("")
+      toast.success("Message sent to support")
+    } catch (error: any) {
+      toast.error(error.message || "Failed to send chat message")
+    } finally {
+      setSendingChat(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -541,6 +566,11 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button asChild className="gap-2">
+            <a href="/messages">
+              <MessageSquare className="h-4 w-4" /> Chat with Support
+            </a>
+          </Button>
           <Badge variant={String(profile.status).toLowerCase() === "active" ? "success" : "secondary"} className="px-3 py-1">
             {profile.status || "unknown"}
           </Badge>
@@ -1467,6 +1497,37 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
 
   const supportContent = (
     <div className="grid gap-4 lg:grid-cols-3">
+      <CardContainer title="Live Chat" className="border-0 bg-gradient-to-br from-emerald-50 to-cyan-50 shadow-sm dark:from-emerald-950/20 dark:to-cyan-950/20 lg:col-span-1">
+        <form className="space-y-4" onSubmit={sendSupportChat}>
+          <div className="rounded-md border bg-background/70 p-4">
+            <div className="flex items-start gap-3">
+              <div className="rounded-full bg-primary/10 p-2 text-primary">
+                <MessageSquare className="h-4 w-4" />
+              </div>
+              <div className="space-y-1">
+                <div className="font-medium">Message support team</div>
+                <p className="text-sm text-muted-foreground">Send a realtime message to support and administrators.</p>
+              </div>
+            </div>
+          </div>
+          <Textarea
+            value={chatMessage}
+            onChange={(event) => setChatMessage(event.target.value)}
+            rows={4}
+            placeholder="Type your message..."
+          />
+          <div className="flex gap-2">
+            <Button type="submit" disabled={sendingChat || !chatMessage.trim()} className="flex-1 gap-2">
+              {sendingChat ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              Send Message
+            </Button>
+            <Button asChild type="button" variant="outline">
+              <a href="/messages">Open Chat</a>
+            </Button>
+          </div>
+        </form>
+      </CardContainer>
+
       <CardContainer title="Create Ticket" className="border-0 bg-gradient-to-br from-slate-50 to-amber-50 shadow-sm dark:from-slate-900 dark:to-amber-950/20 lg:col-span-1">
         <form className="space-y-4" onSubmit={createTicket}>
           <div className="space-y-3">
@@ -1484,7 +1545,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
         </form>
       </CardContainer>
 
-      <CardContainer title="Support Tickets" className="border-0 bg-gradient-to-br from-slate-50 to-blue-50 shadow-sm dark:from-slate-900 dark:to-blue-950/20 lg:col-span-2">
+      <CardContainer title="Support Tickets" className="border-0 bg-gradient-to-br from-slate-50 to-blue-50 shadow-sm dark:from-slate-900 dark:to-blue-950/20 lg:col-span-3">
         {(profile.tickets || []).length > 0 ? (
           <div className="space-y-3">
             {(profile.tickets || []).map((ticketItem) => (
@@ -1615,6 +1676,11 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button asChild className="gap-2">
+            <a href="/messages">
+              <MessageSquare className="h-4 w-4" /> Chat with Support
+            </a>
+          </Button>
           <Badge variant={String(profile.status).toLowerCase() === "active" ? "success" : "secondary"}>
             {profile.status || "unknown"}
           </Badge>
@@ -1640,6 +1706,9 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
           <div className="space-y-2">
             <div className="text-2xl font-bold">{activeTickets.length}</div>
             <p className="text-xs text-muted-foreground">active support tickets</p>
+            <Button asChild size="sm" variant="outline" className="mt-2 w-full gap-2">
+              <a href="/messages"><MessageSquare className="h-4 w-4" /> Chat</a>
+            </Button>
           </div>
         </CardContainer>
         <CardContainer title="Router">

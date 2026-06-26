@@ -773,7 +773,7 @@ interface NetTVDialogProps {
   defaultLng?: string
 }
 
-function NetTVDialog({
+export function NetTVDialog({
   open,
   onOpenChange,
   onConfirm,
@@ -1234,7 +1234,7 @@ export function AddCustomerForm() {
     state: "",
     zipCode: "",
     idNumber: "",
-    panNumber: "",          // NEW: PAN for TSHUL
+    panNumber: "",          // PAN for account billing
     fullAddress: "",
   })
 
@@ -2341,7 +2341,7 @@ export function AddCustomerForm() {
       if (selectedAddonServices.has("TSHUL")) {
         // Validate PAN
         if (!formValues.panNumber || !/^\d{9}$/.test(formValues.panNumber)) {
-          toast.error("TSHUL requires a valid 9‑digit PAN number.")
+          toast.error("Account billing requires a valid 9-digit PAN number.")
           setIsProvisioning(false)
           return
         }
@@ -2461,7 +2461,7 @@ export function AddCustomerForm() {
       // But we need to update nettvData first.
       // We'll implement a separate retry function that re-sends only the failed service.
     }
-    // For TSHUL or RADIUS, we can just re-send with same data
+    // For account billing or RADIUS, we can just re-send with same data
     // We'll collect failed services and call a dedicated retry endpoint or just call provision again with selected services.
     // This is left as an exercise; for now we'll just show the idea.
     toast(`Retry logic for ${service} not fully implemented.`)
@@ -2871,7 +2871,7 @@ export function AddCustomerForm() {
                     checked={selectedAddonServices.has("TSHUL")}
                     onCheckedChange={(checked) => {
                       if (checked && (!formValues.panNumber || !/^\d{9}$/.test(formValues.panNumber))) {
-                        toast.error("A valid 9‑digit PAN number is required for TSHUL.")
+                        toast.error("A valid 9-digit PAN number is required for account billing.")
                         return
                       }
                       const newSet = new Set(selectedAddonServices)
@@ -2880,7 +2880,7 @@ export function AddCustomerForm() {
                       setSelectedAddonServices(newSet)
                     }}
                   />
-                  <Label htmlFor="tshul" className="cursor-pointer">TSHUL Billing</Label>
+                  <Label htmlFor="tshul" className="cursor-pointer">Account Billing</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Checkbox
@@ -3062,7 +3062,7 @@ export function AddCustomerForm() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="panNumber">PAN Number (for TSHUL billing)</Label>
+                    <Label htmlFor="panNumber">PAN Number (for account billing)</Label>
                     <Input
                       id="panNumber"
                       value={formValues.panNumber}

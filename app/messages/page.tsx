@@ -58,6 +58,7 @@ export default function MessagesPage() {
   const [teamMembers, setTeamMembers] = useState<any[]>([])
   const [loadingTeam, setLoadingTeam] = useState(false)
   const [teamSearch, setTeamSearch] = useState("")
+  const isCustomerUser = Boolean(authUser?.customerId) || String(authUser?.role?.name || authUser?.role || "").toLowerCase().includes("customer")
 
   const fetchMessages = async () => {
     try {
@@ -74,7 +75,7 @@ export default function MessagesPage() {
   const fetchTeamMembers = async () => {
     try {
       setLoadingTeam(true)
-      const data = await apiRequest<any[]>("/users")
+      const data = await apiRequest<any[]>("/messages/recipients")
       if (Array.isArray(data)) {
         setTeamMembers(data.filter(u => u.id !== myId))
       }
@@ -202,11 +203,11 @@ export default function MessagesPage() {
   }, [messages, selectedUserId, myId])
 
   const handleSend = async () => {
-    if (!selectedUserId || !content.trim()) return
+    if ((!selectedUserId && !isCustomerUser) || !content.trim()) return
     try {
       await apiRequest("/messages", {
         method: "POST",
-        body: JSON.stringify({ receiverId: selectedUserId, content })
+        body: JSON.stringify({ receiverId: selectedUserId || undefined, content })
       })
       setContent("")
       fetchMessages()
@@ -215,7 +216,11 @@ export default function MessagesPage() {
     }
   }
 
-  const selectedUser = conversations.find(c => c.user.id === selectedUserId)?.user || teamMembers.find(t => t.id === selectedUserId)
+  const selectedUser = selectedUserId
+    ? conversations.find(c => c.user.id === selectedUserId)?.user || teamMembers.find(t => t.id === selectedUserId)
+    : isCustomerUser
+      ? { name: "Support Team", role: { name: "Support" } }
+      : null
 
   return (
     <DashboardLayout>
@@ -226,7 +231,7 @@ export default function MessagesPage() {
             <div className="flex items-center justify-between">
               <h1 className="text-xl font-bold flex items-center gap-2">
                 <MessageSquare className="h-5 w-5 text-primary" />
-                Messages
+                {isCustomerUser ? "Support Chat" : "Messages"}
               </h1>
               <Button onClick={() => setNewChatOpen(true)} variant="ghost" size="icon" className="h-8 w-8 rounded-full">
                 <Plus className="h-4 w-4" />
@@ -248,7 +253,15 @@ export default function MessagesPage() {
               {loading ? (
                 <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
               ) : conversations.length === 0 ? (
-                <div className="text-center p-8 text-sm text-muted-foreground">No conversations found</div>
+                <div className="space-y-3 p-6 text-center text-sm text-muted-foreground">
+                  <MessageSquare className="mx-auto h-8 w-8 opacity-50" />
+                  <p>No conversations found</p>
+                  {isCustomerUser && (
+                    <Button size="sm" onClick={() => setSelectedUserId(null)} className="gap-2">
+                      <Send className="h-4 w-4" /> Message Support
+                    </Button>
+                  )}
+                </div>
               ) : (
                 conversations
                   .filter(c => c.user.name.toLowerCase().includes(search.toLowerCase()))
@@ -292,7 +305,7 @@ export default function MessagesPage() {
 
         {/* Chat Area */}
         <div className="flex-1 flex flex-col bg-white dark:bg-slate-950">
-          {selectedUserId ? (
+          {selectedUserId || isCustomerUser ? (
             <>
               {/* Chat Header */}
               <div className="p-4 border-b flex items-center justify-between bg-white dark:bg-slate-950 z-10">
@@ -364,7 +377,7 @@ export default function MessagesPage() {
               <div className="p-4 border-t bg-white dark:bg-slate-950">
                 <div className="flex gap-2 bg-slate-100 dark:bg-slate-900 p-1 rounded-2xl border border-slate-200 dark:border-slate-800">
                   <Input 
-                    placeholder="Type a message..." 
+                    placeholder={isCustomerUser && !selectedUserId ? "Type a message to support..." : "Type a message..."} 
                     className="flex-1 border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
                     value={content}
                     onChange={e => setContent(e.target.value)}
@@ -388,10 +401,11 @@ export default function MessagesPage() {
               </div>
               <h2 className="text-xl font-bold mb-2">Your Messages</h2>
               <p className="text-muted-foreground max-w-xs mx-auto">
-                Select a conversation from the left to start chatting or create a new message.
+                {isCustomerUser ? "Send a message to support or continue an existing conversation." : "Select a conversation from the left to start chatting or create a new message."}
               </p>
-              <Button onClick={() => setNewChatOpen(true)} className="mt-6 gap-2">
-                <Plus className="h-4 w-4" /> Start New Chat
+              <Button onClick={() => isCustomerUser ? setSelectedUserId(null) : setNewChatOpen(true)} className="mt-6 gap-2">
+                {isCustomerUser ? <Send className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                {isCustomerUser ? "Message Support" : "Start New Chat"}
               </Button>
             </div>
           )}
@@ -403,7 +417,7 @@ export default function MessagesPage() {
           <DialogHeader>
             <DialogTitle>New Conversation</DialogTitle>
             <DialogDescription>
-              Select a team member to start a conversation.
+              Select a support team member to start a conversation.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
