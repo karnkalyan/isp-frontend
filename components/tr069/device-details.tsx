@@ -85,6 +85,22 @@ export function TR069DeviceDetails({ deviceId }: TR069DeviceDetailsProps) {
     toast.success(`${label} copied to clipboard`);
   };
 
+  const renderIpLink = (ip: string) => {
+    if (ip === "N/A") return <span className="text-muted-foreground">N/A</span>;
+
+    return (
+      <a
+        href={`https://${ip}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-1 text-primary hover:underline group"
+      >
+        {ip}
+        <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+      </a>
+    );
+  };
+
   const findConnectionByService = (service: string): WanConnection | undefined => {
     return wanConnections.find((conn) => {
       if (!conn?.parameters || typeof conn.parameters !== "object") return false;
@@ -291,7 +307,7 @@ export function TR069DeviceDetails({ deviceId }: TR069DeviceDetailsProps) {
 
             <div className="text-muted-foreground">IP Address</div>
             <div className="flex items-center gap-1">
-              {ipAddress}
+              {renderIpLink(ipAddress)}
               <button
                 onClick={() => copyToClipboard(ipAddress, "IP Address")}
                 className="text-muted-foreground hover:text-foreground"
@@ -347,19 +363,7 @@ export function TR069DeviceDetails({ deviceId }: TR069DeviceDetailsProps) {
 
             <div className="text-muted-foreground">Management IP Address</div>
             <div className="flex items-center gap-1">
-              {managementIP === "N/A" ? (
-                <span className="text-muted-foreground">N/A</span>
-              ) : (
-                <a
-                  href={`https://${managementIP}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-primary hover:underline group"
-                >
-                  {managementIP}
-                  <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </a>
-              )}
+              {renderIpLink(managementIP)}
               <button
                 onClick={() => copyToClipboard(managementIP, "Management IP Address")}
                 className="text-muted-foreground hover:text-foreground"
