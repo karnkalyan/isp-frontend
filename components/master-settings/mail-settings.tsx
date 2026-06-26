@@ -42,8 +42,8 @@ export function MailSettings() {
             smtpFrom: data.smtpFrom || prev.smtpFrom,
             smtpSecure: data.smtpSecure === 'true',
             enableEmailService: data.enableEmailService !== 'false',
-            enableMailNotifications: data.enableMailNotifications === 'true',
-            enableSmsService: data.enableSmsService !== 'false',
+            enableMailNotifications: data.enableMailNotifications !== 'false' && data.emailNotifications !== 'false',
+            enableSmsService: data.enableSmsService !== 'false' && data.smsNotifications !== 'false',
             imapHost: data.imapHost || prev.imapHost,
             imapPort: data.imapPort || prev.imapPort,
             imapUser: data.imapUser || prev.imapUser,
@@ -65,11 +65,13 @@ export function MailSettings() {
   const saveSettings = async () => {
     setSaving(true)
     try {
-      const settingsArray = Object.entries(settings).map(([key, value]) => ({
-        key,
-        value: typeof value === 'object' ? JSON.stringify(value) : String(value),
-        description: `Mail setting: ${key}`,
-      }))
+      const settingsArray = Object.entries(settings)
+        .filter(([key, value]) => !["smtpPass", "imapPass"].includes(key) || String(value || "").trim().length > 0)
+        .map(([key, value]) => ({
+          key,
+          value: typeof value === 'object' ? JSON.stringify(value) : String(value),
+          description: `Mail setting: ${key}`,
+        }))
 
       await apiRequest("/settings/batch", {
         method: "POST",

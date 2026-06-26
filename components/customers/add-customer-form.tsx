@@ -1589,6 +1589,19 @@ export function AddCustomerForm() {
     fetchLeadDetails(lead.id)
   }, [fetchLeadDetails])
 
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const leadId = new URLSearchParams(window.location.search).get("leadId")
+    if (!leadId || selectedLead || loadingLeadDetails) return
+
+    const numericLeadId = Number(leadId)
+    if (!Number.isFinite(numericLeadId)) return
+
+    setShowProvisionSection(false)
+    setCreatedCustomer(null)
+    fetchLeadDetails(numericLeadId)
+  }, [selectedLead, loadingLeadDetails, fetchLeadDetails])
+
   // ========== Map Functions ==========
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
     const R = 6371
@@ -1759,6 +1772,12 @@ export function AddCustomerForm() {
     const { id, value } = e.target
     setFormValues((prev) => ({ ...prev, [id]: value }))
     setTouched((prev) => ({ ...prev, [id]: true }))
+    setErrors((prev) => {
+      if (!prev[id]) return prev
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
   }, [])
 
   const handleServiceChange = useCallback((field: string, value: string) => {
@@ -2157,6 +2176,11 @@ export function AddCustomerForm() {
       isValid = false
     }
 
+    if (!formValues.idNumber.trim()) {
+      newErrors.idNumber = "ID number is required"
+      isValid = false
+    }
+
     // Draft save is allowed without a matched ONT. Provisioning remains strict.
     if (isFiber && selectedDiscoveredOnt && !matchedDeviceForOnt) {
       newErrors.ont = "Autofound ONT and selected device are not matched. Save as draft and update the device before provisioning."
@@ -2173,11 +2197,27 @@ export function AddCustomerForm() {
 
     setErrors(newErrors)
     return isValid
-  }, [selectedLead, isFiber, serviceDetails.connectionType, serviceDetails.subscribedPkgId, referenceDetails.customerTypeId, provisionDetails.splitterId, selectedDiscoveredOnt, matchedDeviceForOnt, wirelessCredentials])
+  }, [selectedLead, isFiber, serviceDetails.connectionType, serviceDetails.subscribedPkgId, referenceDetails.customerTypeId, provisionDetails.splitterId, selectedDiscoveredOnt, matchedDeviceForOnt, wirelessCredentials, formValues.idNumber])
 
   const handleTabChange = useCallback((newTab: string) => {
     setActiveTab(newTab)
   }, [])
+
+  const handlePersonalNext = useCallback(() => {
+    if (!formValues.idNumber.trim()) {
+      setErrors((prev) => ({ ...prev, idNumber: "ID number is required" }))
+      setTouched((prev) => ({ ...prev, idNumber: true }))
+      toast.error("ID number is required")
+      return
+    }
+
+    setErrors((prev) => {
+      const next = { ...prev }
+      delete next.idNumber
+      return next
+    })
+    handleTabChange("location")
+  }, [formValues.idNumber, handleTabChange])
 
   // Submit
   const handleCreateCustomer = useCallback(async (e: React.FormEvent) => {
@@ -3018,6 +3058,7 @@ export function AddCustomerForm() {
                       onChange={handleInputChange}
                       placeholder="Enter ID number"
                     />
+                    {errors.idNumber && <p className="text-sm text-red-500">{errors.idNumber}</p>}
                   </div>
 
                   <div className="space-y-2">
@@ -3032,7 +3073,7 @@ export function AddCustomerForm() {
                   </div>
 
                   <div className="flex justify-end">
-                    <Button type="button" onClick={() => handleTabChange("location")}>
+                    <Button type="button" onClick={handlePersonalNext}>
                       Next: Location
                     </Button>
                   </div>

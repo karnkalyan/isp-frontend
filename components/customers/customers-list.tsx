@@ -307,7 +307,7 @@ export function CustomersList() {
 
     try {
       setSendingSms(true)
-      await apiRequest("/service/sms/send-bulk", {
+      const result = await apiRequest<any>("/service/sms/send-bulk", {
         method: "POST",
         body: JSON.stringify({
           to: smsCustomer.phoneNumber,
@@ -316,7 +316,12 @@ export function CustomersList() {
           provider: selectedSmsProvider,
         })
       })
-      toast.success("SMS sent successfully")
+      if (result?.success === false || result?.data?.error) {
+        const providerError = result?.data?.errors?.[0]?.message || result?.data?.data?.errors?.[0]?.message
+        toast.error(providerError || result?.data?.message || result?.error || "Failed to send SMS")
+        return
+      }
+      toast.success(result?.message || result?.data?.message || "SMS sent successfully")
       setSmsCustomer(null)
       setSmsMessage("")
     } catch (error: any) {

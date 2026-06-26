@@ -38,6 +38,32 @@ export function MasterSettingsTabs() {
     return () => window.removeEventListener("system-settings-saved" as any, handleSettingsSaved)
   }, [])
 
+  useEffect(() => {
+    const handleSecretLicenseToggle = async (event: KeyboardEvent) => {
+      if (!(event.ctrlKey && event.altKey && event.key.toLowerCase() === "l")) return
+      event.preventDefault()
+      const nextValue = !showLicense
+      setShowLicense(nextValue)
+      try {
+        await apiRequest("/settings", {
+          method: "POST",
+          body: JSON.stringify({
+            key: "showLicenseTab",
+            value: String(nextValue),
+            description: "Hidden license tab visibility setting",
+          }),
+          suppressToast: true,
+        })
+      } catch (error) {
+        setShowLicense(!nextValue)
+        console.error("Failed to toggle license tab:", error)
+      }
+    }
+
+    window.addEventListener("keydown", handleSecretLicenseToggle)
+    return () => window.removeEventListener("keydown", handleSecretLicenseToggle)
+  }, [showLicense])
+
   return (
     <div className="w-full">
       <Tabs defaultValue="system" className="space-y-6">

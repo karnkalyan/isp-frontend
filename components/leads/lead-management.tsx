@@ -1614,37 +1614,7 @@ export function LeadManagement() {
   }
 
   const openConvertDialog = (lead: Lead) => {
-    setSelectedLead(lead)
-
-    // Use lead's coordinates if available
-    const leadLat = lead.metadata?.latitude || ""
-    const leadLon = lead.metadata?.longitude || ""
-
-    setConversionForm({
-      idNumber: "",
-      streetAddress: "",
-      city: "",
-      state: "",
-      zipCode: "",
-      lat: leadLat ? leadLat.toString() : "", // Use existing lat if available
-      lon: leadLon ? leadLon.toString() : "", // Use existing lon if available
-      deviceName: "",
-      deviceMac: "",
-      assignedPkg: lead.interestedPackageId || "",
-      rechargeable: false,
-      membershipId: lead.memberShipId || "",
-      existingISPId: "",
-      isReferenced: false,
-      referencedById: ""
-    })
-
-    // Reset map state
-    setConvertMapPosition([27.7172, 85.3240]) // Kathmandu coordinates
-    setConvertNearestSplitters([])
-    setConvertServiceAvailable(null)
-    setConvertServiceRadius(0.1) // Default 100 meters
-
-    setShowConvertDialog(true)
+    router.push(`/customers/new?leadId=${encodeURIComponent(String(lead.id))}`)
   }
 
   const handleOutboundcalls = async (phoneNumber: string) => {

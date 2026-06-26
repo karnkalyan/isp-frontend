@@ -105,7 +105,7 @@ export function SystemSettings() {
     maxStaffGraceDays: 3,
     allowStaffCompensation: false,
     tscPercentage: 10,
-    freeCustomerSecretKey: "admin123",
+    freeCustomerSecretKey: "",
     customerIdPrefix: "CUS",
     customerIdIncludeMembership: true,
     customerIdIncludeBranch: false,
@@ -233,7 +233,7 @@ export function SystemSettings() {
             maxStaffGraceDays: parseInt(data.maxStaffGraceDays || '3'),
             allowStaffCompensation: data.allowStaffCompensation === 'true',
             tscPercentage: parseInt(data.tscPercentage || '10'),
-            freeCustomerSecretKey: data.freeCustomerSecretKey || 'admin123',
+            freeCustomerSecretKey: data.freeCustomerSecretKey || "",
             customerIdPrefix: data.customerIdPrefix !== undefined ? data.customerIdPrefix : prev.customerIdPrefix,
             customerIdIncludeMembership: data.customerIdIncludeMembership !== 'false',
             customerIdIncludeBranch: data.customerIdIncludeBranch === 'true',
@@ -356,11 +356,13 @@ export function SystemSettings() {
     setSaving(true)
 
     try {
-      const settingsArray = Object.entries(settings).map(([key, value]) => ({
-        key,
-        value: typeof value === 'object' ? JSON.stringify(value) : String(value),
-        description: `System setting: ${key}`,
-      }))
+      const settingsArray = Object.entries(settings)
+        .filter(([key, value]) => key !== "freeCustomerSecretKey" || String(value || "").trim().length > 0)
+        .map(([key, value]) => ({
+          key,
+          value: typeof value === 'object' ? JSON.stringify(value) : String(value),
+          description: `System setting: ${key}`,
+        }))
 
       await apiRequest("/settings/batch", {
         method: "POST",
@@ -1002,7 +1004,7 @@ export function SystemSettings() {
                  <Input
                    id="freeCustomerSecretKey"
                    type="text"
-                   value={settings.freeCustomerSecretKey ?? "admin123"}
+                   value={settings.freeCustomerSecretKey ?? ""}
                    onChange={(e) => updateSetting("freeCustomerSecretKey", e.target.value)}
                  />
                  <p className="text-[10px] text-muted-foreground">Only administrators can toggle a customer as free with this key.</p>
@@ -1058,16 +1060,6 @@ export function SystemSettings() {
                 />
               </div>
 
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Show License Tab</Label>
-                  <div className="text-sm text-muted-foreground">Toggle visibility of the License tab in Master Settings</div>
-                </div>
-                <Switch
-                  checked={settings.showLicenseTab}
-                  onCheckedChange={(checked) => updateSetting("showLicenseTab", checked)}
-                />
-              </div>
             </div>
           </div>
         </CardContainer>
