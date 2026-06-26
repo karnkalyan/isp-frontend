@@ -685,7 +685,7 @@ export function CustomersList() {
                               onCheckedChange={() => toggleSelectCustomer(customerId)}
                               aria-label={`Select ${fullName}`}
                             />
-                            <span className="font-mono text-xs">CUST-{customer.id.toString().padStart(3, '0')}</span>
+                            <span className="font-mono text-xs">{customer.customerUniqueId || `CUST-${customer.id.toString().padStart(3, '0')}`}</span>
                           </div>
                         </td>
                         <td className="p-4 align-middle">

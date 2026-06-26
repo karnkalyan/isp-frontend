@@ -521,44 +521,60 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
   }
 
   const header = (
-    <div className="flex flex-col gap-3 rounded-lg border bg-card p-5 md:flex-row md:items-center md:justify-between">
-      <div>
-        <h1 className="text-2xl font-bold">Namaste, {customerName}</h1>
-        <p className="text-sm text-muted-foreground">
-          Customer ID: <span className="font-mono">{profile.customerUniqueId || "N/A"}</span>
-        </p>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <Badge variant={String(profile.status).toLowerCase() === "active" ? "success" : "secondary"}>
-          {profile.status || "unknown"}
-        </Badge>
-        {serial && <Badge variant="outline">ONT: {serial}</Badge>}
+    <div className="relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-card via-card to-primary/10 p-6 shadow-sm">
+      <div className="absolute right-0 top-0 h-32 w-32 rounded-full bg-primary/10 blur-3xl" />
+      <div className="relative flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+        <div className="space-y-2">
+          <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+            <Activity className="h-3.5 w-3.5" />
+            Customer Portal
+          </div>
+          <div>
+            <h1 className="text-3xl font-extrabold tracking-tight">Namaste, {customerName}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Customer ID: <span className="font-mono font-semibold text-foreground">{profile.customerUniqueId || "N/A"}</span>
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+            <span className="rounded-full bg-muted px-3 py-1">Plan ends: {formatDate(profile.activeSubscription?.planEnd)}</span>
+            <span className="rounded-full bg-muted px-3 py-1">Branch: {profile.branch?.name || "N/A"}</span>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Badge variant={String(profile.status).toLowerCase() === "active" ? "success" : "secondary"} className="px-3 py-1">
+            {profile.status || "unknown"}
+          </Badge>
+          {serial && <Badge variant="outline" className="px-3 py-1">ONT: {serial}</Badge>}
+          <Badge variant={String(profile.radiusRealtimeStatus || "offline").toLowerCase() === "online" ? "success" : "destructive"} className="px-3 py-1">
+            Radius {String(profile.radiusRealtimeStatus || "offline").toUpperCase()}
+          </Badge>
+        </div>
       </div>
     </div>
   )
 
   const dashboardStats = (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-      <CardContainer title="Current Plan">
+      <CardContainer title="Current Plan" className="border-0 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-sm dark:from-blue-950/30 dark:to-indigo-950/20">
         <div className="space-y-2">
           <PackageLine label={plan?.packageName || planDetails?.planName || "No active package"} value={plan?.packageDuration || "N/A"} />
           <div className="text-2xl font-bold">{planDetails?.downSpeed || 0} Mbps</div>
           <p className="text-xs text-muted-foreground">Upload: {planDetails?.upSpeed || 0} Mbps</p>
         </div>
       </CardContainer>
-      <CardContainer title="Billing">
+      <CardContainer title="Billing" className="border-0 bg-gradient-to-br from-emerald-50 to-teal-50 shadow-sm dark:from-emerald-950/30 dark:to-teal-950/20">
         <div className="space-y-2">
           <div className="text-2xl font-bold">{money(profile.billingSummary?.outstandingAmount)}</div>
           <p className="text-xs text-muted-foreground">{profile.billingSummary?.unpaidCount || 0} unpaid invoice/order</p>
         </div>
       </CardContainer>
-      <CardContainer title="Support">
+      <CardContainer title="Support" className="border-0 bg-gradient-to-br from-amber-50 to-orange-50 shadow-sm dark:from-amber-950/30 dark:to-orange-950/20">
         <div className="space-y-2">
           <div className="text-2xl font-bold">{activeTickets.length}</div>
           <p className="text-xs text-muted-foreground">active support tickets</p>
         </div>
       </CardContainer>
-      <CardContainer title="Device & Link Status">
+      <CardContainer title="Device & Link Status" className="border-0 bg-gradient-to-br from-violet-50 to-fuchsia-50 shadow-sm dark:from-violet-950/30 dark:to-fuchsia-950/20">
         <div className="space-y-3">
           <div className="flex justify-between items-center text-sm">
             <span className="text-muted-foreground">ONT Status (ACS):</span>
@@ -1280,7 +1296,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
 
   const contactContent = (
     <div className="grid gap-4 lg:grid-cols-2">
-      <CardContainer title="Customer Contact Details">
+      <CardContainer title="Customer Contact Details" className="border-0 bg-gradient-to-br from-slate-50 to-blue-50 shadow-sm dark:from-slate-900 dark:to-blue-950/20">
         <InfoGrid rows={[
           ["Full Name", customerName],
           ["Email", profile.lead?.email || "N/A"],
@@ -1293,7 +1309,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
         ]} />
       </CardContainer>
 
-      <CardContainer title="Address & Account">
+      <CardContainer title="Address & Account" className="border-0 bg-gradient-to-br from-slate-50 to-emerald-50 shadow-sm dark:from-slate-900 dark:to-emerald-950/20">
         <InfoGrid rows={[
           ["Address", profile.lead?.address || "N/A"],
           ["Street", profile.lead?.street || "N/A"],
@@ -1306,7 +1322,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
         ]} />
       </CardContainer>
 
-      <CardContainer title="Documents" className="lg:col-span-2">
+      <CardContainer title="Documents" className="border-0 bg-gradient-to-br from-slate-50 to-violet-50 shadow-sm dark:from-slate-900 dark:to-violet-950/20 lg:col-span-2">
         {(profile.documents || []).length > 0 ? (
           <div className="grid gap-3 md:grid-cols-2">
             {(profile.documents || []).map((document) => (
@@ -1329,7 +1345,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
   }
 
   const billingContent = (
-    <CardContainer title="Billing History">
+    <CardContainer title="Billing History" className="border-0 bg-gradient-to-br from-slate-50 to-emerald-50 shadow-sm dark:from-slate-900 dark:to-emerald-950/20">
       {recentOrders.length > 0 ? (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -1451,7 +1467,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
 
   const supportContent = (
     <div className="grid gap-4 lg:grid-cols-3">
-      <CardContainer title="Create Ticket" className="lg:col-span-1">
+      <CardContainer title="Create Ticket" className="border-0 bg-gradient-to-br from-slate-50 to-amber-50 shadow-sm dark:from-slate-900 dark:to-amber-950/20 lg:col-span-1">
         <form className="space-y-4" onSubmit={createTicket}>
           <div className="space-y-3">
             <Label>Subject</Label>
@@ -1468,7 +1484,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
         </form>
       </CardContainer>
 
-      <CardContainer title="Support Tickets" className="lg:col-span-2">
+      <CardContainer title="Support Tickets" className="border-0 bg-gradient-to-br from-slate-50 to-blue-50 shadow-sm dark:from-slate-900 dark:to-blue-950/20 lg:col-span-2">
         {(profile.tickets || []).length > 0 ? (
           <div className="space-y-3">
             {(profile.tickets || []).map((ticketItem) => (

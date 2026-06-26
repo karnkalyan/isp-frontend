@@ -11,6 +11,8 @@ import {
   FileText,
   Phone,
   Package,
+  Router,
+  CreditCard,
   ChevronDown,
   ChevronRight,
   ListChecks,
@@ -118,11 +120,6 @@ const menuCategories: MenuCategory[] = [
         submenu: [
           { title: "All Customers", href: "/customers/all", permission: "customer_read" },
           { title: "New Customer", href: "/customers/new", permission: "customer_create" },
-          { title: "Customer Dashboard", href: "/customer/dashboard", permission: "dashboard_view" },
-          { title: "Router", href: "/customer/router", permission: "dashboard_view" },
-          { title: "Contact Details", href: "/customer/contact", permission: "dashboard_view" },
-          { title: "Support Tickets", href: "/customer/support", permission: "dashboard_view" },
-          { title: "Billing & Invoices", href: "/customer/billing", permission: "dashboard_view" },
         ],
       },
       {
@@ -148,6 +145,46 @@ const menuCategories: MenuCategory[] = [
         submenu: [
           { title: "Membership", href: "/membership", permission: "membership_read" },
         ],
+      },
+    ],
+  },
+  {
+    category: "Customer Portal",
+    items: [
+      {
+        title: "Customer Dashboard",
+        icon: Activity,
+        href: "/customer/dashboard",
+        permission: "dashboard_view",
+        exactMatch: true,
+      },
+      {
+        title: "Router",
+        icon: Router,
+        href: "/customer/router",
+        permission: "dashboard_view",
+        exactMatch: true,
+      },
+      {
+        title: "Contact Details",
+        icon: Phone,
+        href: "/customer/contact",
+        permission: "dashboard_view",
+        exactMatch: true,
+      },
+      {
+        title: "Support Tickets",
+        icon: HelpCircle,
+        href: "/customer/support",
+        permission: "dashboard_view",
+        exactMatch: true,
+      },
+      {
+        title: "Billing & Invoices",
+        icon: CreditCard,
+        href: "/customer/billing",
+        permission: "dashboard_view",
+        exactMatch: true,
       },
     ],
   },
@@ -432,6 +469,9 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
           return { ...item, submenu: filteredSubmenu }
         }
 
+        const isCustomerPortalItem = item.href?.startsWith("/customer/")
+        if (isCustomerPortalItem && !isCustomer) return null
+        if (!isCustomerPortalItem && isCustomer) return null
         if (!canAccess(item.permission)) return null
         return item
       }).filter((item): item is MenuItem => item !== null)

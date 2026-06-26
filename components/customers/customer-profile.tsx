@@ -2731,6 +2731,47 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     return "Success"
   }
 
+  const getSubscribedApp = (codes: string[]) => {
+    const normalizedCodes = codes.map((code) => code.toUpperCase())
+    return customer?.subscribedApps?.find((app: any) => {
+      const serviceCode = String(app.service?.code || "").toUpperCase()
+      const serviceName = String(app.service?.name || "").toUpperCase()
+      return normalizedCodes.some((code) => serviceCode.includes(code) || serviceName.includes(code))
+    })
+  }
+
+  const isAppProvisioned = (app: any) => {
+    if (!app) return false
+    const status = String(app.status || app.serviceData?.status || app.serviceData?.Status || "").toLowerCase()
+    return status === "active" || status === "success" || status === "provisioned" || app.serviceData?.success === true
+  }
+
+  const provisionedServices = [
+    {
+      label: "Radius / PPPoE",
+      icon: Key,
+      provisioned: Boolean(customer?.connectionUsers?.some((user) => user.isActive)),
+      status: customer?.connectionUsers?.some((user) => user.isActive) ? "Provisioned" : "Not provisioned",
+      detail: customer?.connectionUsers?.map((user) => user.username).filter(Boolean).join(", ") || "No active Radius login",
+    },
+    {
+      label: "NetTV",
+      icon: Tv,
+      app: getSubscribedApp(["NETTV", "NET TV"]),
+      provisioned: isAppProvisioned(getSubscribedApp(["NETTV", "NET TV"])),
+      status: isAppProvisioned(getSubscribedApp(["NETTV", "NET TV"])) ? "Provisioned" : "Not provisioned",
+      detail: getSubscribedApp(["NETTV", "NET TV"]) ? getServiceMessage(getSubscribedApp(["NETTV", "NET TV"])) : "No NetTV subscription",
+    },
+    {
+      label: "TSHUL",
+      icon: CreditCard,
+      app: getSubscribedApp(["TSHUL", "BILLING"]),
+      provisioned: isAppProvisioned(getSubscribedApp(["TSHUL", "BILLING"])),
+      status: isAppProvisioned(getSubscribedApp(["TSHUL", "BILLING"])) ? "Provisioned" : "Not provisioned",
+      detail: getSubscribedApp(["TSHUL", "BILLING"]) ? getServiceMessage(getSubscribedApp(["TSHUL", "BILLING"])) : "No TSHUL subscription",
+    },
+  ]
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -3302,6 +3343,43 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                     </Badge>
                   </div>
                 </div>
+              </div>
+            </CardContainer>
+
+            <CardContainer title="Provisioned Services" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
+              <div className="space-y-3">
+                <div className="rounded-lg border border-primary/10 bg-primary/5 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Connection Type</div>
+                      <div className="mt-1 font-semibold">{formatConnectionType(getConnectionType())}</div>
+                    </div>
+                    <Badge className={String(getProvisioningStatus()).toLowerCase() === 'active' ? 'bg-green-500 text-white' : 'bg-amber-500 text-white'}>
+                      {String(getProvisioningStatus()).toUpperCase()}
+                    </Badge>
+                  </div>
+                </div>
+                {provisionedServices.map((service) => {
+                  const Icon = service.icon
+                  return (
+                    <div key={service.label} className="rounded-lg border border-slate-200 p-3 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${service.provisioned ? "bg-green-500/10 text-green-600" : "bg-amber-500/10 text-amber-600"}`}>
+                            <Icon className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-medium">{service.label}</div>
+                            <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{service.detail}</div>
+                          </div>
+                        </div>
+                        <Badge className={service.provisioned ? "bg-green-500 text-white" : "bg-amber-500 text-white"}>
+                          {service.status}
+                        </Badge>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </CardContainer>
 

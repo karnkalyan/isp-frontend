@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Mail, ArrowRight, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -44,7 +44,6 @@ export function MessagesDropdown({ className }: MessagesDropdownProps) {
   useEffect(() => {
       if (open) {
         fetchMessages()
-        markAllAsRead()
       }
   }, [open])
 
@@ -63,6 +62,28 @@ export function MessagesDropdown({ className }: MessagesDropdownProps) {
   const myId = Number(user?.id || 0)
   const incomingMessages = messages.filter((msg) => !myId || msg.receiverId === myId)
   const unreadCount = incomingMessages.filter((msg) => !msg.isRead).length
+  const messageThreads = useMemo(() => {
+    const groups = new Map<number | string, { sender: any; latest: any; unreadCount: number; messages: any[] }>()
+
+    incomingMessages.forEach((message) => {
+      const senderId = message.senderId || message.sender?.id || message.id
+      const existing = groups.get(senderId)
+      const latest = !existing || new Date(message.createdAt).getTime() > new Date(existing.latest.createdAt).getTime()
+        ? message
+        : existing.latest
+
+      groups.set(senderId, {
+        sender: message.sender,
+        latest,
+        unreadCount: (existing?.unreadCount || 0) + (!message.isRead ? 1 : 0),
+        messages: [...(existing?.messages || []), message],
+      })
+    })
+
+    return Array.from(groups.values()).sort(
+      (a, b) => new Date(b.latest.createdAt).getTime() - new Date(a.latest.createdAt).getTime()
+    )
+  }, [incomingMessages])
 
   const markAllAsRead = async () => {
       const hasUnread = incomingMessages.some((msg) => !msg.isRead)
@@ -77,12 +98,15 @@ export function MessagesDropdown({ className }: MessagesDropdownProps) {
       }
   }
 
-  const markOneAsRead = async (id: number | string) => {
-      const target = messages.find((msg) => msg.id === id)
-      if (myId && target?.receiverId !== myId) return
-      setMessages((prev) => prev.map((msg) => msg.id === id ? { ...msg, isRead: true } : msg))
+  const markThreadAsRead = async (threadMessages: any[]) => {
+      const unreadThreadMessages = threadMessages.filter((msg) => (!myId || msg.receiverId === myId) && !msg.isRead)
+      if (unreadThreadMessages.length === 0) return
+      const unreadIds = new Set(unreadThreadMessages.map((msg) => msg.id))
+      setMessages((prev) => prev.map((msg) => unreadIds.has(msg.id) ? { ...msg, isRead: true } : msg))
       try {
-          await apiRequest(`/messages/${id}/read`, { method: "PUT", suppressToast: true })
+          await Promise.all(unreadThreadMessages.map((msg) => (
+            apiRequest(`/messages/${msg.id}/read`, { method: "PUT", suppressToast: true })
+          )))
       } catch (e) {
           console.error(e)
       }
@@ -139,14 +163,16 @@ export function MessagesDropdown({ className }: MessagesDropdownProps) {
           </Button>
         </DropdownMenuLabel>
         <DropdownMenuGroup className="max-h-[300px] overflow-auto py-1">
-          {incomingMessages.length === 0 ? (
+          {messageThreads.length === 0 ? (
               <div className="p-4 text-center text-sm text-muted-foreground">No messages</div>
-          ) : incomingMessages.slice(0, 5).map((message) => (
-            <DropdownMenuItem key={message.id} className="focus:bg-transparent" onSelect={() => markOneAsRead(message.id)}>
+          ) : messageThreads.slice(0, 5).map((thread) => {
+            const message = thread.latest
+            return (
+            <DropdownMenuItem key={message.senderId || message.sender?.id || message.id} className="focus:bg-transparent" onSelect={() => markThreadAsRead(thread.messages)}>
               <div
                 className={cn(
                   "flex items-start w-full p-2 rounded-md cursor-pointer transition-all duration-200",
-                  !message.isRead ? "bg-primary/5" : "",
+                  thread.unreadCount > 0 ? "bg-primary/5" : "",
                   "hover:bg-primary/10",
                 )}
               >
@@ -155,11 +181,11 @@ export function MessagesDropdown({ className }: MessagesDropdownProps) {
                 </Avatar>
                 <div className="flex-1 space-y-0.5 min-w-0">
                   <div className="flex items-center justify-between">
-                    <p className={cn("text-sm truncate", !message.isRead && "font-semibold")}>{message.sender?.name}</p>
+                    <p className={cn("text-sm truncate", thread.unreadCount > 0 && "font-semibold")}>{message.sender?.name}</p>
                     <span className="flex items-center text-xs text-muted-foreground whitespace-nowrap ml-1">
-                      {!message.isRead ? (
+                      {thread.unreadCount > 0 ? (
                         <span className="flex items-center">
-                          <span className="mr-1 h-2 w-2 rounded-full bg-blue-500"></span>
+                          <span className="mr-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] font-semibold text-white">{thread.unreadCount}</span>
                           {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       ) : (
@@ -174,7 +200,7 @@ export function MessagesDropdown({ className }: MessagesDropdownProps) {
                 </div>
               </div>
             </DropdownMenuItem>
-          ))}
+          )})}
         </DropdownMenuGroup>
         <DropdownMenuSeparator className="opacity-50" />
         <div className="p-2 flex gap-2">
