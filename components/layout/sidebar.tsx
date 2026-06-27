@@ -173,6 +173,13 @@ const menuCategories: MenuCategory[] = [
         exactMatch: true,
       },
       {
+        title: "Chat",
+        icon: MessageSquare,
+        href: "/messages",
+        permission: "dashboard_view",
+        exactMatch: true,
+      },
+      {
         title: "Support Tickets",
         icon: HelpCircle,
         href: "/customer/support",

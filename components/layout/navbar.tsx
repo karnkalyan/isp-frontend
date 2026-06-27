@@ -58,6 +58,15 @@ export function Navbar({ onMenuClick }: NavbarProps) {
 
   // Check active calls and open inquiry on realtime call events
   useEffect(() => {
+    // Wait for auth hydration so a customer is never briefly treated as staff.
+    if (!user) return;
+    // Customer accounts never use the PBX controls. Avoid probing Yeastar from
+    // every customer portal page (including the dashboard and chat).
+    if (isCustomer) {
+      setYeastarConfigured(false);
+      setActiveCallsCount(0);
+      return;
+    }
     let alive = true;
     const checkYeastarStatus = async () => {
       try {
@@ -124,7 +133,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
       unsubscribeStatus();
       unsubscribeEvent();
     };
-  }, [on, assignedExtension, yeastarConfigured]);
+  }, [on, assignedExtension, yeastarConfigured, isCustomer, user]);
 
   const handleOpenChange = (open: boolean) => {
     setSearchModalOpen(open);

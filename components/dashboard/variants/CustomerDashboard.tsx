@@ -258,8 +258,6 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
   const [radiusUsage, setRadiusUsage] = useState<any[]>([])
   const [radiusUsageLoading, setRadiusUsageLoading] = useState(false)
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null)
-  const [chatMessage, setChatMessage] = useState("")
-  const [sendingChat, setSendingChat] = useState(false)
 
   const handleReboot = async () => {
     if (!serial) return
@@ -502,29 +500,6 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
     }
   }
 
-  const sendSupportChat = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const message = chatMessage.trim()
-    if (!message) {
-      toast.error("Please type a message")
-      return
-    }
-
-    setSendingChat(true)
-    try {
-      await apiRequest("/messages", {
-        method: "POST",
-        body: JSON.stringify({ content: message }),
-      })
-      setChatMessage("")
-      toast.success("Message sent to support")
-    } catch (error: any) {
-      toast.error(error.message || "Failed to send chat message")
-    } finally {
-      setSendingChat(false)
-    }
-  }
-
   if (loading) {
     return (
       <div className="space-y-6">
@@ -575,9 +550,6 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
             {profile.status || "unknown"}
           </Badge>
           {serial && <Badge variant="outline" className="px-3 py-1">ONT: {serial}</Badge>}
-          <Badge variant={String(profile.radiusRealtimeStatus || "offline").toLowerCase() === "online" ? "success" : "destructive"} className="px-3 py-1">
-            Radius {String(profile.radiusRealtimeStatus || "offline").toUpperCase()}
-          </Badge>
         </div>
       </div>
     </div>
@@ -602,25 +574,6 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
         <div className="space-y-2">
           <div className="text-2xl font-bold">{activeTickets.length}</div>
           <p className="text-xs text-muted-foreground">active support tickets</p>
-        </div>
-      </CardContainer>
-      <CardContainer title="Device & Link Status" className="border-0 bg-gradient-to-br from-violet-50 to-fuchsia-50 shadow-sm dark:from-violet-950/30 dark:to-fuchsia-950/20">
-        <div className="space-y-3">
-          <div className="flex justify-between items-center text-sm">
-            <span className="text-muted-foreground">ONT Status (ACS):</span>
-            <Badge variant={String(deviceInfo?.status || profile.ontRealtimeStatus || profile.tr069Devices?.[0]?.status || "offline").toLowerCase() === "online" ? "success" : "destructive"}>
-              {String(deviceInfo?.status || profile.ontRealtimeStatus || profile.tr069Devices?.[0]?.status || "offline").toUpperCase()}
-            </Badge>
-          </div>
-          <div className="flex justify-between items-center text-sm">
-            <span className="text-muted-foreground">Radius Link:</span>
-            <Badge variant={String(profile.radiusRealtimeStatus || "offline").toLowerCase() === "online" ? "success" : "destructive"}>
-              {String(profile.radiusRealtimeStatus || "offline").toUpperCase()}
-            </Badge>
-          </div>
-          <p className="text-xs text-muted-foreground pt-1 border-t">
-            Last contact: {formatDate(deviceInfo?.lastContact || profile.tr069Devices?.[0]?.lastContact)}
-          </p>
         </div>
       </CardContainer>
     </div>
@@ -1496,39 +1449,8 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
   )
 
   const supportContent = (
-    <div className="grid gap-4 lg:grid-cols-3">
-      <CardContainer title="Live Chat" className="border-0 bg-gradient-to-br from-emerald-50 to-cyan-50 shadow-sm dark:from-emerald-950/20 dark:to-cyan-950/20 lg:col-span-1">
-        <form className="space-y-4" onSubmit={sendSupportChat}>
-          <div className="rounded-md border bg-background/70 p-4">
-            <div className="flex items-start gap-3">
-              <div className="rounded-full bg-primary/10 p-2 text-primary">
-                <MessageSquare className="h-4 w-4" />
-              </div>
-              <div className="space-y-1">
-                <div className="font-medium">Message support team</div>
-                <p className="text-sm text-muted-foreground">Send a realtime message to support and administrators.</p>
-              </div>
-            </div>
-          </div>
-          <Textarea
-            value={chatMessage}
-            onChange={(event) => setChatMessage(event.target.value)}
-            rows={4}
-            placeholder="Type your message..."
-          />
-          <div className="flex gap-2">
-            <Button type="submit" disabled={sendingChat || !chatMessage.trim()} className="flex-1 gap-2">
-              {sendingChat ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              Send Message
-            </Button>
-            <Button asChild type="button" variant="outline">
-              <a href="/messages">Open Chat</a>
-            </Button>
-          </div>
-        </form>
-      </CardContainer>
-
-      <CardContainer title="Create Ticket" className="border-0 bg-gradient-to-br from-slate-50 to-amber-50 shadow-sm dark:from-slate-900 dark:to-amber-950/20 lg:col-span-1">
+    <div className="grid gap-4 lg:grid-cols-2">
+      <CardContainer title="Create Ticket" className="border-0 bg-gradient-to-br from-slate-50 to-amber-50 shadow-sm dark:from-slate-900 dark:to-amber-950/20">
         <form className="space-y-4" onSubmit={createTicket}>
           <div className="space-y-3">
             <Label>Subject</Label>
@@ -1545,7 +1467,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
         </form>
       </CardContainer>
 
-      <CardContainer title="Support Tickets" className="border-0 bg-gradient-to-br from-slate-50 to-blue-50 shadow-sm dark:from-slate-900 dark:to-blue-950/20 lg:col-span-3">
+      <CardContainer title="Support Tickets" className="border-0 bg-gradient-to-br from-slate-50 to-blue-50 shadow-sm dark:from-slate-900 dark:to-blue-950/20">
         {(profile.tickets || []).length > 0 ? (
           <div className="space-y-3">
             {(profile.tickets || []).map((ticketItem) => (
@@ -1709,12 +1631,6 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
             <Button asChild size="sm" variant="outline" className="mt-2 w-full gap-2">
               <a href="/messages"><MessageSquare className="h-4 w-4" /> Chat</a>
             </Button>
-          </div>
-        </CardContainer>
-        <CardContainer title="Router">
-          <div className="space-y-2">
-            <div className="text-2xl font-bold">{deviceInfo?.status || profile.tr069Devices?.[0]?.status || "N/A"}</div>
-            <p className="text-xs text-muted-foreground">Last contact: {formatDate(deviceInfo?.lastContact || profile.tr069Devices?.[0]?.lastContact)}</p>
           </div>
         </CardContainer>
       </div>

@@ -3,16 +3,12 @@
 import { useState, useEffect, useMemo } from "react"
 import { apiRequest } from "@/lib/api"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { 
-  Mail, 
+import {
   Loader2, 
   Send, 
   Plus,
   Search, 
-  MoreVertical, 
   MessageSquare,
-  User,
-  Clock,
   Check,
   CheckCheck
 } from "lucide-react"
@@ -58,7 +54,12 @@ export default function MessagesPage() {
   const [teamMembers, setTeamMembers] = useState<any[]>([])
   const [loadingTeam, setLoadingTeam] = useState(false)
   const [teamSearch, setTeamSearch] = useState("")
+  const [ispName, setIspName] = useState("Your ISP")
   const isCustomerUser = Boolean(authUser?.customerId) || String(authUser?.role?.name || authUser?.role || "").toLowerCase().includes("customer")
+
+  const cleanIspName = (value?: string) => String(value || "Your ISP")
+    .replace(/\s+(pvt\.?\s*ltd\.?|private\s+limited)\s*$/i, "")
+    .trim()
 
   const fetchMessages = async () => {
     try {
@@ -136,6 +137,13 @@ export default function MessagesPage() {
   }, [authUser])
 
   useEffect(() => {
+    if (!isCustomerUser) return
+    apiRequest<any>("/customer/profile", { suppressToast: true })
+      .then(response => setIspName(cleanIspName(response?.data?.isp?.companyName)))
+      .catch(() => setIspName("Your ISP"))
+  }, [isCustomerUser])
+
+  useEffect(() => {
     if (newChatOpen) {
       fetchTeamMembers()
     }
@@ -159,6 +167,21 @@ export default function MessagesPage() {
       markMessagesAsRead(selectedUserId)
     }
   }, [selectedUserId, myId])
+
+  useEffect(() => {
+    if (!isCustomerUser || !myId) return
+    const unread = messages.filter(message => message.receiverId === myId && !message.isRead)
+    if (unread.length === 0) return
+
+    Promise.all(unread.map(message => apiRequest(`/messages/${message.id}/read`, {
+      method: "PUT",
+      suppressToast: true
+    }))).then(() => {
+      const readIds = new Set(unread.map(message => message.id))
+      setMessages(current => current.map(message => readIds.has(message.id) ? { ...message, isRead: true } : message))
+      window.dispatchEvent(new CustomEvent("messages-updated"))
+    }).catch(error => console.error("Failed to mark ISP chat as read:", error))
+  }, [messages, myId, isCustomerUser])
 
   // Group messages by conversation
   const conversations = useMemo(() => {
@@ -193,14 +216,18 @@ export default function MessagesPage() {
   }, [messages, myId])
 
   const currentChatMessages = useMemo(() => {
-    if (!selectedUserId || !myId) return []
+    if (!myId) return []
+    if (isCustomerUser) {
+      return [...messages].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    }
+    if (!selectedUserId) return []
     return messages
       .filter(msg => 
         (msg.senderId === myId && msg.receiverId === selectedUserId) ||
         (msg.senderId === selectedUserId && msg.receiverId === myId)
       )
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-  }, [messages, selectedUserId, myId])
+  }, [messages, selectedUserId, myId, isCustomerUser])
 
   const handleSend = async () => {
     if ((!selectedUserId && !isCustomerUser) || !content.trim()) return
@@ -219,14 +246,14 @@ export default function MessagesPage() {
   const selectedUser = selectedUserId
     ? conversations.find(c => c.user.id === selectedUserId)?.user || teamMembers.find(t => t.id === selectedUserId)
     : isCustomerUser
-      ? { name: "Support Team", role: { name: "Support" } }
+      ? { name: ispName, role: null }
       : null
 
   return (
     <DashboardLayout>
-      <div className="h-[calc(100vh-80px)] flex overflow-hidden bg-white dark:bg-slate-950 rounded-xl border shadow-sm m-6">
+      <div className={`flex overflow-hidden bg-white dark:bg-slate-950 ${isCustomerUser ? "h-[calc(100dvh-8.5rem)] rounded-2xl border shadow-sm md:m-4 md:h-[calc(100vh-7rem)]" : "h-[calc(100vh-80px)] rounded-xl border shadow-sm m-6"}`}>
         {/* Sidebar */}
-        <div className="w-80 border-r flex flex-col bg-slate-50/50 dark:bg-slate-900/50">
+        {!isCustomerUser && <div className="w-80 border-r flex flex-col bg-slate-50/50 dark:bg-slate-900/50">
           <div className="p-4 border-b space-y-4">
             <div className="flex items-center justify-between">
               <h1 className="text-xl font-bold flex items-center gap-2">
@@ -301,7 +328,7 @@ export default function MessagesPage() {
               )}
             </div>
           </ScrollArea>
-        </div>
+        </div>}
 
         {/* Chat Area */}
         <div className="flex-1 flex flex-col bg-white dark:bg-slate-950">
@@ -315,13 +342,16 @@ export default function MessagesPage() {
                   </Avatar>
                   <div>
                     <h2 className="font-bold text-sm leading-none mb-1">{selectedUser?.name}</h2>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{selectedUser?.role?.name || 'User'}</p>
+                    {isCustomerUser ? (
+                      <p className="text-xs text-emerald-600">Usually replies soon</p>
+                    ) : (
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{selectedUser?.role?.name || 'User'}</p>
+                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-1">
+                {!isCustomerUser && <div className="flex items-center gap-1">
                   <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full"><Search className="h-4 w-4"/></Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full"><MoreVertical className="h-4 w-4"/></Button>
-                </div>
+                </div>}
               </div>
 
               {/* Chat Messages */}
@@ -377,7 +407,7 @@ export default function MessagesPage() {
               <div className="p-4 border-t bg-white dark:bg-slate-950">
                 <div className="flex gap-2 bg-slate-100 dark:bg-slate-900 p-1 rounded-2xl border border-slate-200 dark:border-slate-800">
                   <Input 
-                    placeholder={isCustomerUser && !selectedUserId ? "Type a message to support..." : "Type a message..."} 
+                    placeholder={isCustomerUser ? `Message ${ispName}...` : "Type a message..."}
                     className="flex-1 border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
                     value={content}
                     onChange={e => setContent(e.target.value)}
@@ -412,7 +442,7 @@ export default function MessagesPage() {
         </div>
       </div>
 
-      <Dialog open={newChatOpen} onOpenChange={setNewChatOpen}>
+      {!isCustomerUser && <Dialog open={newChatOpen} onOpenChange={setNewChatOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>New Conversation</DialogTitle>
@@ -470,7 +500,7 @@ export default function MessagesPage() {
             </ScrollArea>
           </div>
         </DialogContent>
-      </Dialog>
+      </Dialog>}
     </DashboardLayout>
   )
 }
