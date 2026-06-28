@@ -99,6 +99,10 @@ export default function TasksPage() {
     const roleName = roleStr.toLowerCase()
     return roleName.includes('admin') || roleName === 'administrator'
   }, [user])
+  const isFieldStaff = useMemo(() => {
+    const roleStr = typeof user?.role === "string" ? user.role : (user?.role?.name || "")
+    return roleStr.toLowerCase().includes("field staff")
+  }, [user])
 
   const [tasks, setTasks] = useState<Task[]>([])
   const [users, setUsers] = useState<any[]>([])
@@ -194,8 +198,8 @@ export default function TasksPage() {
 
   useEffect(() => {
     fetchTasks()
-    fetchUsers()
-  }, [fetchTasks, fetchUsers])
+    if (!isFieldStaff) fetchUsers()
+  }, [fetchTasks, fetchUsers, isFieldStaff])
 
   // Get full task details including activityLogs
   const fetchTaskDetails = async (taskId: number) => {
@@ -428,6 +432,71 @@ export default function TasksPage() {
       setTimeSlot(hourSlot)
     }
     setShowCreate(true)
+  }
+
+  const selfTasks = isFieldStaff
+    ? tasks.filter(task => task.assignedTo?.id === user?.id)
+    : tasks
+  const todayKey = new Date().toDateString()
+  const selfTodayTasks = selfTasks.filter(task => task.startTime && new Date(task.startTime).toDateString() === todayKey)
+  const searchedSelfTasks = selfTasks.filter(task => {
+    const query = search.trim().toLowerCase()
+    return !query || task.title.toLowerCase().includes(query) || task.customer?.customerUniqueId?.toLowerCase().includes(query)
+  })
+
+  const renderFieldTask = (task: Task) => (
+    <div key={task.id} className="rounded-xl border bg-card p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="font-semibold">{task.title}</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {task.startTime ? new Date(task.startTime).toLocaleString() : "Schedule not set"}
+            {task.customer?.customerUniqueId ? ` · ${task.customer.customerUniqueId}` : ""}
+          </p>
+        </div>
+        {getStatusBadge(task.status)}
+      </div>
+      {task.description && <p className="mt-3 text-sm text-muted-foreground">{task.description}</p>}
+      <div className="mt-3 flex gap-2">
+        {["PENDING", "ACCEPTED"].includes(task.status) && <Button size="sm" onClick={() => handleStatusUpdate(task.id, "IN_PROGRESS")}>Start Job</Button>}
+        {task.status === "IN_PROGRESS" && <Button size="sm" onClick={() => handleStatusUpdate(task.id, "COMPLETED")}>Complete</Button>}
+      </div>
+    </div>
+  )
+
+  if (isFieldStaff) {
+    return (
+      <DashboardLayout>
+        <div className="mx-auto max-w-6xl space-y-6">
+          <div>
+            <h1 className="flex items-center gap-2 text-3xl font-bold tracking-tight"><ClipboardList className="h-8 w-8 text-primary" />My Field Tasks</h1>
+            <p className="mt-1 text-muted-foreground">Only tasks assigned to you are shown here.</p>
+          </div>
+
+          <CardContainer title="Today's Timeline" description={new Date().toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}>
+            <div className="overflow-x-auto">
+              <div className="grid min-w-[760px] grid-cols-10 gap-1">
+                {hoursColumns.map(hour => <div key={hour} className="border-b pb-2 text-center text-xs font-medium text-muted-foreground">{hour}</div>)}
+                {hoursColumns.map(hour => {
+                  const hourNumber = Number(hour.split(":")[0])
+                  const matching = selfTodayTasks.filter(task => task.startTime && new Date(task.startTime).getHours() === hourNumber)
+                  return <div key={`slot-${hour}`} className="min-h-24 rounded-md border bg-muted/20 p-1.5">{matching.map(task => <div key={task.id} className="mb-1 w-full rounded bg-primary p-1.5 text-left text-[10px] font-medium text-primary-foreground">{task.title}</div>)}</div>
+                })}
+              </div>
+            </div>
+          </CardContainer>
+
+          <CardContainer title="Today's Tasks" description={`${selfTodayTasks.length} task(s) scheduled today`}>
+            <div className="space-y-3">{loading ? <Loader2 className="mx-auto h-7 w-7 animate-spin" /> : selfTodayTasks.length ? selfTodayTasks.map(renderFieldTask) : <p className="py-6 text-center text-sm text-muted-foreground">No tasks scheduled for today.</p>}</div>
+          </CardContainer>
+
+          <CardContainer title="All Assigned Tasks" description={`${selfTasks.length} total task(s) assigned to you`}>
+            <div className="mb-4 flex gap-2"><div className="relative flex-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search my tasks..." className="pl-9" /></div><Button variant="outline" size="icon" onClick={fetchTasks}><RefreshCw className="h-4 w-4" /></Button></div>
+            <div className="space-y-3">{searchedSelfTasks.length ? searchedSelfTasks.map(renderFieldTask) : <p className="py-6 text-center text-sm text-muted-foreground">No assigned tasks found.</p>}</div>
+          </CardContainer>
+        </div>
+      </DashboardLayout>
+    )
   }
 
   return (

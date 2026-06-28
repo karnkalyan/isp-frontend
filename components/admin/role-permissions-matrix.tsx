@@ -35,18 +35,17 @@ const modulePermissionMap: Record<string, ModuleConfig> = {
   "Dashboard": {
     permissions: [],
     subModules: {
-      "Overview": ["dashboard_view"],
-      "Real-Time Monitoring": ["dashboard_view"],
-      "Settings": ["dashboard_view"]
+      "Overview": ["dashboard_overview"],
+      "Real-Time Monitoring": ["dashboard_realtime"],
+      "Settings": ["dashboard_settings"]
     }
   },
   "Customer Management": {
     permissions: [],
     subModules: {
-      "Customers": ["customer_read"],
-      "All Customers": ["customer_read"],
-      "Add New Customer": ["customer_create"],
-      "Customer Details": ["customer_read", "customer_update"],
+      "All Customers": ["customers_list"],
+      "Add New Customer": ["customers_create"],
+      "Customer Details": ["customers_details"],
       "Customer Portal": ["customer_read"],
       "Customer Dashboard": ["customer_read"]
     }
@@ -55,7 +54,7 @@ const modulePermissionMap: Record<string, ModuleConfig> = {
     permissions: [],
     subModules: {
       "Create Lead": ["lead_create"],
-      "Lead Management": ["lead_read"],
+      "Lead Management": ["leads_manage"],
       "Assigned Leads": ["lead_read"],
       "Qualified Leads": ["lead_read"],
       "Unqualified Leads": ["lead_read"],
@@ -112,6 +111,7 @@ const modulePermissionMap: Record<string, ModuleConfig> = {
   "Inventory Management": {
     permissions: [],
     subModules: {
+      "My Assigned Items": ["inventory_assigned"],
       "Add Inventory": ["inventory_manage"],
       "Bulk Inventory": ["bulk_inventory_read", "bulk_inventory_create", "bulk_inventory_update", "bulk_inventory_delete"],
       "Bulk Assignments": ["inventory_manage"],
@@ -145,14 +145,14 @@ const modulePermissionMap: Record<string, ModuleConfig> = {
   "Ticketing & Support": {
     permissions: [],
     subModules: {
-      "Tickets": ["tickets_read", "tickets_read_self", "tickets_create", "tickets_update"],
+      "Support Tickets": ["tickets_manage"],
       "Create Ticket": ["tickets_create"]
     }
   },
   "Task Management": {
     permissions: [],
     subModules: {
-      "Tasks": ["tasks_read", "tasks_read_self", "tasks_create", "tasks_update", "tasks_delete"]
+      "Tasks": ["tasks_manage"]
     }
   },
   "Communication Center": {

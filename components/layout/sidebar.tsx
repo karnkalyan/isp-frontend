@@ -94,8 +94,9 @@ const menuCategories: MenuCategory[] = [
         icon: Activity,
         permission: "dashboard_view",
         submenu: [
-          { title: "Overview", href: "/dashboard/overview", permission: "dashboard_view" },
-          { title: "Real-Time Monitoring", href: "/dashboard/real-time", permission: "dashboard_view" },
+          { title: "Overview", href: "/dashboard/overview", permission: "dashboard_overview" },
+          { title: "Real-Time Monitoring", href: "/dashboard/real-time", permission: "dashboard_realtime" },
+          { title: "Settings", href: "/dashboard/settings", permission: "dashboard_settings" },
         ],
       },
     ],
@@ -118,8 +119,9 @@ const menuCategories: MenuCategory[] = [
         icon: Users,
         permission: "customer_read",
         submenu: [
-          { title: "All Customers", href: "/customers/all", permission: "customer_read" },
-          { title: "Add New Customer", href: "/customers/new", permission: "customer_create" },
+          { title: "All Customers", href: "/customers/all", permission: "customers_list" },
+          { title: "Add New Customer", href: "/customers/new", permission: "customers_create" },
+          { title: "Customer Details", href: "/customers/all", permission: "customers_details" },
         ],
       },
       {
@@ -204,7 +206,7 @@ const menuCategories: MenuCategory[] = [
         permission: "lead_read",
         submenu: [
           { title: "Create Lead", href: "/leads/create", permission: "lead_create" },
-          { title: "Lead Management", href: "/leads", permission: "lead_read" },
+          { title: "Lead Management", href: "/leads", permission: "leads_manage" },
           { title: "Qualified", href: "/leads/qualified", permission: "lead_read" },
           { title: "Unqualified", href: "/leads/unqualified", permission: "lead_read" },
           { title: "Converted", href: "/leads/converted", permission: "lead_read" },
@@ -331,9 +333,9 @@ const menuCategories: MenuCategory[] = [
       {
         title: "Task Management",
         icon: ListChecks,
-        permission: ["tasks_read", "tasks_read_self"],
+        permission: "tasks_manage",
         submenu: [
-          { title: "Tasks", href: "/tasks", permission: ["tasks_read", "tasks_read_self"] },
+          { title: "Tasks", href: "/tasks", permission: "tasks_manage" },
         ],
       },
     ],
@@ -344,9 +346,9 @@ const menuCategories: MenuCategory[] = [
       {
         title: "Support Tickets",
         icon: HelpCircle,
-        permission: ["tickets_read", "tickets_read_self"],
+        permission: "tickets_manage",
         submenu: [
-          { title: "Tickets", href: "/tickets", permission: ["tickets_read", "tickets_read_self"] },
+          { title: "Support Tickets", href: "/tickets", permission: "tickets_manage" },
           { title: "Create Ticket", href: "/tickets/create", permission: "tickets_create" },
         ],
       },
@@ -464,7 +466,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
           ? {
               ...category,
               items: category.items.map(item => item.title === "Inventory Management"
-                ? { ...item, permission: undefined, submenu: [{ title: "My Assigned Items", href: "/inventory/assigned" }] }
+                ? { ...item, permission: "inventory_assigned", submenu: [{ title: "My Assigned Items", href: "/inventory/assigned", permission: "inventory_assigned" }] }
                 : item)
             }
           : category)

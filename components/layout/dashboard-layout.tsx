@@ -11,11 +11,14 @@ import { toast } from "react-hot-toast";
 const pathPermissionMap: Record<string, string | string[]> = {
   "/admin/users": "users_read",
   "/admin/roles": "roles_read",
-  "/customers": "customer_read",
+  "/dashboard/overview": "dashboard_overview",
+  "/dashboard/real-time": "dashboard_realtime",
+  "/customers/new": "customers_create",
+  "/customers": ["customers_list", "customers_details"],
   "/branch": "branches_read",
   "/department": "departments_read",
   "/membership": "membership_read",
-  "/leads": "lead_read",
+  "/leads": "leads_manage",
   "/existing-isp": "existingisp_read",
   "/sms-campaign": "lead_read",
   "/radius/disconnect": "customer_update",
@@ -24,7 +27,7 @@ const pathPermissionMap: Record<string, string | string[]> = {
   "/fiber/olt": "olt_read",
   "/fiber/ont": "olt_read",
   "/fiber/map": "olt_read",
-  "/inventory/assigned": [],
+  "/inventory/assigned": "inventory_assigned",
   "/inventory": ["inventory_read", "inventory_manage"],
   "/inventory/bulk": "bulk_inventory_read",
   "/drums": "drums_read",
@@ -32,14 +35,14 @@ const pathPermissionMap: Record<string, string | string[]> = {
   "/finance/renew": "billing_read_self",
   "/finance/invoices": "billing_read_self",
   "/finance/invoice-ranges": "billing_update",
-  "/tasks": ["tasks_read", "tasks_read_self"],
-  "/tickets": ["tickets_read", "tickets_read_self"],
+  "/tasks": "tasks_manage",
+  "/tickets": "tickets_manage",
   "/mail/templates": "settings_read",
   "/mail": "dashboard_view",
   "/nettv": "services_read",
   "/radius": "services_read",
   "/services": "services_read",
-  "/dashboard/settings": "settings_read",
+  "/dashboard/settings": ["dashboard_settings", "settings_read"],
   "/master-settings": "settings_read",
   "/reports": "reports_read",
   "/admin/audit-log": "audit_log_read",
@@ -109,7 +112,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     const matchedKey = keys.find(key => pathname === key || pathname.startsWith(key + "/"));
 
     if (matchedKey) {
-      const permission = pathPermissionMap[matchedKey];
+      const permission = /^\/customers\/\d+(?:\/|$)/.test(pathname)
+        ? "customers_details"
+        : pathPermissionMap[matchedKey];
       const isAllowed = Array.isArray(permission)
         ? permission.length === 0 || permission.some(item => hasPermission(item))
         : hasPermission(permission);
