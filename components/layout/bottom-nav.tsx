@@ -1,6 +1,6 @@
 "use client"
 
-import { LayoutDashboard, Router, Settings, Users, UserPlus, HelpCircle, Receipt, MessageCircle } from "lucide-react"
+import { LayoutDashboard, Router, Settings, Users, UserPlus, HelpCircle, Receipt, MessageCircle, ListChecks, Cable } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { usePathname } from "next/navigation"
 import { motion } from "framer-motion"
@@ -44,6 +44,8 @@ export function BottomNav() {
   const { user, hasPermission } = useAuth()
   const roleName = typeof user?.role === "string" ? user.role : user?.role?.name
   const isCustomer = String(roleName || "").toLowerCase() === "customer"
+  const isFieldStaff = String(roleName || "").toLowerCase().includes("field staff")
+
   const customerItems = [
     { title: "Home", icon: LayoutDashboard, href: "/customer/dashboard" },
     { title: "Router", icon: Router, href: "/customer/router" },
@@ -51,7 +53,19 @@ export function BottomNav() {
     { title: "Billing", icon: Receipt, href: "/customer/billing" },
     { title: "Support", icon: HelpCircle, href: "/customer/support" },
   ]
-  const visibleItems = isCustomer ? customerItems : navItems.filter(item => !item.permission || hasPermission(item.permission))
+
+  const fieldStaffItems = [
+    { title: "Dashboard", icon: LayoutDashboard, href: "/" },
+    { title: "Tickets", icon: HelpCircle, href: "/tickets" },
+    { title: "Task", icon: ListChecks, href: "/tasks" },
+    { title: "Splitter", icon: Cable, href: "/fiber/splitters/nearby" },
+  ]
+
+  const visibleItems = isCustomer 
+    ? customerItems 
+    : isFieldStaff 
+      ? fieldStaffItems 
+      : navItems.filter(item => !item.permission || hasPermission(item.permission))
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 px-3 pb-[max(.5rem,env(safe-area-inset-bottom))] md:hidden">

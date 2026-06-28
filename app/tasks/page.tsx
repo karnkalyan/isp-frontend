@@ -160,6 +160,33 @@ export default function TasksPage() {
     return { today, pending, inProgress, completed, overdue };
   }, [tasks]);
 
+  const complete24Hours = [
+    { label: "12:00 AM", hour: 0 },
+    { label: "01:00 AM", hour: 1 },
+    { label: "02:00 AM", hour: 2 },
+    { label: "03:00 AM", hour: 3 },
+    { label: "04:00 AM", hour: 4 },
+    { label: "05:00 AM", hour: 5 },
+    { label: "06:00 AM", hour: 6 },
+    { label: "07:00 AM", hour: 7 },
+    { label: "08:00 AM", hour: 8 },
+    { label: "09:00 AM", hour: 9 },
+    { label: "10:00 AM", hour: 10 },
+    { label: "11:00 AM", hour: 11 },
+    { label: "12:00 PM", hour: 12 },
+    { label: "01:00 PM", hour: 13 },
+    { label: "02:00 PM", hour: 14 },
+    { label: "03:00 PM", hour: 15 },
+    { label: "04:00 PM", hour: 16 },
+    { label: "05:00 PM", hour: 17 },
+    { label: "06:00 PM", hour: 18 },
+    { label: "07:00 PM", hour: 19 },
+    { label: "08:00 PM", hour: 20 },
+    { label: "09:00 PM", hour: 21 },
+    { label: "10:00 PM", hour: 22 },
+    { label: "11:00 PM", hour: 23 },
+  ]
+
   const predefinedTimeSlots = [
     { label: "08:00 AM", value: "08:00" },
     { label: "09:00 AM", value: "09:00" },
@@ -528,19 +555,27 @@ export default function TasksPage() {
 
             <TabsContent value="scheduler" className="mt-6 animate-in fade-in-50 duration-200">
               <CardContainer title="Today's Timeline" description={new Date().toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}>
-                <div className="overflow-x-auto">
-                  <div className="grid min-w-[760px] grid-cols-10 gap-1">
-                    {hoursColumns.map(hour => <div key={hour} className="border-b pb-2 text-center text-xs font-medium text-muted-foreground">{hour}</div>)}
-                    {hoursColumns.map(hour => {
-                      const hourNumber = Number(hour.split(":")[0])
-                      const matching = selfTodayTasks.filter(task => task.startTime && new Date(task.startTime).getHours() === hourNumber)
+                <div className="overflow-x-auto pb-4">
+                  <div className="flex min-w-[2800px] gap-2.5">
+                    {complete24Hours.map(slot => {
+                      const matching = selfTodayTasks.filter(task => {
+                        if (!task.startTime) return false
+                        const taskDate = new Date(task.startTime)
+                        return taskDate.getHours() === slot.hour
+                      })
                       return (
-                        <div key={`slot-${hour}`} className="min-h-24 rounded-md border bg-muted/20 p-1.5">
-                          {matching.map(task => (
-                            <div key={task.id} className="mb-1 w-full rounded bg-primary p-1.5 text-left text-[10px] font-medium text-primary-foreground">
-                              {task.title}
-                            </div>
-                          ))}
+                        <div key={slot.hour} className="flex-1 min-w-[140px] rounded-2xl border bg-slate-50/20 p-3.5 flex flex-col justify-between shadow-sm min-h-[160px] hover:border-primary/45 transition-all">
+                          <div className="border-b pb-2 text-center text-xs font-bold text-muted-foreground">{slot.label}</div>
+                          <div className="flex-1 mt-3 space-y-1.5 overflow-y-auto max-h-[100px]">
+                            {matching.map(task => (
+                              <div key={task.id} className="w-full rounded-xl bg-primary p-2 text-left text-[10px] font-semibold text-primary-foreground line-clamp-2 hover:opacity-90 transition-opacity leading-tight">
+                                {task.title}
+                              </div>
+                            ))}
+                            {matching.length === 0 && (
+                              <div className="text-[10px] text-muted-foreground/30 italic text-center pt-4 select-none">No tasks</div>
+                            )}
+                          </div>
                         </div>
                       )
                     })}
@@ -646,15 +681,13 @@ export default function TasksPage() {
                       <Input type="date" value={newStartTime} onChange={e => setNewStartTime(e.target.value)} />
                     </div>
                     <div className="space-y-2">
-                      <Label>Time Slot</Label>
-                      <Select value={timeSlot} onValueChange={setTimeSlot}>
-                        <SelectTrigger><SelectValue placeholder="Choose Slot" /></SelectTrigger>
-                        <SelectContent>
-                          {predefinedTimeSlots.map(slot => (
-                            <SelectItem key={slot.value} value={slot.value}>{slot.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Label>Start Time</Label>
+                      <Input 
+                        type="time" 
+                        value={timeSlot} 
+                        onChange={e => setTimeSlot(e.target.value)} 
+                        className="w-full bg-white dark:bg-slate-950 shadow-sm"
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>Duration (Minutes)</Label>

@@ -475,7 +475,8 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
               .filter(item =>
                 item.title !== "Lead Management (CRM)" &&
                 item.title !== "NAS Management" &&
-                item.title !== "Communications"
+                item.title !== "Communications" &&
+                item.title !== "Settings"
               )
               .map(item => category.category === "Access Networks" && item.title === "Inventory Management"
                 ? { ...item, permission: "inventory_assigned", submenu: [{ title: "My Assigned Items", href: "/inventory/assigned", permission: "inventory_assigned" }] }

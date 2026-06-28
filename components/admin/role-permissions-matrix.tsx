@@ -197,7 +197,8 @@ const modulePermissionMap: Record<string, ModuleConfig> = {
   "Master Configuration": {
     permissions: [],
     subModules: {
-      "Master Settings": ["settings_read", "settings_update"]
+      "Master Settings": ["settings_read", "settings_update"],
+      "Settings Option (Sidebar)": ["settings_read"]
     }
   },
   "Existing ISP Migration": {
