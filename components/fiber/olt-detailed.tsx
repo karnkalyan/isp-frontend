@@ -37,7 +37,6 @@ import {
   Cloud, Database as DatabaseIcon, DownloadCloud,
   UploadCloud, Bell, BellRing, Activity as ActivityIcon,
   Power, PowerOff, Cog, ServerCog, NetworkNodes,
-  Database as DatabaseIcon,
   HardHat, Cable, Radio, Satellite, Bluetooth,
   Monitor, Smartphone, Router as RouterIcon, Cctv,
   Plug, Battery, BatteryCharging, Sun, Moon,

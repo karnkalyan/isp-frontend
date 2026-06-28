@@ -269,6 +269,7 @@ const menuCategories: MenuCategory[] = [
           { title: "Fiber Networks", href: "/fiber/networks", permission: "olt_read" },
           { title: "Fiber Map", href: "/fiber/map", permission: "olt_read" },
           { title: "OLT Management", href: "/fiber/olt", permission: "olt_read" },
+          { title: "Get Splitters", href: "/fiber/splitters/nearby", permission: "tasks_read_self" },
         ],
       },
       {
