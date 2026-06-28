@@ -119,7 +119,7 @@ const menuCategories: MenuCategory[] = [
         permission: "customer_read",
         submenu: [
           { title: "All Customers", href: "/customers/all", permission: "customer_read" },
-          { title: "New Customer", href: "/customers/new", permission: "customer_create" },
+          { title: "Add New Customer", href: "/customers/new", permission: "customer_create" },
         ],
       },
       {
@@ -331,9 +331,9 @@ const menuCategories: MenuCategory[] = [
       {
         title: "Task Management",
         icon: ListChecks,
-        permission: "tasks_read_self",
+        permission: ["tasks_read", "tasks_read_self"],
         submenu: [
-          { title: "Tasks", href: "/tasks", permission: "tasks_read_self" },
+          { title: "Tasks", href: "/tasks", permission: ["tasks_read", "tasks_read_self"] },
         ],
       },
     ],
@@ -344,9 +344,9 @@ const menuCategories: MenuCategory[] = [
       {
         title: "Support Tickets",
         icon: HelpCircle,
-        permission: "tickets_read_self",
+        permission: ["tickets_read", "tickets_read_self"],
         submenu: [
-          { title: "Tickets", href: "/tickets", permission: "tickets_read_self" },
+          { title: "Tickets", href: "/tickets", permission: ["tickets_read", "tickets_read_self"] },
           { title: "Create Ticket", href: "/tickets/create", permission: "tickets_create" },
         ],
       },
@@ -457,31 +457,17 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
       roleClean.includes('support') ||
       roleClean.includes('field');
 
+    // Role permissions remain authoritative. Field staff additionally receive
+    // a safe, user-scoped inventory link even without global inventory access.
     const roleMenuCategories = isFieldStaff
-      ? menuCategories
-          .filter(category => ["Main", "Access Networks", "Operations", "Support"].includes(category.category))
-          .map(category => ({
-            ...category,
-            items: category.items
-              .filter(item =>
-                item.title === "Dashboard" ||
-                item.title === "Inventory Management" ||
-                item.title === "Task Management" ||
-                item.title === "Support Tickets"
-              )
-              .map(item => {
-                if (item.title === "Inventory Management") {
-                  return { ...item, permission: undefined, submenu: [{ title: "My Assigned Items", href: "/inventory/assigned" }] }
-                }
-                if (item.title === "Task Management") {
-                  return { ...item, permission: undefined, submenu: [{ title: "My Tasks", href: "/tasks" }] }
-                }
-                if (item.title === "Support Tickets") {
-                  return { ...item, permission: undefined, submenu: [{ title: "My Assigned Tickets", href: "/tickets" }] }
-                }
-                return item
-              })
-          }))
+      ? menuCategories.map(category => category.category === "Access Networks"
+          ? {
+              ...category,
+              items: category.items.map(item => item.title === "Inventory Management"
+                ? { ...item, permission: undefined, submenu: [{ title: "My Assigned Items", href: "/inventory/assigned" }] }
+                : item)
+            }
+          : category)
       : menuCategories;
 
     return roleMenuCategories.map(category => ({

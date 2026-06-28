@@ -2,6 +2,7 @@
 
 import { Suspense, useState, useEffect, useCallback } from "react"
 import { useSearchParams } from "next/navigation"
+import Link from "next/link"
 import { CardContainer } from "@/components/ui/card-container"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Button } from "@/components/ui/button"
@@ -49,6 +50,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { useBranch } from "@/contexts/BranchContext"
 import { useAuth } from "@/contexts/AuthContext"
+import { useWebSocket } from "@/contexts/WebSocketContext"
 
 interface Ticket {
   id: number
@@ -82,6 +84,7 @@ function TicketsContent() {
   const searchParams = useSearchParams()
   const { branches, selectedBranchId } = useBranch()
   const { hasPermission } = useAuth()
+  const { on } = useWebSocket()
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
@@ -180,6 +183,24 @@ function TicketsContent() {
   useEffect(() => {
     fetchTickets()
   }, [fetchTickets])
+
+  useEffect(() => {
+    return on("data.updated", (event: any) => {
+      if (event?.entity !== "ticket_comment" || event?.action !== "created") return
+      const ticketId = Number(event.ticketId)
+      setTickets(current => current.map(ticket => ticket.id === ticketId
+        ? { ...ticket, _count: { comments: (ticket._count?.comments || 0) + 1 } }
+        : ticket))
+      apiRequest<Ticket>(`/tickets/${ticketId}`).then(detail => {
+        setSelectedTicket(current => current?.id === ticketId ? detail : current)
+      }).catch(() => undefined)
+    })
+  }, [on])
+
+  const subjectHref = (subject: Ticket["subject"]) => {
+    if (!subject) return "#"
+    return subject.type === "CUSTOMER" ? `/customers/${subject.id}` : `/leads/${subject.id}`
+  }
 
   const handleCreate = async () => {
     if (!newTitle.trim()) return
@@ -487,10 +508,10 @@ function TicketsContent() {
                    <h3 className="font-medium mb-1">{ticket.title}</h3>
                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     {ticket.subject && (
-                      <span className="flex items-center gap-1">
+                      <Link href={subjectHref(ticket.subject)} onClick={event => event.stopPropagation()} className="flex items-center gap-1 font-medium text-primary hover:underline">
                         <Badge variant="outline" className="text-[10px] h-4 px-1">{ticket.subject.type}</Badge>
                         {ticket.subject.firstName} {ticket.subject.lastName}
-                      </span>
+                      </Link>
                     )}
                      {ticket.assignedTo && <span>→ {ticket.assignedTo.name}</span>}
                      {ticket._count && <span className="flex items-center gap-1"><MessageSquare className="h-3 w-3" />{ticket._count.comments}</span>}
@@ -541,10 +562,10 @@ function TicketsContent() {
                   {selectedTicket.subject && (
                      <>
                       <div className="text-muted-foreground">{selectedTicket.subject.type === 'CUSTOMER' ? 'Customer:' : 'Lead:'}</div>
-                      <div>
+                      <Link href={subjectHref(selectedTicket.subject)} className="block rounded p-1 -m-1 text-primary hover:bg-primary/5 hover:underline">
                         <p className="font-medium">{selectedTicket.subject.firstName} {selectedTicket.subject.lastName}</p>
                         <p className="text-[10px]">{selectedTicket.subject.uniqueId}</p>
-                      </div>
+                      </Link>
                      </>
                    )}
                   {selectedTicket.assignedTo && (

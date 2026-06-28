@@ -8,7 +8,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "react-hot-toast";
 
-const pathPermissionMap: Record<string, string> = {
+const pathPermissionMap: Record<string, string | string[]> = {
   "/admin/users": "users_read",
   "/admin/roles": "roles_read",
   "/customers": "customer_read",
@@ -24,15 +24,16 @@ const pathPermissionMap: Record<string, string> = {
   "/fiber/olt": "olt_read",
   "/fiber/ont": "olt_read",
   "/fiber/map": "olt_read",
-  "/inventory": "isp_read",
+  "/inventory/assigned": [],
+  "/inventory": ["inventory_read", "inventory_manage"],
   "/inventory/bulk": "bulk_inventory_read",
   "/drums": "drums_read",
   "/finance/recharge": "billing_read_self",
   "/finance/renew": "billing_read_self",
   "/finance/invoices": "billing_read_self",
   "/finance/invoice-ranges": "billing_update",
-  "/tasks": "tasks_read_self",
-  "/tickets": "tickets_read_self",
+  "/tasks": ["tasks_read", "tasks_read_self"],
+  "/tickets": ["tickets_read", "tickets_read_self"],
   "/mail/templates": "settings_read",
   "/mail": "dashboard_view",
   "/nettv": "services_read",
@@ -109,7 +110,10 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
     if (matchedKey) {
       const permission = pathPermissionMap[matchedKey];
-      if (!hasPermission(permission)) {
+      const isAllowed = Array.isArray(permission)
+        ? permission.length === 0 || permission.some(item => hasPermission(item))
+        : hasPermission(permission);
+      if (!isAllowed) {
         setIsAuthorized(false);
         toast.error("Access Denied: You do not have permission to view this page.");
         router.push("/");

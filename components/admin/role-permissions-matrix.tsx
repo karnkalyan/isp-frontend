@@ -45,7 +45,7 @@ const modulePermissionMap: Record<string, ModuleConfig> = {
     subModules: {
       "Customers": ["customer_read"],
       "All Customers": ["customer_read"],
-      "New Customer": ["customer_create"],
+      "Add New Customer": ["customer_create"],
       "Customer Details": ["customer_read", "customer_update"],
       "Customer Portal": ["customer_read"],
       "Customer Dashboard": ["customer_read"]
@@ -55,6 +55,7 @@ const modulePermissionMap: Record<string, ModuleConfig> = {
     permissions: [],
     subModules: {
       "Create Lead": ["lead_create"],
+      "Lead Management": ["lead_read"],
       "Assigned Leads": ["lead_read"],
       "Qualified Leads": ["lead_read"],
       "Unqualified Leads": ["lead_read"],
