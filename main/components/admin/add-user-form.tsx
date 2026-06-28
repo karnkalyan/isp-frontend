@@ -120,27 +120,6 @@ export function AddUserForm({ onSubmit, onCancel, roles, departments, branches }
     setIsSubmitting(true);
   
     try {
-      const userFromLocalStorage = localStorage.getItem("user");
-      let ispIdToSend: string | null = null;
-  
-      if (userFromLocalStorage) {
-        try {
-          const parsedUser = JSON.parse(userFromLocalStorage);
-          ispIdToSend = parsedUser.ispId ? String(parsedUser.ispId) : null;
-        } catch (parseError) {
-          console.error("Failed to parse user from local storage:", parseError);
-          toast.error("Error reading user data from local storage.");
-          setIsSubmitting(false);
-          return;
-        }
-      }
-  
-      if (!ispIdToSend) {
-        toast.error("ISP ID not found. Cannot add user without associated ISP.");
-        setIsSubmitting(false);
-        return;
-      }
-  
       const data = new FormData();
       data.append("name", formData.name || "");
       data.append("email", formData.email || "");
@@ -154,7 +133,6 @@ export function AddUserForm({ onSubmit, onCancel, roles, departments, branches }
         data.append("branchId", formData.branchId);
       }
       data.append("branchIds", JSON.stringify(branchIds.filter((id) => id !== formData.branchId)));
-      data.append("ispId", ispIdToSend);
       if (profilePictureFile) {
         data.append("profilePicture", profilePictureFile);
       }
