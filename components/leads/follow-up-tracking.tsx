@@ -148,11 +148,19 @@ const OUTCOME_OPTIONS = [
     { value: "none", label: "No Outcome", color: "bg-gray-100 text-gray-800" }
 ]
 
+const LEAD_STATUS_OPTIONS: Array<{ value: LeadStatus; label: string }> = [
+    { value: "new", label: "New" },
+    { value: "contacted", label: "Contacted" },
+    { value: "qualified", label: "Qualified" },
+    { value: "unqualified", label: "Unqualified" }
+]
+
 export function FollowUpTracking() {
     const [activeTab, setActiveTab] = useState("todays")
     const [followUps, setFollowUps] = useState<FollowUp[]>([])
     const [users, setUsers] = useState<User[]>([])
     const [loading, setLoading] = useState(false)
+    const [updatingLeadId, setUpdatingLeadId] = useState<string | null>(null)
     const [stats, setStats] = useState<FollowUpStats>({
         total: 0,
         todays: 0,
@@ -510,6 +518,29 @@ export function FollowUpTracking() {
             toast.error(error.message || "Failed to update follow-up")
         } finally {
             setLoading(false)
+        }
+    }
+
+    const handleLeadStatusChange = async (followUp: FollowUp, status: LeadStatus) => {
+        if (followUp.status !== 'COMPLETED' || followUp.outcome !== 'successful') {
+            toast.error("Lead status can only be changed after a successful completed follow-up")
+            return
+        }
+        if (!followUp.lead?.id || status === followUp.lead.status) return
+        try {
+            setUpdatingLeadId(followUp.lead.id)
+            await apiRequest(`/lead/${followUp.lead.id}`, {
+                method: "PUT",
+                body: JSON.stringify({ status })
+            })
+            setFollowUps(current => current.map(item => item.lead?.id === followUp.lead.id
+                ? { ...item, lead: { ...item.lead, status } }
+                : item))
+            toast.success(`Lead status changed to ${LEAD_STATUS_OPTIONS.find(option => option.value === status)?.label || status}`)
+        } catch (error: any) {
+            toast.error(error.message || "Failed to update lead status")
+        } finally {
+            setUpdatingLeadId(null)
         }
     }
 
@@ -1276,6 +1307,22 @@ export function FollowUpTracking() {
                                                     </TableCell>
                                                     <TableCell>
                                                         {getFollowUpStatusBadge(followUp.status)}
+                                                        {followUp.status === 'COMPLETED' && followUp.outcome === 'successful' && followUp.lead && (
+                                                            <div className="mt-2 min-w-[150px] space-y-1">
+                                                                <Label className="text-[10px] text-muted-foreground">Change lead status</Label>
+                                                                <Select
+                                                                    value={followUp.lead.status}
+                                                                    onValueChange={(value) => handleLeadStatusChange(followUp, value as LeadStatus)}
+                                                                    disabled={updatingLeadId === followUp.lead.id || followUp.lead.status === 'converted'}
+                                                                >
+                                                                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                                                                    <SelectContent>
+                                                                        {followUp.lead.status === 'converted' && <SelectItem value="converted">Converted</SelectItem>}
+                                                                        {LEAD_STATUS_OPTIONS.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            </div>
+                                                        )}
                                                     </TableCell>
                                                     {stats.canViewAll && (
                                                         <TableCell>

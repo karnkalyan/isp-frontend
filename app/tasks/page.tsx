@@ -33,7 +33,8 @@ import {
   UserCheck,
   Hourglass,
   Activity,
-  AlertCircle
+  AlertCircle,
+  Navigation
 } from "lucide-react"
 import {
   Dialog,
@@ -55,6 +56,7 @@ import { useBranch } from "@/contexts/BranchContext"
 import { useAuth } from "@/contexts/AuthContext"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { openDirectionsFromCurrentLocation } from "@/lib/directions"
 
 interface TaskActivityLog {
   id: number
@@ -76,8 +78,8 @@ interface Task {
   status: string
   priority: string
   assignedTo?: { id: number; name: string; email: string }
-  customer?: { id: number; customerUniqueId: string; lead: { firstName: string; lastName: string; phoneNumber?: string; address?: string } }
-  ticket?: { id: number; ticketNumber: string; title: string }
+  customer?: { id: number; customerUniqueId: string; lead: { firstName: string; lastName: string; phoneNumber?: string; address?: string; street?: string } }
+  ticket?: { id: number; ticketNumber: string; title: string; lead?: { address?: string; street?: string }; customer?: { lead?: { address?: string; street?: string } } }
   branch?: { id: number; name: string }
   createdAt: string
   startedAt?: string
@@ -113,6 +115,7 @@ export default function TasksPage() {
   
   // Views and Filters
   const [activeTab, setActiveTab] = useState("all") // all, today, pending, timeline
+  const [fieldTab, setFieldTab] = useState("scheduler")
   const [timelineMode, setTimelineMode] = useState<"daily" | "weekly">("daily")
   const [timelineDate, setTimelineDate] = useState<Date>(new Date())
   const [search, setSearch] = useState("")
@@ -266,6 +269,7 @@ export default function TasksPage() {
     try {
       const res = await apiRequest<Task & { warning?: string }>("/tasks", {
         method: "POST",
+        suppressToast: true,
         body: JSON.stringify({
           title: newTitle,
           description: newDesc,
@@ -288,7 +292,21 @@ export default function TasksPage() {
       setNewTitle(""); setNewDesc(""); setNewStaffId("none"); setNewStartTime(""); setNewDuration("60"); setNewPriority("MEDIUM")
       fetchTasks()
     } catch (error: any) {
-      toast.error(error.message || "Failed to assign task")
+      try {
+        const parsed = JSON.parse(error.message);
+        if (parsed.type === 'OVERLAP') {
+          const startLocal = new Date(parsed.startTime).toLocaleString();
+          const endLocal = new Date(parsed.endTime).toLocaleString();
+          toast.error(`Technician ${parsed.technicianName} is already scheduled for "${parsed.title}" from ${startLocal} to ${endLocal}.`, { duration: 6000 });
+        } else if (parsed.type === 'DUPLICATE') {
+          const startLocal = new Date(parsed.startTime).toLocaleString();
+          toast.error(`A task with the title "${parsed.title}" at ${startLocal} already exists.`, { duration: 6000 });
+        } else {
+          toast.error(parsed.message || parsed.error || "Failed to assign task");
+        }
+      } catch (e) {
+        toast.error(error.message || "Failed to assign task")
+      }
     } finally {
       setSubmitting(false)
     }
@@ -443,6 +461,14 @@ export default function TasksPage() {
     const query = search.trim().toLowerCase()
     return !query || task.title.toLowerCase().includes(query) || task.customer?.customerUniqueId?.toLowerCase().includes(query)
   })
+  const taskDestination = (task: Task) =>
+    task.customer?.lead?.address ||
+    task.customer?.lead?.street ||
+    task.ticket?.customer?.lead?.address ||
+    task.ticket?.customer?.lead?.street ||
+    task.ticket?.lead?.address ||
+    task.ticket?.lead?.street ||
+    ""
 
   const renderFieldTask = (task: Task) => (
     <div key={task.id} className="rounded-xl border bg-card p-4 shadow-sm">
@@ -458,6 +484,7 @@ export default function TasksPage() {
       </div>
       {task.description && <p className="mt-3 text-sm text-muted-foreground">{task.description}</p>}
       <div className="mt-3 flex gap-2">
+        {taskDestination(task) && <Button variant="outline" size="sm" onClick={() => openDirectionsFromCurrentLocation(taskDestination(task))}><Navigation className="mr-1 h-4 w-4" />Directions</Button>}
         {["PENDING", "ACCEPTED"].includes(task.status) && <Button size="sm" onClick={() => handleStatusUpdate(task.id, "IN_PROGRESS")}>Start Job</Button>}
         {task.status === "IN_PROGRESS" && <Button size="sm" onClick={() => handleStatusUpdate(task.id, "COMPLETED")}>Complete</Button>}
       </div>
@@ -468,32 +495,88 @@ export default function TasksPage() {
     return (
       <DashboardLayout>
         <div className="mx-auto max-w-6xl space-y-6">
-          <div>
-            <h1 className="flex items-center gap-2 text-3xl font-bold tracking-tight"><ClipboardList className="h-8 w-8 text-primary" />My Field Tasks</h1>
-            <p className="mt-1 text-muted-foreground">Only tasks assigned to you are shown here.</p>
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h1 className="flex items-center gap-2 text-3xl font-bold tracking-tight"><ClipboardList className="h-8 w-8 text-primary" />My Field Tasks</h1>
+              <p className="mt-1 text-muted-foreground">Only tasks assigned to you are shown here.</p>
+            </div>
           </div>
 
-          <CardContainer title="Today's Timeline" description={new Date().toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}>
-            <div className="overflow-x-auto">
-              <div className="grid min-w-[760px] grid-cols-10 gap-1">
-                {hoursColumns.map(hour => <div key={hour} className="border-b pb-2 text-center text-xs font-medium text-muted-foreground">{hour}</div>)}
-                {hoursColumns.map(hour => {
-                  const hourNumber = Number(hour.split(":")[0])
-                  const matching = selfTodayTasks.filter(task => task.startTime && new Date(task.startTime).getHours() === hourNumber)
-                  return <div key={`slot-${hour}`} className="min-h-24 rounded-md border bg-muted/20 p-1.5">{matching.map(task => <div key={task.id} className="mb-1 w-full rounded bg-primary p-1.5 text-left text-[10px] font-medium text-primary-foreground">{task.title}</div>)}</div>
-                })}
+          <Tabs value={fieldTab} className="w-full" onValueChange={setFieldTab}>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-muted/30 p-2 rounded-xl">
+              <TabsList className="bg-transparent border-none">
+                <TabsTrigger value="scheduler" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Scheduler</TabsTrigger>
+                <TabsTrigger value="today" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Today's Tasks</TabsTrigger>
+                <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">All Tasks</TabsTrigger>
+              </TabsList>
+              
+              <div className="flex items-center gap-2 w-full md:w-auto">
+                <div className="relative flex-1 md:w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    placeholder="Search my tasks..." 
+                    value={search} 
+                    onChange={e => setSearch(e.target.value)}
+                    className="pl-9 bg-white border-none shadow-sm" 
+                  />
+                </div>
+                <Button variant="outline" size="icon" onClick={fetchTasks} className="bg-white shadow-sm">
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
               </div>
             </div>
-          </CardContainer>
 
-          <CardContainer title="Today's Tasks" description={`${selfTodayTasks.length} task(s) scheduled today`}>
-            <div className="space-y-3">{loading ? <Loader2 className="mx-auto h-7 w-7 animate-spin" /> : selfTodayTasks.length ? selfTodayTasks.map(renderFieldTask) : <p className="py-6 text-center text-sm text-muted-foreground">No tasks scheduled for today.</p>}</div>
-          </CardContainer>
+            <TabsContent value="scheduler" className="mt-6 animate-in fade-in-50 duration-200">
+              <CardContainer title="Today's Timeline" description={new Date().toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}>
+                <div className="overflow-x-auto">
+                  <div className="grid min-w-[760px] grid-cols-10 gap-1">
+                    {hoursColumns.map(hour => <div key={hour} className="border-b pb-2 text-center text-xs font-medium text-muted-foreground">{hour}</div>)}
+                    {hoursColumns.map(hour => {
+                      const hourNumber = Number(hour.split(":")[0])
+                      const matching = selfTodayTasks.filter(task => task.startTime && new Date(task.startTime).getHours() === hourNumber)
+                      return (
+                        <div key={`slot-${hour}`} className="min-h-24 rounded-md border bg-muted/20 p-1.5">
+                          {matching.map(task => (
+                            <div key={task.id} className="mb-1 w-full rounded bg-primary p-1.5 text-left text-[10px] font-medium text-primary-foreground">
+                              {task.title}
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </CardContainer>
+            </TabsContent>
 
-          <CardContainer title="All Assigned Tasks" description={`${selfTasks.length} total task(s) assigned to you`}>
-            <div className="mb-4 flex gap-2"><div className="relative flex-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search my tasks..." className="pl-9" /></div><Button variant="outline" size="icon" onClick={fetchTasks}><RefreshCw className="h-4 w-4" /></Button></div>
-            <div className="space-y-3">{searchedSelfTasks.length ? searchedSelfTasks.map(renderFieldTask) : <p className="py-6 text-center text-sm text-muted-foreground">No assigned tasks found.</p>}</div>
-          </CardContainer>
+            <TabsContent value="today" className="mt-6 animate-in fade-in-50 duration-200">
+              <CardContainer title="Today's Tasks" description={`${selfTodayTasks.length} task(s) scheduled today`}>
+                <div className="space-y-3">
+                  {loading ? (
+                    <Loader2 className="mx-auto h-7 w-7 animate-spin" />
+                  ) : selfTodayTasks.length ? (
+                    selfTodayTasks.map(renderFieldTask)
+                  ) : (
+                    <p className="py-6 text-center text-sm text-muted-foreground">No tasks scheduled for today.</p>
+                  )}
+                </div>
+              </CardContainer>
+            </TabsContent>
+
+            <TabsContent value="all" className="mt-6 animate-in fade-in-50 duration-200">
+              <CardContainer title="All Assigned Tasks" description={`${selfTasks.length} total task(s) assigned to you`}>
+                <div className="space-y-3">
+                  {loading ? (
+                    <Loader2 className="mx-auto h-7 w-7 animate-spin" />
+                  ) : searchedSelfTasks.length ? (
+                    searchedSelfTasks.map(renderFieldTask)
+                  ) : (
+                    <p className="py-6 text-center text-sm text-muted-foreground">No assigned tasks found.</p>
+                  )}
+                </div>
+              </CardContainer>
+            </TabsContent>
+          </Tabs>
         </div>
       </DashboardLayout>
     )
@@ -991,8 +1074,18 @@ export default function TasksPage() {
                                           <div className="p-2 bg-slate-105 dark:bg-slate-800 rounded-lg"><MapPin className="h-4 w-4" /></div>
                                           <p className="text-sm font-medium">{selectedTask.customer.lead?.address || "Location not provided"}</p>
                                       </div>
+                                      {taskDestination(selectedTask) && (
+                                        <Button variant="outline" className="w-full gap-2" onClick={() => openDirectionsFromCurrentLocation(taskDestination(selectedTask))}>
+                                          <Navigation className="h-4 w-4" /> Get Directions
+                                        </Button>
+                                      )}
                                   </div>
                               </div>
+                          )}
+                          {!selectedTask.customer && taskDestination(selectedTask) && (
+                            <Button variant="outline" className="w-full gap-2" onClick={() => openDirectionsFromCurrentLocation(taskDestination(selectedTask))}>
+                              <Navigation className="h-4 w-4" /> Get Directions to Lead
+                            </Button>
                           )}
 
                           {/* Technician Actions */}

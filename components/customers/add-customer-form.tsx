@@ -1444,7 +1444,7 @@ export function AddCustomerForm() {
 
     setIsSearchingLead(true)
     try {
-      const response = await apiRequest(`/lead?search=${encodeURIComponent(query)}&limit=10`)
+      const response = await apiRequest(`/lead?search=${encodeURIComponent(query)}&limit=10&status=qualified`)
       if (response.success && response.data) {
         setLeadSearchResults(response.data)
       } else {

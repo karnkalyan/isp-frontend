@@ -29,6 +29,7 @@ import {
   Send,
   Mail,
   Building,
+  Navigation,
 } from "lucide-react"
 import {
   Dialog,
@@ -51,6 +52,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select"
 import { useBranch } from "@/contexts/BranchContext"
 import { useAuth } from "@/contexts/AuthContext"
 import { useWebSocket } from "@/contexts/WebSocketContext"
+import { openDirectionsFromCurrentLocation } from "@/lib/directions"
 
 interface Ticket {
   id: number
@@ -71,6 +73,7 @@ interface Ticket {
     lastName: string; 
     email: string;
     phoneNumber?: string;
+    address?: string;
   }
   assignedTo?: { id: number; name: string; email: string }
   createdBy?: { id: number; name: string; email: string  }
@@ -577,6 +580,12 @@ function TicketsContent() {
                   <div className="text-muted-foreground">Created:</div>
                   <div>{new Date(selectedTicket.createdAt).toLocaleString()}</div>
                 </div>
+
+                {selectedTicket.subject?.address && (
+                  <Button variant="outline" className="w-full gap-2" onClick={() => openDirectionsFromCurrentLocation(selectedTicket.subject!.address || "")}>
+                    <Navigation className="h-4 w-4" /> Get Directions
+                  </Button>
+                )}
 
                 {/* Comments */}
                 <div className="border-t pt-3 space-y-3">

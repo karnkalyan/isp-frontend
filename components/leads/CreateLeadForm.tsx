@@ -1892,6 +1892,7 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                                                 onChange={(e) => setSearchQuery(e.target.value)}
                                                 onKeyDown={(e) => {
                                                     if (e.key === 'Enter') {
+                                                        e.preventDefault()
                                                         searchLocation(searchQuery)
                                                     }
                                                 }}
@@ -1899,6 +1900,7 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                                             />
                                         </div>
                                         <Button
+                                            type="button"
                                             onClick={() => searchLocation(searchQuery)}
                                             disabled={searching || !searchQuery.trim()}
                                             className="flex items-center gap-2"
@@ -1927,6 +1929,7 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                                             <div className="divide-y divide-gray-100 dark:divide-slate-800">
                                                 {searchResults.map((result) => (
                                                     <button
+                                                        type="button"
                                                         key={result.place_id}
                                                         onClick={() => handleSelectSearchResult(result)}
                                                         className="w-full text-left p-4 hover:bg-blue-50 dark:hover:bg-slate-800/50 transition-colors duration-150"
@@ -1974,6 +1977,7 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                                     <Label>Set Location on Map</Label>
                                     <div className="flex gap-2">
                                         <Button
+                                            type="button"
                                             variant="outline"
                                             size="sm"
                                             onClick={() => {
