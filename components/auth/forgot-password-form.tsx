@@ -49,7 +49,7 @@ export default function ForgotPasswordForm() {
         <>
           <div className="mb-6">
             <p className="text-sm text-muted-foreground">
-              Enter your email address and we'll send a temporary password to your registered email.
+              Enter your registered email address and we'll send a secure password-reset link.
             </p>
           </div>
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -84,7 +84,7 @@ export default function ForgotPasswordForm() {
                   Sending...
                 </>
               ) : (
-                "Send Temporary Password"
+                "Send Reset Link"
               )}
             </Button>
           </form>
@@ -96,7 +96,7 @@ export default function ForgotPasswordForm() {
           </div>
           <h3 className="text-lg font-medium mb-2">Check your email</h3>
           <p className="text-sm text-muted-foreground mb-6">
-            We've sent a temporary password to <span className="font-medium">{email}</span>
+            If the account exists, we've sent a reset link to <span className="font-medium">{email}</span>
           </p>
           <p className="text-xs text-muted-foreground mb-6">
             If you don't see it, check your spam folder or request another link.

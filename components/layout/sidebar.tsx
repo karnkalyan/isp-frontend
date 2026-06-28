@@ -449,6 +449,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
       roleClean.startsWith('global');
 
     const isCustomer = roleClean === 'customer';
+    const isFieldStaff = roleClean.includes('field staff');
 
     const canSeeInventory = isGlobal ||
       roleClean.includes('branch admin') ||
@@ -456,7 +457,34 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
       roleClean.includes('support') ||
       roleClean.includes('field');
 
-    return menuCategories.map(category => ({
+    const roleMenuCategories = isFieldStaff
+      ? menuCategories
+          .filter(category => ["Main", "Access Networks", "Operations", "Support"].includes(category.category))
+          .map(category => ({
+            ...category,
+            items: category.items
+              .filter(item =>
+                item.title === "Dashboard" ||
+                item.title === "Inventory Management" ||
+                item.title === "Task Management" ||
+                item.title === "Support Tickets"
+              )
+              .map(item => {
+                if (item.title === "Inventory Management") {
+                  return { ...item, permission: undefined, submenu: [{ title: "My Assigned Items", href: "/inventory/assigned" }] }
+                }
+                if (item.title === "Task Management") {
+                  return { ...item, permission: undefined, submenu: [{ title: "My Tasks", href: "/tasks" }] }
+                }
+                if (item.title === "Support Tickets") {
+                  return { ...item, permission: undefined, submenu: [{ title: "My Assigned Tickets", href: "/tickets" }] }
+                }
+                return item
+              })
+          }))
+      : menuCategories;
+
+    return roleMenuCategories.map(category => ({
       ...category,
       items: category.items.map(item => {
         if (item.title === "Inventory Management" && !canSeeInventory) return null
