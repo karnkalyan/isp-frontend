@@ -28,6 +28,7 @@ const pathPermissionMap: Record<string, string | string[]> = {
   "/fiber/ont": "olt_read",
   "/fiber/map": "olt_read",
   "/inventory/assigned": "inventory_assigned",
+  "/settings/radius-pools": "radius_disconnect",
   "/inventory": ["inventory_read", "inventory_manage"],
   "/inventory/bulk": "bulk_inventory_read",
   "/drums": "drums_read",
@@ -113,7 +114,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
     if (matchedKey) {
       const permission = /^\/customers\/\d+(?:\/|$)/.test(pathname)
-        ? "customers_details"
+        ? "customers_list"
         : pathPermissionMap[matchedKey];
       const isAllowed = Array.isArray(permission)
         ? permission.length === 0 || permission.some(item => hasPermission(item))

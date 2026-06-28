@@ -45,7 +45,6 @@ const modulePermissionMap: Record<string, ModuleConfig> = {
     subModules: {
       "All Customers": ["customers_list"],
       "Add New Customer": ["customers_create"],
-      "Customer Details": ["customers_details"],
       "Customer Portal": ["customer_read"],
       "Customer Dashboard": ["customer_read"]
     }
@@ -80,6 +79,23 @@ const modulePermissionMap: Record<string, ModuleConfig> = {
       "Tariff Catalog": ["package_plans_read", "package_plans_create", "package_plans_update", "package_plans_delete"]
     }
   },
+  "Package Management": {
+    permissions: [],
+    subModules: {
+      "Package Plans": ["package_plans_read", "package_plans_create", "package_plans_update", "package_plans_delete"],
+      "Package Prices": ["package_price_read", "package_price_create", "package_price_update", "package_price_delete"],
+      "One-Time Charges": ["one_time_charges_read", "one_time_charges_create", "one_time_charges_update", "one_time_charges_delete"]
+    }
+  },
+  "Customer Type Settings": {
+    permissions: [],
+    subModules: {
+      "View Customer Types": ["customer_types_read"],
+      "Create Customer Types": ["customer_types_create"],
+      "Update Customer Types": ["customer_types_update"],
+      "Delete Customer Types": ["customer_types_delete"]
+    }
+  },
   "Finance & Billing": {
     permissions: [],
     subModules: {
@@ -97,7 +113,9 @@ const modulePermissionMap: Record<string, ModuleConfig> = {
       "Fiber Map": ["olt_read"],
       "Fiber Networks": ["olt_read"],
       "OLT Management": ["olt_read", "olt_create"],
+      "OLT Details": ["olt_read", "olt_update", "olt_delete"],
       "Splitter Management": ["olt_read", "olt_create"],
+      "Splitter Details": ["splitter_read", "splitter_create", "splitter_update", "splitter_delete"],
       "Networking": ["olt_read"],
       "Network Topology": ["olt_read"],
       "NAS Management": ["nas_read", "nas_create"],
@@ -191,12 +209,14 @@ const modulePermissionMap: Record<string, ModuleConfig> = {
   "ISP Registration & Onboarding": {
     permissions: [],
     subModules: {
-      "Register ISP": ["isp_read", "isp_create", "isp_update", "isp_delete"]
+      "Register ISP": ["isp_create"],
+      "ISP Details": ["isp_read", "isp_update", "isp_delete"]
     }
   },
   "VoIP Integration": {
     permissions: [],
     subModules: {
+      "Show Yeastar in Sidebar": ["nav_yeastar"],
       "Yeastar PBX": ["yeaster_read", "yeaster_manage"],
       "Asterisk PBX": ["asterisk_read", "asterisk_manage"]
     }

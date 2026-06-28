@@ -121,7 +121,6 @@ const menuCategories: MenuCategory[] = [
         submenu: [
           { title: "All Customers", href: "/customers/all", permission: "customers_list" },
           { title: "Add New Customer", href: "/customers/new", permission: "customers_create" },
-          { title: "Customer Details", href: "/customers/all", permission: "customers_details" },
         ],
       },
       {
@@ -249,8 +248,13 @@ const menuCategories: MenuCategory[] = [
         submenu: [
           { title: "NAS Servers", href: "/nas", permission: "nas_read" },
           { title: "Add NAS", href: "/nas/new", permission: "nas_create" },
-          { title: "Disconnect Sessions", href: "/radius/disconnect", permission: "customer_update" },
         ],
+      },
+      {
+        title: "Disconnect Sessions",
+        icon: Server,
+        href: "/settings/radius-pools",
+        permission: "radius_disconnect",
       },
     ],
   },
@@ -305,7 +309,7 @@ const menuCategories: MenuCategory[] = [
           { title: "NetTV Service", href: "/nettv", permission: "services_read" },
           { title: "Radius Service", href: "/radius", permission: "services_read" },
           { title: "Aakash SMS Setup", href: "/services/aakashsms", permission: "services_read" },
-          { title: "Yeastar PBX", href: "/yeaster", permission: "yeaster_read" },
+          { title: "Yeastar PBX", href: "/yeaster", permission: "nav_yeastar" },
           { title: "Asterisk PBX", href: "/asterisk", permission: "asterisk_read" },
         ],
       },
@@ -462,19 +466,25 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
     // Role permissions remain authoritative. Field staff additionally receive
     // a safe, user-scoped inventory link even without global inventory access.
     const roleMenuCategories = isFieldStaff
-      ? menuCategories.map(category => category.category === "Access Networks"
-          ? {
-              ...category,
-              items: category.items.map(item => item.title === "Inventory Management"
+      ? menuCategories
+          .filter(category => !["Services", "Finance"].includes(category.category))
+          .map(category => ({
+            ...category,
+            items: category.items
+              .filter(item =>
+                item.title !== "Lead Management (CRM)" &&
+                item.title !== "NAS Management" &&
+                item.title !== "Communications"
+              )
+              .map(item => category.category === "Access Networks" && item.title === "Inventory Management"
                 ? { ...item, permission: "inventory_assigned", submenu: [{ title: "My Assigned Items", href: "/inventory/assigned", permission: "inventory_assigned" }] }
                 : item)
-            }
-          : category)
+          }))
       : menuCategories;
 
     return roleMenuCategories.map(category => ({
       ...category,
-      items: category.items.map(item => {
+      items: (category.category === "Customer Portal" && !isCustomer ? [] : category.items).map(item => {
         if (item.title === "Inventory Management" && !canSeeInventory) return null
         if (item.submenu) {
           const filteredSubmenu = item.submenu.filter(sub => {
