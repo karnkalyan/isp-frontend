@@ -2629,9 +2629,9 @@ export function AddCustomerForm() {
             </CardHeader>
             <CardContent>
               <Tabs defaultValue={devices.find(d => d.deviceType === "ONT")?.serialNumber}>
-                <TabsList className="mb-4">
+                <TabsList className="w-full flex overflow-x-auto justify-start h-auto scrollbar-none mb-4 bg-muted p-1 rounded-lg">
                   {devices.filter(d => d.deviceType === "ONT").map((device, idx) => (
-                    <TabsTrigger key={idx} value={device.serialNumber}>
+                    <TabsTrigger key={idx} value={device.serialNumber} className="flex-shrink-0">
                       {device.brand} {device.model}
                     </TabsTrigger>
                   ))}
@@ -2957,13 +2957,13 @@ export function AddCustomerForm() {
       {!showProvisionSection && !createdCustomer && selectedLead && (
         <form key={selectedLead.id} onSubmit={handleCreateCustomer}>
           <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-6">
-              <TabsTrigger value="personal">Personal</TabsTrigger>
-              <TabsTrigger value="location">Location</TabsTrigger>
-              <TabsTrigger value="documents">Documents</TabsTrigger>
-              <TabsTrigger value="references">References</TabsTrigger>
-              <TabsTrigger value="service">Service</TabsTrigger>
-              <TabsTrigger value="provisioning">Provisioning</TabsTrigger>
+            <TabsList className="flex w-full overflow-x-auto justify-start h-auto scrollbar-none p-1 bg-muted rounded-lg">
+              <TabsTrigger value="personal" className="flex-1 flex-shrink-0">Personal</TabsTrigger>
+              <TabsTrigger value="location" className="flex-1 flex-shrink-0">Location</TabsTrigger>
+              <TabsTrigger value="documents" className="flex-1 flex-shrink-0">Documents</TabsTrigger>
+              <TabsTrigger value="references" className="flex-1 flex-shrink-0">References</TabsTrigger>
+              <TabsTrigger value="service" className="flex-1 flex-shrink-0">Service</TabsTrigger>
+              <TabsTrigger value="provisioning" className="flex-1 flex-shrink-0">Provisioning</TabsTrigger>
             </TabsList>
 
             {/* Personal Info Tab */}

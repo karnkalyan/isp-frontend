@@ -3191,15 +3191,15 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="w-full bg-gradient-to-r from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 p-1 rounded-lg">
-          <TabsTrigger value="overview" className="flex-1"><User className="mr-2 h-4 w-4" />Overview</TabsTrigger>
-          <TabsTrigger value="billing" className="flex-1"><CreditCard className="mr-2 h-4 w-4" />Billing</TabsTrigger>
-          <TabsTrigger value="devices" className="flex-1"><Wifi className="mr-2 h-4 w-4" />Devices</TabsTrigger>
-          <TabsTrigger value="usage" className="flex-1"><BarChart className="mr-2 h-4 w-4" />Usage</TabsTrigger>
-          <TabsTrigger value="realtime" className="flex-1"><Activity className="mr-2 h-4 w-4" />Realtime Usage</TabsTrigger>
-          <TabsTrigger value="documents" className="flex-1"><FileText className="mr-2 h-4 w-4" />Documents</TabsTrigger>
-          <TabsTrigger value="radius" className="flex-1"><Key className="mr-2 h-4 w-4" />Radius Login</TabsTrigger>
-          <TabsTrigger value="support" className="flex-1"><LifeBuoy className="mr-2 h-4 w-4" />Support</TabsTrigger>
+        <TabsList className="w-full flex overflow-x-auto justify-start h-auto p-1 rounded-lg bg-gradient-to-r from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 scrollbar-none">
+          <TabsTrigger value="overview" className="flex-1 flex-shrink-0"><User className="mr-2 h-4 w-4" />Overview</TabsTrigger>
+          <TabsTrigger value="billing" className="flex-1 flex-shrink-0"><CreditCard className="mr-2 h-4 w-4" />Billing</TabsTrigger>
+          <TabsTrigger value="devices" className="flex-1 flex-shrink-0"><Wifi className="mr-2 h-4 w-4" />Devices</TabsTrigger>
+          <TabsTrigger value="usage" className="flex-1 flex-shrink-0"><BarChart className="mr-2 h-4 w-4" />Usage</TabsTrigger>
+          <TabsTrigger value="realtime" className="flex-1 flex-shrink-0"><Activity className="mr-2 h-4 w-4" />Realtime Usage</TabsTrigger>
+          <TabsTrigger value="documents" className="flex-1 flex-shrink-0"><FileText className="mr-2 h-4 w-4" />Documents</TabsTrigger>
+          <TabsTrigger value="radius" className="flex-1 flex-shrink-0"><Key className="mr-2 h-4 w-4" />Radius Login</TabsTrigger>
+          <TabsTrigger value="support" className="flex-1 flex-shrink-0"><LifeBuoy className="mr-2 h-4 w-4" />Support</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -4442,20 +4442,20 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           {customer.devices.filter(d => d.deviceType === "ONT" && d.serialNumber).length > 0 && (
             <CardContainer title="ACS Device Information" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
               <Tabs defaultValue={customer.devices.find(d => d.deviceType === "ONT")?.serialNumber}>
-                <TabsList className="mb-4">
+                <TabsList className="w-full flex overflow-x-auto justify-start h-auto scrollbar-none mb-4 bg-muted p-1 rounded-lg">
                   {customer.devices.filter(d => d.deviceType === "ONT").map((device, idx) => (
-                    <TabsTrigger key={idx} value={device.serialNumber}>{device.brand} {device.model}</TabsTrigger>
+                    <TabsTrigger key={idx} value={device.serialNumber} className="flex-shrink-0">{device.brand} {device.model}</TabsTrigger>
                   ))}
                 </TabsList>
                 {customer.devices.filter(d => d.deviceType === "ONT").map((device, idx) => (
                   <TabsContent key={idx} value={device.serialNumber}>
                     <Tabs defaultValue="basic-info">
-                      <TabsList className="mb-4">
-                        <TabsTrigger value="basic-info">Basic Info</TabsTrigger>
-                        <TabsTrigger value="wan">WAN Connections</TabsTrigger>
-                        <TabsTrigger value="wifi">WiFi</TabsTrigger>
-                        <TabsTrigger value="lan">LAN</TabsTrigger>
-                        <TabsTrigger value="neighbor-devices">Connected Devices</TabsTrigger>
+                      <TabsList className="w-full flex overflow-x-auto justify-start h-auto scrollbar-none mb-4 bg-muted p-1 rounded-lg">
+                        <TabsTrigger value="basic-info" className="flex-shrink-0">Basic Info</TabsTrigger>
+                        <TabsTrigger value="wan" className="flex-shrink-0">WAN Connections</TabsTrigger>
+                        <TabsTrigger value="wifi" className="flex-shrink-0">WiFi</TabsTrigger>
+                        <TabsTrigger value="lan" className="flex-shrink-0">LAN</TabsTrigger>
+                        <TabsTrigger value="neighbor-devices" className="flex-shrink-0">Connected Devices</TabsTrigger>
                       </TabsList>
                       <TabsContent value="basic-info"><TR069DeviceDetails deviceId={device.serialNumber} /></TabsContent>
                       <TabsContent value="wan"><TR069DeviceWanConnections deviceId={device.serialNumber} /></TabsContent>

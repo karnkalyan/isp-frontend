@@ -2070,31 +2070,31 @@ export default function LeadDetailsPage() {
           <div className="lg:col-span-2 space-y-6">
             {/* Tabs for Map/Notes/Follow-ups */}
             <Tabs defaultValue="location" className="w-full">
-              <TabsList className="grid w-full grid-cols-4 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
+              <TabsList className="flex w-full overflow-x-auto justify-start h-auto bg-gray-100 dark:bg-gray-800 p-1 rounded-lg scrollbar-none">
                 <TabsTrigger
                   value="location"
-                  className="data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-gray-900 rounded-md text-xs sm:text-sm"
+                  className="flex-1 flex-shrink-0 data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-gray-900 rounded-md text-xs sm:text-sm"
                 >
                   <MapPinIcon className="h-4 w-4 mr-1 sm:mr-2" />
                   Location
                 </TabsTrigger>
                 <TabsTrigger
                   value="notes"
-                  className="data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-gray-900 rounded-md text-xs sm:text-sm"
+                  className="flex-1 flex-shrink-0 data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-gray-900 rounded-md text-xs sm:text-sm"
                 >
                   <MessageSquare className="h-4 w-4 mr-1 sm:mr-2" />
                   Notes
                 </TabsTrigger>
                 <TabsTrigger
                   value="followups"
-                  className="data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-gray-900 rounded-md text-xs sm:text-sm"
+                  className="flex-1 flex-shrink-0 data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-gray-900 rounded-md text-xs sm:text-sm"
                 >
                   <Clock className="h-4 w-4 mr-1 sm:mr-2" />
                   Followups ({leadFollowUps.length})
                 </TabsTrigger>
                 <TabsTrigger
                   value="sms"
-                  className="data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-gray-900 rounded-md text-xs sm:text-sm"
+                  className="flex-1 flex-shrink-0 data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-gray-900 rounded-md text-xs sm:text-sm"
                 >
                   <MessageSquare className="h-4 w-4 mr-1 sm:mr-2 text-indigo-500" />
                   SMS Logs ({lead.smsLogs?.length || 0})
