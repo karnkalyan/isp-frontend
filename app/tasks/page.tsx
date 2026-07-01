@@ -1339,6 +1339,12 @@ export default function TasksPage() {
                     </div>
 
                     <div className="px-6 space-y-5">
+                      <Button asChild variant="default" className="w-full gap-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white border-0 shadow">
+                        <Link href={`/tasks/${selectedTask.id}`}>
+                          <ExternalLink className="h-3.5 w-3.5" /> View Full Details
+                        </Link>
+                      </Button>
+
                       <div className="grid grid-cols-2 gap-4">
                         <div className="p-3 bg-muted/40 rounded-xl">
                           <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Scheduled Date</p>
