@@ -1331,6 +1331,12 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const [returnHardwareItem, setReturnHardwareItem] = useState<any | null>(null)
   const [voipEnabled, setVoipEnabled] = useState(false)
 
+  // Reprovision Radius modal states
+  const [reprovisionRadiusOpen, setReprovisionRadiusOpen] = useState(false)
+  const [reprovisionPkgId, setReprovisionPkgId] = useState("")
+  const [reprovisionUsername, setReprovisionUsername] = useState("")
+  const [reprovisionPassword, setReprovisionPassword] = useState("")
+
   // ========== Radius Login Details ==========
   const [radiusAuthLogs, setRadiusAuthLogs] = useState<any[]>([])
   const [radiusAuthLoading, setRadiusAuthLoading] = useState(false)
@@ -2412,14 +2418,33 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     }
   }
 
-  const handleReprovisionRadius = async () => {
+  const openReprovisionRadiusDialog = () => {
+    if (customer) {
+      setReprovisionPkgId(customer.subscribedPkgId ? customer.subscribedPkgId.toString() : "")
+      setReprovisionUsername(customer.connectionUsers?.[0]?.username || "")
+      setReprovisionPassword(customer.connectionUsers?.[0]?.password || "")
+      setReprovisionRadiusOpen(true)
+    }
+  }
+
+  const handleReprovisionRadiusSubmit = async () => {
+    if (!reprovisionPkgId || !reprovisionUsername || !reprovisionPassword) {
+      toast.error("Package, username, and password are required")
+      return
+    }
     try {
       setServiceActionLoading("radius")
       const response = await apiRequest<{ success: boolean; message: string }>(`/customer/${customerId}/reprovision/radius`, {
-        method: 'POST'
+        method: "POST",
+        body: JSON.stringify({
+          subscribedPkgId: Number(reprovisionPkgId),
+          username: reprovisionUsername,
+          password: reprovisionPassword
+        })
       })
       if (response.success) {
         toast.success(response.message || "Radius reprovisioned successfully")
+        setReprovisionRadiusOpen(false)
         fetchCustomerData()
       } else {
         toast.error("Radius reprovisioning failed")
@@ -2884,6 +2909,58 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         defaultMobile={customer.secondaryPhone || customer.phoneNumber || ""}
       />
 
+      <Dialog open={reprovisionRadiusOpen} onOpenChange={setReprovisionRadiusOpen}>
+        <DialogContent className="w-[95vw] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reprovision Radius User</DialogTitle>
+            <DialogDescription>Choose a package, username, and password to provision to the Radius server.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="reprovisionPackage">Subscribed Package *</Label>
+              <Select value={reprovisionPkgId} onValueChange={setReprovisionPkgId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select package" />
+                </SelectTrigger>
+                <SelectContent>
+                  {packages.map((pkg) => (
+                    <SelectItem key={pkg.id} value={pkg.id.toString()}>
+                      {pkg.packageName} - {formatPrice(pkg.price)}/{pkg.packageDuration}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reprovisionUsername">Radius Username *</Label>
+              <Input
+                id="reprovisionUsername"
+                value={reprovisionUsername}
+                onChange={(e) => setReprovisionUsername(e.target.value)}
+                placeholder="Username"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reprovisionPassword">Radius Password *</Label>
+              <Input
+                id="reprovisionPassword"
+                type="text"
+                value={reprovisionPassword}
+                onChange={(e) => setReprovisionPassword(e.target.value)}
+                placeholder="Password"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" type="button" onClick={() => setReprovisionRadiusOpen(false)}>Cancel</Button>
+            <Button type="button" onClick={handleReprovisionRadiusSubmit} disabled={serviceActionLoading === "radius"}>
+              {serviceActionLoading === "radius" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Reprovision & Push
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={changeUsernameOpen} onOpenChange={setChangeUsernameOpen}>
         <DialogContent className="w-[95vw] sm:max-w-md">
           <DialogHeader>
@@ -3184,7 +3261,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         <Button size="sm" className="h-9 bg-gradient-to-r from-red-500 to-rose-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={() => setResetMacOpen(true)}>
           <RefreshCw className="mr-2 h-4 w-4" /> MAC RESET
         </Button>
-        <Button size="sm" className="h-9 bg-gradient-to-r from-indigo-500 to-violet-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={handleReprovisionRadius} disabled={serviceActionLoading === "radius"}>
+        <Button size="sm" className="h-9 bg-gradient-to-r from-indigo-500 to-violet-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={openReprovisionRadiusDialog} disabled={serviceActionLoading === "radius"}>
           {serviceActionLoading === "radius" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Key className="mr-2 h-4 w-4" />}
           Reprovision Radius
         </Button>

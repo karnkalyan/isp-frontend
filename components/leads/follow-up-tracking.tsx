@@ -50,6 +50,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { apiRequest } from "@/lib/api"
 import { useConfirmToast } from "@/hooks/use-confirm-toast"
+import { useAuth } from "@/contexts/AuthContext"
 
 // Types
 type FollowUpType = 'CALL' | 'EMAIL' | 'MEETING' | 'VISIT' | 'OTHER'
@@ -81,6 +82,7 @@ interface FollowUp {
         firstName: string
         lastName: string
         phoneNumber?: string
+        secondaryContactNumber?: string
         email?: string
         status: LeadStatus
         assignedUserId?: string
@@ -156,6 +158,7 @@ const LEAD_STATUS_OPTIONS: Array<{ value: LeadStatus; label: string }> = [
 ]
 
 export function FollowUpTracking() {
+    const { user } = useAuth()
     const [activeTab, setActiveTab] = useState("todays")
     const [followUps, setFollowUps] = useState<FollowUp[]>([])
     const [users, setUsers] = useState<User[]>([])
@@ -295,6 +298,36 @@ export function FollowUpTracking() {
             }
         } catch (error) {
             console.error("Failed to fetch users:", error)
+        }
+    }
+
+    const handleCall = async (phoneNumber?: string) => {
+        if (!phoneNumber) {
+            toast.error("Phone number is not available")
+            return
+        }
+        const extension = String(user?.yeastarExt || user?.extId || "").trim()
+        if (!extension) {
+            toast.error("No VoIP extension is assigned to your user account")
+            return
+        }
+
+        try {
+            await apiRequest(`/yeaster/calls/make`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    extension,
+                    caller: extension,
+                    callee: phoneNumber,
+                    number: phoneNumber,
+                    autoanswer: "yes",
+                })
+            })
+            toast.success(`Calling ${phoneNumber}`)
+        } catch (error: any) {
+            console.error("Call error:", error)
+            const message = String(error?.message || "")
+            toast.error(/yeastar|yeaster|asterisk|voip|configured|enabled/i.test(message) ? "Calling is disabled because no VOIP service is enabled" : message || "Failed to initiate call")
         }
     }
 
@@ -742,9 +775,45 @@ export function FollowUpTracking() {
                                     <p className="text-sm font-medium">
                                         {selectedFollowUp.lead?.firstName || 'Unknown'} {selectedFollowUp.lead?.lastName || 'Lead'}
                                     </p>
-                                    <p className="text-sm text-gray-500">
-                                        {selectedFollowUp.lead?.phoneNumber || "No phone"}
-                                    </p>
+                                    <div className="mt-1 space-y-2">
+                                        {selectedFollowUp.lead?.phoneNumber ? (
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm text-gray-500">
+                                                    Primary: {selectedFollowUp.lead.phoneNumber}
+                                                </span>
+                                                <Button
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                                    onClick={() => handleCall(selectedFollowUp.lead?.phoneNumber)}
+                                                    title="Call Primary Number"
+                                                    type="button"
+                                                >
+                                                    <PhoneCall className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            <span className="text-sm text-gray-400">No primary phone</span>
+                                        )}
+
+                                        {selectedFollowUp.lead?.secondaryContactNumber && (
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm text-gray-500">
+                                                    Secondary: {selectedFollowUp.lead.secondaryContactNumber}
+                                                </span>
+                                                <Button
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                                    onClick={() => handleCall(selectedFollowUp.lead?.secondaryContactNumber)}
+                                                    title="Call Secondary Number"
+                                                    type="button"
+                                                >
+                                                    <PhoneCall className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1265,8 +1334,39 @@ export function FollowUpTracking() {
                                                             <div className="font-medium">
                                                                 {followUp.lead?.firstName || 'Unknown'} {followUp.lead?.lastName || 'Lead'}
                                                             </div>
-                                                            <div className="text-sm text-gray-500">
-                                                                {followUp.lead?.phoneNumber || "No phone"}
+                                                            <div className="space-y-1">
+                                                                {followUp.lead?.phoneNumber ? (
+                                                                    <div className="flex items-center gap-1.5 text-sm text-gray-500">
+                                                                        <span>{followUp.lead.phoneNumber}</span>
+                                                                        <Button
+                                                                            size="icon"
+                                                                            variant="ghost"
+                                                                            className="h-6 w-6 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                                                            onClick={() => handleCall(followUp.lead?.phoneNumber)}
+                                                                            title="Call Primary Number"
+                                                                            type="button"
+                                                                        >
+                                                                            <PhoneCall className="h-3.5 w-3.5" />
+                                                                        </Button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="text-sm text-gray-400">No phone</div>
+                                                                )}
+                                                                {followUp.lead?.secondaryContactNumber && (
+                                                                    <div className="flex items-center gap-1.5 text-sm text-gray-500">
+                                                                        <span>{followUp.lead.secondaryContactNumber}</span>
+                                                                        <Button
+                                                                            size="icon"
+                                                                            variant="ghost"
+                                                                            className="h-6 w-6 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                                                            onClick={() => handleCall(followUp.lead?.secondaryContactNumber)}
+                                                                            title="Call Secondary Number"
+                                                                            type="button"
+                                                                        >
+                                                                            <PhoneCall className="h-3.5 w-3.5" />
+                                                                        </Button>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                             {followUp.lead?.email && (
                                                                 <div className="text-sm text-gray-500">

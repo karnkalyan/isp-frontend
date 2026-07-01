@@ -17,6 +17,7 @@ import { Switch } from "@/components/ui/switch"
 import { apiRequest } from "@/lib/api"
 import { toast } from "react-hot-toast"
 import { useAuth } from "@/contexts/AuthContext"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 
 type OptionRecord = { id: number; name?: string; packageName?: string; email?: string; packageDuration?: string }
 
@@ -35,6 +36,8 @@ export default function EditCustomerPage() {
   const [users, setUsers] = useState<OptionRecord[]>([])
   const [packages, setPackages] = useState<OptionRecord[]>([])
   const [existingISPs, setExistingISPs] = useState<OptionRecord[]>([])
+  const [olts, setOlts] = useState<any[]>([])
+  const [splitters, setSplitters] = useState<any[]>([])
   const [uploadingDocument, setUploadingDocument] = useState(false)
   const [showSecretModal, setShowSecretModal] = useState(false)
   const [typedSecretKey, setTypedSecretKey] = useState("")
@@ -85,15 +88,22 @@ export default function EditCustomerPage() {
     async function load() {
       try {
         setLoading(true)
-        const [customerData, typeData, membershipData, userData, packageData, ispData] = await Promise.all([
+        const [customerData, typeData, membershipData, userData, packageData, ispData, oltData, splitterData] = await Promise.all([
           apiRequest(`/customer/${id}`),
           apiRequest("/customer-types").catch(() => []),
           apiRequest("/membership").catch(() => []),
           apiRequest("/users").catch(() => []),
           apiRequest("/package-price").catch(() => []),
           apiRequest("/existingisp").catch(() => []),
+          apiRequest("/olt?limit=1000").catch(() => []),
+          apiRequest("/splitters?limit=1000").catch(() => []),
         ])
         setCustomer(customerData)
+
+        const mainOnt = customerData.devices?.find((d: any) => d.deviceType === 'ONT')
+        const mainService = customerData.serviceDetails?.[0]
+        const mainUser = customerData.connectionUsers?.[0]
+
         setForm({
           firstName: customerData.firstName || customerData.lead?.firstName || "",
           middleName: customerData.middleName || customerData.lead?.middleName || "",
@@ -115,6 +125,26 @@ export default function EditCustomerPage() {
           subscribedPkgId: customerData.subscribedPkgId ? String(customerData.subscribedPkgId) : "",
           existingISPId: customerData.existingISPId ? String(customerData.existingISPId) : "",
           isFree: Boolean(customerData.isFree),
+
+          // Connection Details
+          connectionType: mainService?.connectionType || "fiber",
+          useSplitter: mainService?.splitterId ? true : false,
+          splitterId: mainService?.splitterId ? String(mainService.splitterId) : "",
+          splitterPort: mainService?.splitterPort || "",
+          oltId: mainService?.oltId ? String(mainService.oltId) : "",
+          oltPort: mainService?.oltPort || "",
+          vlanId: mainService?.vlanId || "",
+
+          // Credentials
+          connectionUsername: mainUser?.username || "",
+          connectionPassword: mainUser?.password || "",
+
+          // ONT Device
+          deviceBrand: mainOnt?.brand || "",
+          deviceName: mainOnt?.model || "",
+          deviceSerial: mainOnt?.serialNumber || "",
+          deviceMac: mainOnt?.macAddress || "",
+          devicePonSerial: mainOnt?.ponSerial || "",
         })
         setFreeCustomerUnlocked(Boolean(customerData.isFree))
         setCustomerTypes(Array.isArray(typeData) ? typeData : typeData?.data || [])
@@ -122,6 +152,8 @@ export default function EditCustomerPage() {
         setUsers(Array.isArray(userData) ? userData : userData?.data || [])
         setPackages((Array.isArray(packageData) ? packageData : packageData?.data || []).filter((pkg: any) => !pkg.isTrial))
         setExistingISPs(Array.isArray(ispData) ? ispData : ispData?.data || [])
+        setOlts(Array.isArray(oltData) ? oltData : oltData?.data || [])
+        setSplitters(Array.isArray(splitterData) ? splitterData : splitterData?.data || [])
       } catch (error: any) {
         toast.error(error.message || "Failed to load customer")
       } finally {
@@ -251,232 +283,367 @@ export default function EditCustomerPage() {
             <CardContent className="py-8 text-sm text-muted-foreground">Loading customer...</CardContent>
           </Card>
         ) : (
-          <Tabs defaultValue="profile" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="profile">Profile</TabsTrigger>
-              <TabsTrigger value="service">Service</TabsTrigger>
-              <TabsTrigger value="documents">Documents</TabsTrigger>
-              <TabsTrigger value="hardware">Hardware</TabsTrigger>
-            </TabsList>
+          <form onSubmit={save} className="space-y-6">
+            <Tabs defaultValue="profile" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="profile">Profile</TabsTrigger>
+                <TabsTrigger value="service">Service</TabsTrigger>
+                <TabsTrigger value="documents">Documents</TabsTrigger>
+                <TabsTrigger value="hardware">Hardware</TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="profile">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Profile & References</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={save} className="space-y-6">
-                <div className="grid gap-4 md:grid-cols-3">
-                  {["firstName", "middleName", "lastName", "email", "phoneNumber", "secondaryPhone", "streetAddress", "city", "district", "state", "zipCode", "idNumber", "panNumber"].map((field) => (
-                    <div className="space-y-2" key={field}>
-                      <Label htmlFor={field}>{field.replace(/([A-Z])/g, " $1").replace(/^./, c => c.toUpperCase())}</Label>
-                      <Input id={field} value={form[field] || ""} onChange={(e) => setField(field, e.target.value)} />
+              <TabsContent value="profile">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Profile & References</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="grid gap-4 md:grid-cols-3">
+                      {["firstName", "middleName", "lastName", "email", "phoneNumber", "secondaryPhone", "streetAddress", "city", "district", "state", "zipCode", "idNumber", "panNumber"].map((field) => (
+                        <div className="space-y-2" key={field}>
+                          <Label htmlFor={field}>{field.replace(/([A-Z])/g, " $1").replace(/^./, c => c.toUpperCase())}</Label>
+                          <Input id={field} value={form[field] || ""} onChange={(e) => setField(field, e.target.value)} />
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Customer Type *</Label>
-                    <SearchableSelect
-                      value={form.customerTypeId || ""}
-                      onValueChange={(value) => setField("customerTypeId", Array.isArray(value) ? value[0] : value)}
-                      options={customerTypes.map((item) => ({ value: String(item.id), label: item.name || `Type ${item.id}` }))}
-                      placeholder="Select customer type"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Subscribed Package</Label>
-                    <SearchableSelect
-                      value={form.subscribedPkgId || ""}
-                      onValueChange={(value) => setField("subscribedPkgId", Array.isArray(value) ? value[0] : value)}
-                      options={packages.map((item) => ({ value: String(item.id), label: item.packageName || `Package ${item.id}`, description: item.packageDuration }))}
-                      placeholder="Select subscribed package"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Membership</Label>
-                    <SearchableSelect
-                      value={form.membershipId || ""}
-                      onValueChange={(value) => setField("membershipId", Array.isArray(value) ? value[0] : value)}
-                      options={memberships.map((item) => ({ value: String(item.id), label: item.name || `Membership ${item.id}` }))}
-                      placeholder="Select membership"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Installed By</Label>
-                    <SearchableSelect
-                      value={form.installedById || ""}
-                      onValueChange={(value) => setField("installedById", Array.isArray(value) ? value[0] : value)}
-                      options={users.map((item) => ({ value: String(item.id), label: item.name || `User ${item.id}`, description: item.email }))}
-                      placeholder="Select technician"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Previous ISP</Label>
-                    <SearchableSelect
-                      value={form.existingISPId || ""}
-                      onValueChange={(value) => setField("existingISPId", Array.isArray(value) ? value[0] : value)}
-                      options={existingISPs.map((item) => ({ value: String(item.id), label: item.name || `ISP ${item.id}` }))}
-                      placeholder="Select previous ISP"
-                    />
-                  </div>
-                </div>
-
-                {isAdmin && freeCustomerUnlocked && (
-                  <div className="space-y-4 rounded-lg border border-purple-100 bg-purple-50/50 p-4 dark:border-purple-900/30 dark:bg-purple-900/10">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="space-y-0.5">
-                        <Label className="font-medium text-purple-800 dark:text-purple-400">Free Customer</Label>
-                        <p className="text-xs text-muted-foreground">Enable this to override package and recharge amounts to 0.</p>
-                      </div>
-                      <Switch
-                        checked={Boolean(form.isFree)}
-                        onCheckedChange={(checked) => setField("isFree", checked)}
-                      />
-                    </div>
-                    {form.isFree && (
+                    <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
-                        <Label htmlFor="editFreeCustomerSecretKey">Secret Verification Key *</Label>
-                        <Input
-                          id="editFreeCustomerSecretKey"
-                          type="password"
-                          placeholder="Enter secret verification key"
-                          value={freeCustomerSecretKey}
-                          onChange={(e) => setFreeCustomerSecretKey(e.target.value)}
+                        <Label>Customer Type *</Label>
+                        <SearchableSelect
+                          value={form.customerTypeId || ""}
+                          onValueChange={(value) => setField("customerTypeId", Array.isArray(value) ? value[0] : value)}
+                          options={customerTypes.map((item) => ({ value: String(item.id), label: item.name || `Type ${item.id}` }))}
+                          placeholder="Select customer type"
                         />
                       </div>
+                      <div className="space-y-2">
+                        <Label>Subscribed Package</Label>
+                        <SearchableSelect
+                          value={form.subscribedPkgId || ""}
+                          onValueChange={(value) => setField("subscribedPkgId", Array.isArray(value) ? value[0] : value)}
+                          options={packages.map((item) => ({ value: String(item.id), label: item.packageName || `Package ${item.id}`, description: item.packageDuration }))}
+                          placeholder="Select subscribed package"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Membership</Label>
+                        <SearchableSelect
+                          value={form.membershipId || ""}
+                          onValueChange={(value) => setField("membershipId", Array.isArray(value) ? value[0] : value)}
+                          options={memberships.map((item) => ({ value: String(item.id), label: item.name || `Membership ${item.id}` }))}
+                          placeholder="Select membership"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Installed By</Label>
+                        <SearchableSelect
+                          value={form.installedById || ""}
+                          onValueChange={(value) => setField("installedById", Array.isArray(value) ? value[0] : value)}
+                          options={users.map((item) => ({ value: String(item.id), label: item.name || `User ${item.id}`, description: item.email }))}
+                          placeholder="Select technician"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Previous ISP</Label>
+                        <SearchableSelect
+                          value={form.existingISPId || ""}
+                          onValueChange={(value) => setField("existingISPId", Array.isArray(value) ? value[0] : value)}
+                          options={existingISPs.map((item) => ({ value: String(item.id), label: item.name || `ISP ${item.id}` }))}
+                          placeholder="Select previous ISP"
+                        />
+                      </div>
+                    </div>
+
+                    {isAdmin && freeCustomerUnlocked && (
+                      <div className="space-y-4 rounded-lg border border-purple-100 bg-purple-50/50 p-4 dark:border-purple-900/30 dark:bg-purple-900/10">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="space-y-0.5">
+                            <Label className="font-medium text-purple-800 dark:text-purple-400">Free Customer</Label>
+                            <p className="text-xs text-muted-foreground">Enable this to override package and recharge amounts to 0.</p>
+                          </div>
+                          <Switch
+                            checked={Boolean(form.isFree)}
+                            onCheckedChange={(checked) => setField("isFree", checked)}
+                          />
+                        </div>
+                        {form.isFree && (
+                          <div className="space-y-2">
+                            <Label htmlFor="editFreeCustomerSecretKey">Secret Verification Key *</Label>
+                            <Input
+                              id="editFreeCustomerSecretKey"
+                              type="password"
+                              placeholder="Enter secret verification key"
+                              value={freeCustomerSecretKey}
+                              onChange={(e) => setFreeCustomerSecretKey(e.target.value)}
+                            />
+                          </div>
+                        )}
+                      </div>
                     )}
-                  </div>
-                )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
-                <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={() => router.push(`/customers/${id}`)}>Cancel</Button>
-                  <Button type="submit" disabled={saving}>{saving ? "Saving..." : "Save Changes"}</Button>
-                </div>
-                  </form>
-                </CardContent>
-              </Card>
-            </TabsContent>
+              <TabsContent value="service">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Service Configuration & Credentials</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* Connection Type */}
+                    <div className="space-y-2">
+                      <Label htmlFor="connectionType">Connection Type *</Label>
+                      <SearchableSelect
+                        value={form.connectionType || ""}
+                        onValueChange={(value) => setField("connectionType", Array.isArray(value) ? value[0] : value)}
+                        options={[
+                          { value: "fiber", label: "Fiber" },
+                          { value: "infra_share", label: "Infra Share" },
+                          { value: "wireless", label: "Wireless" }
+                        ]}
+                        placeholder="Select connection type"
+                      />
+                    </div>
 
-            <TabsContent value="service">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Service Configuration</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="rounded-md border p-4">
-                      <div className="text-sm text-muted-foreground">Current Package</div>
-                      <div className="font-medium">{customer?.subscribedPkg?.packageName || customer?.subscribedPkg?.packagePlanDetails?.planName || "Not selected"}</div>
-                      <div className="text-xs text-muted-foreground">{customer?.subscribedPkg?.packageDuration || ""}</div>
+                    {form.connectionType === "fiber" && (
+                      <>
+                        {/* Connection Method */}
+                        <div className="space-y-2">
+                          <Label>Connection Method</Label>
+                          <RadioGroup
+                            value={form.useSplitter ? "splitter" : "direct"}
+                            onValueChange={(value: string) => setField("useSplitter", value === "splitter")}
+                            className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-1"
+                          >
+                            <div className="flex items-center space-x-2 rounded-lg border p-4 cursor-pointer hover:bg-accent">
+                              <RadioGroupItem value="splitter" id="edit-splitter-method" />
+                              <Label htmlFor="edit-splitter-method" className="flex items-center cursor-pointer font-normal">
+                                Via Splitter
+                              </Label>
+                            </div>
+                            <div className="flex items-center space-x-2 rounded-lg border p-4 cursor-pointer hover:bg-accent">
+                              <RadioGroupItem value="direct" id="edit-direct-method" />
+                              <Label htmlFor="edit-direct-method" className="flex items-center cursor-pointer font-normal">
+                                Direct OLT Port
+                              </Label>
+                            </div>
+                          </RadioGroup>
+                        </div>
+
+                        {/* Splitter Selection */}
+                        {form.useSplitter && (
+                          <div className="space-y-2">
+                            <Label htmlFor="editSplitterId">Splitter</Label>
+                            <SearchableSelect
+                              options={splitters.map((s) => ({
+                                value: String(s.id),
+                                label: `${s.name} (${s.splitterId})`,
+                                description: `Ratio: ${s.splitRatio} | Ports: ${s.portCount} | Available: ${s.availablePorts ?? 0}`
+                              }))}
+                              value={form.splitterId || ""}
+                              onValueChange={(value) => {
+                                const val = Array.isArray(value) ? value[0] : value
+                                setField("splitterId", val)
+                                const selectedSplitter = splitters.find(s => String(s.id) === val)
+                                if (selectedSplitter && selectedSplitter.oltId) {
+                                  setField("oltId", String(selectedSplitter.oltId))
+                                }
+                              }}
+                              placeholder="Select splitter"
+                            />
+                          </div>
+                        )}
+
+                        {/* Splitter Port */}
+                        {form.useSplitter && (
+                          <div className="space-y-2">
+                            <Label htmlFor="editSplitterPort">Splitter Output Port</Label>
+                            <Input
+                              id="editSplitterPort"
+                              value={form.splitterPort || ""}
+                              onChange={(e) => setField("splitterPort", e.target.value)}
+                              placeholder="e.g., 1-32"
+                            />
+                          </div>
+                        )}
+
+                        {/* OLT Selection */}
+                        {!form.useSplitter && (
+                          <div className="space-y-2">
+                            <Label htmlFor="editOltId">OLT</Label>
+                            <SearchableSelect
+                              options={olts.map((o) => ({
+                                value: String(o.id),
+                                label: o.name,
+                                description: o.model
+                              }))}
+                              value={form.oltId || ""}
+                              onValueChange={(value) => setField("oltId", Array.isArray(value) ? value[0] : value)}
+                              placeholder="Select OLT"
+                            />
+                          </div>
+                        )}
+
+                        {/* OLT Port */}
+                        {!form.useSplitter && (
+                          <div className="space-y-2">
+                            <Label htmlFor="editOltPort">OLT Port</Label>
+                            <Input
+                              id="editOltPort"
+                              value={form.oltPort || ""}
+                              onChange={(e) => setField("oltPort", e.target.value)}
+                              placeholder="e.g., 1/1/1"
+                            />
+                          </div>
+                        )}
+
+                        {/* VLAN ID */}
+                        <div className="space-y-2">
+                          <Label htmlFor="editVlanId">VLAN ID</Label>
+                          <Input
+                            id="editVlanId"
+                            value={form.vlanId || ""}
+                            onChange={(e) => setField("vlanId", e.target.value)}
+                            placeholder="e.g., 100"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {/* PPPoE / Wi-Fi Credentials */}
+                    <div className="space-y-4 pt-4 border-t">
+                      <h3 className="text-sm font-medium">User Credentials (PPPoE / Wi-Fi)</h3>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="editConnectionUsername">Username</Label>
+                          <Input
+                            id="editConnectionUsername"
+                            value={form.connectionUsername || ""}
+                            onChange={(e) => setField("connectionUsername", e.target.value)}
+                            placeholder="PPPoE Username"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="editConnectionPassword">Password</Label>
+                          <Input
+                            id="editConnectionPassword"
+                            type="password"
+                            value={form.connectionPassword || ""}
+                            onChange={(e) => setField("connectionPassword", e.target.value)}
+                            placeholder="PPPoE Password"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="documents">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Documents</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {(customer?.documents || []).length > 0 ? customer.documents.map((doc: any) => (
+                        <div key={doc.id} className="rounded-md border p-3 text-sm">
+                          <div className="font-medium">{doc.documentType || "Document"}</div>
+                          <div className="text-xs text-muted-foreground">{doc.fileName}</div>
+                        </div>
+                      )) : <div className="text-sm text-muted-foreground">No documents uploaded yet.</div>}
                     </div>
                     <div className="rounded-md border p-4">
-                      <div className="text-sm text-muted-foreground">Status</div>
-                      <Badge variant="outline">{customer?.status || "unknown"}</Badge>
-                      <div className="mt-1 text-xs text-muted-foreground">{customer?.onboardStatus || ""}</div>
+                      <Label htmlFor="editDocumentUpload">Upload Document</Label>
+                      <Input
+                        id="editDocumentUpload"
+                        type="file"
+                        className="mt-2"
+                        disabled={uploadingDocument}
+                        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                        onChange={(event) => uploadDocument(event.target.files?.[0] || null)}
+                      />
                     </div>
-                  </div>
-                  <div className="rounded-md border p-4">
-                    <div className="mb-2 text-sm font-medium">Connection Details</div>
-                    {(customer?.serviceDetails || []).length > 0 ? (
-                      <div className="space-y-2 text-sm">
-                        {customer.serviceDetails.map((service: any) => (
-                          <div key={service.id} className="grid gap-2 md:grid-cols-4">
-                            <span>Type: {service.connectionType || "N/A"}</span>
-                            <span>OLT: {service.olt?.name || service.oltId || "N/A"}</span>
-                            <span>Splitter: {service.splitter?.name || service.splitterId || "N/A"}</span>
-                            <span>VLAN: {service.vlanId || "N/A"}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-sm text-muted-foreground">No connection details saved yet.</div>
-                    )}
-                  </div>
-                  <div className="flex justify-end">
-                    <Button type="button" onClick={() => router.push(`/customers/${id}`)}>Open Full Provisioning View</Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
-            <TabsContent value="documents">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Documents</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-3 md:grid-cols-2">
-                    {(customer?.documents || []).length > 0 ? customer.documents.map((doc: any) => (
-                      <div key={doc.id} className="rounded-md border p-3 text-sm">
-                        <div className="font-medium">{doc.documentType || "Document"}</div>
-                        <div className="text-xs text-muted-foreground">{doc.fileName}</div>
+              <TabsContent value="hardware">
+                <Card>
+                  <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <CardTitle>ONT Device Details</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="editDeviceBrand">ONT Brand</Label>
+                        <Input
+                          id="editDeviceBrand"
+                          value={form.deviceBrand || ""}
+                          onChange={(e) => setField("deviceBrand", e.target.value)}
+                          placeholder="e.g., Huawei, Nokia"
+                        />
                       </div>
-                    )) : <div className="text-sm text-muted-foreground">No documents uploaded yet.</div>}
-                  </div>
-                  <div className="rounded-md border p-4">
-                    <Label htmlFor="editDocumentUpload">Upload Document</Label>
-                    <Input
-                      id="editDocumentUpload"
-                      type="file"
-                      className="mt-2"
-                      disabled={uploadingDocument}
-                      accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                      onChange={(event) => uploadDocument(event.target.files?.[0] || null)}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
+                      <div className="space-y-2">
+                        <Label htmlFor="editDeviceName">ONT Model</Label>
+                        <Input
+                          id="editDeviceName"
+                          value={form.deviceName || ""}
+                          onChange={(e) => setField("deviceName", e.target.value)}
+                          placeholder="e.g., HG8245H"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="editDeviceSerial">Serial Number</Label>
+                        <Input
+                          id="editDeviceSerial"
+                          value={form.deviceSerial || ""}
+                          onChange={(e) => setField("deviceSerial", e.target.value)}
+                          placeholder="Device Serial Number"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="editDeviceMac">MAC Address</Label>
+                        <Input
+                          id="editDeviceMac"
+                          value={form.deviceMac || ""}
+                          onChange={(e) => setField("deviceMac", e.target.value)}
+                          placeholder="00:11:22:33:44:55"
+                        />
+                      </div>
+                      <div className="space-y-2 md:col-span-2">
+                        <Label htmlFor="editDevicePonSerial">PON Serial</Label>
+                        <Input
+                          id="editDevicePonSerial"
+                          value={form.devicePonSerial || ""}
+                          onChange={(e) => setField("devicePonSerial", e.target.value)}
+                          placeholder="PON Serial (for dynamic discovery)"
+                        />
+                      </div>
+                    </div>
 
-            <TabsContent value="hardware">
-              <Card>
-                <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <CardTitle>Hardware & Devices</CardTitle>
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={() => router.push(`/inventory?customerId=${id}`)}>
-                      Assign Hardware
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" onClick={() => router.push("/tr069")}>
-                      ACS Devices
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <div className="mb-2 text-sm font-medium">Inventory Hardware</div>
-                    {(customer?.inventoryItems || []).length > 0 ? (
-                      <div className="grid gap-3 md:grid-cols-2">
-                        {customer.inventoryItems.map((item: any) => (
-                          <div key={item.id} className="rounded-md border p-3 text-sm">
-                            <div className="font-medium">{item.name || item.type} <Badge variant="outline">{item.status}</Badge></div>
-                            <div className="text-xs text-muted-foreground">SN: {item.serialNumber || "N/A"}</div>
-                            <div className="text-xs text-muted-foreground">MAC: {item.macAddress || "N/A"}</div>
-                          </div>
-                        ))}
+                    <div className="pt-4 border-t">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <h4 className="text-sm font-medium">Inventory Assignment</h4>
+                          <p className="text-xs text-muted-foreground">Manage and assign specific warehouse stock items to this customer.</p>
+                        </div>
+                        <Button type="button" variant="outline" size="sm" onClick={() => router.push(`/inventory?customerId=${id}`)}>
+                          Go to Inventory
+                        </Button>
                       </div>
-                    ) : <div className="text-sm text-muted-foreground">No inventory hardware assigned.</div>}
-                  </div>
-                  <div>
-                    <div className="mb-2 text-sm font-medium">Provisioned Devices</div>
-                    {(customer?.devices || []).length > 0 ? (
-                      <div className="grid gap-3 md:grid-cols-2">
-                        {customer.devices.map((device: any) => (
-                          <div key={device.id} className="rounded-md border p-3 text-sm">
-                            <div className="font-medium">{device.brand || device.deviceType} {device.model || ""}</div>
-                            <div className="text-xs text-muted-foreground">SN: {device.serialNumber || "N/A"}</div>
-                            <div className="text-xs text-muted-foreground">PON SN: {device.ponSerial || "N/A"}</div>
-                            <div className="text-xs text-muted-foreground">MAC: {device.macAddress || "N/A"}</div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : <div className="text-sm text-muted-foreground">No provisioned devices saved.</div>}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+
+            <div className="flex justify-end gap-2 mt-6">
+              <Button type="button" variant="outline" onClick={() => router.push(`/customers/${id}`)}>Cancel</Button>
+              <Button type="submit" disabled={saving}>{saving ? "Saving..." : "Save Changes"}</Button>
+            </div>
+          </form>
         )}
       </div>
     </DashboardLayout>
