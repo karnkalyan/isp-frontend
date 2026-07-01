@@ -181,6 +181,10 @@ export default function TaskDetailPage() {
 
   const handleStatusChange = async (status: string) => {
     if (!task) return
+    if (task.status === "COMPLETED" && status === "CANCELLED") {
+      toast.error("Completed tasks cannot be cancelled.")
+      return
+    }
     setUpdatingStatus(true)
     let lat = null
     let lon = null
@@ -422,7 +426,7 @@ export default function TaskDetailPage() {
                         <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
                         <SelectItem value="ON_HOLD">On Hold</SelectItem>
                         <SelectItem value="COMPLETED">Completed</SelectItem>
-                        <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                        <SelectItem value="CANCELLED" disabled={task.status === "COMPLETED"}>Cancelled</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -573,7 +577,7 @@ export default function TaskDetailPage() {
                   variant="ghost" 
                   className="w-full text-rose-500 hover:bg-rose-50 rounded-xl text-xs" 
                   onClick={() => handleStatusChange("CANCELLED")}
-                  disabled={task.status === "CANCELLED" || isTechnicianActionsDisabled}
+                  disabled={task.status === "CANCELLED" || task.status === "COMPLETED" || isTechnicianActionsDisabled}
                 >
                   <XCircle className="h-3.5 w-3.5 mr-2" /> Cancel Task
                 </Button>

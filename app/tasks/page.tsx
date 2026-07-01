@@ -1453,7 +1453,7 @@ export default function TasksPage() {
                           variant="ghost" 
                           className="w-full text-rose-500 hover:bg-rose-50 rounded-xl text-xs" 
                           onClick={() => handleStatusUpdate(selectedTask.id, "CANCELLED")}
-                          disabled={selectedTask.status === "CANCELLED" || (!isGlobalAdmin && selectedTask.assignedTo?.id !== user?.id && !hasPermission("tasks_manage"))}
+                          disabled={selectedTask.status === "CANCELLED" || selectedTask.status === "COMPLETED" || (!isGlobalAdmin && selectedTask.assignedTo?.id !== user?.id && !hasPermission("tasks_manage"))}
                         >
                           Cancel Task
                         </Button>
