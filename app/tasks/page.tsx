@@ -54,6 +54,7 @@ import {
   Send,
   MoreVertical,
   BarChart2,
+  Edit,
   ExternalLink,
   MessageSquare
 } from "lucide-react"
@@ -104,7 +105,7 @@ interface Task {
     id: number; 
     ticketNumber: string; 
     title: string; 
-    lead?: { id: number; address?: string; street?: string }; 
+    lead?: { id: number; firstName?: string; lastName?: string; phoneNumber?: string; address?: string; street?: string }; 
     customer?: { id: number; customerUniqueId: string; lead?: { firstName: string; lastName: string; phoneNumber?: string; address?: string; street?: string } } 
   }
   branch?: { id: number; name: string }
@@ -173,6 +174,9 @@ export default function TasksPage() {
   const [ticketQuery, setTicketQuery] = useState("")
   const [ticketResults, setTicketResults] = useState<any[]>([])
   const [newTicketId, setNewTicketId] = useState("")
+  const [showEdit, setShowEdit] = useState(false)
+  const [editingTask, setEditingTask] = useState<Task | null>(null)
+  const [newStatus, setNewStatus] = useState("PENDING")
   
   const [openDropdownId, setOpenDropdownId] = useState<number | null>(null)
 
@@ -248,7 +252,7 @@ export default function TasksPage() {
 
   // Customer + Lead query check (only triggers if query is typed)
   useEffect(() => {
-    if (!showCreate || customerQuery.trim().length < 2) { setCustomerResults([]); return }
+    if ((!showCreate && !showEdit) || customerQuery.trim().length < 2) { setCustomerResults([]); return }
     const timer = setTimeout(async () => {
       try {
         const [custRes, leadRes] = await Promise.all([
@@ -261,13 +265,13 @@ export default function TasksPage() {
       } catch { setCustomerResults([]) }
     }, 350)
     return () => clearTimeout(timer)
-  }, [customerQuery, showCreate])
+  }, [customerQuery, showCreate, showEdit])
 
   useEffect(() => {
-    if (!showCreate || ticketQuery.trim().length < 2) { setTicketResults([]); return }
+    if ((!showCreate && !showEdit) || ticketQuery.trim().length < 2) { setTicketResults([]); return }
     const timer = setTimeout(() => apiRequest<any>(`/tickets?search=${encodeURIComponent(ticketQuery.trim())}&limit=10`).then(res => setTicketResults(res?.data || [])).catch(() => setTicketResults([])), 350)
     return () => clearTimeout(timer)
-  }, [ticketQuery, showCreate])
+  }, [ticketQuery, showCreate, showEdit])
 
   // Get full task details including activityLogs
   const fetchTaskDetails = async (taskId: number) => {
@@ -373,6 +377,112 @@ export default function TasksPage() {
         }
       } catch (e) {
         toast.error(error.message || "Failed to assign task")
+      }
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleEditOpen = (task: Task) => {
+    setEditingTask(task)
+    setNewTitle(task.title)
+    setNewDesc(task.description || "")
+    setNewStaffId(task.assignedTo?.id ? String(task.assignedTo.id) : "none")
+    setNewPriority(task.priority)
+    setNewStatus(task.status)
+    if (task.startTime) {
+      const date = new Date(task.startTime)
+      const yyyy = date.getFullYear()
+      const mm = String(date.getMonth() + 1).padStart(2, '0')
+      const dd = String(date.getDate()).padStart(2, '0')
+      setNewStartTime(`${yyyy}-${mm}-${dd}`)
+      
+      const hh = String(date.getHours()).padStart(2, '0')
+      const min = String(date.getMinutes()).padStart(2, '0')
+      setTimeSlot(`${hh}:${min}`)
+    } else {
+      setNewStartTime("")
+      setTimeSlot("10:00")
+    }
+    setNewDuration(String(task.duration || "60"))
+    if (task.customer) {
+      setNewCustomerId(String(task.customer.id))
+      const firstName = task.customer.lead?.firstName || ''
+      const lastName = task.customer.lead?.lastName || ''
+      setCustomerQuery(`${firstName} ${lastName} (${task.customer.customerUniqueId})`.trim())
+    } else {
+      setNewCustomerId("")
+      setCustomerQuery("")
+    }
+    if (task.ticket) {
+      setNewTicketId(String(task.ticket.id))
+      setTicketQuery(`${task.ticket.ticketNumber} · ${task.ticket.title}`)
+    } else {
+      setNewTicketId("")
+      setTicketQuery("")
+    }
+    setShowEdit(true)
+  }
+
+  const handleEditSave = async () => {
+    if (!editingTask || !newTitle.trim()) {
+      toast.error("Task title is required")
+      return
+    }
+    
+    setSubmitting(true)
+    
+    let finalStartTime = null
+    if (newStartTime) {
+        const date = new Date(newStartTime)
+        const [hours, minutes] = timeSlot.split(':')
+        date.setHours(Number(hours), Number(minutes), 0, 0)
+        finalStartTime = date.toISOString()
+    }
+
+    try {
+      const res = await apiRequest<Task & { warning?: string }>(`/tasks/${editingTask.id}`, {
+        method: "PUT",
+        suppressToast: true,
+        body: JSON.stringify({
+          title: newTitle,
+          description: newDesc,
+          assignedToId: newStaffId !== "none" ? Number(newStaffId) : null,
+          startTime: finalStartTime,
+          duration: Number(newDuration),
+          priority: newPriority,
+          customerId: newCustomerId ? Number(newCustomerId) : null,
+          ticketId: newTicketId ? Number(newTicketId) : null,
+          status: newStatus
+        })
+      })
+
+      if (res?.warning) {
+        toast.error(res.warning, { duration: 6000 })
+      } else {
+        toast.success("Task updated successfully!")
+      }
+
+      setShowEdit(false)
+      setEditingTask(null)
+      setNewTitle(""); setNewDesc(""); setNewStaffId("none"); setNewStartTime(""); setNewDuration("60"); setNewPriority("MEDIUM"); setNewStatus("PENDING")
+      setCustomerQuery(""); setCustomerResults([]); setNewCustomerId(""); setTicketQuery(""); setTicketResults([]); setNewTicketId("")
+      fetchTasks()
+    } catch (error: any) {
+      try {
+        const parsed = JSON.parse(error.message);
+        if (parsed.type === 'OVERLAP') {
+          const startLocal = new Date(parsed.startTime).toLocaleString();
+          const endLocal = new Date(parsed.endTime).toLocaleString();
+          toast.error(`Technician ${parsed.technicianName} is already scheduled for "${parsed.title}" from ${startLocal} to ${endLocal}.`, { duration: 6000 });
+        } else if (parsed.type === 'DUPLICATE') {
+          const startLocal = new Date(parsed.startTime).toLocaleString();
+          toast.error(`A task with the title "${parsed.title}" at ${startLocal} already exists.`, { duration: 6000 });
+        } else {
+          toast.error(parsed.message || parsed.error || "Failed to update task");
+        }
+      } catch (e) {
+        toast.error(error.message || "Failed to update task")
       }
     } finally {
       setSubmitting(false)
@@ -661,7 +771,7 @@ export default function TasksPage() {
                 <Avatar className="h-7 w-7">
                   <AvatarFallback className="text-[10px] font-bold bg-slate-200 text-slate-700">{staff.name?.charAt(0) || 'U'}</AvatarFallback>
                 </Avatar>
-                <span>{staff.name}</span>
+                <span>{isFieldStaff ? "—" : staff.name}</span>
               </td>
 
               {timelineMode === "daily" ? (() => {
@@ -923,6 +1033,119 @@ export default function TasksPage() {
                 </DialogContent>
               </Dialog>
             )}
+            {!isFieldStaff && (
+              <Dialog open={showEdit} onOpenChange={setShowEdit}>
+                <DialogContent className="sm:max-w-2xl md:max-w-3xl p-6">
+                  <DialogHeader>
+                    <DialogTitle className="text-xl font-bold flex items-center gap-2 text-primary">
+                      <ClipboardList className="h-5 w-5" /> Edit Task Details
+                    </DialogTitle>
+                    <DialogDescription>Modify field operation task details and assignments.</DialogDescription>
+                  </DialogHeader>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 py-4">
+                    <div className="space-y-4">
+                      <div className="space-y-1">
+                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Task Title *</Label>
+                        <Input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="e.g. Fiber repair at Main St" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Description</Label>
+                        <Textarea value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Additional instructions..." rows={4} />
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Date</Label>
+                          <Input type="date" value={newStartTime} onChange={e => setNewStartTime(e.target.value)} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Start Time</Label>
+                          <Input type="time" value={timeSlot} onChange={e => setTimeSlot(e.target.value)} />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4 border-l pl-5 border-slate-100 dark:border-slate-800">
+                      <div className="space-y-1">
+                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Link Customer</Label>
+                        <Input value={customerQuery} onChange={e => { setCustomerQuery(e.target.value); setNewCustomerId("") }} placeholder="Search customer ID or name..." />
+                        {customerResults.length > 0 && <div className="max-h-36 overflow-y-auto rounded border bg-popover mt-1">{customerResults.map((item: any) => { const isLead = item._type === 'LEAD'; const displayName = isLead ? `${item.firstName || ''} ${item.lastName || ''}`.trim() : `${item.firstName || item.lead?.firstName || ''} ${item.lastName || item.lead?.lastName || ''}`.trim(); const displayId = isLead ? `Lead #${item.id}` : (item.customerUniqueId || `Customer ${item.id}`); return (<button type="button" key={`${item._type}-${item.id}`} onClick={() => { if (!isLead) { setNewCustomerId(String(item.id)); } setCustomerQuery(`${displayId} · ${displayName}`); setCustomerResults([]) }} className="block w-full border-b p-2 text-left text-xs hover:bg-muted"><span className={`inline-block px-1 py-0.5 rounded text-[9px] font-bold mr-1.5 ${isLead ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>{isLead ? 'LEAD' : 'CUSTOMER'}</span>{displayId} · {displayName}</button>) })}</div>}
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Link Support Ticket</Label>
+                        <Input value={ticketQuery} onChange={e => { setTicketQuery(e.target.value); setNewTicketId("") }} placeholder="Search ticket number..." />
+                        {ticketResults.length > 0 && <div className="max-h-36 overflow-y-auto rounded border bg-popover mt-1">{ticketResults.map(ticket => <button type="button" key={ticket.id} onClick={() => { setNewTicketId(String(ticket.id)); setTicketQuery(`${ticket.ticketNumber} · ${ticket.title}`); setNewTitle(current => current || ticket.title); setNewCustomerId(ticket.customerId ? String(ticket.customerId) : newCustomerId); setTicketResults([]) }} className="block w-full border-b p-2 text-left text-xs hover:bg-muted">{ticket.ticketNumber} · {ticket.title}</button>)}</div>}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Assign Staff</Label>
+                          <Select value={newStaffId} onValueChange={setNewStaffId}>
+                            <SelectTrigger><SelectValue placeholder="Select Staff" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Unassigned</SelectItem>
+                              {users.map(u => (
+                                <SelectItem key={u.id} value={u.id.toString()}>{u.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Priority</Label>
+                          <Select value={newPriority} onValueChange={setNewPriority}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="LOW">Low</SelectItem>
+                              <SelectItem value="MEDIUM">Medium</SelectItem>
+                              <SelectItem value="HIGH">High</SelectItem>
+                              <SelectItem value="CRITICAL">Critical</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Duration</Label>
+                          <Select value={newDuration} onValueChange={setNewDuration}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="15">15 min</SelectItem>
+                              <SelectItem value="30">30 min</SelectItem>
+                              <SelectItem value="60">1 hour</SelectItem>
+                              <SelectItem value="120">2 hours</SelectItem>
+                              <SelectItem value="240">4 hours</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Status</Label>
+                          <Select value={newStatus} onValueChange={setNewStatus}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="PENDING">Pending</SelectItem>
+                              <SelectItem value="ACCEPTED">Accepted</SelectItem>
+                              <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                              <SelectItem value="ON_HOLD">On Hold</SelectItem>
+                              <SelectItem value="COMPLETED">Completed</SelectItem>
+                              <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => { setShowEdit(false); setEditingTask(null); }}>Cancel</Button>
+                    <Button onClick={handleEditSave} disabled={submitting}>
+                      {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                      Save Changes
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            ) }
           </div>
         </div>
 
@@ -1092,7 +1315,7 @@ export default function TasksPage() {
                               <div className="font-semibold">{t.startTime ? new Date(t.startTime).toLocaleDateString() : "Flexible"}</div>
                               <div className="text-xs text-muted-foreground">{t.startTime ? new Date(t.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}</div>
                             </td>
-                            <td className="p-4 font-medium">{t.assignedTo?.name || "Unassigned"}</td>
+                            <td className="p-4 font-medium">{isFieldStaff ? "—" : (t.assignedTo?.name || "Unassigned")}</td>
                             <td className="p-4">
                               {t.customer ? (
                                 <Link href={`/customers/${t.customer.id}`} className="font-bold text-primary hover:underline hover:text-blue-500 inline-flex items-center gap-1">
@@ -1135,6 +1358,14 @@ export default function TasksPage() {
                                       >
                                         <ListIcon className="h-3.5 w-3.5 text-muted-foreground" /> View Details
                                       </button>
+                                      {!isFieldStaff && (
+                                        <button 
+                                          onClick={() => { handleEditOpen(t); setOpenDropdownId(null); }} 
+                                          className="w-full text-left px-4 py-2.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-1.5 font-medium"
+                                        >
+                                          <Edit className="h-3.5 w-3.5 text-primary" /> Edit Task
+                                        </button>
+                                      )}
                                       {["PENDING", "ACCEPTED"].includes(t.status) && (
                                         <button 
                                           onClick={() => { handleStatusUpdate(t.id, "IN_PROGRESS"); setOpenDropdownId(null); }} 
@@ -1317,7 +1548,7 @@ export default function TasksPage() {
                       </div>
                       <h3 className="font-semibold text-slate-800 dark:text-slate-200">{task.title}</h3>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
-                        <span className="font-medium text-slate-700 dark:text-slate-300">Technician: {task.assignedTo?.name || "Unassigned"}</span>
+                        <span className="font-medium text-slate-700 dark:text-slate-300">Technician: {isFieldStaff ? "—" : (task.assignedTo?.name || "Unassigned")}</span>
                         {task.customer?.customerUniqueId && <span>• Customer: {task.customer.customerUniqueId}</span>}
                       </div>
                     </div>
@@ -1361,38 +1592,89 @@ export default function TasksPage() {
                           </p>
                         </div>
                       </div>
+                                      {/* Contact Info (Clickable Customer/Lead Profile Link) */}
+                      {(() => {
+                        const displayCustomer = selectedTask.customer || selectedTask.ticket?.customer;
+                        const displayLead = !displayCustomer ? selectedTask.ticket?.lead : null;
 
-                      {/* Contact Info (Clickable Customer Profile Link) */}
-                      {selectedTask.customer && (
-                        <div className="space-y-2.5">
-                          <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Customer Profile Details</h4>
-                          <div className="bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl border space-y-2.5">
-                            <div className="flex items-center gap-3">
-                              <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg"><User className="h-4 w-4" /></div>
-                              <div>
-                                <Link href={`/customers/${selectedTask.customer.id}`} className="text-sm font-bold text-primary hover:underline flex items-center gap-1">
-                                  {selectedTask.customer.lead?.firstName} {selectedTask.customer.lead?.lastName}
-                                  <ExternalLink className="h-3.5 w-3.5" />
-                                </Link>
-                                <p className="text-[10px] text-muted-foreground">ID: {selectedTask.customer.customerUniqueId}</p>
+                        if (displayCustomer) {
+                          const firstName = displayCustomer.lead?.firstName || "";
+                          const lastName = displayCustomer.lead?.lastName || "";
+                          const phone = displayCustomer.lead?.phoneNumber || "+977-XXXXXXXXXX";
+                          const address = displayCustomer.lead?.address || "Location not provided";
+                          
+                          return (
+                            <div className="space-y-2.5">
+                              <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Customer Profile Details</h4>
+                              <div className="bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl border space-y-2.5">
+                                <div className="flex items-center gap-3">
+                                  <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg"><User className="h-4 w-4" /></div>
+                                  <div>
+                                    <Link href={`/customers/${displayCustomer.id}`} className="text-sm font-bold text-primary hover:underline flex items-center gap-1">
+                                      {firstName} {lastName}
+                                      <ExternalLink className="h-3.5 w-3.5" />
+                                    </Link>
+                                    <p className="text-[10px] text-muted-foreground">ID: {displayCustomer.customerUniqueId}</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350">
+                                  <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <span>{phone}</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350">
+                                  <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <span>{address}</span>
+                                </div>
+                                {taskDestination(selectedTask) && (
+                                  <Button variant="outline" size="sm" className="w-full gap-2 mt-1" onClick={() => openDirectionsFromCurrentLocation(taskDestination(selectedTask))}>
+                                    <Navigation className="h-3.5 w-3.5" /> Get Directions
+                                  </Button>
+                                )}
                               </div>
                             </div>
-                            <div className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350">
-                              <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                              <span>{selectedTask.customer.lead?.phoneNumber || "+977-XXXXXXXXXX"}</span>
+                          );
+                        }
+
+                        if (displayLead) {
+                          const firstName = displayLead.firstName || "";
+                          const lastName = displayLead.lastName || "";
+                          const phone = displayLead.phoneNumber || "+977-XXXXXXXXXX";
+                          const address = displayLead.address || "Location not provided";
+
+                          return (
+                            <div className="space-y-2.5">
+                              <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Lead Profile Details</h4>
+                              <div className="bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl border space-y-2.5">
+                                <div className="flex items-center gap-3">
+                                  <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg"><User className="h-4 w-4" /></div>
+                                  <div>
+                                    <Link href={`/leads/${displayLead.id}`} className="text-sm font-bold text-primary hover:underline flex items-center gap-1">
+                                      {firstName} {lastName}
+                                      <ExternalLink className="h-3.5 w-3.5" />
+                                    </Link>
+                                    <p className="text-[10px] text-muted-foreground">Lead ID: #{displayLead.id}</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350">
+                                  <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <span>{phone}</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350">
+                                  <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <span>{address}</span>
+                                </div>
+                                {taskDestination(selectedTask) && (
+                                  <Button variant="outline" size="sm" className="w-full gap-2 mt-1" onClick={() => openDirectionsFromCurrentLocation(taskDestination(selectedTask))}>
+                                    <Navigation className="h-3.5 w-3.5" /> Get Directions
+                                  </Button>
+                                )}
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350">
-                              <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
-                              <span>{selectedTask.customer.lead?.address || "Location not provided"}</span>
-                            </div>
-                            {taskDestination(selectedTask) && (
-                              <Button variant="outline" size="sm" className="w-full gap-2 mt-1" onClick={() => openDirectionsFromCurrentLocation(taskDestination(selectedTask))}>
-                                <Navigation className="h-3.5 w-3.5" /> Get Directions
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      )}
+                          );
+                        }
+
+                        return null;
+                      })()}
 
                       {/* Linked Ticket Info & Clickable profiles */}
                       {selectedTask.ticket && (

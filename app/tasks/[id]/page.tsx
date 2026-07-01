@@ -82,7 +82,7 @@ interface TaskDetail {
     ticketNumber: string; 
     title: string; 
     description?: string;
-    lead?: { id: number; address?: string; street?: string }; 
+    lead?: { id: number; firstName?: string; lastName?: string; phoneNumber?: string; address?: string; street?: string }; 
     customer?: { id: number; customerUniqueId: string; lead?: { firstName: string; lastName: string; phoneNumber?: string; address?: string; street?: string } } 
   }
   branch?: { id: number; name: string }
@@ -584,48 +584,109 @@ export default function TaskDetailPage() {
               </div>
             </div>
 
-            {/* Linked Customer Profile Details */}
-            {task.customer && (
-              <div className="rounded-2xl border bg-card overflow-hidden shadow-sm">
-                <div className="p-4 border-b bg-gradient-to-r from-primary/5 to-primary/10">
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Customer Profile Details</h3>
-                </div>
-                <div className="p-4 space-y-3">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-9 w-9">
-                      <AvatarFallback className="bg-primary/10 text-primary font-bold">
-                        {task.customer.lead?.firstName?.charAt(0) || "?"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <Link href={`/customers/${task.customer.id}`} className="font-bold text-primary hover:underline flex items-center gap-1 text-sm">
-                        {task.customer.lead?.firstName} {task.customer.lead?.lastName}
-                        <ExternalLink className="h-3 w-3" />
-                      </Link>
-                      <p className="text-[10px] text-muted-foreground font-mono">ID: {task.customer.customerUniqueId}</p>
+            {/* Linked Customer/Lead Profile Details */}
+            {(() => {
+              const displayCustomer = task.customer || task.ticket?.customer;
+              const displayLead = !displayCustomer ? task.ticket?.lead : null;
+
+              if (displayCustomer) {
+                const firstName = displayCustomer.lead?.firstName || "";
+                const lastName = displayCustomer.lead?.lastName || "";
+                const phone = displayCustomer.lead?.phoneNumber;
+                
+                return (
+                  <div className="rounded-2xl border bg-card overflow-hidden shadow-sm">
+                    <div className="p-4 border-b bg-gradient-to-r from-primary/5 to-primary/10">
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Customer Profile Details</h3>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-9 w-9">
+                          <AvatarFallback className="bg-primary/10 text-primary font-bold">
+                            {firstName.charAt(0) || "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <Link href={`/customers/${displayCustomer.id}`} className="font-bold text-primary hover:underline flex items-center gap-1 text-sm">
+                            {firstName} {lastName}
+                            <ExternalLink className="h-3 w-3" />
+                          </Link>
+                          <p className="text-[10px] text-muted-foreground font-mono">ID: {displayCustomer.customerUniqueId}</p>
+                        </div>
+                      </div>
+
+                      {phone && (
+                        <div className="flex items-center gap-2 text-xs">
+                          <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-slate-700 dark:text-slate-300">{phone}</span>
+                        </div>
+                      )}
+                      {destinationStr && (
+                        <div className="flex items-center gap-2 text-xs">
+                          <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="text-slate-700 dark:text-slate-300">{destinationStr}</span>
+                        </div>
+                      )}
+                      {destinationStr && (
+                        <Button variant="outline" className="w-full gap-2 text-xs mt-1" size="sm" onClick={() => openDirectionsFromCurrentLocation(destinationStr)}>
+                          <Navigation className="h-3.5 w-3.5" /> Get Directions
+                        </Button>
+                      )}
                     </div>
                   </div>
+                );
+              }
 
-                  {task.customer.lead?.phoneNumber && (
-                    <div className="flex items-center gap-2 text-xs">
-                      <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-slate-700 dark:text-slate-300">{task.customer.lead.phoneNumber}</span>
+              if (displayLead) {
+                const firstName = displayLead.firstName || "";
+                const lastName = displayLead.lastName || "";
+                const phone = displayLead.phoneNumber;
+
+                return (
+                  <div className="rounded-2xl border bg-card overflow-hidden shadow-sm">
+                    <div className="p-4 border-b bg-gradient-to-r from-primary/5 to-primary/10">
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Lead Profile Details</h3>
                     </div>
-                  )}
-                  {destinationStr && (
-                    <div className="flex items-center gap-2 text-xs">
-                      <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      <span className="text-slate-700 dark:text-slate-300">{destinationStr}</span>
+                    <div className="p-4 space-y-3">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-9 w-9">
+                          <AvatarFallback className="bg-primary/10 text-primary font-bold">
+                            {firstName.charAt(0) || "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <Link href={`/leads/${displayLead.id}`} className="font-bold text-primary hover:underline flex items-center gap-1 text-sm">
+                            {firstName} {lastName}
+                            <ExternalLink className="h-3 w-3" />
+                          </Link>
+                          <p className="text-[10px] text-muted-foreground font-mono">Lead ID: #{displayLead.id}</p>
+                        </div>
+                      </div>
+
+                      {phone && (
+                        <div className="flex items-center gap-2 text-xs">
+                          <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-slate-700 dark:text-slate-300">{phone}</span>
+                        </div>
+                      )}
+                      {destinationStr && (
+                        <div className="flex items-center gap-2 text-xs">
+                          <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="text-slate-700 dark:text-slate-300">{destinationStr}</span>
+                        </div>
+                      )}
+                      {destinationStr && (
+                        <Button variant="outline" className="w-full gap-2 text-xs mt-1" size="sm" onClick={() => openDirectionsFromCurrentLocation(destinationStr)}>
+                          <Navigation className="h-3.5 w-3.5" /> Get Directions
+                        </Button>
+                      )}
                     </div>
-                  )}
-                  {destinationStr && (
-                    <Button variant="outline" className="w-full gap-2 text-xs mt-1" size="sm" onClick={() => openDirectionsFromCurrentLocation(destinationStr)}>
-                      <Navigation className="h-3.5 w-3.5" /> Get Directions
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )}
+                  </div>
+                );
+              }
+
+              return null;
+            })()}
 
             {/* Linked Ticket Details */}
             {task.ticket && (
