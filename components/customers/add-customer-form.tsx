@@ -295,11 +295,13 @@ const formatDistance = (distance: any): string => {
 // ==================== Type Definitions ====================
 interface Package {
   id: number
+  planId: number
   packageName: string
   price: number
   initialTotalWithTax?: number | null
   renewAmountWithTax?: number | null
   packageDuration: string
+  isActive: boolean
   isTrial: boolean
   referenceId: string
   packagePlanDetails?: {
@@ -1193,6 +1195,7 @@ export function AddCustomerForm() {
 
   // ========== Data State ==========
   const [packages, setPackages] = useState<Package[]>([])
+  const [selectedServicePlanId, setSelectedServicePlanId] = useState("")
   const [users, setUsers] = useState<User[]>([])
   const [memberships, setMemberships] = useState<Membership[]>([])
   const [existingISPs, setExistingISPs] = useState<ExistingISP[]>([])
@@ -1247,6 +1250,10 @@ export function AddCustomerForm() {
     connectionType: "fiber", // fiber, wireless, infra_share
     subscribedPkgId: "",
   })
+  useEffect(() => {
+    const selected = packages.find(pkg => String(pkg.id) === serviceDetails.subscribedPkgId)
+    if (selected) setSelectedServicePlanId(String(selected.planId))
+  }, [packages, serviceDetails.subscribedPkgId])
 
   const [provisionDetails, setProvisionDetails] = useState({
     oltId: "",
@@ -3672,19 +3679,30 @@ export function AddCustomerForm() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label htmlFor="subscribedPkgId">Subscribed Package</Label>
+                      <Label htmlFor="servicePlanId">Plan</Label>
                       <SearchableSelect
                         options={packages
                           .filter((pkg) => !pkg.isTrial)
-                          .map((pkg) => ({
-                            value: pkg.id.toString(),
-                            label: pkg.packageName,
-                            description: `${pkg.packageDuration} - Rs. ${pkg.price}`,
-                          }))}
+                          .filter((pkg, index, rows) => rows.findIndex(p => p.planId === pkg.planId) === index)
+                          .map((pkg) => ({ value: String(pkg.planId), label: pkg.packagePlanDetails?.planName || pkg.packageName }))}
+                        value={selectedServicePlanId}
+                        onValueChange={(value) => {
+                          const next = Array.isArray(value) ? value[0] || "" : value
+                          setSelectedServicePlanId(next)
+                          handleServiceChange("subscribedPkgId", "")
+                        }}
+                        placeholder={loading.packages ? "Loading plans..." : "Select plan"}
+                        disabled={loading.packages}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="subscribedPkgId">Duration</Label>
+                      <SearchableSelect
+                        options={packages.filter(pkg => !pkg.isTrial && String(pkg.planId) === selectedServicePlanId && pkg.isActive !== false).map(pkg => ({ value: String(pkg.id), label: pkg.packageDuration, description: `Rs. ${pkg.price}` }))}
                         value={serviceDetails.subscribedPkgId}
                         onValueChange={(value) => handleServiceChange("subscribedPkgId", Array.isArray(value) ? value[0] || "" : value)}
-                        placeholder={loading.packages ? "Loading packages..." : "Select subscribed package"}
-                        disabled={loading.packages}
+                        placeholder={selectedServicePlanId ? "Select duration" : "Select a plan first"}
+                        disabled={!selectedServicePlanId || loading.packages}
                       />
                       {errors.subscribedPkgId && <p className="text-sm text-red-500">{errors.subscribedPkgId}</p>}
                     </div>

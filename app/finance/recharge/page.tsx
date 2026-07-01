@@ -23,6 +23,10 @@ export default function RechargePage() {
   const [packages, setPackages] = useState<any[]>([])
   const [selectedPackage, setSelectedPackage] = useState<any>(null)
   const [invoiceId, setInvoiceId] = useState("")
+  const [fiscalYears, setFiscalYears] = useState<any[]>([])
+  const [fiscalYearId, setFiscalYearId] = useState("")
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([])
+  const [paymentMethodId, setPaymentMethodId] = useState("")
   const [processing, setProcessing] = useState(false)
 
   // Fetch package catalog
@@ -41,6 +45,22 @@ export default function RechargePage() {
       }
     }
     fetchPackages()
+  }, [])
+
+  useEffect(() => {
+    Promise.all([
+      apiRequest("/billing/fiscal-years"),
+      apiRequest("/billing/payment-methods?enabled=true")
+    ]).then(([years, methods]) => {
+      const yearList = Array.isArray(years) ? years : []
+      const methodList = Array.isArray(methods) ? methods : []
+      setFiscalYears(yearList)
+      setPaymentMethods(methodList)
+      const active = yearList.find((year: any) => year.isActive)
+      if (active) setFiscalYearId(String(active.id))
+      const preferred = methodList.find((method: any) => method.isDefault) || methodList[0]
+      if (preferred) setPaymentMethodId(String(preferred.id))
+    }).catch(() => toast.error("Failed to load billing configuration"))
   }, [])
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -102,10 +122,13 @@ export default function RechargePage() {
       toast.error("Please select a package plan")
       return
     }
-    if (!invoiceId.trim()) {
+    const receiptRequired = selectedCustomer?.subBranch?.receiptRequired === true || selectedCustomer?.branch?.receiptRequired === true
+    if (receiptRequired && !invoiceId.trim()) {
       toast.error("Invoice number is required")
       return
     }
+    if (!fiscalYearId) return toast.error("No active fiscal year is available")
+    if (!paymentMethodId) return toast.error("Please select a payment method")
 
     setProcessing(true)
     try {
@@ -115,6 +138,8 @@ export default function RechargePage() {
           customerId: selectedCustomer.id,
           packageId: selectedPackage.id,
           invoiceId: invoiceId,
+          fiscalYearId: Number(fiscalYearId),
+          paymentMethodId: Number(paymentMethodId),
           amount: getRechargeAmount(selectedPackage)
         })
       })
@@ -241,14 +266,28 @@ export default function RechargePage() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="invoiceId" className="text-slate-300">Invoice Number</Label>
+                      <Label className="text-slate-300">Fiscal Year</Label>
+                      <Select value={fiscalYearId} onValueChange={setFiscalYearId}>
+                        <SelectTrigger className="bg-slate-900 border-slate-800 text-white"><SelectValue placeholder="Select fiscal year" /></SelectTrigger>
+                        <SelectContent>{fiscalYears.map(year => <SelectItem key={year.id} value={String(year.id)} disabled={!year.isActive}>{year.name}{year.isActive ? " (Current)" : ""}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-slate-300">Payment Method</Label>
+                      <Select value={paymentMethodId} onValueChange={setPaymentMethodId}>
+                        <SelectTrigger className="bg-slate-900 border-slate-800 text-white"><SelectValue placeholder="Select payment method" /></SelectTrigger>
+                        <SelectContent>{paymentMethods.map(method => <SelectItem key={method.id} value={String(method.id)}>{method.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="invoiceId" className="text-slate-300">Invoice Number {(selectedCustomer?.subBranch?.receiptRequired || selectedCustomer?.branch?.receiptRequired) ? "*" : "(Optional)"}</Label>
                       <Input
                         id="invoiceId"
                         placeholder="e.g. 1004"
                         value={invoiceId}
                         onChange={(e) => setInvoiceId(e.target.value)}
                         className="bg-slate-900 border-slate-800 text-white"
-                        required
+                        required={selectedCustomer?.subBranch?.receiptRequired === true || selectedCustomer?.branch?.receiptRequired === true}
                       />
                       <p className="text-[10px] text-slate-500">Must belong to active allocated range for customer's branch.</p>
                     </div>

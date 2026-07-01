@@ -84,6 +84,7 @@ export type PackagePrice = {
   packageName: string
   referenceId: string
   isActive: boolean
+  isOnline: boolean
   isTrial: boolean
   packagePlanDetails: {
     planName: string
@@ -153,6 +154,12 @@ export function PackageCreationSettings() {
     "3 Months": false,
     "6 Months": false,
     "12 Months": false
+  })
+  const [durationActive, setDurationActive] = useState<Record<string, boolean>>({
+    "1 Month": true, "3 Months": true, "6 Months": true, "12 Months": true
+  })
+  const [durationOnline, setDurationOnline] = useState<Record<string, boolean>>({
+    "1 Month": false, "3 Months": false, "6 Months": false, "12 Months": false
   })
 
   const [tscPercentage, setTscPercentage] = useState(10)
@@ -384,6 +391,8 @@ export function PackageCreationSettings() {
       "6 Months": false,
       "12 Months": false
     })
+    setDurationActive({ "1 Month": true, "3 Months": true, "6 Months": true, "12 Months": true })
+    setDurationOnline({ "1 Month": false, "3 Months": false, "6 Months": false, "12 Months": false })
     setDescription("")
     setIsActive(true)
     setEditingId(null)
@@ -433,6 +442,8 @@ export function PackageCreationSettings() {
       "6 Months": false,
       "12 Months": false
     }
+    const activeMap: Record<string, boolean> = { "1 Month": true, "3 Months": true, "6 Months": true, "12 Months": true }
+    const onlineMap: Record<string, boolean> = { "1 Month": false, "3 Months": false, "6 Months": false, "12 Months": false }
 
     siblingPrices.forEach(sp => {
       const dur = sp.packageDuration || "1 Month"
@@ -451,6 +462,8 @@ export function PackageCreationSettings() {
       initialTaxMap[standardDur] = (sp as any).initialTotalWithTax || 0
       renewTaxMap[standardDur] = (sp as any).renewAmountWithTax || 0
       tscMap[standardDur] = (sp as any).isTscApplicable || false
+      activeMap[standardDur] = sp.isActive !== false
+      onlineMap[standardDur] = sp.isOnline === true
 
       const mappedAddonIds: number[] = []
       if (sp.oneTimeCharges) {
@@ -471,6 +484,8 @@ export function PackageCreationSettings() {
     setDurationAddons(addonsMap)
     setCustomAddonPrices(customAddonsMap)
     setDurationTsc(tscMap)
+    setDurationActive(activeMap)
+    setDurationOnline(onlineMap)
     setIsAdding(false)
   }
 
@@ -482,7 +497,9 @@ export function PackageCreationSettings() {
 
     // Build prices payload
     const pricesPayload: any[] = []
-    Object.entries(durationPrices).forEach(([dur, price]) => {
+    Object.entries(durationPrices).forEach(([dur, configuredPrice]) => {
+      const enteredTotal = renewAmountWithTax[dur] || initialTotalWithTax[dur] || 0
+      const price = configuredPrice > 0 ? configuredPrice : Math.round((enteredTotal / 1.13) * 100) / 100
       if (price > 0) {
         const selectedAddonIds = durationAddons[dur] || []
         const mappedOneTimeCharges = selectedAddonIds.map(addonId => {
@@ -500,6 +517,8 @@ export function PackageCreationSettings() {
           initialTotalWithTax: initialTotalWithTax[dur] || null,
           renewAmountWithTax: renewAmountWithTax[dur] || null,
           isTscApplicable: durationTsc[dur] || false,
+          isActive: durationActive[dur] !== false,
+          isOnline: durationOnline[dur] === true,
           oneTimeCharges: mappedOneTimeCharges
         })
       }
@@ -586,6 +605,17 @@ export function PackageCreationSettings() {
                   <div className="space-y-3">
                     <div className="text-center font-bold text-sm text-slate-700 dark:text-slate-300 border-b pb-2 mb-3 uppercase tracking-wider">
                       {dur}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 rounded-md border bg-white p-2 dark:bg-black/20">
+                      <div className="flex items-center justify-between gap-2">
+                        <Label htmlFor={`active-${dur}`} className="text-xs">Enabled</Label>
+                        <Switch id={`active-${dur}`} checked={durationActive[dur] !== false} onCheckedChange={(checked) => setDurationActive(prev => ({ ...prev, [dur]: checked }))} />
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <Label htmlFor={`online-${dur}`} className="text-xs">Online</Label>
+                        <Switch id={`online-${dur}`} checked={durationOnline[dur] === true} onCheckedChange={(checked) => setDurationOnline(prev => ({ ...prev, [dur]: checked }))} />
+                      </div>
                     </div>
 
                     <div className="hidden flex items-center justify-between py-1 bg-white dark:bg-black/20 px-2 rounded border border-slate-100 dark:border-slate-800">

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PUBLIC_ROUTES = ["/login", "/forgot-password"];
+const PUBLIC_ROUTES = ["/login", "/forgot-password", "/reset-password"];
 const IGNORED_PREFIXES = [
   "/api/",
   "/_next/",

@@ -34,6 +34,7 @@ export default function InvoiceRangesPage() {
 
   const [branches, setBranches] = useState<any[]>([])
   const [ranges, setRanges] = useState<any[]>([])
+  const [fiscalYears, setFiscalYears] = useState<any[]>([])
   const [loadingData, setLoadingData] = useState(true)
   const [submitting, setSubmitting] = useState(false)
 
@@ -41,17 +42,22 @@ export default function InvoiceRangesPage() {
   const [selectedBranchId, setSelectedBranchId] = useState("")
   const [rangeStart, setRangeStart] = useState("")
   const [rangeEnd, setRangeEnd] = useState("")
+  const [fiscalYearId, setFiscalYearId] = useState("")
 
   const loadData = async () => {
     setLoadingData(true)
     try {
-      const [branchesRes, rangesRes] = await Promise.all([
+      const [branchesRes, rangesRes, fiscalRes] = await Promise.all([
         apiRequest("/branch"),
-        apiRequest("/billing/invoice-ranges")
+        apiRequest("/billing/invoice-ranges"),
+        apiRequest("/billing/fiscal-years")
       ])
       
       setBranches(Array.isArray(branchesRes) ? branchesRes : (branchesRes?.data || []))
       setRanges(rangesRes?.ranges || [])
+      const years = Array.isArray(fiscalRes) ? fiscalRes : []
+      setFiscalYears(years)
+      if (!fiscalYearId) setFiscalYearId(String((years.find((y:any) => y.isActive) || years[0])?.id || ""))
     } catch (err) {
       console.error("Failed to load invoice ranges data:", err)
       toast.error("Failed to load allocations data")
@@ -77,6 +83,7 @@ export default function InvoiceRangesPage() {
   const handleAllocate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedBranchId) return toast.error("Please select a branch")
+    if (!fiscalYearId) return toast.error("Please select a fiscal year")
     if (!rangeStart || !rangeEnd) return toast.error("Range bounds are required")
 
     setSubmitting(true)
@@ -85,6 +92,7 @@ export default function InvoiceRangesPage() {
         method: "POST",
         body: JSON.stringify({
           branchId: Number(selectedBranchId),
+          fiscalYearId: Number(fiscalYearId),
           rangeStart: Number(rangeStart),
           rangeEnd: Number(rangeEnd)
         })
@@ -146,6 +154,7 @@ export default function InvoiceRangesPage() {
           <div className="md:col-span-1">
             <CardContainer title="Allocate Range" description="Define bounds for a branch">
               <form onSubmit={handleAllocate} className="space-y-4">
+                <div className="space-y-2"><Label>Fiscal Year</Label><Select value={fiscalYearId} onValueChange={setFiscalYearId}><SelectTrigger><SelectValue placeholder="Choose fiscal year" /></SelectTrigger><SelectContent>{fiscalYears.map(y => <SelectItem key={y.id} value={String(y.id)}>{y.name}{y.isActive ? " (Current)" : ""}</SelectItem>)}</SelectContent></Select></div>
                 <div className="space-y-2">
                   <Label htmlFor="branch" className="text-foreground">Branch</Label>
                   <Select value={selectedBranchId} onValueChange={setSelectedBranchId}>
@@ -212,6 +221,7 @@ export default function InvoiceRangesPage() {
                     <TableHeader className="bg-muted/50">
                       <TableRow className="border-b border-border hover:bg-transparent">
                         <TableHead className="text-muted-foreground font-semibold">Branch Name</TableHead>
+                        <TableHead className="text-muted-foreground font-semibold">Fiscal Year</TableHead>
                         <TableHead className="text-muted-foreground font-semibold text-center">Start</TableHead>
                         <TableHead className="text-muted-foreground font-semibold text-center">End</TableHead>
                         <TableHead className="text-muted-foreground font-semibold text-center">Current</TableHead>
@@ -223,6 +233,7 @@ export default function InvoiceRangesPage() {
                       {ranges.map((r) => (
                         <TableRow key={r.id} className="border-b border-border/60 hover:bg-muted/50">
                           <TableCell className="font-medium text-foreground">{branchName(r.branchId)}</TableCell>
+                          <TableCell>{fiscalYears.find(y => y.id === r.fiscalYearId)?.name || "Legacy"}</TableCell>
                           <TableCell className="text-center font-mono text-foreground/80">{r.rangeStart}</TableCell>
                           <TableCell className="text-center font-mono text-foreground/80">{r.rangeEnd}</TableCell>
                           <TableCell className="text-center font-mono text-foreground/80">{r.current}</TableCell>

@@ -128,6 +128,12 @@ export default function TasksPage() {
   const [newDuration, setNewDuration] = useState("60") // minutes
   const [newPriority, setNewPriority] = useState("MEDIUM")
   const [timeSlot, setTimeSlot] = useState("10:00")
+  const [customerQuery, setCustomerQuery] = useState("")
+  const [customerResults, setCustomerResults] = useState<any[]>([])
+  const [newCustomerId, setNewCustomerId] = useState("")
+  const [ticketQuery, setTicketQuery] = useState("")
+  const [ticketResults, setTicketResults] = useState<any[]>([])
+  const [newTicketId, setNewTicketId] = useState("")
   
   // Overlap Warning on creation
   const [conflictWarning, setConflictWarning] = useState<string | null>(null)
@@ -231,6 +237,29 @@ export default function TasksPage() {
     if (!isFieldStaff) fetchUsers()
   }, [fetchTasks, fetchUsers, isFieldStaff])
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const ticketId = params.get("ticketId")
+    if (!ticketId || params.get("create") !== "true" || !canCreateTask) return
+    apiRequest<any>(`/tickets/${ticketId}`).then(ticket => {
+      setNewTicketId(String(ticket.id)); setTicketQuery(`${ticket.ticketNumber} · ${ticket.title}`); setNewTitle(ticket.title || "")
+      if (ticket.customerId) setNewCustomerId(String(ticket.customerId))
+      setShowCreate(true)
+    }).catch(() => toast.error("Unable to load the selected ticket"))
+  }, [canCreateTask])
+
+  useEffect(() => {
+    if (!showCreate || customerQuery.trim().length < 2) { setCustomerResults([]); return }
+    const timer = setTimeout(() => apiRequest<any>(`/customer?search=${encodeURIComponent(customerQuery.trim())}&limit=10`).then(res => setCustomerResults(Array.isArray(res) ? res : (res?.data || []))).catch(() => setCustomerResults([])), 350)
+    return () => clearTimeout(timer)
+  }, [customerQuery, showCreate])
+
+  useEffect(() => {
+    if (!showCreate || ticketQuery.trim().length < 2) { setTicketResults([]); return }
+    const timer = setTimeout(() => apiRequest<any>(`/tickets?search=${encodeURIComponent(ticketQuery.trim())}&limit=10`).then(res => setTicketResults(res?.data || [])).catch(() => setTicketResults([])), 350)
+    return () => clearTimeout(timer)
+  }, [ticketQuery, showCreate])
+
   // Get full task details including activityLogs
   const fetchTaskDetails = async (taskId: number) => {
     try {
@@ -304,6 +333,8 @@ export default function TasksPage() {
           startTime: finalStartTime,
           duration: Number(newDuration),
           priority: newPriority,
+          customerId: newCustomerId ? Number(newCustomerId) : undefined,
+          ticketId: newTicketId ? Number(newTicketId) : undefined,
           status: "PENDING"
         })
       })
@@ -317,6 +348,7 @@ export default function TasksPage() {
       setShowCreate(false)
       // Reset form
       setNewTitle(""); setNewDesc(""); setNewStaffId("none"); setNewStartTime(""); setNewDuration("60"); setNewPriority("MEDIUM")
+      setCustomerQuery(""); setCustomerResults([]); setNewCustomerId(""); setTicketQuery(""); setTicketResults([]); setNewTicketId("")
       fetchTasks()
     } catch (error: any) {
       try {
@@ -553,10 +585,10 @@ export default function TasksPage() {
               </div>
             </div>
 
-            <TabsContent value="scheduler" className="mt-6 animate-in fade-in-50 duration-200">
+            <TabsContent value="scheduler" className="mt-4 h-[calc(100dvh-15rem)] min-h-[520px] animate-in fade-in-50 duration-200">
               <CardContainer title="Today's Timeline" description={new Date().toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}>
-                <div className="overflow-x-auto pb-4">
-                  <div className="flex min-w-[2800px] gap-2.5">
+                <div className="h-[calc(100dvh-22rem)] min-h-[390px] overflow-auto pb-4">
+                  <div className="grid grid-cols-1 gap-2.5 md:flex md:min-w-[2800px]">
                     {complete24Hours.map(slot => {
                       const matching = selfTodayTasks.filter(task => {
                         if (!task.startTime) return false
@@ -564,9 +596,9 @@ export default function TasksPage() {
                         return taskDate.getHours() === slot.hour
                       })
                       return (
-                        <div key={slot.hour} className="flex-1 min-w-[140px] rounded-2xl border bg-slate-50/20 p-3.5 flex flex-col justify-between shadow-sm min-h-[160px] hover:border-primary/45 transition-all">
-                          <div className="border-b pb-2 text-center text-xs font-bold text-muted-foreground">{slot.label}</div>
-                          <div className="flex-1 mt-3 space-y-1.5 overflow-y-auto max-h-[100px]">
+                        <div key={slot.hour} className="flex min-h-[84px] min-w-0 flex-1 rounded-2xl border bg-slate-50/20 p-3 shadow-sm transition-all hover:border-primary/45 md:min-h-[160px] md:min-w-[140px] md:flex-col md:justify-between">
+                          <div className="w-20 shrink-0 border-r pr-2 text-xs font-bold text-muted-foreground md:w-auto md:border-b md:border-r-0 md:pb-2 md:pr-0 md:text-center">{slot.label}</div>
+                          <div className="ml-3 flex-1 space-y-1.5 overflow-y-auto md:ml-0 md:mt-3 md:max-h-[100px]">
                             {matching.map(task => (
                               <div key={task.id} className="w-full rounded-xl bg-primary p-2 text-left text-[10px] font-semibold text-primary-foreground line-clamp-2 hover:opacity-90 transition-opacity leading-tight">
                                 {task.title}
@@ -648,6 +680,19 @@ export default function TasksPage() {
                   <div className="space-y-2">
                     <Label>Description</Label>
                     <Textarea value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Additional instructions..." />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Link Customer</Label>
+                      <Input value={customerQuery} onChange={e => { setCustomerQuery(e.target.value); setNewCustomerId("") }} placeholder="Search ID, name or phone..." />
+                      {customerResults.length > 0 && <div className="max-h-36 overflow-y-auto rounded border bg-popover">{customerResults.map(customer => <button type="button" key={customer.id} onClick={() => { setNewCustomerId(String(customer.id)); setCustomerQuery(`${customer.customerUniqueId || `Customer ${customer.id}`} · ${customer.firstName || customer.lead?.firstName || ''} ${customer.lastName || customer.lead?.lastName || ''}`); setCustomerResults([]) }} className="block w-full border-b p-2 text-left text-xs hover:bg-muted">{customer.customerUniqueId || `Customer ${customer.id}`} · {customer.firstName || customer.lead?.firstName} {customer.lastName || customer.lead?.lastName}</button>)}</div>}
+                      <p className="text-[10px] text-muted-foreground">Customers load only after you search; the full customer list is never downloaded.</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Link Support Ticket</Label>
+                      <Input value={ticketQuery} onChange={e => { setTicketQuery(e.target.value); setNewTicketId("") }} placeholder="Search ticket number or subject..." />
+                      {ticketResults.length > 0 && <div className="max-h-36 overflow-y-auto rounded border bg-popover">{ticketResults.map(ticket => <button type="button" key={ticket.id} onClick={() => { setNewTicketId(String(ticket.id)); setTicketQuery(`${ticket.ticketNumber} · ${ticket.title}`); setNewTitle(current => current || ticket.title); setNewCustomerId(ticket.customerId ? String(ticket.customerId) : newCustomerId); setTicketResults([]) }} className="block w-full border-b p-2 text-left text-xs hover:bg-muted">{ticket.ticketNumber} · {ticket.title}</button>)}</div>}
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -799,7 +844,7 @@ export default function TasksPage() {
             </div>
           </div>
 
-          <TabsContent value="timeline" className="mt-6 border p-4 rounded-xl bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 space-y-4">
+          <TabsContent value="timeline" className="mt-6 min-h-[calc(100dvh-13rem)] border p-4 rounded-xl bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 space-y-4">
             {/* Timeline Scheduler Header controls */}
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
               <div className="flex items-center gap-2">
@@ -821,7 +866,7 @@ export default function TasksPage() {
             </div>
 
             {/* Scheduler Timeline Grid */}
-            <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-950/20">
+            <div className="h-[calc(100dvh-23rem)] min-h-[480px] overflow-auto border border-slate-100 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-950/20">
               <table className="w-full border-collapse min-w-[800px] text-left">
                 <thead>
                   <tr className="bg-slate-100/50 dark:bg-slate-900 text-xs font-semibold text-muted-foreground border-b border-slate-200 dark:border-slate-800">

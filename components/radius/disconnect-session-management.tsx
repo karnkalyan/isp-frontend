@@ -699,7 +699,10 @@ export function DisconnectSessionManagement() {
         fullAddress: c.fullAddress || c.address || "",
         packageName: c.subscribedPkg?.packageName || c.packagePrice?.packageName || "",
         membershipName: c.membership?.name || "",
-        connectionUsers: (c.connectionUsers || []).filter((cu: any) => sessionMap[String(cu.username || "").toLowerCase()]),
+        // Keep every configured RADIUS account. A missing accounting row does not
+        // mean the username is invalid; disconnectAllSessions can resolve it at
+        // the RADIUS service and this mirrors SMS campaign customer targeting.
+        connectionUsers: (c.connectionUsers || []).filter((cu: any) => String(cu.username || "").trim()),
         subscribedPkg: c.subscribedPkg,
         customerSubscriptions: c.customerSubscriptions
       }))

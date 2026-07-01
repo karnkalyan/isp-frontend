@@ -62,11 +62,16 @@ interface Ticket {
   status: string
   priority: string
   category?: string
+  ticketTypeId?: number
+  departmentId?: number
+  responseDueAt?: string
+  resolutionDueAt?: string
+  closeDueAt?: string
   createdAt: string
   updatedAt: string
   customer?: { id: number; firstName: string; lastName: string; email: string }
   subject?: { 
-    type: 'CUSTOMER' | 'LEAD'; 
+    type: 'CUSTOMER' | 'LEAD' | 'GUEST';
     id: number; 
     uniqueId: string; 
     firstName: string; 
@@ -115,6 +120,22 @@ function TicketsContent() {
   const [assignableUsers, setAssignableUsers] = useState<any[]>([])
   const [assignedToId, setAssignedToId] = useState<string>("none")
   const [loadingSubjects, setLoadingSubjects] = useState(false)
+  const [ticketTypes, setTicketTypes] = useState<any[]>([])
+  const [ticketTypeId, setTicketTypeId] = useState("")
+  const [departments, setDepartments] = useState<any[]>([])
+  const [departmentId, setDepartmentId] = useState("")
+  const [contactName, setContactName] = useState("")
+  const [contactPhone, setContactPhone] = useState("")
+  const [contactEmail, setContactEmail] = useState("")
+  const [dashboard, setDashboard] = useState<any>({ total: 0, byStatus: {}, byPriority: {}, byType: [] })
+
+  useEffect(() => {
+    Promise.all([apiRequest<any[]>("/tickets/types?active=true"), apiRequest<any>("/department"), apiRequest<any>("/tickets/dashboard")]).then(([types, deps, stats]) => {
+      setTicketTypes(Array.isArray(types) ? types : [])
+      setDepartments(Array.isArray(deps) ? deps : (deps?.data || []))
+      setDashboard(stats || { total: 0, byStatus: {}, byPriority: {}, byType: [] })
+    }).catch(() => undefined)
+  }, [])
 
   useEffect(() => {
     if (searchParams.get("create") === "true") {
@@ -144,7 +165,6 @@ function TicketsContent() {
   }, [showCreate])
 
   useEffect(() => {
-    if (!showCreate) return
     const fetchUsers = async () => {
       try {
         const users = await apiRequest<any[]>("/users")
@@ -202,6 +222,7 @@ function TicketsContent() {
 
   const subjectHref = (subject: Ticket["subject"]) => {
     if (!subject) return "#"
+    if (subject.type === "GUEST") return "#"
     return subject.type === "CUSTOMER" ? `/customers/${subject.id}` : `/leads/${subject.id}`
   }
 
@@ -216,6 +237,11 @@ function TicketsContent() {
           description: newDescription,
           priority: newPriority,
           category: newCategory || undefined,
+          ticketTypeId: ticketTypeId ? Number(ticketTypeId) : undefined,
+          departmentId: departmentId ? Number(departmentId) : undefined,
+          contactName: subjectType === "NONE" ? contactName : undefined,
+          contactPhone: subjectType === "NONE" ? contactPhone : undefined,
+          contactEmail: subjectType === "NONE" ? contactEmail : undefined,
           customerId: subjectType === "CUSTOMER" && subjectId !== "none" ? Number(subjectId) : undefined,
           leadId: subjectType === "LEAD" && subjectId !== "none" ? Number(subjectId) : undefined,
           targetBranchId: newBranchId !== "none" ? newBranchId : undefined,
@@ -233,6 +259,11 @@ function TicketsContent() {
       setAssignedToId("none")
       setSubjectType("NONE")
       setSubjectId("none")
+      setTicketTypeId("")
+      setDepartmentId("")
+      setContactName("")
+      setContactPhone("")
+      setContactEmail("")
       setNotifyEmail(false)
       fetchTickets()
     } catch (error: any) {
@@ -265,6 +296,14 @@ function TicketsContent() {
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" })
     }
+  }
+
+  const handleReassign = async (ticketId: number, value: string) => {
+    try {
+      await apiRequest(`/tickets/${ticketId}`, { method: "PUT", body: JSON.stringify({ assignedToId: value === "none" ? null : Number(value) }) })
+      toast({ title: "Ticket reassigned" }); fetchTickets()
+      const detail = await apiRequest<Ticket>(`/tickets/${ticketId}`); setSelectedTicket(detail)
+    } catch (error: any) { toast({ title: "Reassignment failed", description: error.message, variant: "destructive" }) }
   }
 
   const handleAddComment = async () => {
@@ -346,20 +385,16 @@ function TicketsContent() {
                       <SelectItem value="LOW">Low</SelectItem>
                       <SelectItem value="MEDIUM">Medium</SelectItem>
                       <SelectItem value="HIGH">High</SelectItem>
-                      <SelectItem value="CRITICAL">Critical</SelectItem>
+                      <SelectItem value="CRITICAL">Urgent</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Category</Label>
-                  <Select value={newCategory} onValueChange={setNewCategory}>
+                  <Label>Ticket Type</Label>
+                  <Select value={ticketTypeId} onValueChange={(value) => { setTicketTypeId(value); const type = ticketTypes.find(t => String(t.id) === value); setNewCategory(String(type?.code || '').toLowerCase()); if (type?.departmentId) setDepartmentId(String(type.departmentId)) }}>
                     <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="billing">Billing</SelectItem>
-                      <SelectItem value="technical">Technical</SelectItem>
-                      <SelectItem value="connectivity">Connectivity</SelectItem>
-                      <SelectItem value="account">Account</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
+                      {ticketTypes.map(type => <SelectItem key={type.id} value={String(type.id)}>{type.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -378,6 +413,10 @@ function TicketsContent() {
                     placeholder="Search staff..."
                     className="w-full"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label>Department</Label>
+                  <Select value={departmentId} onValueChange={setDepartmentId}><SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger><SelectContent>{departments.map(dep => <SelectItem key={dep.id} value={String(dep.id)}>{dep.name}</SelectItem>)}</SelectContent></Select>
                 </div>
               </div>
 
@@ -406,6 +445,13 @@ function TicketsContent() {
                       placeholder={loadingSubjects ? "Loading..." : "Search..."}
                       className="w-full"
                     />
+                  </div>
+                )}
+                {subjectType === "NONE" && (
+                  <div className="col-span-2 grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div><Label>Contact Name *</Label><Input value={contactName} onChange={e => setContactName(e.target.value)} /></div>
+                    <div><Label>Phone</Label><Input value={contactPhone} onChange={e => setContactPhone(e.target.value)} /></div>
+                    <div><Label>Email</Label><Input type="email" value={contactEmail} onChange={e => setContactEmail(e.target.value)} /></div>
                   </div>
                 )}
               </div>
@@ -444,6 +490,13 @@ function TicketsContent() {
         )}
       </div>
 
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {[["Total", dashboard.total], ["New", dashboard.byStatus?.OPEN || 0], ["In Progress", dashboard.byStatus?.IN_PROGRESS || 0], ["Resolved", dashboard.byStatus?.RESOLVED || 0], ["Closed", dashboard.byStatus?.CLOSED || 0]].map(([label, value]) => (
+          <div key={String(label)} className="rounded-xl border bg-card p-4"><p className="text-xs text-muted-foreground">{label}</p><p className="text-2xl font-bold">{value}</p></div>
+        ))}
+      </div>
+      {dashboard.byType?.length > 0 && <div className="flex flex-wrap gap-2">{dashboard.byType.map((type:any) => <Badge key={String(type.ticketTypeId)} variant="outline">{type.name}: {type.count}</Badge>)}</div>}
+
       {/* Filters */}
       <div className="flex gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
@@ -472,7 +525,7 @@ function TicketsContent() {
             <SelectItem value="LOW">Low</SelectItem>
             <SelectItem value="MEDIUM">Medium</SelectItem>
             <SelectItem value="HIGH">High</SelectItem>
-            <SelectItem value="CRITICAL">Critical</SelectItem>
+            <SelectItem value="CRITICAL">Urgent</SelectItem>
           </SelectContent>
         </Select>
         <Button variant="outline" size="icon" onClick={fetchTickets}>
@@ -505,6 +558,7 @@ function TicketsContent() {
                       {getPriorityIcon(ticket.priority)}
                       <span className="font-mono text-xs text-muted-foreground">{ticket.ticketNumber}</span>
                       <Badge className={getStatusColor(ticket.status)}>{ticket.status.replace("_", " ")}</Badge>
+                      {ticket.ticketTypeId && <Badge variant="outline">{ticketTypes.find(type => type.id === ticket.ticketTypeId)?.name || "Other"}</Badge>}
                     </div>
                     <span className="text-xs text-muted-foreground">{new Date(ticket.createdAt).toLocaleDateString()}</span>
                   </div>
@@ -546,6 +600,7 @@ function TicketsContent() {
                   <h3 className="font-bold text-lg">{selectedTicket.title}</h3>
                   {selectedTicket.description && <p className="text-sm text-muted-foreground mt-2">{selectedTicket.description}</p>}
                 </div>
+                {hasPermission("tasks_create") && <Button asChild variant="outline" className="w-full"><Link href={`/tasks?ticketId=${selectedTicket.id}&create=true`}>Schedule as Task</Link></Button>}
 
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div className="text-muted-foreground">Status:</div>
@@ -571,14 +626,12 @@ function TicketsContent() {
                       </Link>
                      </>
                    )}
-                  {selectedTicket.assignedTo && (
-                    <>
-                      <div className="text-muted-foreground">Assigned To:</div>
-                      <div>{selectedTicket.assignedTo.name}</div>
-                    </>
-                  )}
+                  <div className="text-muted-foreground">Assigned To:</div>
+                  <Select value={selectedTicket.assignedTo ? String(selectedTicket.assignedTo.id) : "none"} onValueChange={value => handleReassign(selectedTicket.id, value)}><SelectTrigger className="h-8"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Unassigned</SelectItem>{assignableUsers.map(user => <SelectItem key={user.id} value={String(user.id)}>{user.name || user.email}</SelectItem>)}</SelectContent></Select>
                   <div className="text-muted-foreground">Created:</div>
                   <div>{new Date(selectedTicket.createdAt).toLocaleString()}</div>
+                  <div className="text-muted-foreground">SLA:</div>
+                  <div className="text-xs">Response {selectedTicket.responseDueAt ? new Date(selectedTicket.responseDueAt).toLocaleString() : "—"}<br/>Resolve {selectedTicket.resolutionDueAt ? new Date(selectedTicket.resolutionDueAt).toLocaleString() : "—"}<br/>Close {selectedTicket.closeDueAt ? new Date(selectedTicket.closeDueAt).toLocaleString() : "—"}</div>
                 </div>
 
                 {selectedTicket.subject?.address && (

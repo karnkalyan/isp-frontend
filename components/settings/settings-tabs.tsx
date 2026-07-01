@@ -12,6 +12,8 @@ import { ServicesSyncSettings } from "@/components/settings/services-sync-settin
 import { RadiusPoolsSettings } from "@/components/settings/radius-pools-settings"
 import { Building, Globe, MapPin, Calendar, PlusCircle, RefreshCw, Database } from "lucide-react"
 import { CardContainer } from "@/components/ui/card-container"
+import { BillingConfigurationSettings } from "@/components/settings/billing-configuration-settings"
+import { TicketSettings } from "@/components/settings/ticket-settings"
 
 export function SettingsTabs() {
   const [activeTab, setActiveTab] = useState("isp-types")
@@ -19,6 +21,16 @@ export function SettingsTabs() {
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
       <TabsList className="w-full justify-start border-b bg-transparent p-0 flex-wrap">
+        <TabsTrigger
+          value="ticket-settings"
+          className="flex items-center gap-2 rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-primary data-[state=active]:bg-transparent"
+        ><Building className="h-4 w-4" /> Ticket Settings</TabsTrigger>
+        <TabsTrigger
+          value="billing-configuration"
+          className="flex items-center gap-2 rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-primary data-[state=active]:bg-transparent"
+        >
+          <Calendar className="h-4 w-4" /> Billing Configuration
+        </TabsTrigger>
         <TabsTrigger
           value="isp-types"
           className="flex items-center gap-2 rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-primary data-[state=active]:bg-transparent"
@@ -79,6 +91,12 @@ export function SettingsTabs() {
           <ISPTypesSettings />
         </CardContainer>
       </TabsContent>
+      <TabsContent value="billing-configuration" className="mt-6">
+        <CardContainer title="Fiscal Years & Payment Methods" description="Configure fiscal sessions and accepted renewal payment methods" gradientColor="#0ea5e9">
+          <BillingConfigurationSettings />
+        </CardContainer>
+      </TabsContent>
+      <TabsContent value="ticket-settings" className="mt-6"><CardContainer title="Ticket Types & SLA" description="Configure support queues and priority deadlines" gradientColor="#f97316"><TicketSettings /></CardContainer></TabsContent>
 
       <TabsContent value="internet-plans" className="mt-6">
         <CardContainer

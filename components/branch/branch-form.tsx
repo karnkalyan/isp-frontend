@@ -1,4 +1,4 @@
-"use client"
+  "use client"
 
 import React, { useState, useEffect } from "react"
 import { CardContainer } from "@/components/ui/card-container"
@@ -31,6 +31,8 @@ type Branch = {
     contactPerson: string | null
     logoUrl: string | null
     isActive: boolean
+    infraShareDeviceRequired: boolean
+    receiptRequired: boolean
     createdAt: string
     updatedAt: string
     parent?: { id: string | number, name: string } | null
@@ -90,6 +92,8 @@ export default function BranchForm() {
         contactPerson: "",
         logoUrl: "",
         parentId: "none",
+        infraShareDeviceRequired: false,
+        receiptRequired: false,
     })
 
     // Handle user loading and parent branch auto-fill
@@ -197,6 +201,8 @@ export default function BranchForm() {
             logoUrl: formData.logoUrl.trim() || null,
             isActive: isActive,
             parentId: formData.parentId !== "none" ? formData.parentId : null,
+            infraShareDeviceRequired: formData.infraShareDeviceRequired,
+            receiptRequired: formData.receiptRequired,
         }
 
         try {
@@ -262,7 +268,9 @@ export default function BranchForm() {
             country: branch.country || "",
             contactPerson: branch.contactPerson || "",
             logoUrl: branch.logoUrl || "",
-            parentId: branch.parent?.id ? String(branch.parent.id) : "none"
+            parentId: branch.parent?.id ? String(branch.parent.id) : "none",
+            infraShareDeviceRequired: branch.infraShareDeviceRequired === true,
+            receiptRequired: branch.receiptRequired === true
         })
         setIsActive(branch.isActive)
     }
@@ -348,6 +356,8 @@ export default function BranchForm() {
             contactPerson: "",
             logoUrl: "",
             parentId: isGlobalAdmin ? "none" : (user?.branchId ? String(user.branchId) : "none"),
+            infraShareDeviceRequired: false,
+            receiptRequired: false,
         })
         setIsActive(true)
         setEditingId(null)
@@ -579,6 +589,17 @@ export default function BranchForm() {
                                             className="data-[state=checked]:bg-green-500"
                                         />
                                     </div>
+                                </div>
+                                <div className="flex items-center justify-between p-4 border rounded-lg dark:border-[#334155] dark:bg-[#1e293b]">
+                                    <div>
+                                        <h4 className="font-medium dark:text-white">Infra Share Device Required</h4>
+                                        <p className="text-sm text-muted-foreground">Require a device when creating an Infra Share customer in this branch or sub-branch.</p>
+                                    </div>
+                                    <Switch checked={formData.infraShareDeviceRequired} onCheckedChange={(checked) => setFormData({ ...formData, infraShareDeviceRequired: checked })} />
+                                </div>
+                                <div className="flex items-center justify-between p-4 border rounded-lg dark:border-[#334155] dark:bg-[#1e293b]">
+                                    <div><h4 className="font-medium dark:text-white">Invoice Receipt Required</h4><p className="text-sm text-muted-foreground">Require an invoice/receipt number for recharge in this branch.</p></div>
+                                    <Switch checked={formData.receiptRequired} onCheckedChange={(checked) => setFormData({ ...formData, receiptRequired: checked })} />
                                 </div>
                             </div>
                         </div>

@@ -240,6 +240,9 @@ interface User {
 
 interface PackagePlan {
   id: string
+  planId?: string
+  packageDuration?: string
+  isActive?: boolean
   name?: string
   packageName?: string
   price?: number | null
@@ -546,6 +549,7 @@ export function LeadManagement() {
   const [unqualifiedLeads, setUnqualifiedLeads] = useState<Lead[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [packages, setPackages] = useState<PackagePlan[]>([])
+  const [interestedPlanId, setInterestedPlanId] = useState("")
   const [memberships, setMemberships] = useState<Membership[]>([])
   const [existingISPs, setExistingISPs] = useState<ExistingISP[]>([])
   const [splitters, setSplitters] = useState<Splitter[]>([])
@@ -681,6 +685,10 @@ export function LeadManagement() {
     branchId: "",
     subBranchId: ""
   })
+  useEffect(() => {
+    const selected = packages.find(pkg => pkg.id === formData.interestedPackageId)
+    if (selected) setInterestedPlanId(selected.planId || selected.id)
+  }, [packages, formData.interestedPackageId])
 
   // Prepare options from data using useMemo for performance
   const userOptions: Option[] = useMemo(() =>
@@ -988,6 +996,9 @@ export function LeadManagement() {
 
           return {
             id: String(id),
+            planId: String(pkg.planId || ''),
+            packageDuration: pkg.packageDuration || '',
+            isActive: pkg.isActive !== false,
             name: name,
             packageName: name,
             price: price,
@@ -2474,17 +2485,28 @@ export function LeadManagement() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="interestedPackageId">Interested Package</Label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               <div className="space-y-2">
+                <Label>Interested Plan</Label>
                 <SearchableSelect
-                  key={`package-select-${formData.interestedPackageId || 'empty'}`}
-                  options={packageOptions}
-                  value={formData.interestedPackageId}
-                  onValueChange={(value) => updateFormField("interestedPackageId", value as string)}
-                  placeholder="Select package"
-                  emptyMessage="No packages found"
+                  options={packages.filter((pkg, i, rows) => pkg.isActive !== false && rows.findIndex(p => p.planId === pkg.planId) === i).map(pkg => ({ value: pkg.planId || pkg.id, label: (pkg.packageName || pkg.name || '').replace(/\s+-\s+(1|3|6|12)\s+Months?$/i, '') }))}
+                  value={interestedPlanId}
+                  onValueChange={(value) => { setInterestedPlanId(value as string); updateFormField("interestedPackageId", "") }}
+                  placeholder="Select plan"
                   clearable
                 />
+               </div>
+               <div className="space-y-2">
+                <Label htmlFor="interestedPackageId">Duration</Label>
+                <SearchableSelect
+                  options={packages.filter(pkg => pkg.isActive !== false && (pkg.planId || pkg.id) === interestedPlanId).map(pkg => ({ value: pkg.id, label: pkg.packageDuration || pkg.packageName || pkg.name || '', description: pkg.price ? `NPR ${pkg.price}` : '' }))}
+                  value={formData.interestedPackageId}
+                  onValueChange={(value) => updateFormField("interestedPackageId", value as string)}
+                  placeholder={interestedPlanId ? "Select duration" : "Select a plan first"}
+                  disabled={!interestedPlanId}
+                  clearable
+                />
+               </div>
               </div>
 
               {/* Map Section for Lead Form */}
