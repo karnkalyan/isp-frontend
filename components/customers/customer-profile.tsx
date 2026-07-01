@@ -1285,6 +1285,8 @@ interface CustomerProfileProps {
 
 export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileProps = {}) {
   const { user } = useAuth()
+  const currentRoleName = String(typeof user?.role === "string" ? user.role : user?.role?.name || "").toLowerCase()
+  const canExtendTrial = currentRoleName === "admin" || currentRoleName === "administrator" || currentRoleName === "isp_admin" || currentRoleName.startsWith("global ")
   const [activeTab, setActiveTab] = useState("overview")
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [loading, setLoading] = useState(true)
@@ -2008,6 +2010,19 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     } finally {
       setLoading(false)
     }
+  }
+
+  const extendTrial = async () => {
+    if (!customer || !canExtendTrial) return
+    const value = window.prompt("Extend trial by how many days?", "3")
+    if (value === null) return
+    const days = Number(value)
+    if (!Number.isInteger(days) || days <= 0 || days > 365) return toast.error("Enter a valid number of days between 1 and 365")
+    try {
+      await apiRequest("/billing/extend", { method: "POST", body: JSON.stringify({ customerId: customer.id, days, type: "compensation" }) })
+      toast.success(`Trial extended by ${days} day(s)`)
+      await fetchCustomerData()
+    } catch (error: any) { toast.error(error.message || "Failed to extend trial") }
   }
 
   useEffect(() => {
@@ -3159,6 +3174,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         <Button size="sm" className="h-9 bg-gradient-to-r from-green-500 to-emerald-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={() => setRenewPackageOpen(true)}>
           <RefreshCw className="mr-2 h-4 w-4" /> Renew Package
         </Button>
+        {latestSubscription?.isTrial && canExtendTrial && <Button size="sm" variant="outline" className="h-9" onClick={extendTrial}><Calendar className="mr-2 h-4 w-4" />Extend Trial</Button>}
         <Button size="sm" className="h-9 bg-gradient-to-r from-blue-500 to-indigo-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={() => setChangeUsernameOpen(true)}>
           <User className="mr-2 h-4 w-4" /> Change Username
         </Button>

@@ -102,6 +102,11 @@ export function SystemSettings() {
     autoTrialEnabled: true,
     pushTrialPackageToAccount: true,
     trialDurationDays: 3,
+    customerDocumentsRequired: false,
+    customerDeviceRequired: false,
+    fiberOnuRequired: false,
+    expiredTerminateDays: 0,
+    expiredSoftDeleteDays: 0,
     maxStaffGraceDays: 3,
     allowStaffCompensation: false,
     tscPercentage: 10,
@@ -230,6 +235,11 @@ export function SystemSettings() {
             autoTrialEnabled: data.autoTrialEnabled !== 'false',
             pushTrialPackageToAccount: data.pushTrialPackageToAccount !== 'false',
             trialDurationDays: parseInt(data.trialDurationDays || '3'),
+            customerDocumentsRequired: data.customerDocumentsRequired === 'true',
+            customerDeviceRequired: data.customerDeviceRequired === 'true',
+            fiberOnuRequired: data.fiberOnuRequired === 'true',
+            expiredTerminateDays: parseInt(data.expiredTerminateDays || '0'),
+            expiredSoftDeleteDays: parseInt(data.expiredSoftDeleteDays || '0'),
             maxStaffGraceDays: parseInt(data.maxStaffGraceDays || '3'),
             allowStaffCompensation: data.allowStaffCompensation === 'true',
             tscPercentage: parseInt(data.tscPercentage || '10'),
@@ -994,6 +1004,17 @@ export function SystemSettings() {
                  />
                  <p className="text-[10px] text-muted-foreground">Applied to packages with 'TSC Applicable' checked.</p>
                </div>
+            </div>
+            <div className="p-4 border rounded-lg bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-900/30 space-y-4">
+              <div><h4 className="font-medium text-emerald-800 dark:text-emerald-400">New Customer Requirements</h4><p className="text-xs text-muted-foreground">Enforced by the API during customer creation.</p></div>
+              <div className="flex items-center justify-between"><Label>Customer documents required</Label><Switch checked={settings.customerDocumentsRequired} onCheckedChange={v => updateSetting("customerDocumentsRequired", v)} /></div>
+              <div className="flex items-center justify-between"><Label>Device required</Label><Switch checked={settings.customerDeviceRequired} onCheckedChange={v => updateSetting("customerDeviceRequired", v)} /></div>
+              <div className="flex items-center justify-between"><Label>ONU/ONT required for Fiber</Label><Switch checked={settings.fiberOnuRequired} onCheckedChange={v => updateSetting("fiberOnuRequired", v)} /></div>
+            </div>
+            <div className="p-4 border rounded-lg bg-rose-50/50 dark:bg-rose-900/10 border-rose-100 dark:border-rose-900/30 space-y-3">
+              <div><h4 className="font-medium text-rose-800 dark:text-rose-400">Expired Customer Lifecycle</h4><p className="text-xs text-muted-foreground">Use 0 to disable an automatic action.</p></div>
+              <div><Label>Days after expiry to terminate</Label><Input type="number" min={0} value={settings.expiredTerminateDays} onChange={e => updateSetting("expiredTerminateDays", Number(e.target.value))} /></div>
+              <div><Label>Days after expiry to soft-delete</Label><Input type="number" min={0} value={settings.expiredSoftDeleteDays} onChange={e => updateSetting("expiredSoftDeleteDays", Number(e.target.value))} /></div>
             </div>
 
             <div className="p-4 border rounded-lg bg-purple-50/50 dark:bg-purple-900/10 border-purple-100 dark:border-purple-900/30">

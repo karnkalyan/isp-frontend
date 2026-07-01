@@ -33,6 +33,9 @@ type Branch = {
     isActive: boolean
     infraShareDeviceRequired: boolean
     receiptRequired: boolean
+    smsEnabled: boolean
+    smsUseParentProvider: boolean
+    smsProviderCode?: string | null
     createdAt: string
     updatedAt: string
     parent?: { id: string | number, name: string } | null
@@ -94,6 +97,9 @@ export default function BranchForm() {
         parentId: "none",
         infraShareDeviceRequired: false,
         receiptRequired: false,
+        smsEnabled: true,
+        smsUseParentProvider: true,
+        smsProviderCode: "",
     })
 
     // Handle user loading and parent branch auto-fill
@@ -203,6 +209,9 @@ export default function BranchForm() {
             parentId: formData.parentId !== "none" ? formData.parentId : null,
             infraShareDeviceRequired: formData.infraShareDeviceRequired,
             receiptRequired: formData.receiptRequired,
+            smsEnabled: formData.smsEnabled,
+            smsUseParentProvider: formData.smsUseParentProvider,
+            smsProviderCode: formData.smsProviderCode || null,
         }
 
         try {
@@ -270,7 +279,10 @@ export default function BranchForm() {
             logoUrl: branch.logoUrl || "",
             parentId: branch.parent?.id ? String(branch.parent.id) : "none",
             infraShareDeviceRequired: branch.infraShareDeviceRequired === true,
-            receiptRequired: branch.receiptRequired === true
+            receiptRequired: branch.receiptRequired === true,
+            smsEnabled: branch.smsEnabled !== false,
+            smsUseParentProvider: branch.smsUseParentProvider !== false,
+            smsProviderCode: branch.smsProviderCode || ""
         })
         setIsActive(branch.isActive)
     }
@@ -358,6 +370,9 @@ export default function BranchForm() {
             parentId: isGlobalAdmin ? "none" : (user?.branchId ? String(user.branchId) : "none"),
             infraShareDeviceRequired: false,
             receiptRequired: false,
+            smsEnabled: true,
+            smsUseParentProvider: true,
+            smsProviderCode: "",
         })
         setIsActive(true)
         setEditingId(null)
@@ -600,6 +615,11 @@ export default function BranchForm() {
                                 <div className="flex items-center justify-between p-4 border rounded-lg dark:border-[#334155] dark:bg-[#1e293b]">
                                     <div><h4 className="font-medium dark:text-white">Invoice Receipt Required</h4><p className="text-sm text-muted-foreground">Require an invoice/receipt number for recharge in this branch.</p></div>
                                     <Switch checked={formData.receiptRequired} onCheckedChange={(checked) => setFormData({ ...formData, receiptRequired: checked })} />
+                                </div>
+                                <div className="space-y-3 p-4 border rounded-lg dark:border-[#334155] dark:bg-[#1e293b]">
+                                  <div className="flex items-center justify-between"><div><h4 className="font-medium dark:text-white">SMS Sending</h4><p className="text-sm text-muted-foreground">Allow this branch to send SMS.</p></div><Switch checked={formData.smsEnabled} onCheckedChange={checked => setFormData({ ...formData, smsEnabled: checked })} /></div>
+                                  <div className="flex items-center justify-between"><Label>Use parent/default provider</Label><Switch checked={formData.smsUseParentProvider} onCheckedChange={checked => setFormData({ ...formData, smsUseParentProvider: checked })} /></div>
+                                  {!formData.smsUseParentProvider && <div><Label>SMS Provider Code</Label><Input value={formData.smsProviderCode} onChange={e => setFormData({ ...formData, smsProviderCode: e.target.value })} placeholder="AAKASHSMS or SPARROWSMS" /></div>}
                                 </div>
                             </div>
                         </div>
