@@ -50,6 +50,11 @@ function isClient() {
   return typeof window !== "undefined" && typeof document !== "undefined";
 }
 
+function isPublicAuthPage() {
+  if (!isClient()) return false;
+  return ["/login", "/forgot-password", "/reset-password"].some(path => window.location.pathname === path || window.location.pathname.startsWith(`${path}/`));
+}
+
 async function parseResponsePayload(res: Response) {
   try {
     return await res.clone().json();
@@ -93,7 +98,8 @@ export async function apiRequest<T = any>(
   }
 
   // 401 refresh flow
-  if (response.status === 401 && !endpoint.includes('/auth/refresh')) {
+  const isPublicAuthRequest = ['/auth/login', '/auth/forgot-password', '/auth/reset-password'].some(path => endpoint.includes(path));
+  if (response.status === 401 && !endpoint.includes('/auth/refresh') && !isPublicAuthRequest) {
     try {
       const refreshRes = await fetch(`${BASE_URL}/auth/refresh`, {
         method: "POST",
@@ -107,7 +113,7 @@ export async function apiRequest<T = any>(
       } else {
         const payload = await parseResponsePayload(refreshRes);
         const payloadStr = typeof payload === "string" ? payload : JSON.stringify(payload);
-        if (isClient()) {
+        if (isClient() && !isPublicAuthPage()) {
           toast.error("Session expired. Please login again.");
           window.location.href = "/login";
         }

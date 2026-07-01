@@ -9,6 +9,11 @@ import { RolesList } from "@/components/admin/roles-list"
 import { RolePermissionsMatrix } from "@/components/admin/role-permissions-matrix"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { apiRequest } from "@/lib/api"
+import { CardContainer } from "@/components/ui/card-container"
+import { BillingConfigurationSettings } from "@/components/settings/billing-configuration-settings"
+import { TicketSettings } from "@/components/settings/ticket-settings"
+import { RadiusPoolsSettings } from "@/components/settings/radius-pools-settings"
+import { ServicesSyncSettings } from "@/components/settings/services-sync-settings"
 
 export function MasterSettingsTabs() {
   const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null)
@@ -67,12 +72,16 @@ export function MasterSettingsTabs() {
   return (
     <div className="w-full">
       <Tabs defaultValue="system" className="space-y-6">
-        <TabsList className="bg-slate-100 dark:bg-slate-800">
+        <TabsList className="bg-slate-100 dark:bg-slate-800 flex-wrap h-auto">
           <TabsTrigger value="system">System Overview</TabsTrigger>
           <TabsTrigger value="mail">Mail Setup</TabsTrigger>
           <TabsTrigger value="branch">Service & Branch Settings</TabsTrigger>
           <TabsTrigger value="enhancements">Enhancements & Customer Types</TabsTrigger>
           <TabsTrigger value="roles">Role & Sidebar Management</TabsTrigger>
+          <TabsTrigger value="ticket-settings">Ticket Settings</TabsTrigger>
+          <TabsTrigger value="billing-configuration">Billing Configuration</TabsTrigger>
+          <TabsTrigger value="radius-pools">RADIUS Pools</TabsTrigger>
+          <TabsTrigger value="services-sync">Services Sync</TabsTrigger>
           {showLicense && <TabsTrigger value="license">License</TabsTrigger>}
         </TabsList>
         <TabsContent value="system">
@@ -101,6 +110,26 @@ export function MasterSettingsTabs() {
               />
             </div>
           </div>
+        </TabsContent>
+        <TabsContent value="ticket-settings">
+          <CardContainer title="Ticket Types & SLA" description="Configure support queues and priority deadlines" gradientColor="#f97316">
+            <TicketSettings />
+          </CardContainer>
+        </TabsContent>
+        <TabsContent value="billing-configuration">
+          <CardContainer title="Fiscal Years & Payment Methods" description="Configure fiscal sessions and accepted renewal payment methods" gradientColor="#0ea5e9">
+            <BillingConfigurationSettings />
+          </CardContainer>
+        </TabsContent>
+        <TabsContent value="radius-pools">
+          <CardContainer title="RADIUS Pool Management" description="Create Framed-Pool values and assign them to Internet Plans" gradientColor="#0ea5e9">
+            <RadiusPoolsSettings />
+          </CardContainer>
+        </TabsContent>
+        <TabsContent value="services-sync">
+          <CardContainer title="Services Sync Manager" description="Sync packages, plans, devices, and VoIP log integrations across services" gradientColor="#f59e0b">
+            <ServicesSyncSettings />
+          </CardContainer>
         </TabsContent>
         {showLicense && (
           <TabsContent value="license">

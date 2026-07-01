@@ -74,6 +74,13 @@ function isClient() {
   return typeof window !== "undefined" && typeof document !== "undefined";
 }
 
+function isPublicAuthPage() {
+  if (!isClient()) return false;
+  return ["/login", "/forgot-password", "/reset-password"].some(
+    path => window.location.pathname === path || window.location.pathname.startsWith(`${path}/`)
+  );
+}
+
 function notifyLicenseExpired(payload: any, fallbackMessage: string) {
   if (!isClient()) return;
   window.dispatchEvent(new CustomEvent("license-expired", {
@@ -154,7 +161,8 @@ export async function apiRequest<T = any>(
   }
 
   // 401 refresh flow
-  if (response.status === 401 && !endpoint.includes("/auth/refresh") && !endpoint.includes("/auth/login")) {
+  const isPublicAuthRequest = ["/auth/login", "/auth/forgot-password", "/auth/reset-password"].some(path => endpoint.includes(path));
+  if (response.status === 401 && !endpoint.includes("/auth/refresh") && !isPublicAuthRequest) {
     if (!isRefreshing) {
       isRefreshing = true;
       refreshPromise = fetch(`${BASE_URL}/auth/refresh`, {
@@ -163,7 +171,7 @@ export async function apiRequest<T = any>(
         headers: { "Content-Type": "application/json" },
       }).then(async (refreshRes) => {
         if (!refreshRes.ok) {
-           if (isClient() && window.location.pathname !== "/login") {
+           if (isClient() && !isPublicAuthPage()) {
               toast.error("Session expired. Please login again.");
               window.location.href = "/login";
            }

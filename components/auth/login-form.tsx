@@ -68,6 +68,7 @@ const ROUTE_PERMISSIONS: Record<string, string | string[]> = {
   "/finance/invoice-ranges": "billing_update",
   "/finance/recharge": "billing_read_self",
   "/finance/renew": "billing_read_self",
+  "/finance/requests": "billing_read",
   "/tasks": "tasks_read_self",
   "/tickets": "tickets_read_self",
   "/tickets/create": "tickets_create",

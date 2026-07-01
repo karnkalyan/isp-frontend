@@ -253,7 +253,7 @@ const menuCategories: MenuCategory[] = [
       {
         title: "Disconnect Sessions",
         icon: Server,
-        href: "/settings/radius-pools",
+        href: "/radius/disconnect",
         permission: "radius_disconnect",
       },
     ],
@@ -328,6 +328,7 @@ const menuCategories: MenuCategory[] = [
           { title: "Invoice Ranges", href: "/finance/invoice-ranges", permission: "billing_update" },
           { title: "Recharge", href: "/finance/recharge", permission: "billing_read_self" },
           { title: "Renewal", href: "/finance/renew", permission: "billing_read_self" },
+          { title: "Branch Requests", href: "/finance/requests", permission: "billing_read" },
         ],
       },
     ],

@@ -115,6 +115,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // On mount: try storage first, then validate via /me
   useEffect(() => {
+    const isPublicAuthPage = typeof window !== "undefined" && ["/login", "/forgot-password", "/reset-password"].some(
+      path => window.location.pathname === path || window.location.pathname.startsWith(`${path}/`)
+    );
     if (typeof window !== "undefined") {
       const isRemembered = localStorage.getItem("remember-me") === "true";
       const stored = isRemembered
@@ -130,8 +133,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
     }
-    // Always verify with server
-    refreshUser();
+    if (isPublicAuthPage) setLoading(false);
+    else refreshUser();
   }, [refreshUser]);
 
   return (

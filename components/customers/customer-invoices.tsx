@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { 
   FileText, 
   Download, 
   Eye, 
-  Calendar, 
+  Calendar as CalendarIcon, 
   CreditCard, 
   CheckCircle2, 
   AlertCircle, 
@@ -29,6 +29,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface CustomerInvoicesProps {
   customer: any;
@@ -51,20 +58,57 @@ export function CustomerInvoices({ customer, onRefresh }: CustomerInvoicesProps)
   const [adjName, setAdjName] = useState("Installation Adjustment");
   const [adjAmount, setAdjAmount] = useState(2000);
 
+  // Billing states
+  const [fiscalYears, setFiscalYears] = useState<any[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+  const [selectedFiscalYearId, setSelectedFiscalYearId] = useState("");
+  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState("");
+
+  useEffect(() => {
+    const loadBillingConfig = async () => {
+      try {
+        const [fy, pm] = await Promise.all([
+          apiRequest<any[]>("/billing/fiscal-years"),
+          apiRequest<any[]>("/billing/payment-methods")
+        ]);
+        const years = Array.isArray(fy) ? fy : [];
+        const methods = Array.isArray(pm) ? pm : [];
+        setFiscalYears(years);
+        setPaymentMethods(methods);
+        setSelectedFiscalYearId(String(years.find((y: any) => y.isActive)?.id || ""));
+        setSelectedPaymentMethodId(String(methods.find((m: any) => m.isDefault)?.id || ""));
+      } catch (err) {
+        console.error("Failed to load billing config data:", err);
+      }
+    };
+    loadBillingConfig();
+  }, []);
+
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'NPR', minimumFractionDigits: 0 }).format(price);
   };
 
   const handlePay = async () => {
     if (!invoiceId) {
-      toast({ title: "Error", description: "Invoice ID is required for cash payment", variant: "destructive" });
+      toast({ title: "Error", description: "Invoice ID is required for payment", variant: "destructive" });
+      return;
+    }
+    const receiptRequired = customer?.subBranch?.receiptRequired === true || customer?.branch?.receiptRequired === true;
+    if (receiptRequired && !invoiceId.trim()) {
+      toast({ title: "Error", description: "Invoice ID is required for this branch", variant: "destructive" });
       return;
     }
     try {
       setLoading(true);
-      await apiRequest(`/customer/order/${selectedOrder.id}/pay`, {
+      await apiRequest('/billing/pay', {
         method: 'POST',
-        data: { invoiceId, paymentMethod: 'CASH' }
+        body: JSON.stringify({
+          orderId: selectedOrder.id,
+          invoiceId,
+          paymentMethodId: Number(selectedPaymentMethodId),
+          fiscalYearId: Number(selectedFiscalYearId),
+          amount: selectedOrder.totalAmount
+        })
       });
       toast({ title: "Success", description: "Payment recorded successfully" });
       setPayOrderOpen(false);
@@ -81,10 +125,10 @@ export function CustomerInvoices({ customer, onRefresh }: CustomerInvoicesProps)
       setLoading(true);
       await apiRequest('/billing/generate-manual', {
         method: 'POST',
-        data: { 
+        body: JSON.stringify({ 
             customerId: customer.id,
             items: [{ itemName: manualItemName, itemPrice: manualItemPrice }]
-        }
+        })
       });
       toast({ title: "Success", description: "Manual invoice generated" });
       setManualInvoiceOpen(false);
@@ -99,9 +143,13 @@ export function CustomerInvoices({ customer, onRefresh }: CustomerInvoicesProps)
   const handleApplyAdjustment = async () => {
     try {
       setLoading(true);
-      await apiRequest(`/customer/order/${selectedOrder.id}/adjustment`, {
+      const res = await apiRequest('/billing/adjustments/add', {
         method: 'POST',
-        data: { itemName: adjName, amount: adjAmount }
+        body: JSON.stringify({
+          orderId: selectedOrder.id,
+          itemName: adjName,
+          itemPrice: adjAmount
+        })
       });
       toast({ title: "Success", description: "Adjustment applied" });
       setAdjustmentOpen(false);
@@ -156,13 +204,48 @@ export function CustomerInvoices({ customer, onRefresh }: CustomerInvoicesProps)
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Record Payment</DialogTitle>
-            <DialogDescription>Enter the manual invoice number for this cash payment.</DialogDescription>
+            <DialogDescription>Select fiscal year, payment method, and enter invoice number.</DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
             <div className="p-3 bg-muted rounded-lg flex justify-between items-center">
               <span className="text-sm font-medium">Amount to Pay:</span>
               <span className="text-lg font-bold text-primary">{formatPrice(selectedOrder?.totalAmount || 0)}</span>
             </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Fiscal Year</Label>
+                <Select value={selectedFiscalYearId} onValueChange={setSelectedFiscalYearId}>
+                  <SelectTrigger className="bg-background border-input text-foreground text-sm">
+                    <SelectValue placeholder="Choose fiscal year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {fiscalYears.map(y => (
+                      <SelectItem key={y.id} value={String(y.id)} disabled={!y.isActive}>
+                        {y.name}{y.isActive ? " (Current)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Payment Method</Label>
+                <Select value={selectedPaymentMethodId} onValueChange={setSelectedPaymentMethodId}>
+                  <SelectTrigger className="bg-background border-input text-foreground text-sm">
+                    <SelectValue placeholder="Choose method" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {paymentMethods.map(m => (
+                      <SelectItem key={m.id} value={String(m.id)}>
+                        {m.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label>Invoice ID (Manual Number)</Label>
               <Input 
@@ -171,7 +254,7 @@ export function CustomerInvoices({ customer, onRefresh }: CustomerInvoicesProps)
                 placeholder="e.g. 101"
               />
               <p className="text-xs text-muted-foreground italic">
-                Note: Invoice ID must be within your branch's assigned range.
+                Note: Invoice ID must be within your branch's assigned range for the selected fiscal year.
               </p>
             </div>
           </div>

@@ -72,7 +72,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // 5) Redirect authenticated users away from public routes (e.g., /login)
-  if (isAuthenticated && isPublicRoute) {
+  if (isAuthenticated && (pathname === "/login" || pathname.startsWith("/login/") || pathname === "/forgot-password" || pathname.startsWith("/forgot-password/"))) {
     return NextResponse.redirect(new URL("/dashboard/overview", request.url));
   }
 

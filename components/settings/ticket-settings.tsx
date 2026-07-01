@@ -7,18 +7,147 @@ import { Label } from "@/components/ui/label"
 import toast from "react-hot-toast"
 
 export function TicketSettings() {
-  const [types, setTypes] = useState<any[]>([]); const [slas, setSlas] = useState<any[]>([]); const [departments, setDepartments] = useState<any[]>([])
+  const [types, setTypes] = useState<any[]>([])
+  const [slas, setSlas] = useState<any[]>([])
+  const [departments, setDepartments] = useState<any[]>([])
   const [type, setType] = useState({ name: "", code: "", description: "", departmentId: "" })
-  const load = async () => { const [t,s,d] = await Promise.all([apiRequest("/tickets/types"),apiRequest("/tickets/sla-policies"),apiRequest<any>("/department")]); setTypes(Array.isArray(t)?t:[]); setSlas(Array.isArray(s)?s:[]); setDepartments(Array.isArray(d)?d:(d?.data||[])) }
-  useEffect(() => { load().catch(() => toast.error("Failed to load ticket settings")) }, [])
-  const saveType = async () => { await apiRequest("/tickets/types", { method:"POST", body:JSON.stringify({...type,departmentId:type.departmentId?Number(type.departmentId):null}) }); setType({name:"",code:"",description:"",departmentId:""}); await load() }
-  const saveSla = async (sla:any) => { await apiRequest("/tickets/sla-policies", { method:"POST", body:JSON.stringify(sla) }); toast.success(`${sla.priority} SLA saved`); await load() }
-  return <div className="grid gap-8 lg:grid-cols-2">
-    <section className="space-y-4"><div><h3 className="font-semibold">Ticket Types</h3><p className="text-sm text-muted-foreground">Create Internet, TV, billing, or other support queues.</p></div>
-      <div className="space-y-3 rounded border p-4"><div className="grid grid-cols-2 gap-3"><div><Label>Name</Label><Input value={type.name} onChange={e=>setType({...type,name:e.target.value})}/></div><div><Label>Code</Label><Input value={type.code} onChange={e=>setType({...type,code:e.target.value})}/></div></div><div><Label>Description</Label><Input value={type.description} onChange={e=>setType({...type,description:e.target.value})}/></div><div><Label>Default Department</Label><select className="w-full rounded border bg-background p-2" value={type.departmentId} onChange={e=>setType({...type,departmentId:e.target.value})}><option value="">None</option>{departments.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}</select></div><Button onClick={()=>saveType().catch((e:any)=>toast.error(e.message))}>Add Ticket Type</Button></div>
-      {types.map(t=><div key={t.id} className="rounded border p-3">{t.name} <span className="text-xs text-muted-foreground">{t.code}</span></div>)}
-    </section>
-    <section className="space-y-4"><div><h3 className="font-semibold">Priority SLA</h3><p className="text-sm text-muted-foreground">Response, resolution, and resolved-to-close deadlines in hours.</p></div>{slas.map(s=><SlaRow key={s.id} value={s} onSave={saveSla}/>)}</section>
-  </div>
+
+  const load = async () => {
+    const [t, s, d] = await Promise.all([
+      apiRequest("/tickets/types"),
+      apiRequest("/tickets/sla-policies"),
+      apiRequest<any>("/department")
+    ])
+    setTypes(Array.isArray(t) ? t : [])
+    setDepartments(Array.isArray(d) ? d : (d?.data || []))
+
+    const loadedSlas = Array.isArray(s) ? s : []
+    const priorities = ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    const completeSlas = priorities.map(p => {
+      const existing = loadedSlas.find((x: any) => x.priority === p)
+      if (existing) return existing
+      return { priority: p, responseHours: 24, resolutionHours: 48, closeHours: 72 }
+    })
+    setSlas(completeSlas)
+  }
+
+  useEffect(() => {
+    load().catch(() => toast.error("Failed to load ticket settings"))
+  }, [])
+
+  const saveType = async () => {
+    await apiRequest("/tickets/types", {
+      method: "POST",
+      body: JSON.stringify({ ...type, departmentId: type.departmentId ? Number(type.departmentId) : null })
+    })
+    setType({ name: "", code: "", description: "", departmentId: "" })
+    await load()
+  }
+
+  const saveSla = async (sla: any) => {
+    await apiRequest("/tickets/sla-policies", {
+      method: "POST",
+      body: JSON.stringify(sla)
+    })
+    toast.success(`${sla.priority} SLA saved`)
+    await load()
+  }
+
+  return (
+    <div className="grid gap-8 lg:grid-cols-2">
+      <section className="space-y-4">
+        <div>
+          <h3 className="font-semibold text-foreground">Ticket Types</h3>
+          <p className="text-sm text-muted-foreground">Create Internet, TV, billing, or other support queues.</p>
+        </div>
+        <div className="space-y-3 rounded-lg border border-slate-200 dark:border-slate-800 p-4 bg-card">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Name</Label>
+              <Input value={type.name} onChange={e => setType({ ...type, name: e.target.value })} />
+            </div>
+            <div>
+              <Label>Code</Label>
+              <Input value={type.code} onChange={e => setType({ ...type, code: e.target.value })} />
+            </div>
+          </div>
+          <div>
+            <Label>Description</Label>
+            <Input value={type.description} onChange={e => setType({ ...type, description: e.target.value })} />
+          </div>
+          <div>
+            <Label>Default Department</Label>
+            <select
+              className="w-full rounded-md border border-slate-200 dark:border-slate-800 bg-background text-foreground p-2 text-sm"
+              value={type.departmentId}
+              onChange={e => setType({ ...type, departmentId: e.target.value })}
+            >
+              <option value="">None</option>
+              {departments.map(d => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+          </div>
+          <Button onClick={() => saveType().catch((e: any) => toast.error(e.message))}>
+            Add Ticket Type
+          </Button>
+        </div>
+        <div className="space-y-2">
+          {types.map(t => (
+            <div key={t.id} className="rounded-lg border border-slate-200 dark:border-slate-800 p-3 bg-muted/40 flex justify-between items-center">
+              <div>
+                <span className="font-semibold">{t.name}</span>
+                <span className="ml-2 text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{t.code}</span>
+              </div>
+              <span className="text-xs text-muted-foreground">{t.description}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+      <section className="space-y-4">
+        <div>
+          <h3 className="font-semibold text-foreground">Priority SLA</h3>
+          <p className="text-sm text-muted-foreground">Response, resolution, and resolved-to-close deadlines in hours.</p>
+        </div>
+        <div className="space-y-4">
+          {slas.map(s => (
+            <SlaRow key={s.priority} value={s} onSave={saveSla} />
+          ))}
+        </div>
+      </section>
+    </div>
+  )
 }
-function SlaRow({value,onSave}:{value:any,onSave:(v:any)=>void}) { const [v,setV]=useState(value); return <div className="rounded border p-3 space-y-3"><h4 className="font-medium">{v.priority}</h4><div className="grid grid-cols-3 gap-2"><div><Label>Response</Label><Input type="number" value={v.responseHours} onChange={e=>setV({...v,responseHours:Number(e.target.value)})}/></div><div><Label>Resolve</Label><Input type="number" value={v.resolutionHours} onChange={e=>setV({...v,resolutionHours:Number(e.target.value)})}/></div><div><Label>Close</Label><Input type="number" value={v.closeHours} onChange={e=>setV({...v,closeHours:Number(e.target.value)})}/></div></div><Button size="sm" onClick={()=>onSave(v)}>Save SLA</Button></div> }
+
+function SlaRow({ value, onSave }: { value: any; onSave: (v: any) => void }) {
+  const [v, setV] = useState(value)
+
+  useEffect(() => {
+    setV(value)
+  }, [value])
+
+  return (
+    <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-4 space-y-3 bg-card shadow-sm">
+      <h4 className="font-bold text-sm tracking-wider text-primary">{v.priority}</h4>
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <Label className="text-xs text-muted-foreground">Response (Hours)</Label>
+          <Input type="number" min={0} value={v.responseHours} onChange={e => setV({ ...v, responseHours: Number(e.target.value) })} />
+        </div>
+        <div>
+          <Label className="text-xs text-muted-foreground">Resolve (Hours)</Label>
+          <Input type="number" min={0} value={v.resolutionHours} onChange={e => setV({ ...v, resolutionHours: Number(e.target.value) })} />
+        </div>
+        <div>
+          <Label className="text-xs text-muted-foreground">Close (Hours)</Label>
+          <Input type="number" min={0} value={v.closeHours} onChange={e => setV({ ...v, closeHours: Number(e.target.value) })} />
+        </div>
+      </div>
+      <div className="flex justify-end pt-1">
+        <Button size="sm" onClick={() => onSave(v)}>
+          Save SLA Policy
+        </Button>
+      </div>
+    </div>
+  )
+}

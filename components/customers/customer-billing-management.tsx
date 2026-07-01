@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 import { apiRequest } from "@/lib/api"
 import { toast } from "@/hooks/use-toast"
+import { useAuth } from "@/contexts/AuthContext"
 import {
     Dialog,
     DialogContent,
@@ -43,6 +44,7 @@ interface BillingProps {
 }
 
 export function CustomerBillingManagement({ customer, refreshCustomer }: BillingProps) {
+    const { user } = useAuth()
     const [loading, setLoading] = useState(false)
     const [showExtendDialog, setShowExtendDialog] = useState(false)
     const [extendDays, setExtendDays] = useState("3")
@@ -50,6 +52,25 @@ export function CustomerBillingManagement({ customer, refreshCustomer }: Billing
     const [extendType, setExtendType] = useState("grace")
 
     const latestSub = customer.customerSubscriptions?.[0]
+
+    const isGlobalAdmin = React.useMemo(() => {
+        if (!user) return false
+        const roleStr = typeof user.role === 'string' ? user.role : (user.role?.name || '')
+        const roleName = roleStr.toLowerCase()
+        return roleName === 'administrator' || 
+               roleName === 'admin' || 
+               roleName === 'isp_admin' || 
+               roleName === 'super admin' || 
+               roleName.startsWith('global')
+    }, [user])
+
+    React.useEffect(() => {
+        if (latestSub?.isTrial) {
+            setExtendType("compensation")
+        } else {
+            setExtendType("grace")
+        }
+    }, [latestSub])
 
     const handleExtend = async () => {
         setLoading(true)
@@ -137,12 +158,14 @@ export function CustomerBillingManagement({ customer, refreshCustomer }: Billing
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 h-full">
                         <Dialog open={showExtendDialog} onOpenChange={setShowExtendDialog}>
-                            <DialogTrigger asChild>
-                                <Button variant="outline" className="h-24 flex-col gap-2 border-dashed hover:border-primary hover:bg-primary/5">
-                                    <Clock className="h-6 w-6 text-primary" />
-                                    <span>Extend Duration</span>
-                                </Button>
-                            </DialogTrigger>
+                            {(!latestSub?.isTrial || isGlobalAdmin) && (
+                                <DialogTrigger asChild>
+                                    <Button variant="outline" className="h-24 flex-col gap-2 border-dashed hover:border-primary hover:bg-primary/5">
+                                        <Clock className="h-6 w-6 text-primary" />
+                                        <span>Extend Duration</span>
+                                    </Button>
+                                </DialogTrigger>
+                            )}
                             <DialogContent>
                                 <DialogHeader>
                                     <DialogTitle>Extend Subscription</DialogTitle>
@@ -158,14 +181,22 @@ export function CustomerBillingManagement({ customer, refreshCustomer }: Billing
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="grace">Grace Period (Deductible)</SelectItem>
-                                                <SelectItem value="compensation">Compensation (Non-deductible)</SelectItem>
+                                                {latestSub?.isTrial ? (
+                                                    <SelectItem value="compensation">Trial Extension (Non-deductible)</SelectItem>
+                                                ) : (
+                                                    <>
+                                                        <SelectItem value="grace">Grace Period (Deductible)</SelectItem>
+                                                        <SelectItem value="compensation">Compensation (Non-deductible)</SelectItem>
+                                                    </>
+                                                )}
                                             </SelectContent>
                                         </Select>
                                         <p className="text-xs text-muted-foreground">
-                                            {extendType === 'grace' 
-                                                ? "Days will be deducted automatically from the next renewal payment."
-                                                : "Days will be added for free without any future deductions."}
+                                            {latestSub?.isTrial
+                                                ? "Days will be added to the trial package duration."
+                                                : extendType === 'grace' 
+                                                    ? "Days will be deducted automatically from the next renewal payment."
+                                                    : "Days will be added for free without any future deductions."}
                                         </p>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">

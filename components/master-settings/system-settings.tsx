@@ -938,7 +938,6 @@ export function SystemSettings() {
                        checked={settings.pushTrialPackageToAccount ?? true}
                        onCheckedChange={(checked) => {
                          updateSetting("pushTrialPackageToAccount", checked)
-                         updateSetting("autoTrialEnabled", checked)
                        }}
                     />
                  </div>
