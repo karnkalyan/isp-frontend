@@ -215,8 +215,8 @@ function TicketsContent() {
         setLoadingSubjects(true)
         try {
           const [custRes, leadRes] = await Promise.all([
-            apiRequest<any>("/customer?limit=100"),
-            apiRequest<any>("/lead?limit=100")
+            apiRequest<any>("/customer?limit=200"),
+            apiRequest<any>("/lead?limit=200")
           ])
           setCustomers(custRes?.data || [])
           setLeads(leadRes?.data || [])
@@ -229,6 +229,28 @@ function TicketsContent() {
       fetchSubjects()
     }
   }, [showCreate, showEdit])
+
+  // Dynamic subject search - also search via API when user types in SearchableSelect
+  const [subjectSearchQuery, setSubjectSearchQuery] = useState("")
+  useEffect(() => {
+    if ((!showCreate && !showEdit) || subjectSearchQuery.trim().length < 2) return
+    const timer = setTimeout(async () => {
+      try {
+        if (subjectType === 'CUSTOMER') {
+          const res = await apiRequest<any>(`/customer?search=${encodeURIComponent(subjectSearchQuery.trim())}&limit=50`)
+          const existing = new Set(customers.map((c: any) => c.id))
+          const newItems = (res?.data || []).filter((c: any) => !existing.has(c.id))
+          if (newItems.length > 0) setCustomers(prev => [...prev, ...newItems])
+        } else if (subjectType === 'LEAD') {
+          const res = await apiRequest<any>(`/lead?search=${encodeURIComponent(subjectSearchQuery.trim())}&limit=50`)
+          const existing = new Set(leads.map((l: any) => l.id))
+          const newItems = (res?.data || []).filter((l: any) => !existing.has(l.id))
+          if (newItems.length > 0) setLeads(prev => [...prev, ...newItems])
+        }
+      } catch {}
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [subjectSearchQuery, showCreate, showEdit, subjectType])
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -1072,7 +1094,7 @@ function TicketsContent() {
                         return (
                           <tr key={t.id} className="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors">
                             <td className="p-4 font-mono text-xs font-bold text-slate-900 dark:text-slate-100">
-                              {t.ticketNumber}
+                              <Link href={`/tickets/${t.id}`} className="text-primary hover:underline">{t.ticketNumber}</Link>
                             </td>
                             <td className="p-4">
                               <div className="font-semibold text-slate-700 dark:text-slate-300">{new Date(t.createdAt).toLocaleDateString()}</div>
@@ -1128,6 +1150,13 @@ function TicketsContent() {
                                   <>
                                     <div className="fixed inset-0 z-40" onClick={() => setOpenDropdownId(null)}></div>
                                     <div className="absolute right-0 mt-1 w-48 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl z-50 py-1 text-left">
+                                      <Link 
+                                        href={`/tickets/${t.id}`}
+                                        onClick={() => setOpenDropdownId(null)}
+                                        className="w-full text-left px-4 py-2.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-1.5 font-medium text-blue-600"
+                                      >
+                                        <ExternalLink className="h-3.5 w-3.5" /> View Details
+                                      </Link>
                                       <button 
                                         onClick={() => { handleEditOpen(t); setOpenDropdownId(null); }} 
                                         className="w-full text-left px-4 py-2.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-1.5 font-medium"
@@ -1291,6 +1320,11 @@ function TicketsContent() {
                         </div>
                       </div>
                       {hasPermission("tasks_create") && <Button asChild variant="outline" className="w-full"><Link href={`/tasks?ticketId=${selectedTicket.id}&create=true`}>Schedule as Task</Link></Button>}
+                      <Button asChild variant="default" className="w-full gap-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white border-0 shadow">
+                        <Link href={`/tickets/${selectedTicket.id}`}>
+                          <ExternalLink className="h-3.5 w-3.5" /> View Full Details
+                        </Link>
+                      </Button>
 
                       <div className="grid grid-cols-2 gap-2 text-sm">
                         <div className="text-muted-foreground">Status:</div>

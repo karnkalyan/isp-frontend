@@ -246,10 +246,20 @@ export default function TasksPage() {
     }).catch(() => toast.error("Unable to load the selected ticket"))
   }, [canCreateTask])
 
-  // Customer query check (only triggers if query is typed)
+  // Customer + Lead query check (only triggers if query is typed)
   useEffect(() => {
     if (!showCreate || customerQuery.trim().length < 2) { setCustomerResults([]); return }
-    const timer = setTimeout(() => apiRequest<any>(`/customer?search=${encodeURIComponent(customerQuery.trim())}&limit=10`).then(res => setCustomerResults(Array.isArray(res) ? res : (res?.data || []))).catch(() => setCustomerResults([])), 350)
+    const timer = setTimeout(async () => {
+      try {
+        const [custRes, leadRes] = await Promise.all([
+          apiRequest<any>(`/customer?search=${encodeURIComponent(customerQuery.trim())}&limit=10`),
+          apiRequest<any>(`/lead?search=${encodeURIComponent(customerQuery.trim())}&limit=10`)
+        ])
+        const customers = (Array.isArray(custRes) ? custRes : (custRes?.data || [])).map((c: any) => ({ ...c, _type: 'CUSTOMER' }))
+        const leads = (Array.isArray(leadRes) ? leadRes : (leadRes?.data || [])).map((l: any) => ({ ...l, _type: 'LEAD' }))
+        setCustomerResults([...customers, ...leads])
+      } catch { setCustomerResults([]) }
+    }, 350)
     return () => clearTimeout(timer)
   }, [customerQuery, showCreate])
 
@@ -773,7 +783,7 @@ export default function TasksPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 max-w-7xl mx-auto p-6">
+      <div className="p-6 space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -852,7 +862,7 @@ export default function TasksPage() {
                       <div className="space-y-1">
                         <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Link Customer</Label>
                         <Input value={customerQuery} onChange={e => { setCustomerQuery(e.target.value); setNewCustomerId("") }} placeholder="Search customer ID or name..." />
-                        {customerResults.length > 0 && <div className="max-h-36 overflow-y-auto rounded border bg-popover mt-1">{customerResults.map(customer => <button type="button" key={customer.id} onClick={() => { setNewCustomerId(String(customer.id)); setCustomerQuery(`${customer.customerUniqueId || `Customer ${customer.id}`} · ${customer.firstName || customer.lead?.firstName || ''} ${customer.lastName || customer.lead?.lastName || ''}`); setCustomerResults([]) }} className="block w-full border-b p-2 text-left text-xs hover:bg-muted">{customer.customerUniqueId || `Customer ${customer.id}`} · {customer.firstName || customer.lead?.firstName} {customer.lastName || customer.lead?.lastName}</button>)}</div>}
+                        {customerResults.length > 0 && <div className="max-h-36 overflow-y-auto rounded border bg-popover mt-1">{customerResults.map((item: any) => { const isLead = item._type === 'LEAD'; const displayName = isLead ? `${item.firstName || ''} ${item.lastName || ''}`.trim() : `${item.firstName || item.lead?.firstName || ''} ${item.lastName || item.lead?.lastName || ''}`.trim(); const displayId = isLead ? `Lead #${item.id}` : (item.customerUniqueId || `Customer ${item.id}`); return (<button type="button" key={`${item._type}-${item.id}`} onClick={() => { if (!isLead) { setNewCustomerId(String(item.id)); } setCustomerQuery(`${displayId} · ${displayName}`); setCustomerResults([]) }} className="block w-full border-b p-2 text-left text-xs hover:bg-muted"><span className={`inline-block px-1 py-0.5 rounded text-[9px] font-bold mr-1.5 ${isLead ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>{isLead ? 'LEAD' : 'CUSTOMER'}</span>{displayId} · {displayName}</button>) })}</div>}
                       </div>
 
                       <div className="space-y-1">
@@ -1094,7 +1104,7 @@ export default function TasksPage() {
                             </td>
                             <td className="p-4">
                               {t.ticket ? (
-                                <Link href={`/tickets`} className="font-mono text-xs font-bold text-indigo-600 hover:underline">
+                                <Link href={`/tickets/${t.ticket.id}`} className="font-mono text-xs font-bold text-indigo-600 hover:underline">
                                   {t.ticket.ticketNumber}
                                 </Link>
                               ) : (
@@ -1385,7 +1395,7 @@ export default function TasksPage() {
                           <div className="bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl border">
                             <div className="flex items-center justify-between gap-2">
                               <span className="font-mono text-xs font-bold text-primary">{selectedTask.ticket.ticketNumber}</span>
-                              <Link href={`/tickets`} className="text-xs font-semibold text-blue-600 hover:underline inline-flex items-center gap-0.5">
+                              <Link href={`/tickets/${selectedTask.ticket.id}`} className="text-xs font-semibold text-blue-600 hover:underline inline-flex items-center gap-0.5">
                                 View Ticket <ExternalLink className="h-3 w-3" />
                               </Link>
                             </div>
