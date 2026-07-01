@@ -96,7 +96,6 @@ const menuCategories: MenuCategory[] = [
         submenu: [
           { title: "Overview", href: "/dashboard/overview", permission: "dashboard_overview" },
           { title: "Real-Time Monitoring", href: "/dashboard/real-time", permission: "dashboard_realtime" },
-          { title: "Settings", href: "/dashboard/settings", permission: "dashboard_settings" },
         ],
       },
     ],

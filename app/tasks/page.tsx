@@ -1203,30 +1203,81 @@ export default function TasksPage() {
 
         {viewMode === "list" && (
           <div className="space-y-6">
-            {/* Filters */}
-            <div className="flex gap-3 flex-wrap">
-              <div className="relative flex-1 min-w-[200px]">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input 
-                  placeholder="Search tasks..." 
-                  value={search} 
-                  onChange={e => setSearch(e.target.value)}
-                  className="pl-9 bg-white shadow-sm" 
-                />
+            {/* Tab Filters */}
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-1 bg-muted p-1 rounded-lg shadow-inner overflow-x-auto">
+                <Button 
+                  variant={activeTab === "all" ? "default" : "ghost"} 
+                  size="sm" 
+                  onClick={() => setActiveTab("all")}
+                  className="gap-1.5 h-8 text-xs font-semibold whitespace-nowrap"
+                >
+                  <ClipboardList className="h-3.5 w-3.5" /> All Tasks
+                </Button>
+                <Button 
+                  variant={activeTab === "today" ? "default" : "ghost"} 
+                  size="sm" 
+                  onClick={() => setActiveTab("today")}
+                  className="gap-1.5 h-8 text-xs font-semibold whitespace-nowrap"
+                >
+                  <CalendarIcon className="h-3.5 w-3.5" /> Today
+                </Button>
+                <Button 
+                  variant={activeTab === "pending" ? "default" : "ghost"} 
+                  size="sm" 
+                  onClick={() => setActiveTab("pending")}
+                  className="gap-1.5 h-8 text-xs font-semibold whitespace-nowrap"
+                >
+                  <Hourglass className="h-3.5 w-3.5" /> Pending
+                </Button>
+                <Button 
+                  variant={activeTab === "timeline" ? "default" : "ghost"} 
+                  size="sm" 
+                  onClick={() => setActiveTab("timeline")}
+                  className="gap-1.5 h-8 text-xs font-semibold whitespace-nowrap"
+                >
+                  <Clock className="h-3.5 w-3.5" /> Scheduler
+                </Button>
               </div>
-              <Select value={activeTab} onValueChange={setActiveTab}>
-                <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="today">Today's Tasks</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button variant="outline" size="icon" onClick={fetchTasks} className="bg-white shadow-sm">
-                <RefreshCw className="h-4 w-4" />
-              </Button>
+              <div className="flex gap-3 flex-wrap">
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    placeholder="Search tasks..." 
+                    value={search} 
+                    onChange={e => setSearch(e.target.value)}
+                    className="pl-9 bg-white shadow-sm" 
+                  />
+                </div>
+                <Button variant="outline" size="icon" onClick={fetchTasks} className="bg-white shadow-sm">
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
+            {activeTab === "timeline" ? (
+              <CardContainer title="Operations Scheduler" description="Timeline of jobs scheduled per technician">
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-4 border-b pb-4">
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => navigateTimeline(-1)}><ChevronLeft className="h-4 w-4" /></Button>
+                    <span className="font-bold text-sm min-w-[150px] text-center">
+                      {timelineMode === "daily" 
+                        ? timelineDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+                        : `Week of ${new Date(timelineDate.getTime() - timelineDate.getDay()*24*60*60*1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+                      }
+                    </span>
+                    <Button variant="outline" size="sm" onClick={() => navigateTimeline(1)}><ChevronRight className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="sm" onClick={() => setTimelineDate(new Date())}>Today</Button>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button variant={timelineMode === "daily" ? "default" : "outline"} size="sm" onClick={() => setTimelineMode("daily")}>Daily View</Button>
+                    <Button variant={timelineMode === "weekly" ? "default" : "outline"} size="sm" onClick={() => setTimelineMode("weekly")}>Weekly View</Button>
+                  </div>
+                </div>
+                {renderTimelineGrid()}
+              </CardContainer>
+            ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Task List */}
               <div className="lg:col-span-2 space-y-3">
@@ -1451,6 +1502,7 @@ export default function TasksPage() {
                 )}
               </div>
             </div>
+            )}
           </div>
         )}
       </div>
