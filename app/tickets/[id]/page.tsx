@@ -118,6 +118,8 @@ export default function TicketDetailPage() {
   const router = useRouter()
   const { user, hasPermission } = useAuth()
   const ticketId = params.id as string
+  const userRoleName = String(typeof user?.role === "string" ? user.role : user?.role?.name || "").toLowerCase()
+  const isFieldStaff = userRoleName.includes("field staff") || userRoleName.includes("field_staff")
 
   const [ticket, setTicket] = useState<TicketDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -168,6 +170,10 @@ export default function TicketDetailPage() {
 
   const handleStatusChange = async (status: string) => {
     if (!ticket) return
+    if (status === "CLOSED" && isFieldStaff) {
+      toast({ title: "Access Denied", description: "Field Staff are not authorized to close tickets.", variant: "destructive" })
+      return
+    }
     try {
       await apiRequest(`/tickets/${ticket.id}`, {
         method: "PUT",
@@ -445,7 +451,7 @@ export default function TicketDetailPage() {
                           <SelectItem value="OPEN">Open</SelectItem>
                           <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
                           <SelectItem value="RESOLVED">Resolved</SelectItem>
-                          <SelectItem value="CLOSED">Closed</SelectItem>
+                          {!isFieldStaff && <SelectItem value="CLOSED">Closed</SelectItem>}
                         </SelectContent>
                       </Select>
                     </div>

@@ -377,8 +377,8 @@ function TicketsContent() {
   const handleStatusChange = async (ticketId: number, status: string) => {
     // Role-based close checks
     if (status === "CLOSED") {
-      const roleName = String(user?.role?.name || "").toLowerCase()
-      const isRestricted = ["support", "admin", "field staff", "field_staff", "staff"].includes(roleName)
+      const roleName = String(typeof user?.role === "string" ? user.role : user?.role?.name || "").toLowerCase()
+      const isRestricted = ["support", "admin", "field staff", "field_staff", "staff"].some(r => roleName.includes(r))
       if (isRestricted) {
         toast({ title: "Access Denied", description: "Support, Admin, and Field Staff roles can resolve tickets but cannot close them.", variant: "destructive" })
         return
@@ -627,8 +627,8 @@ function TicketsContent() {
   }
 
   const isRestrictedCloseRole = useMemo(() => {
-    const roleName = String(user?.role?.name || "").toLowerCase()
-    return ["support", "admin", "field staff", "field_staff", "staff"].includes(roleName)
+    const roleName = String(typeof user?.role === "string" ? user.role : user?.role?.name || "").toLowerCase()
+    return ["support", "admin", "field staff", "field_staff", "staff"].some(r => roleName.includes(r))
   }, [user])
 
   return (
