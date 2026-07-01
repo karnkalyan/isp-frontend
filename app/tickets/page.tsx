@@ -48,7 +48,11 @@ import {
   BarChart2,
   List,
   Trash2,
-  Check
+  Check,
+  MoreVertical,
+  Edit,
+  User,
+  ExternalLink
 } from "lucide-react"
 import {
   Dialog,
@@ -110,7 +114,7 @@ interface Ticket {
 function TicketsContent() {
   const searchParams = useSearchParams()
   const { branches, selectedBranchId } = useBranch()
-  const { hasPermission } = useAuth()
+  const { user, hasPermission } = useAuth()
   const { on } = useWebSocket()
 
   // Layout View Switch
@@ -140,6 +144,10 @@ function TicketsContent() {
   const [submitting, setSubmitting] = useState(false)
   const [newComment, setNewComment] = useState("")
 
+  // Edit State
+  const [showEdit, setShowEdit] = useState(false)
+  const [editingTicket, setEditingTicket] = useState<Ticket | null>(null)
+
   const [newTitle, setNewTitle] = useState("")
   const [newDescription, setNewDescription] = useState("")
   const [newPriority, setNewPriority] = useState("MEDIUM")
@@ -161,6 +169,9 @@ function TicketsContent() {
   const [contactName, setContactName] = useState("")
   const [contactPhone, setContactPhone] = useState("")
   const [contactEmail, setContactEmail] = useState("")
+
+  // Open dropdown trackers
+  const [openDropdownId, setOpenDropdownId] = useState<number | null>(null)
 
   const loadInitialConfigs = async () => {
     try {
@@ -199,7 +210,7 @@ function TicketsContent() {
   }, [searchParams])
 
   useEffect(() => {
-    if (showCreate) {
+    if (showCreate || showEdit) {
       const fetchSubjects = async () => {
         setLoadingSubjects(true)
         try {
@@ -217,7 +228,7 @@ function TicketsContent() {
       }
       fetchSubjects()
     }
-  }, [showCreate])
+  }, [showCreate, showEdit])
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -236,7 +247,7 @@ function TicketsContent() {
       }
     }
     fetchUsers()
-  }, [showCreate, newBranchId, selectedBranchId])
+  }, [showCreate, showEdit, newBranchId, selectedBranchId])
 
   const fetchTickets = useCallback(async () => {
     setLoading(true)
@@ -342,6 +353,16 @@ function TicketsContent() {
   }
 
   const handleStatusChange = async (ticketId: number, status: string) => {
+    // Role-based close checks
+    if (status === "CLOSED") {
+      const roleName = String(user?.role?.name || "").toLowerCase()
+      const isRestricted = ["support", "admin", "field staff", "field_staff", "staff"].includes(roleName)
+      if (isRestricted) {
+        toast({ title: "Access Denied", description: "Support, Admin, and Field Staff roles can resolve tickets but cannot close them.", variant: "destructive" })
+        return
+      }
+    }
+
     try {
       await apiRequest(`/tickets/${ticketId}`, {
         method: "PUT",
@@ -378,6 +399,52 @@ function TicketsContent() {
       if (selectedTicket?.id === ticketId) setSelectedTicket(null)
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" })
+    }
+  }
+
+  const handleEditOpen = (ticket: Ticket) => {
+    setEditingTicket(ticket)
+    setNewTitle(ticket.title)
+    setNewDescription(ticket.description || "")
+    setNewPriority(ticket.priority)
+    setNewCategory(ticket.category || "")
+    setNewBranchId(ticket.branch?.id ? String(ticket.branch.id) : "none")
+    setAssignedToId(ticket.assignedTo?.id ? String(ticket.assignedTo.id) : "none")
+    setTicketTypeId(ticket.ticketTypeId ? String(ticket.ticketTypeId) : "")
+    setDepartmentId(ticket.departmentId ? String(ticket.departmentId) : "")
+    setShowEdit(true)
+  }
+
+  const handleEditSave = async () => {
+    if (!editingTicket || !newTitle.trim()) return
+    setSubmitting(true)
+    try {
+      await apiRequest(`/tickets/${editingTicket.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          title: newTitle,
+          description: newDescription,
+          priority: newPriority,
+          category: newCategory || undefined,
+          ticketTypeId: ticketTypeId ? Number(ticketTypeId) : undefined,
+          departmentId: departmentId ? Number(departmentId) : undefined,
+          branchId: newBranchId !== "none" ? Number(newBranchId) : null,
+          assignedToId: assignedToId !== "none" ? Number(assignedToId) : null
+        })
+      })
+      toast({ title: "Success", description: "Ticket details updated" })
+      setShowEdit(false)
+      setEditingTicket(null)
+      fetchTickets()
+      fetchAllTickets()
+      if (selectedTicket?.id === editingTicket.id) {
+        const detail = await apiRequest<Ticket>(`/tickets/${editingTicket.id}`)
+        setSelectedTicket(detail)
+      }
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" })
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -537,6 +604,11 @@ function TicketsContent() {
     return { rtHours, ttrHours, slaStatus }
   }
 
+  const isRestrictedCloseRole = useMemo(() => {
+    const roleName = String(user?.role?.name || "").toLowerCase()
+    return ["support", "admin", "field staff", "field_staff", "staff"].includes(roleName)
+  }, [user])
+
   return (
     <DashboardLayout>
       <div className="p-6 space-y-6">
@@ -576,44 +648,84 @@ function TicketsContent() {
                     <Plus className="h-4 w-4" /> New Ticket
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="sm:max-w-2xl md:max-w-3xl lg:max-w-4xl p-6">
                   <DialogHeader>
-                    <DialogTitle>Create Support Ticket</DialogTitle>
-                    <DialogDescription>Create a new support ticket.</DialogDescription>
+                    <DialogTitle className="text-xl font-bold flex items-center gap-2 text-primary">
+                      <LifeBuoy className="h-5 w-5" /> Create Support Ticket
+                    </DialogTitle>
+                    <DialogDescription>Create a new customer or lead support ticket with SLA rules.</DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-1"><MessageSquare className="w-4 h-4"/> Subject *</Label>
-                      <Input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Enter brief subject" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Detailed Description</Label>
-                      <Textarea value={newDescription} onChange={e => setNewDescription(e.target.value)} placeholder="Details..." rows={3} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Priority</Label>
-                        <Select value={newPriority} onValueChange={setNewPriority}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="LOW">Low</SelectItem>
-                            <SelectItem value="MEDIUM">Medium</SelectItem>
-                            <SelectItem value="HIGH">High</SelectItem>
-                            <SelectItem value="CRITICAL">Urgent</SelectItem>
-                          </SelectContent>
-                        </Select>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 py-4 max-h-[70vh] overflow-y-auto pr-2">
+                    {/* General Subject Info */}
+                    <div className="space-y-4">
+                      <div className="space-y-1">
+                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                          <MessageSquare className="w-3.5 h-3.5"/> Ticket Title / Subject *
+                        </Label>
+                        <Input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="e.g. Internet Speed Issue" className="rounded-lg shadow-sm" />
                       </div>
-                      <div className="space-y-2">
-                        <Label>Ticket Type</Label>
-                        <Select value={ticketTypeId} onValueChange={(value) => { setTicketTypeId(value); const type = ticketTypes.find(t => String(t.id) === value); setNewCategory(String(type?.code || '').toLowerCase()); if (type?.departmentId) setDepartmentId(String(type.departmentId)) }}>
-                          <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                          <SelectContent>
-                            {ticketTypes.map(type => <SelectItem key={type.id} value={String(type.id)}>{type.name}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
+                      
+                      <div className="space-y-1">
+                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Description Details</Label>
+                        <Textarea value={newDescription} onChange={e => setNewDescription(e.target.value)} placeholder="Details..." rows={4} className="rounded-lg shadow-sm" />
                       </div>
-                      <div className="space-y-2">
-                        <Label>Assign To</Label>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Priority</Label>
+                          <Select value={newPriority} onValueChange={setNewPriority}>
+                            <SelectTrigger className="rounded-lg shadow-sm"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="LOW">Low</SelectItem>
+                              <SelectItem value="MEDIUM">Medium</SelectItem>
+                              <SelectItem value="HIGH">High</SelectItem>
+                              <SelectItem value="CRITICAL">Urgent</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Ticket Type</Label>
+                          <Select value={ticketTypeId} onValueChange={(value) => { setTicketTypeId(value); const type = ticketTypes.find(t => String(t.id) === value); setNewCategory(String(type?.code || '').toLowerCase()); if (type?.departmentId) setDepartmentId(String(type.departmentId)) }}>
+                            <SelectTrigger className="rounded-lg shadow-sm"><SelectValue placeholder="Select" /></SelectTrigger>
+                            <SelectContent>
+                              {ticketTypes.map(type => <SelectItem key={type.id} value={String(type.id)}>{type.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Department</Label>
+                          <Select value={departmentId} onValueChange={setDepartmentId}>
+                            <SelectTrigger className="rounded-lg shadow-sm"><SelectValue placeholder="Select department" /></SelectTrigger>
+                            <SelectContent>
+                              {departments.map(dep => <SelectItem key={dep.id} value={String(dep.id)}>{dep.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                            <Building className="w-3.5 h-3.5"/> Target Branch
+                          </Label>
+                          <Select value={newBranchId} onValueChange={setNewBranchId}>
+                            <SelectTrigger className="rounded-lg shadow-sm"><SelectValue placeholder="General / No branch" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">General / No branch</SelectItem>
+                              {branches.map(b => (
+                                <SelectItem key={b.id} value={b.id.toString()}>{b.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Linking & Assigning section */}
+                    <div className="space-y-4 border-l pl-5 border-slate-100 dark:border-slate-800">
+                      <div className="space-y-1">
+                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Assignee Staff</Label>
                         <SearchableSelect
                           options={[
                             { value: "none", label: "Unassigned" },
@@ -624,21 +736,15 @@ function TicketsContent() {
                           ]}
                           value={assignedToId}
                           onValueChange={setAssignedToId as (val: string | string[]) => void}
-                          placeholder="Search staff..."
+                          placeholder="Search staff member..."
                           className="w-full"
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label>Department</Label>
-                        <Select value={departmentId} onValueChange={setDepartmentId}><SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger><SelectContent>{departments.map(dep => <SelectItem key={dep.id} value={String(dep.id)}>{dep.name}</SelectItem>)}</SelectContent></Select>
-                      </div>
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Subject Type</Label>
+                      <div className="space-y-1">
+                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Link Subject Type</Label>
                         <Select value={subjectType} onValueChange={(v: any) => { setSubjectType(v); setSubjectId("none"); }}>
-                          <SelectTrigger><SelectValue placeholder="Select Type" /></SelectTrigger>
+                          <SelectTrigger className="rounded-lg shadow-sm"><SelectValue placeholder="Select Type" /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="NONE">General (No Subject)</SelectItem>
                             <SelectItem value="CUSTOMER">Customer</SelectItem>
@@ -646,9 +752,12 @@ function TicketsContent() {
                           </SelectContent>
                         </Select>
                       </div>
+
                       {subjectType !== "NONE" && (
-                        <div className="space-y-2 col-span-2">
-                          <Label>{subjectType === "CUSTOMER" ? "Select Customer" : "Select Lead"}</Label>
+                        <div className="space-y-1 animate-in slide-in-from-top-1 duration-200">
+                          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                            {subjectType === "CUSTOMER" ? "Linked Customer Record" : "Linked Lead Record"}
+                          </Label>
                           <SearchableSelect
                             options={subjectType === "CUSTOMER" 
                               ? customers.map(c => ({ value: c.id.toString(), label: `${c.firstName} ${c.lastName} (${c.customerUniqueId})` }))
@@ -661,49 +770,142 @@ function TicketsContent() {
                           />
                         </div>
                       )}
+
                       {subjectType === "NONE" && (
-                        <div className="col-span-2 grid grid-cols-1 md:grid-cols-3 gap-3">
-                          <div><Label>Contact Name *</Label><Input value={contactName} onChange={e => setContactName(e.target.value)} /></div>
-                          <div><Label>Phone</Label><Input value={contactPhone} onChange={e => setContactPhone(e.target.value)} /></div>
-                          <div><Label>Email</Label><Input type="email" value={contactEmail} onChange={e => setContactEmail(e.target.value)} /></div>
+                        <div className="space-y-3 animate-in slide-in-from-top-1 duration-200 bg-slate-50 dark:bg-slate-900 p-3 rounded-lg border">
+                          <div className="space-y-1">
+                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Contact Name *</Label>
+                            <Input value={contactName} onChange={e => setContactName(e.target.value)} className="bg-white" />
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Phone</Label>
+                              <Input value={contactPhone} onChange={e => setContactPhone(e.target.value)} className="bg-white" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Email</Label>
+                              <Input type="email" value={contactEmail} onChange={e => setContactEmail(e.target.value)} className="bg-white" />
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label className="flex items-center gap-1"><Building className="w-4 h-4"/> Target Branch</Label>
-                        <Select value={newBranchId} onValueChange={setNewBranchId}>
-                          <SelectTrigger><SelectValue placeholder="General / No branch" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">General / No branch</SelectItem>
-                            {branches.map(b => (
-                              <SelectItem key={b.id} value={b.id.toString()}>{b.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2 pt-2 border-t">
+                  </div>
+                  
+                  <div className="flex items-center justify-between border-t pt-4 mt-2">
+                    <div className="flex items-center space-x-2">
                       <Checkbox id="notify" checked={notifyEmail} onCheckedChange={(c) => setNotifyEmail(c as boolean)} />
-                      <Label htmlFor="notify" className="flex items-center gap-1 cursor-pointer font-normal">
-                        <Mail className="w-4 h-4 text-muted-foreground" /> Send Email Notification to Customer/Assignee
+                      <Label htmlFor="notify" className="flex items-center gap-1 cursor-pointer font-normal text-xs text-muted-foreground">
+                        <Mail className="w-3.5 h-3.5" /> Send Notification to Customer / Assignee
                       </Label>
                     </div>
+                    <DialogFooter className="gap-2">
+                      <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
+                      <Button onClick={handleCreate} disabled={submitting} className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white border-0 shadow">
+                        {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                        Create Ticket
+                      </Button>
+                    </DialogFooter>
                   </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
-                    <Button onClick={handleCreate} disabled={submitting}>
-                      {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                      Create Ticket
-                    </Button>
-                  </DialogFooter>
                 </DialogContent>
               </Dialog>
             )}
           </div>
         </div>
+
+        {/* Edit Ticket Modal */}
+        <Dialog open={showEdit} onOpenChange={setShowEdit}>
+          <DialogContent className="sm:max-w-2xl md:max-w-3xl p-6">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold flex items-center gap-2 text-primary">
+                <Edit className="h-5 w-5" /> Edit Support Ticket Details
+              </DialogTitle>
+              <DialogDescription>Modify active support ticket information.</DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 py-4">
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Ticket Subject *</Label>
+                  <Input value={newTitle} onChange={e => setNewTitle(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Details / Description</Label>
+                  <Textarea value={newDescription} onChange={e => setNewDescription(e.target.value)} rows={4} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Priority</Label>
+                    <Select value={newPriority} onValueChange={setNewPriority}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="LOW">Low</SelectItem>
+                        <SelectItem value="MEDIUM">Medium</SelectItem>
+                        <SelectItem value="HIGH">High</SelectItem>
+                        <SelectItem value="CRITICAL">Urgent</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Ticket Type</Label>
+                    <Select value={ticketTypeId} onValueChange={(value) => { setTicketTypeId(value); const type = ticketTypes.find(t => String(t.id) === value); setNewCategory(String(type?.code || '').toLowerCase()); if (type?.departmentId) setDepartmentId(String(type.departmentId)) }}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {ticketTypes.map(type => <SelectItem key={type.id} value={String(type.id)}>{type.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4 border-l pl-5 border-slate-100 dark:border-slate-800">
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Assignee Staff</Label>
+                  <SearchableSelect
+                    options={[
+                      { value: "none", label: "Unassigned" },
+                      ...assignableUsers.map(user => ({ 
+                        value: user.id.toString(), 
+                        label: user.name || user.email 
+                      }))
+                    ]}
+                    value={assignedToId}
+                    onValueChange={setAssignedToId as (val: string | string[]) => void}
+                    placeholder="Search staff member..."
+                    className="w-full"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Department</Label>
+                  <Select value={departmentId} onValueChange={setDepartmentId}>
+                    <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
+                    <SelectContent>
+                      {departments.map(dep => <SelectItem key={dep.id} value={String(dep.id)}>{dep.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Target Branch</Label>
+                  <Select value={newBranchId} onValueChange={setNewBranchId}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">General / No branch</SelectItem>
+                      {branches.map(b => (
+                        <SelectItem key={b.id} value={b.id.toString()}>{b.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setShowEdit(false); setEditingTicket(null); }}>Cancel</Button>
+              <Button onClick={handleEditSave} disabled={submitting}>
+                {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {viewMode === "dashboard" ? (
           <div className="space-y-6">
@@ -877,7 +1079,13 @@ function TicketsContent() {
                               <div className="text-xs text-muted-foreground">{t.branch?.name || "Global / Main"}</div>
                             </td>
                             <td className="p-4">
-                              <div className="font-bold text-primary">{custName}</div>
+                              {t.subject && t.subject.type !== "GUEST" ? (
+                                <Link href={subjectHref(t.subject)} className="font-bold text-primary hover:underline hover:text-blue-500 inline-flex items-center gap-1">
+                                  {custName} <ExternalLink className="h-3 w-3" />
+                                </Link>
+                              ) : (
+                                <div className="font-bold text-slate-700 dark:text-slate-300">{custName}</div>
+                              )}
                               <div className="text-xs text-muted-foreground font-mono">{custPhone}</div>
                             </td>
                             <td className="p-4">
@@ -905,16 +1113,52 @@ function TicketsContent() {
                                 </Badge>
                               </div>
                             </td>
-                            <td className="p-4 text-right">
-                              <div className="flex justify-end gap-1.5">
-                                {t.status !== "RESOLVED" && t.status !== "CLOSED" && (
-                                  <Button size="sm" onClick={() => handleStatusChange(t.id, "RESOLVED")} className="h-7 bg-green-600 hover:bg-green-700 text-white gap-1 text-[11px] font-bold">
-                                    <Check className="h-3 w-3" /> Resolve
-                                  </Button>
-                                )}
-                                <Button size="icon" variant="ghost" className="h-7 w-7 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20" onClick={() => handleDelete(t.id)}>
-                                  <Trash2 className="h-3.5 w-3.5" />
+                            <td className="p-4 text-right relative">
+                              <div className="inline-block text-left">
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8"
+                                  onClick={() => setOpenDropdownId(openDropdownId === t.id ? null : t.id)}
+                                >
+                                  <MoreVertical className="h-4 w-4" />
                                 </Button>
+                                
+                                {openDropdownId === t.id && (
+                                  <>
+                                    <div className="fixed inset-0 z-40" onClick={() => setOpenDropdownId(null)}></div>
+                                    <div className="absolute right-0 mt-1 w-48 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl z-50 py-1 text-left">
+                                      <button 
+                                        onClick={() => { handleEditOpen(t); setOpenDropdownId(null); }} 
+                                        className="w-full text-left px-4 py-2.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-1.5 font-medium"
+                                      >
+                                        <Edit className="h-3.5 w-3.5 text-muted-foreground" /> Edit Ticket
+                                      </button>
+                                      {t.status !== "RESOLVED" && t.status !== "CLOSED" && (
+                                        <button 
+                                          onClick={() => { handleStatusChange(t.id, "RESOLVED"); setOpenDropdownId(null); }} 
+                                          className="w-full text-left px-4 py-2.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-800 text-green-600 font-semibold flex items-center gap-1.5"
+                                        >
+                                          <Check className="h-3.5 w-3.5" /> Resolve Ticket
+                                        </button>
+                                      )}
+                                      {!isRestrictedCloseRole && t.status !== "CLOSED" && (
+                                        <button 
+                                          onClick={() => { handleStatusChange(t.id, "CLOSED"); setOpenDropdownId(null); }} 
+                                          className="w-full text-left px-4 py-2.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-650 font-semibold flex items-center gap-1.5"
+                                        >
+                                          <XCircle className="h-3.5 w-3.5" /> Close Ticket
+                                        </button>
+                                      )}
+                                      <button 
+                                        onClick={() => { handleDelete(t.id); setOpenDropdownId(null); }} 
+                                        className="w-full text-left px-4 py-2.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-800 text-red-600 font-semibold flex items-center gap-1.5 border-t"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" /> Delete Ticket
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -1037,9 +1281,14 @@ function TicketsContent() {
                           <h3 className="font-bold text-lg">{selectedTicket.title}</h3>
                           {selectedTicket.description && <p className="text-sm text-muted-foreground mt-2">{selectedTicket.description}</p>}
                         </div>
-                        <Button size="icon" variant="ghost" className="text-red-600 h-8 w-8 hover:bg-red-50" onClick={() => handleDelete(selectedTicket.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleEditOpen(selectedTicket)}>
+                            <Edit className="h-4 w-4 text-slate-700" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="text-red-650 h-8 w-8 hover:bg-red-50" onClick={() => handleDelete(selectedTicket.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                       {hasPermission("tasks_create") && <Button asChild variant="outline" className="w-full"><Link href={`/tasks?ticketId=${selectedTicket.id}&create=true`}>Schedule as Task</Link></Button>}
 
@@ -1052,18 +1301,19 @@ function TicketsContent() {
                               <SelectItem value="OPEN">Open</SelectItem>
                               <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
                               <SelectItem value="RESOLVED">Resolved</SelectItem>
-                              <SelectItem value="CLOSED">Closed</SelectItem>
+                              {!isRestrictedCloseRole && <SelectItem value="CLOSED">Closed</SelectItem>}
                             </SelectContent>
                           </Select>
                         </div>
                         <div className="text-muted-foreground">Priority:</div>
                         <div className="flex items-center gap-1">{getPriorityIcon(selectedTicket.priority)} {selectedTicket.priority}</div>
+                        
                         {selectedTicket.subject && (
                           <>
                             <div className="text-muted-foreground">{selectedTicket.subject.type === 'CUSTOMER' ? 'Customer:' : 'Lead:'}</div>
-                            <Link href={subjectHref(selectedTicket.subject)} className="block rounded p-1 -m-1 text-primary hover:bg-primary/5 hover:underline">
-                              <p className="font-medium">{selectedTicket.subject.firstName} {selectedTicket.subject.lastName}</p>
-                              <p className="text-[10px]">{selectedTicket.subject.uniqueId}</p>
+                            <Link href={subjectHref(selectedTicket.subject)} className="block rounded p-1 -m-1 text-primary hover:bg-primary/5 hover:underline font-bold inline-flex items-center gap-1.5">
+                              {selectedTicket.subject.firstName} {selectedTicket.subject.lastName}
+                              <ExternalLink className="h-3 w-3" />
                             </Link>
                           </>
                         )}

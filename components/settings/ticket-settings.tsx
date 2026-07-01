@@ -11,29 +11,47 @@ export function TicketSettings() {
   const [slas, setSlas] = useState<any[]>([])
   const [departments, setDepartments] = useState<any[]>([])
   const [type, setType] = useState({ name: "", code: "", description: "", departmentId: "" })
+  const [selectedSlaTypeId, setSelectedSlaTypeId] = useState<string>("global")
 
   const load = async () => {
-    const [t, s, d] = await Promise.all([
+    const [t, d] = await Promise.all([
       apiRequest("/tickets/types"),
-      apiRequest("/tickets/sla-policies"),
       apiRequest<any>("/department")
     ])
     setTypes(Array.isArray(t) ? t : [])
     setDepartments(Array.isArray(d) ? d : (d?.data || []))
+  }
 
-    const loadedSlas = Array.isArray(s) ? s : []
-    const priorities = ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
-    const completeSlas = priorities.map(p => {
-      const existing = loadedSlas.find((x: any) => x.priority === p)
-      if (existing) return existing
-      return { priority: p, responseHours: 24, resolutionHours: 48, closeHours: 72 }
-    })
-    setSlas(completeSlas)
+  const loadSlasForType = async (typeId: string) => {
+    try {
+      const qParam = typeId === "global" ? "null" : typeId
+      const s = await apiRequest(`/tickets/sla-policies?ticketTypeId=${qParam}`)
+      const loadedSlas = Array.isArray(s) ? s : []
+      const priorities = ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+      const completeSlas = priorities.map(p => {
+        const existing = loadedSlas.find((x: any) => x.priority === p)
+        if (existing) return existing
+        return { 
+          priority: p, 
+          responseHours: 24, 
+          resolutionHours: 48, 
+          closeHours: 72, 
+          ticketTypeId: typeId === "global" ? null : Number(typeId) 
+        }
+      })
+      setSlas(completeSlas)
+    } catch (e) {
+      toast.error("Failed to load SLA policies")
+    }
   }
 
   useEffect(() => {
     load().catch(() => toast.error("Failed to load ticket settings"))
   }, [])
+
+  useEffect(() => {
+    loadSlasForType(selectedSlaTypeId)
+  }, [selectedSlaTypeId])
 
   const saveType = async () => {
     await apiRequest("/tickets/types", {
@@ -45,12 +63,16 @@ export function TicketSettings() {
   }
 
   const saveSla = async (sla: any) => {
+    const payload = {
+      ...sla,
+      ticketTypeId: selectedSlaTypeId === "global" ? null : Number(selectedSlaTypeId)
+    }
     await apiRequest("/tickets/sla-policies", {
       method: "POST",
-      body: JSON.stringify(sla)
+      body: JSON.stringify(payload)
     })
     toast.success(`${sla.priority} SLA saved`)
-    await load()
+    await loadSlasForType(selectedSlaTypeId)
   }
 
   return (
@@ -104,14 +126,30 @@ export function TicketSettings() {
           ))}
         </div>
       </section>
+      
       <section className="space-y-4">
-        <div>
-          <h3 className="font-semibold text-foreground">Priority SLA</h3>
-          <p className="text-sm text-muted-foreground">Response, resolution, and resolved-to-close deadlines in hours.</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-foreground">Priority SLA Configuration</h3>
+            <p className="text-sm text-muted-foreground">Response, resolution, and close deadlines.</p>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Label className="text-xs font-bold text-muted-foreground">Type Scope:</Label>
+            <select
+              className="rounded-md border border-slate-200 dark:border-slate-800 bg-background text-foreground p-1 text-xs font-semibold"
+              value={selectedSlaTypeId}
+              onChange={e => setSelectedSlaTypeId(e.target.value)}
+            >
+              <option value="global">Global (Fallback SLA)</option>
+              {types.map(t => (
+                <option key={t.id} value={String(t.id)}>{t.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
         <div className="space-y-4">
           {slas.map(s => (
-            <SlaRow key={s.priority} value={s} onSave={saveSla} />
+            <SlaRow key={`${selectedSlaTypeId}-${s.priority}`} value={s} onSave={saveSla} />
           ))}
         </div>
       </section>
