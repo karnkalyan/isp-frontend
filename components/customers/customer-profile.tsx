@@ -923,6 +923,12 @@ function formatMacAddress(value: string): string {
   return groups.join('.')
 }
 
+function formatColonMacAddress(value?: string | null): string {
+  const compact = String(value || "").replace(/[^a-fA-F0-9]/g, "")
+  if (!/^[a-fA-F0-9]{12}$/.test(compact)) return value || "N/A"
+  return compact.match(/.{2}/g)!.join(":").toUpperCase()
+}
+
 function normalizeIdentifier(value?: string | null): string {
   return (value || "").replace(/[^a-fA-F0-9]/g, "").toLowerCase()
 }
@@ -2055,24 +2061,24 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     }
   }, [customerId])
 
-  const bindRadiusMac = useCallback(async (username: string, macAddress: string) => {
+  const bindRadiusMac = useCallback(async (username: string, macAddress: string, bind = true) => {
     const normalizedMac = String(macAddress || "").trim().toUpperCase().replace(/-/g, ":")
-    if (!username || !/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(normalizedMac)) {
+    if (!username || (bind && !/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(normalizedMac))) {
       toast.error("A valid username and MAC address are required")
       return
     }
 
-    const bindingKey = `${username}:${normalizedMac}`
+    const bindingKey = `${username}:${bind ? "bind" : "unbind"}`
     setBindingRadiusMac(bindingKey)
     try {
       const response = await apiRequest<{ success: boolean; message?: string }>(`/customer/${customerId}/radius/bind-mac`, {
         method: "PUT",
-        body: JSON.stringify({ username, macAddress: normalizedMac })
+        body: JSON.stringify({ username, macAddress: normalizedMac, bind })
       })
       toast.success(response?.message || `MAC bound to ${username}`)
       await fetchRadiusAuthLogs()
     } catch (error: any) {
-      toast.error(error?.message || "Failed to bind MAC in RADIUS")
+      toast.error(error?.message || `Failed to ${bind ? "bind" : "unbind"} MAC in RADIUS`)
     } finally {
       setBindingRadiusMac(null)
     }
@@ -2382,9 +2388,9 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       return
     }
 
-    const macRegex = /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/;
-    if (!macRegex.test(newMacAddress.trim())) {
-      toast.error("Invalid MAC address format. Use format like: 00:1A:2B:3C:4D:5E")
+    const normalizedMac = formatColonMacAddress(newMacAddress)
+    if (normalizedMac === "N/A" || !/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(normalizedMac)) {
+      toast.error("Invalid MAC address. Use D0:5F:AF:AD:78:0B, D0-5F-AF-AD-78-0B, or d05f.afad.780b")
       return
     }
 
@@ -2393,7 +2399,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       const response = await apiRequest(`/customer/${customerId}/mac`, {
         method: 'PUT',
         body: JSON.stringify({
-          newMacAddress: newMacAddress.trim()
+          newMacAddress: normalizedMac
         })
       })
 
@@ -2802,7 +2808,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     if (String(customer?.status || '').toLowerCase() === 'active') return 'active'
     return "N/A"
   }
-  const getMacAddress = () => customer?.devices?.[0]?.macAddress ?? "N/A"
+  const getMacAddress = () => formatColonMacAddress(customer?.devices?.[0]?.macAddress)
   const getDeviceModel = () => customer?.devices?.[0]?.model ?? "N/A"
   const getVlanId = () => customer?.serviceDetails?.[0]?.vlanId ?? "N/A"
   const getVlanPriority = () => customer?.serviceDetails?.[0]?.vlanPriority ?? "N/A"
@@ -4842,22 +4848,24 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                             <td className="py-2 px-3">
                               <div className="flex items-center gap-2 whitespace-nowrap">
                                 <span className="font-mono text-xs">{log.mac || "N/A"}</span>
-                                {/^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/.test(String(log.mac || "")) && log.username && (
+                                {(log.boundMac || /^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/.test(String(log.mac || ""))) && log.username && (
                                   <Button
                                     type="button"
                                     size="sm"
                                     variant="outline"
                                     className="h-7 gap-1 px-2 text-xs"
                                     disabled={bindingRadiusMac !== null}
-                                    onClick={() => bindRadiusMac(log.username, log.mac)}
-                                    title={`Bind ${log.mac} to ${log.username} as Calling-Station-Id`}
+                                    onClick={() => bindRadiusMac(log.username, log.boundMac || log.mac, !log.boundMac)}
+                                    title={log.boundMac
+                                      ? `Remove Calling-Station-Id ${log.boundMac} from ${log.username}`
+                                      : `Bind ${log.mac} to ${log.username} as Calling-Station-Id`}
                                   >
-                                    {bindingRadiusMac === `${log.username}:${String(log.mac).toUpperCase().replace(/-/g, ":")}` ? (
+                                    {bindingRadiusMac === `${log.username}:${log.boundMac ? "unbind" : "bind"}` ? (
                                       <Loader2 className="h-3 w-3 animate-spin" />
                                     ) : (
                                       <Link className="h-3 w-3" />
                                     )}
-                                    Bind MAC
+                                    {log.boundMac ? "Unbind MAC" : "Bind MAC"}
                                   </Button>
                                 )}
                               </div>
