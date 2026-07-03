@@ -1340,6 +1340,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   // ========== Radius Login Details ==========
   const [radiusAuthLogs, setRadiusAuthLogs] = useState<any[]>([])
   const [radiusAuthLoading, setRadiusAuthLoading] = useState(false)
+  const [bindingRadiusMac, setBindingRadiusMac] = useState<string | null>(null)
   const [visiblePasswords, setVisiblePasswords] = useState<Record<number, boolean>>({})
 
   // ========== Radius Active Sessions ==========
@@ -2053,6 +2054,29 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       setRadiusAuthLoading(false)
     }
   }, [customerId])
+
+  const bindRadiusMac = useCallback(async (username: string, macAddress: string) => {
+    const normalizedMac = String(macAddress || "").trim().toUpperCase().replace(/-/g, ":")
+    if (!username || !/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(normalizedMac)) {
+      toast.error("A valid username and MAC address are required")
+      return
+    }
+
+    const bindingKey = `${username}:${normalizedMac}`
+    setBindingRadiusMac(bindingKey)
+    try {
+      const response = await apiRequest<{ success: boolean; message?: string }>(`/customer/${customerId}/radius/bind-mac`, {
+        method: "PUT",
+        body: JSON.stringify({ username, macAddress: normalizedMac })
+      })
+      toast.success(response?.message || `MAC bound to ${username}`)
+      await fetchRadiusAuthLogs()
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to bind MAC in RADIUS")
+    } finally {
+      setBindingRadiusMac(null)
+    }
+  }, [customerId, fetchRadiusAuthLogs])
 
   // ========== Fetch Radius Active Sessions ==========
   const fetchActiveSessions = useCallback(async () => {
@@ -4815,7 +4839,29 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                                 <span className="font-mono text-xs text-muted-foreground">••••••••</span>
                               )}
                             </td>
-                            <td className="py-2 px-3 font-mono text-xs">{log.mac || "N/A"}</td>
+                            <td className="py-2 px-3">
+                              <div className="flex items-center gap-2 whitespace-nowrap">
+                                <span className="font-mono text-xs">{log.mac || "N/A"}</span>
+                                {/^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/.test(String(log.mac || "")) && log.username && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 gap-1 px-2 text-xs"
+                                    disabled={bindingRadiusMac !== null}
+                                    onClick={() => bindRadiusMac(log.username, log.mac)}
+                                    title={`Bind ${log.mac} to ${log.username} as Calling-Station-Id`}
+                                  >
+                                    {bindingRadiusMac === `${log.username}:${String(log.mac).toUpperCase().replace(/-/g, ":")}` ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <Link className="h-3 w-3" />
+                                    )}
+                                    Bind MAC
+                                  </Button>
+                                )}
+                              </div>
+                            </td>
                             <td className="py-2 px-3 font-mono text-xs">{log.calledId || "N/A"}</td>
                             <td className="py-2 px-3 font-mono text-xs">{log.framedIp || "N/A"}</td>
                             <td className="py-2 px-3 font-mono text-xs">{log.nasIp || "N/A"}</td>

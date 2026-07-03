@@ -914,7 +914,7 @@ export default function LeadDetailsPage() {
   const fetchUsers = async () => {
     try {
       const data = await apiRequest("/users");
-      setUsers(Array.isArray(data) ? data.map((user: any) => ({
+      setUsers(Array.isArray(data) ? data.filter((user: any) => user.role?.name?.trim().toLowerCase() !== "customer").map((user: any) => ({
         ...user,
         id: String(user.id),
         role: user.role || undefined

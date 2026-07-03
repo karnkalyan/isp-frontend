@@ -969,7 +969,7 @@ export function LeadManagement() {
       const data = await apiRequest("/users")
 
       const processedUsers = Array.isArray(data)
-        ? data.map((user: any) => ({
+        ? data.filter((user: any) => user.role?.name?.trim().toLowerCase() !== "customer").map((user: any) => ({
           ...user,
           id: String(user.id),
           role: user.role || undefined

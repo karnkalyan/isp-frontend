@@ -316,6 +316,9 @@ interface User {
   id: number
   name: string
   email: string
+  role?: {
+    name?: string
+  }
 }
 
 interface Membership {
@@ -1430,7 +1433,9 @@ export function AddCustomerForm() {
           ])
 
         setPackages(Array.isArray(packagesData) ? packagesData : [])
-        setUsers(Array.isArray(usersData) ? usersData : [])
+        setUsers(Array.isArray(usersData)
+          ? usersData.filter((user: User) => user.role?.name?.trim().toLowerCase() !== "customer")
+          : [])
         setMemberships(Array.isArray(membershipsData) ? membershipsData : [])
         setExistingISPs(Array.isArray(existingISPsData) ? existingISPsData : [])
         setCustomerTypes(Array.isArray(customerTypesData) ? customerTypesData : (Array.isArray(customerTypesData?.data) ? customerTypesData.data : []))
@@ -2924,18 +2929,6 @@ export function AddCustomerForm() {
                   />
                   <Label htmlFor="radius" className="cursor-pointer">RADIUS Authentication</Label>
                 </div>
-                {selectedAddonServices.has("RADIUS") && (
-                  <div className="ml-6 max-w-md space-y-2">
-                    <Label htmlFor="customerNas">NAS Router</Label>
-                    <Select value={selectedNasId} onValueChange={setSelectedNasId}>
-                      <SelectTrigger id="customerNas"><SelectValue placeholder={nasOptions.length ? "Select NAS" : "No active NAS available"} /></SelectTrigger>
-                      <SelectContent>
-                        {nasOptions.map(nas => <SelectItem key={nas.id} value={String(nas.id)}>{nas.shortname || nas.nasname}{nas.isDefault ? " (Default)" : ""}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">The selected router IP is sent to RADIUS as NAS-IP-Address.</p>
-                  </div>
-                )}
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="nettv"
@@ -3709,6 +3702,25 @@ export function AddCustomerForm() {
                         </Label>
                       </div>
                     </RadioGroup>
+                  </div>
+
+                  <div className="space-y-2 max-w-xl">
+                    <Label htmlFor="customerNas">NAS Router</Label>
+                    <Select value={selectedNasId} onValueChange={setSelectedNasId} disabled={nasOptions.length === 0}>
+                      <SelectTrigger id="customerNas">
+                        <SelectValue placeholder={nasOptions.length ? "Select NAS" : "No active NAS available"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {nasOptions.map((nas) => (
+                          <SelectItem key={nas.id} value={String(nas.id)}>
+                            {nas.shortname || nas.nasname}{nas.isDefault ? " (Default)" : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Used for Fiber, Wireless, and Infra Share RADIUS provisioning. The default NAS, or the only available NAS, is selected automatically.
+                    </p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
