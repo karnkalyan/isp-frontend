@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, Fragment } from "react"
-import { Laptop, Loader2, Send, Ticket, Wifi, Activity, Cpu, Thermometer, ShieldAlert, RefreshCw, Network, Radio, ArrowUpDown, Smartphone, Tv, HardDrive, ChevronDown, ChevronUp, Download, ExternalLink, FileText, ImageIcon, MessageSquare } from "lucide-react"
+import { Laptop, Loader2, Send, Ticket, Wifi, Activity, Cpu, Thermometer, ShieldAlert, RefreshCw, Network, Radio, ArrowUpDown, Smartphone, Tv, HardDrive, ChevronDown, ChevronUp, Download, ExternalLink, FileText, ImageIcon, MessageSquare, CreditCard } from "lucide-react"
 import toast from "react-hot-toast"
 import { apiRequest, buildApiAssetUrl, getDynamicBaseUrl } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
@@ -68,8 +68,11 @@ type CustomerProfile = {
   branch?: { id: number; name: string } | null
   subBranch?: { id: number; name: string } | null
   subscribedPkg?: {
+    id?: number
     packageName?: string | null
     price?: number | null
+    initialTotalWithTax?: number | null
+    renewAmountWithTax?: number | null
     packageDuration?: string | null
     referenceId?: string | null
     packagePlanDetails?: {
@@ -258,6 +261,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
   const [radiusUsage, setRadiusUsage] = useState<any[]>([])
   const [radiusUsageLoading, setRadiusUsageLoading] = useState(false)
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null)
+  const [esewaProcessing, setEsewaProcessing] = useState(false)
 
   const handleReboot = async () => {
     if (!serial) return
@@ -414,6 +418,55 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
   }, [])
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const status = params.get("esewa") || (params.get("data") ? "success" : null)
+    const data = params.get("data")
+    if (status === "failure") {
+      toast.error("eSewa payment was cancelled or failed")
+      window.history.replaceState({}, "", window.location.pathname)
+      return
+    }
+    if (status !== "success" || !data) return
+
+    setEsewaProcessing(true)
+    apiRequest<{ success: boolean; referenceCode?: string }>("/esewa/epay/complete", {
+      method: "POST",
+      body: JSON.stringify({ data }),
+    }).then((result) => {
+      toast.success(`eSewa renewal successful${result.referenceCode ? ` (${result.referenceCode})` : ""}`)
+      window.history.replaceState({}, "", window.location.pathname)
+      return loadProfile()
+    }).catch((error: any) => {
+      toast.error(error.message || "Unable to verify eSewa payment")
+    }).finally(() => setEsewaProcessing(false))
+  }, [])
+
+  const renewWithEsewa = async () => {
+    setEsewaProcessing(true)
+    try {
+      const response = await apiRequest<{ formUrl: string; fields: Record<string, string> }>("/esewa/epay/initiate", {
+        method: "POST",
+        body: JSON.stringify({ returnUrl: `${window.location.origin}${window.location.pathname}` }),
+      })
+      const form = document.createElement("form")
+      form.method = "POST"
+      form.action = response.formUrl
+      Object.entries(response.fields).forEach(([name, value]) => {
+        const input = document.createElement("input")
+        input.type = "hidden"
+        input.name = name
+        input.value = String(value)
+        form.appendChild(input)
+      })
+      document.body.appendChild(form)
+      form.submit()
+    } catch (error: any) {
+      setEsewaProcessing(false)
+      toast.error(error.message || "Unable to start eSewa payment")
+    }
+  }
+
+  useEffect(() => {
     if (serial) loadDeviceData(serial)
   }, [serial])
 
@@ -568,6 +621,18 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
         <div className="space-y-2">
           <div className="text-2xl font-bold">{money(profile.billingSummary?.outstandingAmount)}</div>
           <p className="text-xs text-muted-foreground">{profile.billingSummary?.unpaidCount || 0} unpaid invoice/order</p>
+          <div className="border-t pt-3">
+            <div className="mb-2 flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Renewal amount</span>
+              <span className="font-semibold">{money(plan?.renewAmountWithTax ?? plan?.price)}</span>
+            </div>
+            <Button type="button" onClick={renewWithEsewa} disabled={esewaProcessing || !plan} className="w-full gap-2 bg-[#60bb46] text-white hover:bg-[#4da638]">
+              {esewaProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+              <img src="https://developer.esewa.com.np/assets/img/esewa_logo.png" alt="eSewa" className="h-5 w-auto rounded bg-white px-1" />
+              Renew with eSewa
+            </Button>
+            <p className="mt-2 text-[10px] text-muted-foreground">UAT: 9711111111 · Password Nepal@123 · Token 123456</p>
+          </div>
         </div>
       </CardContainer>
       <CardContainer title="Support" className="border-0 bg-gradient-to-br from-amber-50 to-orange-50 shadow-sm dark:from-amber-950/30 dark:to-orange-950/20">

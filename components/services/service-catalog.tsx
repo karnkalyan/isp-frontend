@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, Plus, Filter, Phone, Smartphone, Settings, CheckCircle, XCircle } from "lucide-react";
+import { Search, Plus, Filter, Phone, Smartphone, Settings, CheckCircle, XCircle, CreditCard } from "lucide-react";
 import { ISPService, Service, ServiceCategory } from "@/types/service.types";
 import { ServicesAPI } from "@/lib/api/service";
 import { ServiceCatalogCard } from "./service-catalog-card";
@@ -32,7 +32,8 @@ const categories: (ServiceCategory | 'ALL')[] = [
 
 const SMS_PROVIDER_CODES = ["AAKASHSMS", "SPARROWSMS"];
 const VOIP_PROVIDER_CODES = ["YEASTAR", "ASTERISK"];
-const GROUPED_PROVIDER_CODES = [...SMS_PROVIDER_CODES, ...VOIP_PROVIDER_CODES, "SMS_GATEWAY"];
+const BILLING_PROVIDER_CODES = ["TSHUL", "NEPURIX"];
+const GROUPED_PROVIDER_CODES = [...SMS_PROVIDER_CODES, ...VOIP_PROVIDER_CODES, ...BILLING_PROVIDER_CODES, "SMS_GATEWAY"];
 
 const defaultProviderTemplates: Record<string, { baseUrl: string; apiVersion: string; config: Record<string, any> }> = {
     AAKASHSMS: {
@@ -90,7 +91,9 @@ const defaultProviderTemplates: Record<string, { baseUrl: string; apiVersion: st
                 ari_app_name: "kisan"
             }
         }
-    }
+    },
+    TSHUL: { baseUrl: "", apiVersion: "v1", config: { isDefault: true, timeout: 30000, retryAttempts: 3 } },
+    NEPURIX: { baseUrl: "", apiVersion: "v1", config: { isDefault: true, timeout: 30000, retryAttempts: 3 } }
 };
 
 type ServiceProviderGroup = {
@@ -118,6 +121,14 @@ const providerGroups: ServiceProviderGroup[] = [
         category: "VOIP",
         codes: VOIP_PROVIDER_CODES,
         icon: <Phone className="h-5 w-5" />
+    },
+    {
+        key: "billing-provider",
+        title: "Accounting Provider",
+        description: "Configure Tshul or Nepurix as the default accounting and billing provider.",
+        category: "BILLING",
+        codes: BILLING_PROVIDER_CODES,
+        icon: <CreditCard className="h-5 w-5" />
     }
 ];
 

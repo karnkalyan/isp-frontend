@@ -14,6 +14,7 @@ import { BillingConfigurationSettings } from "@/components/settings/billing-conf
 import { TicketSettings } from "@/components/settings/ticket-settings"
 import { RadiusPoolsSettings } from "@/components/settings/radius-pools-settings"
 import { ServicesSyncSettings } from "@/components/settings/services-sync-settings"
+import { PaymentGatewaySettings } from "./payment-gateway-settings"
 
 export function MasterSettingsTabs() {
   const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null)
@@ -80,6 +81,7 @@ export function MasterSettingsTabs() {
           <TabsTrigger value="roles">Role & Sidebar Management</TabsTrigger>
           <TabsTrigger value="ticket-settings">Ticket Settings</TabsTrigger>
           <TabsTrigger value="billing-configuration">Billing Configuration</TabsTrigger>
+          <TabsTrigger value="payment-gateway">Payment Gateway</TabsTrigger>
           <TabsTrigger value="radius-pools">RADIUS Pools</TabsTrigger>
           <TabsTrigger value="services-sync">Services Sync</TabsTrigger>
           {showLicense && <TabsTrigger value="license">License</TabsTrigger>}
@@ -120,6 +122,9 @@ export function MasterSettingsTabs() {
           <CardContainer title="Fiscal Years & Payment Methods" description="Configure fiscal sessions and accepted renewal payment methods" gradientColor="#0ea5e9">
             <BillingConfigurationSettings />
           </CardContainer>
+        </TabsContent>
+        <TabsContent value="payment-gateway">
+          <PaymentGatewaySettings />
         </TabsContent>
         <TabsContent value="radius-pools">
           <CardContainer title="RADIUS Pool Management" description="Create Framed-Pool values and assign them to Internet Plans" gradientColor="#0ea5e9">

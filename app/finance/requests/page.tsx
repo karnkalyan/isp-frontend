@@ -18,6 +18,7 @@ import {
 import toast from "react-hot-toast"
 import { useAuth } from "@/contexts/AuthContext"
 import { CardContainer } from "@/components/ui/card-container"
+import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import {
   Dialog,
   DialogContent,
@@ -128,6 +129,7 @@ export default function RequestsPage() {
   }
 
   return (
+    <DashboardLayout>
     <div className="container mx-auto py-8 space-y-6">
       <div className="flex justify-between items-center">
         <div>
@@ -324,5 +326,6 @@ export default function RequestsPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </DashboardLayout>
   )
 }

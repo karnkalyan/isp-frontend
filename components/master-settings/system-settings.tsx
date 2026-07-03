@@ -413,6 +413,86 @@ export function SystemSettings() {
       </div>
 
       <div className="grid gap-6">
+        {/* eSewa settings moved to the Payment Gateway tab.
+        <CardContainer title="eSewa Payment Configuration" description="Enable token payment and ePay independently, securely configure token credentials, and generate the Base64 values supplied to eSewa.">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <div><Label>Token Payment</Label><p className="text-xs text-muted-foreground">Inbound access-token, inquiry, payment and status APIs</p></div>
+                <Switch checked={esewaConfig.tokenEnabled} onCheckedChange={checked => setEsewaConfig(prev => ({ ...prev, tokenEnabled: checked }))} />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <div><Label>ePay v2</Label><p className="text-xs text-muted-foreground">Customer dashboard redirect-based renewal</p></div>
+                <Switch checked={esewaConfig.epayEnabled} onCheckedChange={checked => setEsewaConfig(prev => ({ ...prev, epayEnabled: checked }))} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="esewaUsername">Token API Username</Label>
+              <Input id="esewaUsername" value={esewaConfig.username} onChange={event => setEsewaConfig(prev => ({ ...prev, username: event.target.value }))} placeholder="esewa-client" />
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="esewaPassword">eSewa Password</Label>
+                <Input
+                  id="esewaPassword"
+                  type="password"
+                  autoComplete="new-password"
+                  value={esewaCredentials.password}
+                  onChange={(event) => setEsewaCredentials(prev => ({ ...prev, password: event.target.value }))}
+                  placeholder={esewaConfig.passwordConfigured ? "Configured — leave blank to keep" : "Minimum 8 characters"}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="esewaClientSecret">eSewa Client Secret</Label>
+                <Input
+                  id="esewaClientSecret"
+                  type="password"
+                  autoComplete="new-password"
+                  value={esewaCredentials.clientSecret}
+                  onChange={(event) => setEsewaCredentials(prev => ({ ...prev, clientSecret: event.target.value }))}
+                  placeholder={esewaConfig.clientSecretConfigured ? "Configured — leave blank to keep" : "32–64 characters"}
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" onClick={saveEsewaConfiguration} disabled={savingEsewa || !esewaConfig.serviceEnabled} className="gap-2">
+                {savingEsewa ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Save eSewa Configuration
+              </Button>
+              <Button type="button" variant="outline" onClick={generateEsewaBase64} disabled={encodingEsewa} className="gap-2">
+                {encodingEsewa ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+                Generate Base64 Values
+              </Button>
+            </div>
+            {!esewaConfig.serviceEnabled && <p className="text-sm text-amber-600">Enable eSewa in the Service Catalog before saving these options.</p>}
+
+            {(esewaEncoded.passwordBase64 || esewaEncoded.clientSecretBase64) && (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>REPLACE_WITH_BASE64_PASSWORD</Label>
+                  <div className="flex gap-2">
+                    <Input value={esewaEncoded.passwordBase64} readOnly className="font-mono text-xs" />
+                    <Button type="button" variant="outline" size="icon" onClick={() => copyEsewaValue(esewaEncoded.passwordBase64, "Password Base64")}>
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>REPLACE_WITH_BASE64_CLIENT_SECRET</Label>
+                  <div className="flex gap-2">
+                    <Input value={esewaEncoded.clientSecretBase64} readOnly className="font-mono text-xs" />
+                    <Button type="button" variant="outline" size="icon" onClick={() => copyEsewaValue(esewaEncoded.clientSecretBase64, "Client Secret Base64")}>
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContainer>
+
+        */}
         <CardContainer title="Sidebar Branding" description="Upload ISP logos for expanded and collapsed sidebar states">
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">

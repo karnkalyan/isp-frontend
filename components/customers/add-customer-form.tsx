@@ -48,6 +48,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Slider } from "@/components/ui/slider"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 
 import "leaflet/dist/leaflet.css"
@@ -1292,8 +1293,21 @@ export function AddCustomerForm() {
 
   // Add‑on services selection (after customer creation)
   const [selectedAddonServices, setSelectedAddonServices] = useState<Set<string>>(new Set()) // "TSHUL", "RADIUS", "NETTV"
+  const [nasOptions, setNasOptions] = useState<any[]>([])
+  const [selectedNasId, setSelectedNasId] = useState("")
   const [nettvDialogOpen, setNettvDialogOpen] = useState(false)
   const [nettvData, setNettvData] = useState<any>(null)
+
+  useEffect(() => {
+    apiRequest<any[]>("/nas")
+      .then((list) => {
+        const active = (Array.isArray(list) ? list : []).filter(nas => nas.isActive && !nas.isDeleted)
+        setNasOptions(active)
+        const preferred = active.find(nas => nas.isDefault) || (active.length === 1 ? active[0] : null)
+        setSelectedNasId(preferred ? String(preferred.id) : "")
+      })
+      .catch(() => setNasOptions([]))
+  }, [])
 
   // Track service provision results for retry
   const [serviceProvisionResults, setServiceProvisionResults] = useState<Array<{
@@ -2378,6 +2392,12 @@ export function AddCustomerForm() {
       }
 
       if (selectedAddonServices.has("RADIUS")) {
+        const selectedNas = nasOptions.find(nas => String(nas.id) === selectedNasId)
+        if (nasOptions.length > 0 && !selectedNas) {
+          toast.error("Select a NAS for RADIUS provisioning.")
+          setIsProvisioning(false)
+          return
+        }
         // Use first valid wireless credential; if none, generate random
         let username = "", password = ""
         const validCred = wirelessCredentials.find(c => c.username && c.password)
@@ -2405,7 +2425,9 @@ export function AddCustomerForm() {
             password,
             attributes: {
               Expiration: expiryDate,
+              ...(selectedNas?.nasname ? { "NAS-IP-Address": selectedNas.nasname } : {}),
             },
+            nasId: selectedNas?.id,
             groups: [radiusGroupName],
           }
         })
@@ -2456,7 +2478,7 @@ export function AddCustomerForm() {
     } finally {
       setIsProvisioning(false)
     }
-  }, [createdCustomer, isFiber, serviceDetails.connectionType, registerOntOnOlt, selectedAddonServices, formValues, wirelessCredentials, provisionResult, getRadiusGroupByPackageId, nettvData])
+  }, [createdCustomer, isFiber, serviceDetails.connectionType, registerOntOnOlt, selectedAddonServices, formValues, wirelessCredentials, provisionResult, getRadiusGroupByPackageId, nettvData, nasOptions, selectedNasId])
 
   // Retry failed services
   const handleRetryService = useCallback(async (service: string) => {
@@ -2902,6 +2924,18 @@ export function AddCustomerForm() {
                   />
                   <Label htmlFor="radius" className="cursor-pointer">RADIUS Authentication</Label>
                 </div>
+                {selectedAddonServices.has("RADIUS") && (
+                  <div className="ml-6 max-w-md space-y-2">
+                    <Label htmlFor="customerNas">NAS Router</Label>
+                    <Select value={selectedNasId} onValueChange={setSelectedNasId}>
+                      <SelectTrigger id="customerNas"><SelectValue placeholder={nasOptions.length ? "Select NAS" : "No active NAS available"} /></SelectTrigger>
+                      <SelectContent>
+                        {nasOptions.map(nas => <SelectItem key={nas.id} value={String(nas.id)}>{nas.shortname || nas.nasname}{nas.isDefault ? " (Default)" : ""}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">The selected router IP is sent to RADIUS as NAS-IP-Address.</p>
+                  </div>
+                )}
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="nettv"

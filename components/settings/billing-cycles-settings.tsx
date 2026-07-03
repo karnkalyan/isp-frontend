@@ -19,6 +19,7 @@ type ExtraCharge = {
   isTscApplicable: boolean
   amount: number | null
   forPackageCreation: boolean
+  isRenewal: boolean
   description: string | null
   // FIX #1: The API sends 'id', not 'packageId'.
   applicablePackages: { id: number }[]
@@ -32,6 +33,7 @@ type FormItem = {
   isTscApplicable: boolean
   amount: number
   forPackageCreation: boolean
+  isRenewal: boolean
   description: string
   applicablePackageIds: number[]
 }
@@ -52,6 +54,7 @@ export function ExtraChargesSettings() {
     isTscApplicable: false,
     amount: 0,
     forPackageCreation: false,
+    isRenewal: false,
     description: "",
     applicablePackageIds: [],
   }
@@ -160,6 +163,7 @@ export function ExtraChargesSettings() {
       isTaxable: charge.isTaxable,
       isTscApplicable: charge.isTscApplicable || false,
       forPackageCreation: charge.forPackageCreation || false,
+      isRenewal: charge.isRenewal || false,
       description: charge.description || "",
       applicablePackageIds: charge.applicablePackages.map(p => p.id),
     })
@@ -253,7 +257,7 @@ export function ExtraChargesSettings() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-6 gap-4 mb-4">
             <div className="space-y-2">
               <Label htmlFor="amount">Amount</Label>
               <Input
@@ -313,6 +317,16 @@ export function ExtraChargesSettings() {
               />
               <Label htmlFor="forPackageCreation" className="text-sm font-medium">For Package Creation</Label>
             </div>
+            <div className="flex items-center space-x-2 pt-8">
+              <input
+                id="isRenewal"
+                type="checkbox"
+                className="h-4 w-4 rounded border-gray-350 text-indigo-600 focus:ring-indigo-500 bg-slate-900 border-slate-700"
+                checked={items.isRenewal}
+                onChange={(e) => setItems({ ...items, isRenewal: e.target.checked })}
+              />
+              <Label htmlFor="isRenewal" className="text-sm font-medium">Include on Renewal</Label>
+            </div>
           </div>
 
           <div className="flex justify-end space-x-2">
@@ -369,6 +383,7 @@ export function ExtraChargesSettings() {
                 <TableHead>Amount</TableHead>
                 <TableHead>Taxable</TableHead>
                 <TableHead>TSC Applicable</TableHead>
+                <TableHead>Renewal</TableHead>
                 <TableHead>Applicable Packages</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -411,6 +426,7 @@ export function ExtraChargesSettings() {
                     <TableCell>
                       {charge.isTscApplicable ? "Yes" : "No"}
                     </TableCell>
+                    <TableCell>{charge.isRenewal ? "Yes" : "No"}</TableCell>
                     <TableCell>
                       {charge.applicablePackages.length > 0
                         // FIX #3: Use p.id to correctly look up the package name.

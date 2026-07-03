@@ -46,6 +46,11 @@ const defaultServiceTemplates = {
             }
         }, null, 2)
     },
+    NEPURIX: {
+        baseUrl: "https://your-nepurix-host.example",
+        apiVersion: "v1",
+        config: JSON.stringify({ isDefault: true, timeout: 30000, retryAttempts: 3 }, null, 2)
+    },
     RADIUS: {
         baseUrl: "http://10.3.2.6:3005/api",
         apiVersion: "v1",
@@ -120,10 +125,15 @@ const defaultServiceTemplates = {
         }, null, 2)
     },
     ESEWA: {
-        baseUrl: "https://uat.esewa.com.np",
+        baseUrl: "https://rc-epay.esewa.com.np",
         apiVersion: "v1",
         config: JSON.stringify({
+            integrationMode: "TOKEN_BASED",
             environment: "uat",
+            tokenEnabled: true,
+            epayEnabled: true,
+            productCode: "EPAYTEST",
+            epaySecretKey: "8gBm/:&EnhH.1/q",
             timeout: 30000
         }, null, 2)
     },

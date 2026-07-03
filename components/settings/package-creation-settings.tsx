@@ -72,6 +72,7 @@ export type AddonCharge = {
   amount: number
   isTaxable: boolean
   isTscApplicable: boolean
+  isRenewal: boolean
   forPackageCreation: boolean
   description: string | null
 }
@@ -177,7 +178,7 @@ export function PackageCreationSettings() {
       return customVal !== undefined ? customVal : (item.amount || 0)
     }
 
-    const recurringAddons = activeAddons.filter(a => isRecurringItem(a.name, a.code))
+    const recurringAddons = activeAddons.filter(a => a.isRenewal)
     const basePrice = recurringAddons.reduce((sum, item) => sum + getAmount(item), 0)
 
     const initialTaxableSum = activeAddons.reduce((sum, item) => {
@@ -221,7 +222,7 @@ export function PackageCreationSettings() {
     setRenewAmountWithTax(prev => ({ ...prev, [dur]: val }))
     
     const activeAddons = addonCharges.filter(charge => (durationAddons[dur] || []).includes(charge.id))
-    const recurringAddons = activeAddons.filter(a => isRecurringItem(a.name, a.code))
+    const recurringAddons = activeAddons.filter(a => a.isRenewal)
     const calculatedPrice = backCalculatePrice(val, recurringAddons, customAddonPrices[dur] || {}, tscPercentage)
     setDurationPrices(prev => ({ ...prev, [dur]: calculatedPrice }))
   }
