@@ -2045,40 +2045,6 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     } catch (error: any) { toast.error(error.message || "Failed to extend trial") }
   }
 
-  const pauseOrResumeService = async () => {
-    if (!customer) return
-    const subscription = customer.customerSubscriptions?.[0]
-    if (!subscription) return toast.error("No active subscription")
-    const action = subscription.isPaused ? "play" : "pause"
-    try {
-      setActionLoading(true)
-      await apiRequest("/billing/pause-play", { method: "POST", body: JSON.stringify({ customerId: customer.id, action }) })
-      toast.success(action === "pause" ? "Service paused; remaining time is preserved" : "Service resumed; paused duration added to expiry")
-      await fetchCustomerData()
-    } catch (error: any) { toast.error(error.message || `Failed to ${action} service`) }
-    finally { setActionLoading(false) }
-  }
-
-  const applySubscriptionExtension = async (type: "grace" | "compensation" | "admin_extension") => {
-    if (!customer) return
-    const subscription = customer.customerSubscriptions?.[0]
-    if (!subscription) return toast.error("No active subscription")
-    const input = window.prompt(type === "admin_extension" ? "Enter extension days or a specific date (YYYY-MM-DD)" : `Enter ${type} days`, "3")
-    if (input === null) return
-    const numericDays = Number(input)
-    const payload: any = { customerId: customer.id, type }
-    if (Number.isInteger(numericDays) && numericDays > 0) payload.days = numericDays
-    else if (type === "admin_extension" && /^\d{4}-\d{2}-\d{2}$/.test(input)) payload.extendToDate = input
-    else return toast.error("Enter valid days" + (type === "admin_extension" ? " or YYYY-MM-DD" : ""))
-    try {
-      setActionLoading(true)
-      await apiRequest("/billing/extend", { method: "POST", body: JSON.stringify(payload) })
-      toast.success(type === "compensation" ? "Compensation added without renewal deduction" : "Extension applied")
-      await fetchCustomerData()
-    } catch (error: any) { toast.error(error.message || "Failed to extend subscription") }
-    finally { setActionLoading(false) }
-  }
-
   useEffect(() => {
     if (customerId) fetchCustomerData()
   }, [customerId])
@@ -3524,17 +3490,6 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                         <span className="text-muted-foreground">Plan End:</span>
                         <span className="font-medium">{formatDate(latestSubscription.planEnd)}</span>
                       </div>
-                      <div className="space-y-2 rounded-lg border bg-background/60 p-3">
-                        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Subscription controls</div>
-                        <div className="flex flex-wrap gap-2">
-                          <Button size="sm" variant="outline" onClick={pauseOrResumeService} disabled={actionLoading}>
-                            {latestSubscription.isPaused ? <Play className="mr-2 h-4 w-4 text-green-600" /> : <Pause className="mr-2 h-4 w-4 text-amber-600" />}{latestSubscription.isPaused ? "Resume" : "Pause"}
-                          </Button>
-                          {new Date(latestSubscription.planEnd) <= new Date() && Number(latestSubscription.graceDaysBalance || 0) === 0 && <Button size="sm" variant="outline" onClick={() => applySubscriptionExtension("grace")} disabled={actionLoading}><Clock className="mr-2 h-4 w-4" />Grace</Button>}
-                          <Button size="sm" variant="outline" onClick={() => applySubscriptionExtension("compensation")} disabled={actionLoading}><Plus className="mr-2 h-4 w-4" />Compensation</Button>
-                          {canExtendTrial && <Button size="sm" variant="outline" onClick={() => applySubscriptionExtension("admin_extension")} disabled={actionLoading}><Calendar className="mr-2 h-4 w-4" />Admin Extension</Button>}
-                        </div>
-                      </div>
                       <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                         <span className="text-muted-foreground">Days Remaining:</span>
                         <span className={`font-medium ${daysUntilExpiry < 7 ? "text-red-500" : daysUntilExpiry < 30 ? "text-amber-500" : "text-green-500"}`}>
@@ -3887,6 +3842,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
               </div>
             </CardContainer>
           </div>
+
+          <CustomerBillingManagement customer={customer} refreshCustomer={fetchCustomerData} controlsOnly />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
             <CardContainer title="RADIUS / PPPoE Credentials" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">

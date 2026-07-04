@@ -41,15 +41,16 @@ import {
 interface BillingProps {
     customer: any
     refreshCustomer: () => void
+    controlsOnly?: boolean
 }
 
-export function CustomerBillingManagement({ customer, refreshCustomer }: BillingProps) {
+export function CustomerBillingManagement({ customer, refreshCustomer, controlsOnly = false }: BillingProps) {
     const { user } = useAuth()
     const [loading, setLoading] = useState(false)
     const [showExtendDialog, setShowExtendDialog] = useState(false)
     const [extendDays, setExtendDays] = useState("3")
     const [extendToDate, setExtendToDate] = useState("")
-    const [extendType, setExtendType] = useState("grace")
+    const [extendType, setExtendType] = useState<"grace" | "compensation" | "admin_extension">("grace")
 
     const latestSub = customer.customerSubscriptions?.[0]
 
@@ -57,11 +58,7 @@ export function CustomerBillingManagement({ customer, refreshCustomer }: Billing
         if (!user) return false
         const roleStr = typeof user.role === 'string' ? user.role : (user.role?.name || '')
         const roleName = roleStr.toLowerCase()
-        return roleName === 'administrator' || 
-               roleName === 'admin' || 
-               roleName === 'isp_admin' || 
-               roleName === 'super admin' || 
-               roleName.startsWith('global')
+        return ['administrator', 'admin', 'isp_admin', 'super_admin', 'super admin', 'global admin', 'global_admin'].includes(roleName)
     }, [user])
 
     React.useEffect(() => {
@@ -71,6 +68,13 @@ export function CustomerBillingManagement({ customer, refreshCustomer }: Billing
             setExtendType("grace")
         }
     }, [latestSub])
+
+    const openExtendDialog = (type: "grace" | "compensation" | "admin_extension") => {
+        setExtendType(type)
+        setExtendDays("3")
+        setExtendToDate("")
+        setShowExtendDialog(true)
+    }
 
     const handleExtend = async () => {
         setLoading(true)
@@ -126,13 +130,13 @@ export function CustomerBillingManagement({ customer, refreshCustomer }: Billing
 
     return (
         <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className={`grid grid-cols-1 ${controlsOnly ? '' : 'md:grid-cols-3'} gap-6`}>
                 {/* Current Status Card */}
                 <CardContainer title="Subscription Controls" className="md:col-span-2">
                     <div className="flex items-center justify-between p-4 mb-6 rounded-xl bg-slate-50 dark:bg-slate-800 border">
                         <div className="flex items-center gap-4">
                             <div className={`p-3 rounded-full ${latestSub.isPaused ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                                {latestSub.isPaused ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
+                                {latestSub.isPaused ? <Play className="h-6 w-6" /> : <Pause className="h-6 w-6" />}
                             </div>
                             <div>
                                 <div className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Current State</div>
@@ -156,16 +160,8 @@ export function CustomerBillingManagement({ customer, refreshCustomer }: Billing
                         </Button>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 h-full">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 h-full">
                         <Dialog open={showExtendDialog} onOpenChange={setShowExtendDialog}>
-                            {(!latestSub?.isTrial || isGlobalAdmin) && (
-                                <DialogTrigger asChild>
-                                    <Button variant="outline" className="h-24 flex-col gap-2 border-dashed hover:border-primary hover:bg-primary/5">
-                                        <Clock className="h-6 w-6 text-primary" />
-                                        <span>Extend Duration</span>
-                                    </Button>
-                                </DialogTrigger>
-                            )}
                             <DialogContent>
                                 <DialogHeader>
                                     <DialogTitle>Extend Subscription</DialogTitle>
@@ -176,7 +172,7 @@ export function CustomerBillingManagement({ customer, refreshCustomer }: Billing
                                 <div className="space-y-4 py-4">
                                     <div className="space-y-2">
                                         <Label>Extension Type</Label>
-                                        <Select value={extendType} onValueChange={setExtendType}>
+                                        <Select value={extendType} onValueChange={(value) => setExtendType(value as typeof extendType)} disabled={!isGlobalAdmin}>
                                             <SelectTrigger>
                                                 <SelectValue />
                                             </SelectTrigger>
@@ -187,6 +183,7 @@ export function CustomerBillingManagement({ customer, refreshCustomer }: Billing
                                                     <>
                                                         <SelectItem value="grace">Grace Period (Deductible)</SelectItem>
                                                         <SelectItem value="compensation">Compensation (Non-deductible)</SelectItem>
+                                                        {isGlobalAdmin && <SelectItem value="admin_extension">Admin Extension (Deductible)</SelectItem>}
                                                     </>
                                                 )}
                                             </SelectContent>
@@ -196,7 +193,9 @@ export function CustomerBillingManagement({ customer, refreshCustomer }: Billing
                                                 ? "Days will be added to the trial package duration."
                                                 : extendType === 'grace' 
                                                     ? "Days will be deducted automatically from the next renewal payment."
-                                                    : "Days will be added for free without any future deductions."}
+                                                    : extendType === 'admin_extension'
+                                                        ? "Admin extension is deducted from the next renewal."
+                                                        : "Compensation is added to the current expiry without any future deduction."}
                                         </p>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
@@ -225,22 +224,14 @@ export function CustomerBillingManagement({ customer, refreshCustomer }: Billing
                                 </DialogFooter>
                             </DialogContent>
                         </Dialog>
-
-                        <div className="p-4 rounded-xl border bg-slate-50/50 dark:bg-slate-800/50 flex flex-col justify-between">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm font-medium text-muted-foreground">Grace Balance</span>
-                                <Clock className="h-4 w-4 text-amber-500" />
-                            </div>
-                            <div className="text-2xl font-bold text-amber-600">
-                                {latestSub.graceDaysBalance || 0} <span className="text-sm font-normal text-muted-foreground">Days</span>
-                            </div>
-                            <p className="text-[10px] text-muted-foreground mt-2 uppercase tracking-tighter">Due for next renewal</p>
-                        </div>
+                        {new Date(latestSub.planEnd) <= new Date() && Number(latestSub.graceDaysBalance || 0) === 0 && <Button variant="outline" className="h-20 flex-col gap-2 border-dashed" onClick={() => openExtendDialog("grace")}><Clock className="h-5 w-5 text-amber-500" />Grace Period</Button>}
+                        <Button variant="outline" className="h-20 flex-col gap-2 border-dashed" onClick={() => openExtendDialog("compensation")}><CalendarDays className="h-5 w-5 text-emerald-500" />Compensation</Button>
+                        {isGlobalAdmin && <Button variant="outline" className="h-20 flex-col gap-2 border-dashed" onClick={() => openExtendDialog("admin_extension")}><Calendar className="h-5 w-5 text-violet-500" />Admin Extension</Button>}
                     </div>
                 </CardContainer>
 
                 {/* Quick Stats Card */}
-                <div className="space-y-6">
+                {!controlsOnly && <div className="space-y-6">
                     <CardContainer title="Plan Details">
                         <div className="space-y-4">
                             <div className="flex items-center justify-between">
@@ -261,11 +252,11 @@ export function CustomerBillingManagement({ customer, refreshCustomer }: Billing
                             </div>
                         </div>
                     </CardContainer>
-                </div>
+                </div>}
             </div>
 
             {/* Invoices & Adjustments Section */}
-            <CardContainer title="Order Adjustments & History">
+            {!controlsOnly && <CardContainer title="Order Adjustments & History">
                 <div className="flex items-center justify-between mb-4">
                     <p className="text-sm text-muted-foreground">Manage custom charges and discounts for recent orders.</p>
                 </div>
@@ -370,7 +361,7 @@ export function CustomerBillingManagement({ customer, refreshCustomer }: Billing
                         </div>
                     ))}
                 </div>
-            </CardContainer>
+            </CardContainer>}
         </div>
     )
 }

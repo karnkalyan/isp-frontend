@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 // @ts-ignore - this project does not include local d3 type declarations.
 import * as d3 from "d3"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Maximize2, Minimize2, RefreshCw } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Loader2, Maximize2, Minimize2, RefreshCw, Search, X } from "lucide-react"
 import { useTheme } from "next-themes"
 import { fetchFiberNetworkDataset, type FiberTreeNode } from "@/lib/fiber-network-data"
 
@@ -28,6 +29,25 @@ export function NetworkTopologyD3() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+
+  const searchableNodes = useMemo(() => {
+    const results: FiberTreeNode[] = []
+    const visit = (node: FiberTreeNode) => {
+      if (node.type === "onu" || node.type === "splitter-master" || node.type === "splitter-slave") results.push(node)
+      node.children?.forEach(visit)
+    }
+    if (data) visit(data)
+    return results
+  }, [data])
+
+  const searchResults = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    if (!query) return []
+    return searchableNodes.filter(node => [node.name, node.meta?.splitterId, node.meta?.customerId, node.meta?.phone, node.meta?.macAddress]
+      .filter(Boolean).some(value => String(value).toLowerCase().includes(query))).slice(0, 10)
+  }, [searchQuery, searchableNodes])
 
   useEffect(() => {
     const syncFullscreen = () => setIsFullscreen(document.fullscreenElement === containerRef.current)
@@ -87,6 +107,26 @@ export function NetworkTopologyD3() {
     root.y0 = 0
     root.children?.forEach(collapse)
 
+    if (selectedNodeId) {
+      const findNode = (node: any): any => {
+        if (node.data.id === selectedNodeId) return node
+        for (const child of [...(node.children || []), ...(node._children || [])]) {
+          const match = findNode(child)
+          if (match) return match
+        }
+        return null
+      }
+      const selected = findNode(root)
+      let ancestor = selected?.parent
+      while (ancestor) {
+        if (ancestor._children) {
+          ancestor.children = ancestor._children
+          ancestor._children = null
+        }
+        ancestor = ancestor.parent
+      }
+    }
+
     function update(source: any) {
       d3.tree().nodeSize([dx, dy])(root)
 
@@ -112,10 +152,11 @@ export function NetworkTopologyD3() {
 
       nodeEnter
         .append("circle")
-        .attr("r", 8)
+        .attr("r", (d: any) => d.data.id === selectedNodeId ? 12 : 8)
         .attr("fill", (d: any) => (d._children ? nodeColor(d.data) : "#fff"))
         .attr("stroke", (d: any) => nodeColor(d.data))
-        .attr("stroke-width", 2)
+        .attr("stroke", (d: any) => d.data.id === selectedNodeId ? "#a855f7" : nodeColor(d.data))
+        .attr("stroke-width", (d: any) => d.data.id === selectedNodeId ? 5 : 2)
 
       nodeEnter
         .append("text")
@@ -185,19 +226,28 @@ export function NetworkTopologyD3() {
     }
 
     update(root)
-  }, [data, dark])
+  }, [data, dark, selectedNodeId])
 
   const isEmpty = !loading && !error && (!data?.children || data.children.length === 0)
 
   return (
     <div ref={containerRef} className={isFullscreen ? "h-screen w-screen overflow-hidden bg-background p-0" : ""}>
     <Card className={isFullscreen ? "h-screen w-screen rounded-none border-0" : ""}>
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <CardTitle>GPON Physical Topology</CardTitle>
-        <div className="flex gap-2"><Button size="sm" variant="outline" onClick={loadTopology} disabled={loading}>
+        <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
+          <div className="relative min-w-[280px] flex-1 lg:w-[360px]">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={searchQuery} onChange={event => { setSearchQuery(event.target.value); setSelectedNodeId(null) }} placeholder="Search customer or splitter..." className="pl-9 pr-9" />
+            {searchQuery && <button type="button" onClick={() => { setSearchQuery(""); setSelectedNodeId(null) }} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>}
+            {searchQuery.trim() && !selectedNodeId && <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-72 overflow-y-auto rounded-md border bg-popover p-1 shadow-lg">
+              {searchResults.length ? searchResults.map(node => <button key={node.id} type="button" className="flex w-full items-center justify-between rounded-sm px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => { setSelectedNodeId(node.id); setSearchQuery(node.name) }}><span className="truncate">{node.name}</span><span className="ml-3 shrink-0 text-xs text-muted-foreground">{node.type === "onu" ? "Customer" : "Splitter"}</span></button>) : <div className="px-3 py-3 text-sm text-muted-foreground">No customer or splitter found.</div>}
+            </div>}
+          </div>
+          <div className="flex gap-2"><Button size="sm" variant="outline" onClick={loadTopology} disabled={loading}>
           {loading ? <Loader2 size={14} className="mr-2 animate-spin" /> : <RefreshCw size={14} className="mr-2" />}
           Refresh
-        </Button><Button size="sm" variant="outline" onClick={toggleFullscreen}>{isFullscreen ? <Minimize2 size={14} className="mr-2" /> : <Maximize2 size={14} className="mr-2" />}{isFullscreen ? "Exit" : "Fullscreen"}</Button></div>
+        </Button><Button size="sm" variant="outline" onClick={toggleFullscreen}>{isFullscreen ? <Minimize2 size={14} className="mr-2" /> : <Maximize2 size={14} className="mr-2" />}{isFullscreen ? "Exit" : "Fullscreen"}</Button></div></div>
       </CardHeader>
       <CardContent>
         {error && (
