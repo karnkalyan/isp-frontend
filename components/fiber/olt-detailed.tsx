@@ -1270,12 +1270,17 @@ export function OLTDetailed() {
     if (!selectedOLT) return;
     setLoadingFileId(file.id);
     try {
-      await apiRequest(`/device/${selectedOLT.id}/action`, {
+      const response = await apiRequest<{ success: boolean; data: { file?: { found: boolean; filename: string; size_bytes?: number } } }>(`/device/${selectedOLT.id}/action`, {
         method: 'POST',
         body: JSON.stringify({ action: 'loadFileFromTftp', params: { tftp_host: file.tftpHost, filename: file.filename } }),
         headers: { 'Content-Type': 'application/json' }
       });
-      toast.success(`${file.filename} load command sent to OLT`);
+      const verifiedFile = response.data?.file;
+      if (!verifiedFile?.found) {
+        toast.error(`${file.filename.toLowerCase()} was not found on the OLT after transfer`);
+        return;
+      }
+      toast.success(`${verifiedFile.filename} verified on OLT (${verifiedFile.size_bytes ?? 0} bytes)`);
     } catch (error: any) { toast.error(error.message || "Failed to load file to OLT"); }
     finally { setLoadingFileId(null); }
   };
