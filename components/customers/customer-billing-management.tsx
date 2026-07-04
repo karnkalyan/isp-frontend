@@ -40,7 +40,7 @@ import {
 
 interface BillingProps {
     customer: any
-    refreshCustomer: () => void
+    refreshCustomer: () => void | Promise<void>
     controlsOnly?: boolean
 }
 
@@ -51,6 +51,7 @@ export function CustomerBillingManagement({ customer, refreshCustomer, controlsO
     const [extendDays, setExtendDays] = useState("3")
     const [extendToDate, setExtendToDate] = useState("")
     const [extendType, setExtendType] = useState<"grace" | "compensation" | "admin_extension">("grace")
+    const [configuredGraceDays, setConfiguredGraceDays] = useState(3)
 
     const latestSub = customer.customerSubscriptions?.[0]
 
@@ -69,9 +70,15 @@ export function CustomerBillingManagement({ customer, refreshCustomer, controlsO
         }
     }, [latestSub])
 
+    React.useEffect(() => {
+        apiRequest<Record<string, string>>("/settings")
+            .then(settings => setConfiguredGraceDays(Math.max(1, Number(settings?.maxStaffGraceDays || 3))))
+            .catch(() => setConfiguredGraceDays(3))
+    }, [])
+
     const openExtendDialog = (type: "grace" | "compensation" | "admin_extension") => {
         setExtendType(type)
-        setExtendDays("3")
+        setExtendDays(type === "grace" ? String(configuredGraceDays) : "3")
         setExtendToDate("")
         setShowExtendDialog(true)
     }
@@ -83,14 +90,14 @@ export function CustomerBillingManagement({ customer, refreshCustomer, controlsO
                 method: "POST",
                 body: JSON.stringify({
                     customerId: customer.id,
-                    days: extendDays,
-                    extendToDate: extendToDate || undefined,
+                    days: extendType === "grace" ? configuredGraceDays : extendDays,
+                    extendToDate: extendType === "grace" ? undefined : (extendToDate || undefined),
                     type: extendType
                 })
             })
             toast({ title: "Success", description: "Subscription extended successfully" })
             setShowExtendDialog(false)
-            refreshCustomer()
+            await refreshCustomer()
         } catch (error: any) {
             toast({ title: "Error", description: error.message, variant: "destructive" })
         } finally {
@@ -110,7 +117,7 @@ export function CustomerBillingManagement({ customer, refreshCustomer, controlsO
                 })
             })
             toast({ title: "Success", description: `Subscription ${action === 'play' ? 'resumed' : 'paused'} successfully` })
-            refreshCustomer()
+            await refreshCustomer()
         } catch (error: any) {
             toast({ title: "Error", description: error.message, variant: "destructive" })
         } finally {
@@ -172,20 +179,12 @@ export function CustomerBillingManagement({ customer, refreshCustomer, controlsO
                                 <div className="space-y-4 py-4">
                                     <div className="space-y-2">
                                         <Label>Extension Type</Label>
-                                        <Select value={extendType} onValueChange={(value) => setExtendType(value as typeof extendType)} disabled={!isGlobalAdmin}>
+                                        <Select value={extendType} onValueChange={(value) => setExtendType(value as typeof extendType)} disabled={extendType === "grace" || !isGlobalAdmin}>
                                             <SelectTrigger>
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {latestSub?.isTrial ? (
-                                                    <SelectItem value="compensation">Trial Extension (Non-deductible)</SelectItem>
-                                                ) : (
-                                                    <>
-                                                        <SelectItem value="grace">Grace Period (Deductible)</SelectItem>
-                                                        <SelectItem value="compensation">Compensation (Non-deductible)</SelectItem>
-                                                        {isGlobalAdmin && <SelectItem value="admin_extension">Admin Extension (Deductible)</SelectItem>}
-                                                    </>
-                                                )}
+                                                {extendType === "grace" ? <SelectItem value="grace">Grace Period (Fixed)</SelectItem> : <><SelectItem value="compensation">Compensation (Non-deductible)</SelectItem>{isGlobalAdmin && <SelectItem value="admin_extension">Admin Extension (Deductible)</SelectItem>}</>}
                                             </SelectContent>
                                         </Select>
                                         <p className="text-xs text-muted-foreground">
@@ -206,16 +205,18 @@ export function CustomerBillingManagement({ customer, refreshCustomer, controlsO
                                                 value={extendDays} 
                                                 onChange={(e) => setExtendDays(e.target.value)}
                                                 placeholder="e.g. 3"
+                                                readOnly={extendType === "grace"}
                                             />
+                                            {extendType === "grace" && <p className="text-xs text-muted-foreground">Fixed by System Setup.</p>}
                                         </div>
-                                        <div className="space-y-2">
+                                        {extendType !== "grace" && <div className="space-y-2">
                                             <Label>Or Pick Specific Date</Label>
                                             <Input 
                                                 type="date" 
                                                 value={extendToDate} 
                                                 onChange={(e) => setExtendToDate(e.target.value)}
                                             />
-                                        </div>
+                                        </div>}
                                     </div>
                                 </div>
                                 <DialogFooter>
@@ -225,8 +226,7 @@ export function CustomerBillingManagement({ customer, refreshCustomer, controlsO
                             </DialogContent>
                         </Dialog>
                         {new Date(latestSub.planEnd) <= new Date() && Number(latestSub.graceDaysBalance || 0) === 0 && <Button variant="outline" className="h-20 flex-col gap-2 border-dashed" onClick={() => openExtendDialog("grace")}><Clock className="h-5 w-5 text-amber-500" />Grace Period</Button>}
-                        <Button variant="outline" className="h-20 flex-col gap-2 border-dashed" onClick={() => openExtendDialog("compensation")}><CalendarDays className="h-5 w-5 text-emerald-500" />Compensation</Button>
-                        {isGlobalAdmin && <Button variant="outline" className="h-20 flex-col gap-2 border-dashed" onClick={() => openExtendDialog("admin_extension")}><Calendar className="h-5 w-5 text-violet-500" />Admin Extension</Button>}
+                        <Button variant="outline" className="h-20 flex-col gap-2 border-dashed" onClick={() => openExtendDialog("compensation")}><CalendarDays className="h-5 w-5 text-emerald-500" />Extend Subscription</Button>
                     </div>
                 </CardContainer>
 
