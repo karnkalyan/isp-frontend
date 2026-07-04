@@ -1383,6 +1383,13 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     return `${username}@customer.local`
   }, [])
 
+  const getPortalLoginIdentifier = useCallback((value?: string | null) => {
+    const normalized = String(value || "").trim()
+    return normalized.toLowerCase().endsWith("@customer.local")
+      ? normalized.slice(0, -"@customer.local".length)
+      : normalized
+  }, [])
+
 
   // ========== Hardware Dialog Steps ==========
   const [hwDialogStep, setHwDialogStep] = useState<1 | 2>(1)
@@ -2178,8 +2185,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       toast.error("Password must be at least 4 characters");
       return;
     }
-    if (!newPortalEmail.trim() || !newPortalEmail.includes("@")) {
-      toast.error("Please enter a valid email address");
+    if (!newPortalEmail.trim()) {
+      toast.error("Please enter a portal username or email address");
       return;
     }
     setPortalPasswordSubmitting(true);
@@ -3191,10 +3198,11 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
               <Label htmlFor="new-portal-email">Portal Email / Username</Label>
               <Input
                 id="new-portal-email"
-                type="email"
+                type="text"
+                autoCapitalize="none"
                 value={newPortalEmail}
                 onChange={(e) => setNewPortalEmail(e.target.value)}
-                placeholder="email@example.com"
+                placeholder="username or email@example.com"
               />
             </div>
             <div className="space-y-2">
@@ -3794,7 +3802,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                 <div className="grid grid-cols-1 gap-2 text-sm">
                   <div className="flex justify-between p-1.5 rounded bg-slate-50 dark:bg-slate-800/40">
                     <span className="text-muted-foreground">Portal Username/Email:</span>
-                    <span className="font-mono font-medium">{customer.portalUser?.email || getFallbackPortalEmail(customer)}</span>
+                    <span className="font-mono font-medium">{getPortalLoginIdentifier(customer.portalUser?.email || getFallbackPortalEmail(customer))}</span>
                   </div>
                   {customer.portalUser ? (
                     <div className="flex items-center justify-between p-1.5 rounded bg-slate-50 dark:bg-slate-800/40">
@@ -3828,7 +3836,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                       size="sm" 
                       variant="outline" 
                       onClick={() => {
-                        setNewPortalEmail(customer.portalUser?.email || getFallbackPortalEmail(customer))
+                        setNewPortalEmail(getPortalLoginIdentifier(customer.portalUser?.email || getFallbackPortalEmail(customer)))
                         setNewPortalPassword("")
                         setPortalPasswordOpen(true)
                       }} 

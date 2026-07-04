@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Eye, EyeOff, Loader2, Mail, AlertCircle } from "lucide-react"
+import { Eye, EyeOff, Loader2, UserRound, AlertCircle } from "lucide-react"
 import toast from "react-hot-toast"
 
 import { Button } from "@/components/ui/button"
@@ -317,10 +317,10 @@ export function LoginForm() {
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="email" className="font-normal">Email</Label>
+            <Label htmlFor="email" className="font-normal">Email, username, or phone</Label>
             <div className="relative">
-              <Input id="email" name="email" type="email" placeholder="name@example.com" required value={formData.email} onChange={handleChange} className="bg-card/60 border-border/50 pl-10 rounded-lg" disabled={isLoading} />
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input id="email" name="email" type="text" autoCapitalize="none" placeholder="Email, username, or phone" required value={formData.email} onChange={handleChange} className="bg-card/60 border-border/50 pl-10 rounded-lg" disabled={isLoading} />
+              <UserRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             </div>
           </div>
 
