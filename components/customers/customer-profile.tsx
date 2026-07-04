@@ -1298,7 +1298,7 @@ interface CustomerProfileProps {
 export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileProps = {}) {
   const { user } = useAuth()
   const currentRoleName = String(typeof user?.role === "string" ? user.role : user?.role?.name || "").toLowerCase()
-  const canExtendTrial = currentRoleName === "admin" || currentRoleName === "administrator" || currentRoleName === "isp_admin" || currentRoleName.startsWith("global ")
+  const canExtendTrial = ["admin", "administrator", "isp_admin", "super_admin", "global admin", "global_admin"].includes(currentRoleName)
   const [activeTab, setActiveTab] = useState("overview")
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [loading, setLoading] = useState(true)
@@ -3338,12 +3338,6 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         <Button size="sm" className="h-9 bg-gradient-to-r from-green-500 to-emerald-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={() => setRenewPackageOpen(true)}>
           <RefreshCw className="mr-2 h-4 w-4" /> Renew Package
         </Button>
-        {latestSubscription && <Button size="sm" variant="outline" className="h-9" onClick={pauseOrResumeService} disabled={actionLoading}>
-          {latestSubscription.isPaused ? <Play className="mr-2 h-4 w-4 text-green-600" /> : <Pause className="mr-2 h-4 w-4 text-amber-600" />}{latestSubscription.isPaused ? "Resume Service" : "Pause Service"}
-        </Button>}
-        {latestSubscription && new Date(latestSubscription.planEnd) <= new Date() && Number(latestSubscription.graceDaysBalance || 0) === 0 && <Button size="sm" variant="outline" className="h-9" onClick={() => applySubscriptionExtension("grace")} disabled={actionLoading}><Clock className="mr-2 h-4 w-4" />Grace Period</Button>}
-        {latestSubscription && <Button size="sm" variant="outline" className="h-9" onClick={() => applySubscriptionExtension("compensation")} disabled={actionLoading}><Plus className="mr-2 h-4 w-4" />Compensation</Button>}
-        {canExtendTrial && latestSubscription && <Button size="sm" variant="outline" className="h-9" onClick={() => applySubscriptionExtension("admin_extension")} disabled={actionLoading}><Calendar className="mr-2 h-4 w-4" />Admin Extension</Button>}
         {latestSubscription?.isTrial && canExtendTrial && <Button size="sm" variant="outline" className="h-9" onClick={extendTrial}><Calendar className="mr-2 h-4 w-4" />Extend Trial</Button>}
         <Button size="sm" className="h-9 bg-gradient-to-r from-blue-500 to-indigo-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={() => setChangeUsernameOpen(true)}>
           <User className="mr-2 h-4 w-4" /> Change Username
@@ -3520,7 +3514,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                     <>
                       <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                         <span className="text-muted-foreground">Current Status:</span>
-                        <span className="font-medium">{latestSubscription.isTrial ? "Trial Period" : "Active Subscription"}</span>
+                        <Badge className={latestSubscription.isPaused ? "bg-amber-600 text-white" : "bg-green-600 text-white"}>{latestSubscription.isPaused ? "PAUSED" : latestSubscription.isTrial ? "TRIAL" : "ACTIVE"}</Badge>
                       </div>
                       <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                         <span className="text-muted-foreground">Plan Start:</span>
@@ -3529,6 +3523,17 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                       <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                         <span className="text-muted-foreground">Plan End:</span>
                         <span className="font-medium">{formatDate(latestSubscription.planEnd)}</span>
+                      </div>
+                      <div className="space-y-2 rounded-lg border bg-background/60 p-3">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Subscription controls</div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button size="sm" variant="outline" onClick={pauseOrResumeService} disabled={actionLoading}>
+                            {latestSubscription.isPaused ? <Play className="mr-2 h-4 w-4 text-green-600" /> : <Pause className="mr-2 h-4 w-4 text-amber-600" />}{latestSubscription.isPaused ? "Resume" : "Pause"}
+                          </Button>
+                          {new Date(latestSubscription.planEnd) <= new Date() && Number(latestSubscription.graceDaysBalance || 0) === 0 && <Button size="sm" variant="outline" onClick={() => applySubscriptionExtension("grace")} disabled={actionLoading}><Clock className="mr-2 h-4 w-4" />Grace</Button>}
+                          <Button size="sm" variant="outline" onClick={() => applySubscriptionExtension("compensation")} disabled={actionLoading}><Plus className="mr-2 h-4 w-4" />Compensation</Button>
+                          {canExtendTrial && <Button size="sm" variant="outline" onClick={() => applySubscriptionExtension("admin_extension")} disabled={actionLoading}><Calendar className="mr-2 h-4 w-4" />Admin Extension</Button>}
+                        </div>
                       </div>
                       <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                         <span className="text-muted-foreground">Days Remaining:</span>
