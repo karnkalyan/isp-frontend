@@ -89,11 +89,13 @@ const buildOntNode = (customer: any): FiberTreeNode => {
     id: `ont-${customer.id}`,
     name: `${getCustomerName(customer)} (${serial || "ONT"})`,
     type: "onu",
-    status: normalizeStatus(ont?.status || customer.status),
+    status: normalizeStatus(customer.ontRealtimeStatus || ont?.status || customer.radiusRealtimeStatus || customer.status),
     meta: {
       customerId: customer.customerUniqueId,
       phone: customer.phoneNumber,
       macAddress: ont?.macAddress,
+      acsStatus: customer.ontRealtimeStatus || ont?.status || "offline",
+      radiusStatus: customer.radiusRealtimeStatus || customer.radiusAccounting?.status || "offline",
     },
   }
 }
@@ -130,6 +132,7 @@ function buildSplitterNode(splitter: any, allSplitters: any[], customers: any[],
       splitterId: splitter.splitterId,
       ports: splitter.portCount,
       usedPorts: splitter.usedPorts,
+      coreColor: splitter.upstreamFiber?.coreColor || "Blue",
     },
     children: [
       ...childSplitters.map((child) => buildSplitterNode(child, allSplitters, customers, new Set(visited))),

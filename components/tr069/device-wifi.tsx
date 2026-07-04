@@ -55,7 +55,7 @@ export function TR069DeviceWifi({ deviceId }: TR069DeviceWifiProps) {
     fetchWlanInfo();
   }, [deviceId]);
 
-  const fetchWlanInfo = async () => {
+  const fetchWlanInfo = async (preferredInstance?: string) => {
     try {
       setIsLoading(true);
       const response = await apiRequest<{ success: boolean; data: any }>(
@@ -67,8 +67,10 @@ export function TR069DeviceWifi({ deviceId }: TR069DeviceWifiProps) {
         setSsidList(ssids);
         // Select the first SSID by default (or first enabled one)
         if (ssids.length > 0) {
+          const currentInstance = preferredInstance || selectedSSID?.instance;
+          const current = ssids.find((ssid: SSID) => ssid.instance === currentInstance);
           const firstEnabled = ssids.find((ssid: SSID) => ssid.enable === true);
-          setSelectedSSID(firstEnabled || ssids[0]);
+          setSelectedSSID(current || firstEnabled || ssids[0]);
         }
       } else {
         toast.error("Failed to load WiFi information");
@@ -273,7 +275,18 @@ export function TR069DeviceWifi({ deviceId }: TR069DeviceWifiProps) {
 
       if (response.success) {
         toast.success("WiFi settings saved successfully");
-        fetchWlanInfo(); // Refresh data
+        const updatedSSID = { ...selectedSSID, ssid: settings.ssid, keyPassphrase: payload.password || selectedSSID.keyPassphrase };
+        setSelectedSSID(updatedSSID);
+        setSsidList(current => current.map(item => item.instance === selectedSSID.instance ? updatedSSID : item));
+        try {
+          await apiRequest(`/services/genieacs/devices/${deviceId}/refresh`, {
+            method: "POST",
+            body: JSON.stringify({ objectName: selectedSSID.instance })
+          });
+        } catch {
+          // The write succeeded; keep the optimistic values while the ACS device reports back.
+        }
+        await fetchWlanInfo(selectedSSID.instance);
       } else {
         toast.error(response.message || "Failed to save WiFi settings");
       }

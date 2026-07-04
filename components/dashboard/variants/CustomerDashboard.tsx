@@ -517,8 +517,25 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
         }),
       })
       toast.success("WiFi update sent to router")
+      const updatedInstance = selectedSsid.instance
+      const updatedName = wifiForm.ssid.trim()
+      setDeviceData((current: any) => {
+        const wlanInfo = current.wlanInfo
+        const list = wlanInfo?.data?.ssidList
+        if (!Array.isArray(list)) return current
+        return {
+          ...current,
+          wlanInfo: {
+            ...wlanInfo,
+            data: {
+              ...wlanInfo.data,
+              ssidList: list.map((item: any) => item.instance === updatedInstance ? { ...item, ssid: updatedName } : item)
+            }
+          }
+        }
+      })
       setWifiForm((prev) => ({ ...prev, password: "" }))
-      await loadDeviceData(serial)
+      window.setTimeout(() => loadDeviceData(serial), 2000)
     } catch (error: any) {
       toast.error(error.message || "Failed to update WiFi")
     } finally {
@@ -626,6 +643,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
               <span className="text-muted-foreground">Renewal amount</span>
               <span className="font-semibold">{money(plan?.renewAmountWithTax ?? plan?.price)}</span>
             </div>
+            {profile.activeSubscription?.planEnd && new Date(profile.activeSubscription.planEnd) > new Date() && <Badge className="mb-2 bg-blue-600 text-white">PAY IN ADVANCE · starts after current expiry</Badge>}
             <Button type="button" onClick={renewWithEsewa} disabled={esewaProcessing || !plan} className="w-full gap-2 bg-[#60bb46] text-white hover:bg-[#4da638]">
               {esewaProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
               <img src="https://developer.esewa.com.np/assets/img/esewa_logo.png" alt="eSewa" className="h-5 w-auto rounded bg-white px-1" />

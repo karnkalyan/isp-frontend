@@ -335,6 +335,12 @@ interface Customer {
     planEnd: string
     isActive: boolean
     isInvoicing: boolean
+    isPaused?: boolean
+    pauseDate?: string | null
+    extensionCount?: number
+    graceDaysBalance?: number
+    compensationDays?: number
+    adminExtensionDays?: number
     packagePrice: {
       id: number
       planId: number
@@ -1325,6 +1331,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const [newUsername, setNewUsername] = useState("")
   const [selectedConnectionUser, setSelectedConnectionUser] = useState("")
   const [selectedPackage, setSelectedPackage] = useState("")
+  const [selectedPlanName, setSelectedPlanName] = useState("")
   const [newMacAddress, setNewMacAddress] = useState("")
   const [actionLoading, setActionLoading] = useState(false)
   const [serviceActionLoading, setServiceActionLoading] = useState<"radius" | "nettv" | "account" | "disconnect" | null>(null)
@@ -2038,6 +2045,40 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     } catch (error: any) { toast.error(error.message || "Failed to extend trial") }
   }
 
+  const pauseOrResumeService = async () => {
+    if (!customer) return
+    const subscription = customer.customerSubscriptions?.[0]
+    if (!subscription) return toast.error("No active subscription")
+    const action = subscription.isPaused ? "play" : "pause"
+    try {
+      setActionLoading(true)
+      await apiRequest("/billing/pause-play", { method: "POST", body: JSON.stringify({ customerId: customer.id, action }) })
+      toast.success(action === "pause" ? "Service paused; remaining time is preserved" : "Service resumed; paused duration added to expiry")
+      await fetchCustomerData()
+    } catch (error: any) { toast.error(error.message || `Failed to ${action} service`) }
+    finally { setActionLoading(false) }
+  }
+
+  const applySubscriptionExtension = async (type: "grace" | "compensation" | "admin_extension") => {
+    if (!customer) return
+    const subscription = customer.customerSubscriptions?.[0]
+    if (!subscription) return toast.error("No active subscription")
+    const input = window.prompt(type === "admin_extension" ? "Enter extension days or a specific date (YYYY-MM-DD)" : `Enter ${type} days`, "3")
+    if (input === null) return
+    const numericDays = Number(input)
+    const payload: any = { customerId: customer.id, type }
+    if (Number.isInteger(numericDays) && numericDays > 0) payload.days = numericDays
+    else if (type === "admin_extension" && /^\d{4}-\d{2}-\d{2}$/.test(input)) payload.extendToDate = input
+    else return toast.error("Enter valid days" + (type === "admin_extension" ? " or YYYY-MM-DD" : ""))
+    try {
+      setActionLoading(true)
+      await apiRequest("/billing/extend", { method: "POST", body: JSON.stringify(payload) })
+      toast.success(type === "compensation" ? "Compensation added without renewal deduction" : "Extension applied")
+      await fetchCustomerData()
+    } catch (error: any) { toast.error(error.message || "Failed to extend subscription") }
+    finally { setActionLoading(false) }
+  }
+
   useEffect(() => {
     if (customerId) fetchCustomerData()
   }, [customerId])
@@ -2237,11 +2278,13 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   useEffect(() => {
     const fetchPackages = async () => {
       try {
-        const data = await apiRequest<PackageOption[]>('/package-price')
+        const data = await apiRequest<PackageOption[]>('/package-price?active=true')
         if (data) {
           setPackages(data)
           if (data.length > 0 && customer) {
             setSelectedPackage(customer.subscribedPkgId.toString())
+            const current = data.find(pkg => String(pkg.id) === String(customer.subscribedPkgId))
+            setSelectedPlanName(current?.packagePlanDetails?.planName || "")
           }
         }
       } catch (error) {
@@ -3034,17 +3077,25 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="package">Select Package</Label>
-              <Select value={selectedPackage} onValueChange={setSelectedPackage}>
+              <Label>Select Plan</Label>
+              <Select value={selectedPlanName} onValueChange={(planName) => {
+                setSelectedPlanName(planName)
+                setSelectedPackage(String(packages.find(pkg => pkg.packagePlanDetails?.planName === planName)?.id || ""))
+              }}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select a package" />
+                  <SelectValue placeholder="Select a plan" />
                 </SelectTrigger>
                 <SelectContent>
-                  {packages.map((pkg) => (
-                    <SelectItem key={pkg.id} value={pkg.id.toString()}>
-                      {pkg.packageName} - {formatPrice(pkg.price)}/{pkg.packageDuration}
-                    </SelectItem>
-                  ))}
+                  {[...new Set(packages.map(pkg => pkg.packagePlanDetails?.planName).filter(Boolean))].map(planName => <SelectItem key={planName} value={planName as string}>{planName}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Select Enabled Duration</Label>
+              <Select value={selectedPackage} onValueChange={setSelectedPackage} disabled={!selectedPlanName}>
+                <SelectTrigger><SelectValue placeholder="Select duration" /></SelectTrigger>
+                <SelectContent>
+                  {packages.filter(pkg => pkg.packagePlanDetails?.planName === selectedPlanName).map(pkg => <SelectItem key={pkg.id} value={String(pkg.id)}>{pkg.packageDuration} · {formatPrice(pkg.price)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -3254,6 +3305,12 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                   {customer.referencedById && (
                     <Badge className="bg-gradient-to-r from-cyan-500 to-teal-600 text-white border-0">REFERRED</Badge>
                   )}
+                  <Badge className={String(customer.ontRealtimeStatus || '').toLowerCase() === 'online' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}>
+                    ACS {String(customer.ontRealtimeStatus || 'offline').toUpperCase()}
+                  </Badge>
+                  <Badge className={String(customer.radiusRealtimeStatus || '').toLowerCase() === 'online' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}>
+                    RADIUS {String(customer.radiusRealtimeStatus || 'offline').toUpperCase()}
+                  </Badge>
                 </div>
               </div>
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 text-sm text-muted-foreground mt-1">
@@ -3281,6 +3338,12 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         <Button size="sm" className="h-9 bg-gradient-to-r from-green-500 to-emerald-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={() => setRenewPackageOpen(true)}>
           <RefreshCw className="mr-2 h-4 w-4" /> Renew Package
         </Button>
+        {latestSubscription && <Button size="sm" variant="outline" className="h-9" onClick={pauseOrResumeService} disabled={actionLoading}>
+          {latestSubscription.isPaused ? <Play className="mr-2 h-4 w-4 text-green-600" /> : <Pause className="mr-2 h-4 w-4 text-amber-600" />}{latestSubscription.isPaused ? "Resume Service" : "Pause Service"}
+        </Button>}
+        {latestSubscription && new Date(latestSubscription.planEnd) <= new Date() && Number(latestSubscription.graceDaysBalance || 0) === 0 && <Button size="sm" variant="outline" className="h-9" onClick={() => applySubscriptionExtension("grace")} disabled={actionLoading}><Clock className="mr-2 h-4 w-4" />Grace Period</Button>}
+        {latestSubscription && <Button size="sm" variant="outline" className="h-9" onClick={() => applySubscriptionExtension("compensation")} disabled={actionLoading}><Plus className="mr-2 h-4 w-4" />Compensation</Button>}
+        {canExtendTrial && latestSubscription && <Button size="sm" variant="outline" className="h-9" onClick={() => applySubscriptionExtension("admin_extension")} disabled={actionLoading}><Calendar className="mr-2 h-4 w-4" />Admin Extension</Button>}
         {latestSubscription?.isTrial && canExtendTrial && <Button size="sm" variant="outline" className="h-9" onClick={extendTrial}><Calendar className="mr-2 h-4 w-4" />Extend Trial</Button>}
         <Button size="sm" className="h-9 bg-gradient-to-r from-blue-500 to-indigo-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={() => setChangeUsernameOpen(true)}>
           <User className="mr-2 h-4 w-4" /> Change Username

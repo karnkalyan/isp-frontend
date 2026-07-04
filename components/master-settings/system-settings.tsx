@@ -102,6 +102,7 @@ export function SystemSettings() {
     autoTrialEnabled: true,
     pushTrialPackageToAccount: true,
     trialDurationDays: 3,
+    trialDeductionOnSubscriptionActivation: false,
     customerDocumentsRequired: false,
     customerDeviceRequired: false,
     fiberOnuRequired: false,
@@ -235,6 +236,7 @@ export function SystemSettings() {
             autoTrialEnabled: data.autoTrialEnabled !== 'false',
             pushTrialPackageToAccount: data.pushTrialPackageToAccount !== 'false',
             trialDurationDays: parseInt(data.trialDurationDays || '3'),
+            trialDeductionOnSubscriptionActivation: data.trialDeductionOnSubscriptionActivation === 'true',
             customerDocumentsRequired: data.customerDocumentsRequired === 'true',
             customerDeviceRequired: data.customerDeviceRequired === 'true',
             fiberOnuRequired: data.fiberOnuRequired === 'true',
@@ -1022,6 +1024,7 @@ export function SystemSettings() {
                     />
                  </div>
                  {settings.autoTrialEnabled !== false && (
+                    <div className="space-y-4">
                     <div className="space-y-2">
                       <Label>Default Trial Duration (Days)</Label>
                       <Input
@@ -1031,6 +1034,11 @@ export function SystemSettings() {
                         value={settings.trialDurationDays ?? 3}
                         onChange={(e) => updateSetting("trialDurationDays", Number(e.target.value))}
                       />
+                    </div>
+                    <div className="flex items-center justify-between border-t pt-3">
+                      <div><Label>Deduct trial days on paid activation</Label><p className="text-[10px] text-muted-foreground">Off: the paid plan receives its full duration from recharge time. On: trial days are deducted from the first paid term.</p></div>
+                      <Switch checked={settings.trialDeductionOnSubscriptionActivation} onCheckedChange={checked => updateSetting("trialDeductionOnSubscriptionActivation", checked)} />
+                    </div>
                     </div>
                  )}
                </div>

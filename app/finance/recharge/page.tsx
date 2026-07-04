@@ -12,6 +12,7 @@ import { CreditCard, Search, User, Zap, Calendar, ArrowRight, CheckCircle2, Aler
 import { apiRequest } from "@/lib/api"
 import { toast } from "react-hot-toast"
 import { useRouter } from "next/navigation"
+import { Badge } from "@/components/ui/badge"
 
 export default function RechargePage() {
   const router = useRouter()
@@ -174,6 +175,7 @@ export default function RechargePage() {
   const customerMetaLine = (cust: any) => {
     return [customerCode(cust), customerPhone(cust), customerEmail(cust)].filter(Boolean).join(" | ")
   }
+  const isAdvancePayment = Boolean(selectedCustomer?.customerSubscriptions?.[0]?.planEnd && new Date(selectedCustomer.customerSubscriptions[0].planEnd) > new Date())
 
   return (
     <DashboardLayout>
@@ -245,6 +247,7 @@ export default function RechargePage() {
             {selectedCustomer && (
               <CardContainer title="2. Payment & Plan Details" description="Select the renewal package and input invoice number">
                 <form onSubmit={handleRecharge} className="space-y-5">
+                  {isAdvancePayment && <div className="flex items-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3"><Badge className="bg-blue-600 text-white">PAY IN ADVANCE</Badge><span className="text-sm text-blue-200">The new duration starts after the current expiry date.</span></div>}
                   <div className="space-y-2">
                     <Label htmlFor="package" className="text-slate-300">Package Plan</Label>
                     <Select
