@@ -369,6 +369,7 @@ interface OLT {
     type: string
     description?: string
   }>
+  loadFiles?: Array<{ id: string; tftpHost: string; filename: string }>
 }
 
 interface Splitter {
@@ -1268,6 +1269,8 @@ export function AddCustomerForm() {
     useDirectOLT: false,
     selectedVlanIds: [] as string[],
     selectedProfileIds: [] as string[],
+    loadOntConfig: false,
+    selectedLoadFileId: "",
   })
 
   const [referenceDetails, setReferenceDetails] = useState({
@@ -2140,6 +2143,14 @@ export function AddCustomerForm() {
       }
     }
 
+    const selectedLoadFile = provisionDetails.loadOntConfig
+      ? selectedOlt.loadFiles?.find(file => file.id === provisionDetails.selectedLoadFileId)
+      : null
+    if (provisionDetails.loadOntConfig && !selectedLoadFile) {
+      toast.error("Please select an ONT configuration file")
+      return false
+    }
+
     const payload = {
       action: "registerONT",
       params: {
@@ -2151,6 +2162,7 @@ export function AddCustomerForm() {
         service_profile_id: serviceProfileId,
         description: `${formValues.firstName}_${formValues.lastName}_${formValues.streetAddress}`.replace(/\s+/g, '_'),
         vlans,
+        load_file: selectedLoadFile?.filename || null,
       },
     }
 
@@ -2535,6 +2547,8 @@ export function AddCustomerForm() {
       useDirectOLT: false,
       selectedVlanIds: [],
       selectedProfileIds: [],
+      loadOntConfig: false,
+      selectedLoadFileId: "",
     })
     setReferenceDetails({
       membershipId: "",
@@ -4057,6 +4071,39 @@ export function AddCustomerForm() {
                           )
                         })()
                       )}
+
+                      {provisionDetails.oltId && (() => {
+                        const selectedOlt = olts.find(o => o.id.toString() === provisionDetails.oltId)
+                        const loadFiles = selectedOlt?.loadFiles || []
+                        return (
+                          <div className="space-y-3 rounded-lg border p-3">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <Label>Load ONT configuration file</Label>
+                                <p className="text-xs text-muted-foreground">Runs after ONT registration and service-port creation.</p>
+                              </div>
+                              <Switch
+                                checked={provisionDetails.loadOntConfig}
+                                disabled={loadFiles.length === 0}
+                                onCheckedChange={(checked) => setProvisionDetails(prev => ({
+                                  ...prev,
+                                  loadOntConfig: checked,
+                                  selectedLoadFileId: checked ? (prev.selectedLoadFileId || loadFiles[0]?.id || "") : prev.selectedLoadFileId,
+                                }))}
+                              />
+                            </div>
+                            {provisionDetails.loadOntConfig && (
+                              <Select value={provisionDetails.selectedLoadFileId} onValueChange={(value) => handleProvisionChange("selectedLoadFileId", value)}>
+                                <SelectTrigger><SelectValue placeholder="Select ONT file" /></SelectTrigger>
+                                <SelectContent>
+                                  {loadFiles.map(file => <SelectItem key={file.id} value={file.id}>{file.filename} ({file.tftpHost})</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            )}
+                            {loadFiles.length === 0 && <p className="text-xs text-muted-foreground">Add a load file in the selected OLT first.</p>}
+                          </div>
+                        )
+                      })()}
 
                       {/* Devices Section */}
                       <div className="space-y-4">

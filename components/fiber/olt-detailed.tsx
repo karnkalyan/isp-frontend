@@ -1204,6 +1204,9 @@ export function OLTDetailed() {
   // VLAN and Profile data states
   const [vlans, setVlans] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
+  const [loadFiles, setLoadFiles] = useState<any[]>([]);
+  const [loadFileForm, setLoadFileForm] = useState({ tftpHost: '', filename: '' });
+  const [loadingFileId, setLoadingFileId] = useState<string | null>(null);
 
 
   const fetchVLANs = async () => {
@@ -1234,6 +1237,47 @@ export function OLTDetailed() {
       console.error("Failed to fetch profiles:", error);
       toast.error("Failed to load profiles");
     }
+  };
+
+  const fetchLoadFiles = async () => {
+    if (!selectedOLT) return;
+    try {
+      const response = await apiRequest<{ success: boolean; data: any[] }>(`/olt/${selectedOLT.id}/load-files`);
+      if (response.success) setLoadFiles(response.data || []);
+    } catch (error: any) { toast.error(error.message || "Failed to load ONT files"); }
+  };
+
+  const addLoadFile = async () => {
+    if (!selectedOLT || !loadFileForm.tftpHost.trim() || !loadFileForm.filename.trim()) return toast.error("TFTP server and filename are required");
+    try {
+      await apiRequest(`/olt/${selectedOLT.id}/load-files`, { method: 'POST', body: JSON.stringify(loadFileForm) });
+      setLoadFileForm({ tftpHost: '', filename: '' });
+      await fetchLoadFiles();
+      toast.success("ONT load file added");
+    } catch (error: any) { toast.error(error.message || "Failed to add load file"); }
+  };
+
+  const removeLoadFile = async (id: string) => {
+    if (!selectedOLT) return;
+    try {
+      await apiRequest(`/olt/${selectedOLT.id}/load-files/${id}`, { method: 'DELETE' });
+      setLoadFiles(current => current.filter(file => file.id !== id));
+      toast.success("ONT load file removed");
+    } catch (error: any) { toast.error(error.message || "Failed to remove load file"); }
+  };
+
+  const transferLoadFile = async (file: any) => {
+    if (!selectedOLT) return;
+    setLoadingFileId(file.id);
+    try {
+      await apiRequest(`/device/${selectedOLT.id}/action`, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'loadFileFromTftp', params: { tftp_host: file.tftpHost, filename: file.filename } }),
+        headers: { 'Content-Type': 'application/json' }
+      });
+      toast.success(`${file.filename} load command sent to OLT`);
+    } catch (error: any) { toast.error(error.message || "Failed to load file to OLT"); }
+    finally { setLoadingFileId(null); }
   };
 
   const createVLAN = async (vlanData: any) => {
@@ -1345,6 +1389,7 @@ export function OLTDetailed() {
     if (selectedOLT && activeTab === "details") {
       fetchVLANs();
       fetchProfiles();
+      fetchLoadFiles();
     }
   }, [selectedOLT, activeTab]);
 
@@ -4562,7 +4607,7 @@ export function OLTDetailed() {
                 </CardHeader>
                 <CardContent className="p-6 relative z-10">
                   <Tabs defaultValue="basic">
-                    <TabsList className="grid grid-cols-9">
+                    <TabsList className="grid grid-cols-10">
                       <TabsTrigger value="basic">Basic</TabsTrigger>
                       <TabsTrigger value="networking">Networking</TabsTrigger>
                       <TabsTrigger value="management">Management</TabsTrigger>
@@ -4572,6 +4617,7 @@ export function OLTDetailed() {
                       <TabsTrigger value="splitters">Splitters</TabsTrigger>
                       <TabsTrigger value="vlans">VLANs</TabsTrigger>
                       <TabsTrigger value="profiles">Profiles</TabsTrigger>
+                      <TabsTrigger value="load-files">ONT Files</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="basic" className="space-y-6 pt-6">
@@ -5635,6 +5681,27 @@ export function OLTDetailed() {
                             </p>
                           </div>
                         </div>
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="load-files" className="pt-6">
+                      <div className="space-y-5">
+                        <div>
+                          <h3 className="text-lg font-semibold">ONT Configuration Files</h3>
+                          <p className="text-sm text-gray-500">Store TFTP sources and transfer configuration files to this OLT.</p>
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+                          <div className="space-y-1"><Label>TFTP server IP</Label><Input placeholder="10.10.100.6" value={loadFileForm.tftpHost} onChange={e => setLoadFileForm(v => ({ ...v, tftpHost: e.target.value }))} /></div>
+                          <div className="space-y-1"><Label>Filename</Label><Input placeholder="NokiaFinal.bin" value={loadFileForm.filename} onChange={e => setLoadFileForm(v => ({ ...v, filename: e.target.value }))} /></div>
+                          <Button className="self-end" onClick={addLoadFile}><Plus className="mr-2 h-4 w-4" />Add file</Button>
+                        </div>
+                        {loadFiles.length === 0 ? <div className="rounded-lg border border-dashed p-8 text-center text-gray-500">No ONT load files configured.</div> : (
+                          <Table><TableHeader><TableRow><TableHead>TFTP server</TableHead><TableHead>Filename</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                            <TableBody>{loadFiles.map(file => <TableRow key={file.id}><TableCell className="font-mono">{file.tftpHost}</TableCell><TableCell className="font-mono">{file.filename}</TableCell><TableCell><div className="flex justify-end gap-2">
+                              <Button size="sm" variant="outline" disabled={loadingFileId === file.id} onClick={() => transferLoadFile(file)}>{loadingFileId === file.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UploadCloud className="mr-2 h-4 w-4" />}Load to OLT</Button>
+                              <Button size="icon" variant="ghost" onClick={() => removeLoadFile(file.id)}><Trash2 className="h-4 w-4" /></Button>
+                            </div></TableCell></TableRow>)}</TableBody></Table>
+                        )}
                       </div>
                     </TabsContent>
 
