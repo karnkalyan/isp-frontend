@@ -4881,7 +4881,9 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                             <td className="py-2 px-3">
                               <div className="flex items-center gap-2 whitespace-nowrap">
                                 <span className="font-mono text-xs">{log.mac || "N/A"}</span>
-                                {(log.boundMac || /^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/.test(String(log.mac || ""))) && log.username && (
+                                {log.reply === "Access-Accept" &&
+                                  (log.boundMac || /^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/.test(String(log.mac || ""))) &&
+                                  log.username && (
                                   <Button
                                     type="button"
                                     size="sm"
