@@ -68,9 +68,29 @@ function PrintableInvoice({
     return found || null
   }
 
+  const isEsewaOrRecharge = invoice?.paymentMethod && 
+    ["ESEWA", "ESEWA EPAY", "ESEWA_EPAY", "KHALTI", "CONNECT_IPS", "FONEPAY", "ONLINE", "RECHARGE", "ESEWA EPAY RENEW"].includes(String(invoice.paymentMethod).toUpperCase())
+    || String(invoice?.packageName || "").toLowerCase().includes("recharge");
+
   const isLegacy = Math.abs(itemsSum - invoiceTotalAmount) < 1
 
-  if (isLegacy) {
+  if (isEsewaOrRecharge) {
+    total = invoiceTotalAmount
+    const tscFactor = invoice?.isTscApplicable ? (tscPct / 100) : 0
+    const baseAmount = total / ((1 + tscFactor) * 1.13)
+    totalTsc = Math.round(baseAmount * tscFactor * 100) / 100
+    taxableAmount = Math.round(baseAmount * (1 + tscFactor) * 100) / 100
+    vat = Math.round(taxableAmount * 0.13 * 100) / 100
+    subtotal = Math.round((total - totalTsc - vat) * 100) / 100
+
+    displayItems = [{
+      itemName: invoice.packageName || "Internet Package",
+      preTaxPrice: subtotal,
+      isTaxable: true,
+      isTscApplicable: invoice.isTscApplicable,
+      itemTsc: totalTsc
+    }];
+  } else if (isLegacy) {
     total = invoiceTotalAmount
     const tscFactor = invoice?.isTscApplicable ? (tscPct / 100) : 0
     const baseAmount = total / ((1 + tscFactor) * 1.13)
@@ -280,9 +300,29 @@ function PrintableReceipt({
     return found || null
   }
 
+  const isEsewaOrRecharge = invoice?.paymentMethod && 
+    ["ESEWA", "ESEWA EPAY", "ESEWA_EPAY", "KHALTI", "CONNECT_IPS", "FONEPAY", "ONLINE", "RECHARGE", "ESEWA EPAY RENEW"].includes(String(invoice.paymentMethod).toUpperCase())
+    || String(invoice?.packageName || "").toLowerCase().includes("recharge");
+
   const isLegacy = Math.abs(itemsSum - invoiceTotalAmount) < 1
 
-  if (isLegacy) {
+  if (isEsewaOrRecharge) {
+    total = invoiceTotalAmount
+    const tscFactor = invoice?.isTscApplicable ? (tscPct / 100) : 0
+    const baseAmount = total / ((1 + tscFactor) * 1.13)
+    totalTsc = Math.round(baseAmount * tscFactor * 100) / 100
+    taxableAmount = Math.round(baseAmount * (1 + tscFactor) * 100) / 100
+    vat = Math.round(taxableAmount * 0.13 * 100) / 100
+    subtotal = Math.round((total - totalTsc - vat) * 100) / 100
+
+    displayItems = [{
+      itemName: invoice.packageName || "Internet Package",
+      preTaxPrice: subtotal,
+      isTaxable: true,
+      isTscApplicable: invoice.isTscApplicable,
+      itemTsc: totalTsc
+    }];
+  } else if (isLegacy) {
     total = invoiceTotalAmount
     const tscFactor = invoice?.isTscApplicable ? (tscPct / 100) : 0
     const baseAmount = total / ((1 + tscFactor) * 1.13)
