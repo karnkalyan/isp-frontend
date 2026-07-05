@@ -89,13 +89,11 @@ const buildOntNode = (customer: any): FiberTreeNode => {
     id: `ont-${customer.id}`,
     name: `${getCustomerName(customer)} (${serial || "ONT"})`,
     type: "onu",
-    status: normalizeStatus(customer.ontRealtimeStatus || ont?.status || customer.radiusRealtimeStatus || customer.status),
+    status: normalizeStatus(customer.status),
     meta: {
       customerId: customer.customerUniqueId,
       phone: customer.phoneNumber,
       macAddress: ont?.macAddress,
-      acsStatus: customer.ontRealtimeStatus || ont?.status || "offline",
-      radiusStatus: customer.radiusRealtimeStatus || customer.radiusAccounting?.status || "offline",
     },
   }
 }

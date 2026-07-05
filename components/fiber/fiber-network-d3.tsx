@@ -166,15 +166,6 @@ export function NetworkTopologyD3() {
         .text((d: any) => d.data.name)
         .attr("fill", dark ? "#e5e7eb" : "#0f172a")
 
-      nodeEnter
-        .filter((d: any) => d.data.type === "onu")
-        .append("text")
-        .attr("dy", "1.7em")
-        .attr("x", 14)
-        .text((d: any) => `ACS: ${onlineLabel(d.data.meta?.acsStatus)} • RADIUS: ${onlineLabel(d.data.meta?.radiusStatus)}`)
-        .attr("fill", (d: any) => isOnline(d.data.meta?.acsStatus) || isOnline(d.data.meta?.radiusStatus) ? "#16a34a" : "#dc2626")
-        .style("font-size", "10px")
-
       node
         .merge(nodeEnter as any)
         .transition()
@@ -260,7 +251,7 @@ export function NetworkTopologyD3() {
             No OLT, splitter, or ONT topology data found.
           </div>
         )}
-        <div className="mb-3 flex flex-wrap gap-3 text-xs"><span>Fiber core:</span>{["Blue", "Green", "Orange", "Red"].map(core => <span key={core} className="flex items-center gap-1"><i className="h-3 w-3 rounded-full" style={{ backgroundColor: coreColor(core) }} />{core}</span>)}<span className="flex items-center gap-1"><i className="h-3 w-3 rounded-full bg-green-500" />Customer online</span><span className="flex items-center gap-1"><i className="h-3 w-3 rounded-full bg-red-500" />Customer offline</span></div>
+        <div className="mb-3 flex flex-wrap gap-3 text-xs"><span>Fiber core:</span>{["Blue", "Green", "Orange", "Red"].map(core => <span key={core} className="flex items-center gap-1"><i className="h-3 w-3 rounded-full" style={{ backgroundColor: coreColor(core) }} />{core}</span>)}</div>
         <svg ref={svgRef} className={`${isFullscreen ? "h-[calc(100vh-120px)]" : "h-[1000px]"} w-full rounded-lg bg-muted`} />
       </CardContent>
     </Card>
@@ -268,8 +259,6 @@ export function NetworkTopologyD3() {
   )
 }
 
-const isOnline = (status: any) => ["online", "active", "up", "enabled"].includes(String(status || "").toLowerCase())
-const onlineLabel = (status: any) => isOnline(status) ? "ONLINE" : "OFFLINE"
 const coreColor = (value: any) => ({ blue: "#2563eb", green: "#16a34a", orange: "#f97316", red: "#dc2626", yellow: "#eab308", white: "#cbd5e1", black: "#111827", brown: "#92400e", violet: "#7c3aed", pink: "#ec4899", gray: "#64748b" }[String(value || "").trim().toLowerCase()] || "#2563eb")
 const nodeColor = (node: FiberTreeNode) => node.type === "onu" ? (node.status === "active" ? "#16a34a" : "#dc2626") : node.type.startsWith("splitter-") ? coreColor(node.meta?.coreColor) : color(node.type)
 const linkColor = (node: FiberTreeNode, dark: boolean) => node.type.startsWith("splitter-") ? coreColor(node.meta?.coreColor) : (dark ? "#475569" : "#cbd5e1")
