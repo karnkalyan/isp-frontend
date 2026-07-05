@@ -2,7 +2,7 @@
 
 import { apiRequest } from "@/lib/api"
 
-export type FiberNodeType = "core" | "olt" | "service-port" | "splitter-master" | "splitter-slave" | "onu"
+export type FiberNodeType = "core" | "olt" | "service-port" | "splitter-master" | "splitter-slave" | "onu" | "acs" | "radius"
 
 export interface FiberTreeNode {
   id: string
@@ -95,6 +95,20 @@ const buildOntNode = (customer: any): FiberTreeNode => {
       phone: customer.phoneNumber,
       macAddress: ont?.macAddress,
     },
+    children: [
+      {
+        id: `acs-${customer.id}`,
+        name: `ACS: ${customer.acsRealtimeStatus === "online" ? "Online" : "Offline"}`,
+        type: "acs",
+        status: customer.acsRealtimeStatus === "online" ? "active" : "inactive",
+      },
+      {
+        id: `radius-${customer.id}`,
+        name: `RADIUS: ${customer.radiusRealtimeStatus === "online" ? "Online" : "Offline"}`,
+        type: "radius",
+        status: customer.radiusRealtimeStatus === "online" ? "active" : "inactive",
+      },
+    ],
   }
 }
 
@@ -253,15 +267,33 @@ export function buildFiberNetworkDataset(olts: any[], splitters: any[], customer
 }
 
 export async function fetchFiberNetworkDataset(): Promise<FiberNetworkDataset> {
-  const [oltResponse, splitterResponse, customerResponse] = await Promise.all([
+  const [oltResponse, splitterResponse, customerResponse, acsResponse, radiusResponse] = await Promise.all([
     apiRequest<any>("/olt?limit=1000"),
     apiRequest<any>("/splitters?limit=1000"),
     apiRequest<any>("/customer?limit=5000"),
+    apiRequest<any>("/tr069-devices?limit=5000").catch(() => ({ devices: [] })),
+    apiRequest<any>("/customer/sessions?limit=5000").catch(() => []),
   ])
+
+  const customers = unwrapList(customerResponse)
+  const acsDevices = Array.isArray(acsResponse?.devices) ? acsResponse.devices : unwrapList(acsResponse)
+  const radiusSessions = unwrapList(radiusResponse)
+  const onlineAcsSerials = new Set(acsDevices.filter((device: any) => device.status === "online").map((device: any) => String(device.SerialNumber || device.serialNumber || "").toUpperCase()))
+  const onlineRadiusUsers = new Set(radiusSessions.map((session: any) => String(session.username || session.userName || session.UserName || "").toLowerCase()).filter(Boolean))
+  const enrichedCustomers = customers.map((customer: any) => {
+    const ont = getCustomerOnt(customer)
+    const serials = [ont?.ponSerial, ont?.serialNumber, ont?.serialNo].filter(Boolean).map(value => String(value).toUpperCase())
+    const usernames: string[] = (customer.connectionUsers || []).map((user: any) => String(user.username || "").toLowerCase()).filter(Boolean)
+    return {
+      ...customer,
+      acsRealtimeStatus: serials.some(serial => onlineAcsSerials.has(serial)) ? "online" : "offline",
+      radiusRealtimeStatus: usernames.some(username => onlineRadiusUsers.has(username)) ? "online" : "offline",
+    }
+  })
 
   return buildFiberNetworkDataset(
     unwrapList(oltResponse),
     unwrapList(splitterResponse),
-    unwrapList(customerResponse)
+    enrichedCustomers
   )
 }

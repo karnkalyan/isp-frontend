@@ -260,7 +260,7 @@ export function NetworkTopologyD3() {
 }
 
 const coreColor = (value: any) => ({ blue: "#2563eb", green: "#16a34a", orange: "#f97316", red: "#dc2626", yellow: "#eab308", white: "#cbd5e1", black: "#111827", brown: "#92400e", violet: "#7c3aed", pink: "#ec4899", gray: "#64748b" }[String(value || "").trim().toLowerCase()] || "#2563eb")
-const nodeColor = (node: FiberTreeNode) => node.type === "onu" ? (node.status === "active" ? "#16a34a" : "#dc2626") : node.type.startsWith("splitter-") ? coreColor(node.meta?.coreColor) : color(node.type)
+const nodeColor = (node: FiberTreeNode) => ["onu", "acs", "radius"].includes(node.type) ? (node.status === "active" ? "#16a34a" : "#dc2626") : node.type.startsWith("splitter-") ? coreColor(node.meta?.coreColor) : color(node.type)
 const linkColor = (node: FiberTreeNode, dark: boolean) => node.type.startsWith("splitter-") ? coreColor(node.meta?.coreColor) : (dark ? "#475569" : "#cbd5e1")
 
 function color(type: FiberTreeNode["type"]) {
@@ -271,5 +271,7 @@ function color(type: FiberTreeNode["type"]) {
     "splitter-master": "#f59e0b",
     "splitter-slave": "#d97706",
     onu: "#10b981",
+    acs: "#16a34a",
+    radius: "#16a34a",
   }[type]
 }

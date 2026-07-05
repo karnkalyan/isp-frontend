@@ -2487,6 +2487,17 @@ export function AddCustomerForm() {
 
       if (response.success) {
         setServiceProvisionResults(response.services || [])
+        if (isFiber && provisionDetails.oltId) {
+          const syncResults = await Promise.allSettled([
+            apiRequest("/tr069-devices/sync", { method: "POST" }),
+            apiRequest(`/olt/${provisionDetails.oltId}/onts/sync`, { method: "POST" }),
+          ])
+          syncResults.forEach((result, index) => {
+            if (result.status === "rejected") {
+              console.warn(index === 0 ? "TR-069 sync after provisioning failed" : "OLT ONT sync after provisioning failed", result.reason)
+            }
+          })
+        }
         // If any services failed, we still show success for core, but highlight failures
         const allSucceeded = response.services?.every((s: any) => s.success) ?? true
         if (allSucceeded) {

@@ -386,6 +386,16 @@ interface Customer {
     packageEnd: string
     isPaid: boolean
     isActive: boolean
+    isRenewalOrder?: boolean
+    packageItems?: Array<{
+      id: number
+      name?: string
+      referenceId?: string | null
+      amount?: number | null
+      isTaxable: boolean
+      isTscApplicable: boolean
+      isRenewal: boolean
+    }>
     items: Array<{
       id: number
       itemName: string
@@ -1342,6 +1352,13 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState("overview")
   const [customer, setCustomer] = useState<Customer | null>(null)
+  const [billingTscPercentage, setBillingTscPercentage] = useState(10)
+
+  useEffect(() => {
+    apiRequest<Record<string, string>>("/settings")
+      .then(settings => setBillingTscPercentage(Number(settings?.tscPercentage || 10)))
+      .catch(() => setBillingTscPercentage(10))
+  }, [])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [packages, setPackages] = useState<PackageOption[]>([])
@@ -1953,6 +1970,19 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
             headers: { "Content-Type": "application/json" }
           })
         }
+      }
+
+      const syncOltId = String(ultimateOlt?.id || hwProvisionDetails.oltId || "")
+      if (syncOltId) {
+        const syncResults = await Promise.allSettled([
+          apiRequest("/tr069-devices/sync", { method: "POST" }),
+          apiRequest(`/olt/${syncOltId}/onts/sync`, { method: "POST" }),
+        ])
+        syncResults.forEach((result, index) => {
+          if (result.status === "rejected") {
+            console.warn(index === 0 ? "TR-069 sync after provisioning failed" : "OLT ONT sync after provisioning failed", result.reason)
+          }
+        })
       }
 
       toast.success("Fiber provisioning saved successfully")
@@ -4084,14 +4114,28 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
               {customer.orders.length > 0 ? (
                 <div className="space-y-3">
                   {customer.orders.map((order) => {
-                    const resolvedItems = order.items && order.items.length > 0 
+                    const configuredItems = order.packageItems || []
+                    const resolvedItems = configuredItems.length > 0
+                      ? configuredItems.map((item, idx) => ({
+                          sn: idx + 1,
+                          itemName: item.name || 'Package item',
+                          referenceId: item.referenceId || 'N/A',
+                          qty: 1,
+                          price: Number(order.totalAmount) === 0 ? 0 : Number(item.amount || 0),
+                          total: Number(order.totalAmount) === 0 ? 0 : Number(item.amount || 0),
+                          isTaxable: item.isTaxable !== false,
+                          isTscApplicable: item.isTscApplicable === true,
+                        }))
+                      : order.items && order.items.length > 0
                       ? order.items.map((item: any, idx: number) => ({
                           sn: idx + 1,
                           itemName: item.itemName,
                           referenceId: item.referenceId || 'N/A',
                           qty: 1,
                           price: item.itemPrice,
-                          total: item.itemPrice
+                          total: item.itemPrice,
+                          isTaxable: true,
+                          isTscApplicable: false,
                         }))
                       : [
                           {
@@ -4100,9 +4144,15 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                             referenceId: order.packagePrice?.referenceId || customer.packagePrice?.referenceId || customer.subscribedPkg?.referenceId || 'N/A',
                             qty: 1,
                             price: order.packagePrice?.price ?? order.totalAmount,
-                            total: order.totalAmount
+                            total: order.totalAmount,
+                            isTaxable: true,
+                            isTscApplicable: false,
                           }
                         ];
+                    const itemsSubtotal = resolvedItems.reduce((sum, item) => sum + Number(item.total || 0), 0)
+                    const itemsTsc = resolvedItems.reduce((sum, item) => sum + (item.isTscApplicable ? Number(item.total || 0) * billingTscPercentage / 100 : 0), 0)
+                    const taxableAmount = resolvedItems.reduce((sum, item) => item.isTaxable ? sum + Number(item.total || 0) + (item.isTscApplicable ? Number(item.total || 0) * billingTscPercentage / 100 : 0) : sum, 0)
+                    const vatAmount = taxableAmount * 0.13
                     return (
                       <div key={order.id} className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                         <div className="flex justify-between items-start mb-3">
@@ -4155,6 +4205,15 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                               </tbody>
                             </table>
                           </div>
+                          {configuredItems.length > 0 && (
+                            <div className="ml-auto mt-3 grid max-w-sm grid-cols-2 gap-x-5 gap-y-1 border-t pt-3 text-sm">
+                              <span className="text-muted-foreground">Subtotal</span><span className="text-right font-mono">{formatPrice(itemsSubtotal)}</span>
+                              <span className="text-muted-foreground">TSC ({billingTscPercentage}%)</span><span className="text-right font-mono">{formatPrice(itemsTsc)}</span>
+                              <span className="text-muted-foreground">Taxable Amount</span><span className="text-right font-mono">{formatPrice(taxableAmount)}</span>
+                              <span className="text-muted-foreground">VAT (13%)</span><span className="text-right font-mono">{formatPrice(vatAmount)}</span>
+                              <span className="font-semibold">Total Amount</span><span className="text-right font-mono font-semibold">{formatPrice(order.totalAmount)}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
