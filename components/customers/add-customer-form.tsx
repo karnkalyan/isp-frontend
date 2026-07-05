@@ -2176,7 +2176,7 @@ export function AddCustomerForm() {
         service_profile_id: serviceProfileId,
         description: `${formValues.firstName}_${formValues.lastName}_${formValues.streetAddress}`.replace(/\s+/g, '_'),
         vlans,
-        load_file: selectedLoadFile?.filename || null,
+        load_file: selectedLoadFile?.filename?.toLowerCase() || null,
       },
     }
 

@@ -1730,7 +1730,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         service_profile_id: serviceProfileId,
         description: `${customer?.firstName || "Customer"}_${customer?.lastName || ""}_${customer?.street || ""}`.replace(/\s+/g, '_'),
         vlans,
-        load_file: selectedLoadFile?.filename || null,
+        load_file: selectedLoadFile?.filename?.toLowerCase() || null,
       },
     }
 
@@ -2656,16 +2656,23 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   }
 
   const deleteOntFromOlt = async (serialNumber: string) => {
-    if (!serialNumber) return;
+    if (!serialNumber) throw new Error("Cannot delete ONT: serial number is missing");
     const oltId = customer?.serviceDetails?.[0]?.oltId || customer?.oltId;
     if (!oltId) {
-      console.log("No OLT ID associated with customer for ONT deletion.");
-      return;
+      throw new Error("Cannot delete ONT: customer has no associated OLT");
     }
     
     try {
       console.log(`[OLT_DELETE] Fetching ONT details for serial ${serialNumber} from OLT ${oltId}`);
-      const res = await apiRequest<any>(`/olt/${oltId}/onts?search=${encodeURIComponent(serialNumber)}`);
+      const serialCandidates = [...new Set([serialNumber, convertToPonHex(serialNumber)].filter(Boolean))]
+      let res: any = null
+      for (const candidate of serialCandidates) {
+        const candidateResponse = await apiRequest<any>(`/olt/${oltId}/onts?search=${encodeURIComponent(candidate)}`)
+        if (candidateResponse?.success && Array.isArray(candidateResponse.data) && candidateResponse.data.length > 0) {
+          res = candidateResponse
+          break
+        }
+      }
       if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
         const ont = res.data[0];
         const fsp = ont.servicePort || ""; 
@@ -2679,9 +2686,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         const port = fspParts.length > 2 ? parseInt(fspParts[2], 10) : 0;
         const ont_id = parseInt(ontIdVal, 10);
 
-        if (isNaN(slot) || isNaN(port) || isNaN(ont_id)) {
-          console.warn("[OLT_DELETE] Invalid slot, port, or ont_id parsed from fsp:", fsp, "ontId:", ontIdVal);
-          return;
+        if (isNaN(frame) || isNaN(slot) || isNaN(port) || isNaN(ont_id)) {
+          throw new Error(`Cannot delete ONT: invalid F/S/P or ONT ID (${fsp}, ${ontIdVal})`);
         }
 
         let service_port_indices: number[] = [];
@@ -2692,8 +2698,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
               : servicePorts;
             if (Array.isArray(ports)) {
               service_port_indices = ports
-                .map((sp: any) => sp.index)
-                .filter((v: any) => v !== undefined && v !== null && !isNaN(v));
+                .map((sp: any) => Number(sp?.index ?? sp?.servicePortIndex ?? sp?.service_port))
+                .filter((v: any) => Number.isInteger(v) && v >= 0);
             }
           } catch (e) {
             console.error("[OLT_DELETE] Error parsing service ports:", e);
@@ -2722,14 +2728,14 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         if (actionRes?.success) {
           toast.success("ONT deleted from OLT successfully");
         } else {
-          toast.error(actionRes?.error || "ONT deletion from OLT returned failure status.");
+          throw new Error(actionRes?.error || actionRes?.message || "ONT deletion from OLT returned failure status.");
         }
       } else {
-        console.log(`[OLT_DELETE] No ONT details found in DB for serial ${serialNumber}`);
+        throw new Error(`Cannot delete ONT: ${serialNumber} was not found in synchronized OLT inventory`);
       }
     } catch (err: any) {
       console.error("[OLT_DELETE] Failed to delete ONT from OLT:", err);
-      toast.error(err.message || "Failed to communicate with OLT");
+      throw err;
     }
   };
 
@@ -2737,9 +2743,13 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     if (!returnHardwareItem) return
     try {
       setActionLoading(true)
-      const isOnt = returnHardwareItem.type === 'ONT' || returnHardwareItem.deviceType === 'ONT';
-      if (isOnt && returnHardwareItem.serialNumber) {
-        await deleteOntFromOlt(returnHardwareItem.serialNumber);
+      const isOnt = String(returnHardwareItem.type || returnHardwareItem.deviceType || '').toUpperCase() === 'ONT';
+      if (isOnt) {
+        const assignedDevice = customer?.devices?.find((device: any) =>
+          (returnHardwareItem.serialNumber && device.serialNumber === returnHardwareItem.serialNumber) ||
+          (returnHardwareItem.macAddress && device.macAddress === returnHardwareItem.macAddress)
+        )
+        await deleteOntFromOlt(assignedDevice?.ponSerial || assignedDevice?.serialNumber || returnHardwareItem.serialNumber);
       }
       await apiRequest(`/inventory/${returnHardwareItem.id}/return`, {
         method: "PUT",
