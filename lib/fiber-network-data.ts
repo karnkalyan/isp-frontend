@@ -267,27 +267,31 @@ export function buildFiberNetworkDataset(olts: any[], splitters: any[], customer
 }
 
 export async function fetchFiberNetworkDataset(): Promise<FiberNetworkDataset> {
-  const [oltResponse, splitterResponse, customerResponse, acsResponse, radiusResponse] = await Promise.all([
+  const [oltResponse, splitterResponse, customerResponse] = await Promise.all([
     apiRequest<any>("/olt?limit=1000"),
     apiRequest<any>("/splitters?limit=1000"),
     apiRequest<any>("/customer?limit=5000"),
-    apiRequest<any>("/tr069-devices?limit=5000").catch(() => ({ devices: [] })),
-    apiRequest<any>("/customer/sessions?limit=5000").catch(() => []),
   ])
 
   const customers = unwrapList(customerResponse)
-  const acsDevices = Array.isArray(acsResponse?.devices) ? acsResponse.devices : unwrapList(acsResponse)
-  const radiusSessions = unwrapList(radiusResponse)
-  const onlineAcsSerials = new Set(acsDevices.filter((device: any) => device.status === "online").map((device: any) => String(device.SerialNumber || device.serialNumber || "").toUpperCase()))
-  const onlineRadiusUsers = new Set(radiusSessions.map((session: any) => String(session.username || session.userName || session.UserName || "").toLowerCase()).filter(Boolean))
+  const realtimeByCustomerId = new Map<number, any>()
+  const customersWithOnt = customers.filter((customer: any) => getCustomerOnt(customer))
+  const batchSize = 10
+  for (let index = 0; index < customersWithOnt.length; index += batchSize) {
+    const batch = customersWithOnt.slice(index, index + batchSize)
+    const details = await Promise.all(batch.map((customer: any) =>
+      apiRequest<any>(`/customer/${customer.id}`, { suppressToast: true }).catch(() => null)
+    ))
+    details.forEach((detail, detailIndex) => {
+      if (detail) realtimeByCustomerId.set(Number(batch[detailIndex].id), detail)
+    })
+  }
   const enrichedCustomers = customers.map((customer: any) => {
-    const ont = getCustomerOnt(customer)
-    const serials = [ont?.ponSerial, ont?.serialNumber, ont?.serialNo].filter(Boolean).map(value => String(value).toUpperCase())
-    const usernames: string[] = (customer.connectionUsers || []).map((user: any) => String(user.username || "").toLowerCase()).filter(Boolean)
+    const realtime = realtimeByCustomerId.get(Number(customer.id))
     return {
       ...customer,
-      acsRealtimeStatus: serials.some(serial => onlineAcsSerials.has(serial)) ? "online" : "offline",
-      radiusRealtimeStatus: usernames.some(username => onlineRadiusUsers.has(username)) ? "online" : "offline",
+      acsRealtimeStatus: String(realtime?.ontRealtimeStatus || "offline").toLowerCase(),
+      radiusRealtimeStatus: String(realtime?.radiusRealtimeStatus || "offline").toLowerCase(),
     }
   })
 
