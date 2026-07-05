@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import { Loader2, Package, Tag, Hash, Command } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
 
 const formatEponMacAddress = (value: string) => {
   const hex = value.replace(/[^a-fA-F0-9]/g, "").slice(0, 12).toLowerCase()
@@ -38,6 +39,7 @@ export function AddInventoryItem() {
     model: "",
     serialNumber: "",
     ponSerialNumber: "",
+    ponVendorIdIncluded: true,
     macAddress: "",
     branchId: "none",
     vendorId: "none",
@@ -67,8 +69,8 @@ export function AddInventoryItem() {
     }).catch(() => setVendors([]))
   }, [])
 
-  const handleChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: field === "macAddress" ? formatEponMacAddress(value) : value }))
+  const handleChange = (field: string, value: string | boolean) => {
+    setFormData((prev) => ({ ...prev, [field]: field === "macAddress" ? formatEponMacAddress(String(value)) : value }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -184,6 +186,17 @@ export function AddInventoryItem() {
                    className="pl-9 bg-white dark:bg-slate-950"
                    value={formData.ponSerialNumber}
                    onChange={(e) => handleChange("ponSerialNumber", e.target.value)}
+                 />
+               </div>
+               <div className="flex items-center justify-between rounded-md border p-3">
+                 <div className="pr-3">
+                   <Label htmlFor="ponVendorIdIncluded">Vendor ID included</Label>
+                   <p className="text-xs text-muted-foreground">Enable for printed GPON serials such as ALCLB2C828EA. The vendor prefix will be encoded for the OLT.</p>
+                 </div>
+                 <Switch
+                   id="ponVendorIdIncluded"
+                   checked={formData.ponVendorIdIncluded}
+                   onCheckedChange={(checked) => handleChange("ponVendorIdIncluded", checked)}
                  />
                </div>
              </div>

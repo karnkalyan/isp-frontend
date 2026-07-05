@@ -25,6 +25,7 @@ import {
 import { apiRequest } from "@/lib/api"
 import { toast } from "@/hooks/use-toast"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Switch } from "@/components/ui/switch"
 import { AssignDeviceDialog } from "@/components/inventory/assign-device-dialog"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
@@ -114,6 +115,7 @@ export function InventoryOverview() {
         model: "",
         serialNumber: "",
         ponSerialNumber: "",
+        ponVendorIdIncluded: true,
         macAddress: "",
         branchId: "none",
         qty: "1",
@@ -177,6 +179,7 @@ export function InventoryOverview() {
             model: item.model || "",
             serialNumber: item.serialNumber || "",
             ponSerialNumber: item.ponSerialNumber || "",
+            ponVendorIdIncluded: item.ponVendorIdIncluded !== false,
             macAddress: item.macAddress || "",
             branchId: item.branchId ? String(item.branchId) : "none",
             qty: String(item.qty || 1),
@@ -185,10 +188,10 @@ export function InventoryOverview() {
         })
     }
 
-    const updateEditForm = (field: string, value: string) => {
+    const updateEditForm = (field: string, value: string | boolean) => {
         setEditForm(prev => ({
             ...prev,
-            [field]: field === "macAddress" ? formatEponMacAddress(value) : value
+            [field]: field === "macAddress" ? formatEponMacAddress(String(value)) : value
         }))
     }
 
@@ -640,6 +643,13 @@ export function InventoryOverview() {
                         <div className="space-y-2">
                             <Label>PON Serial Number</Label>
                             <Input value={editForm.ponSerialNumber} onChange={(e) => updateEditForm("ponSerialNumber", e.target.value)} />
+                        </div>
+                        <div className="flex items-center justify-between rounded-md border p-3">
+                            <div className="pr-3">
+                                <Label>Vendor ID included</Label>
+                                <p className="text-xs text-muted-foreground">Encode the four-character vendor prefix when provisioning the OLT.</p>
+                            </div>
+                            <Switch checked={editForm.ponVendorIdIncluded} onCheckedChange={(checked) => updateEditForm("ponVendorIdIncluded", checked)} />
                         </div>
                         <div className="space-y-2">
                             <Label>MAC Address</Label>

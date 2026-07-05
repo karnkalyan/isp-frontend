@@ -68,6 +68,7 @@ import {
 } from "lucide-react"
 import { apiRequest, buildApiAssetUrl, getDynamicBaseUrl } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
+import { Switch } from "@/components/ui/switch"
 
 // TR-069 components
 import { TR069DeviceDetails } from "@/components/tr069/device-details"
@@ -198,6 +199,7 @@ interface CustomerDevice {
   serialNumber: string
   macAddress: string
   ponSerial?: string
+  ponVendorIdIncluded?: boolean
   notes: string
   inventoryItemId?: number
   provisioningStatus?: string
@@ -225,6 +227,7 @@ interface Customer {
   onboardStatus: string
   createdAt: string
   updatedAt: string
+  primaryDeviceSerial?: string | null
   packagePrice: {
     id: number
     planId: number
@@ -948,6 +951,7 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
     serialNumber: "",
     macAddress: "",
     ponSerial: "",
+    ponVendorIdIncluded: true,
     notes: "",
   })
 
@@ -959,6 +963,7 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
       setFormData({
         ...device,
         ponSerial: (device as any).ponSerial || "",
+        ponVendorIdIncluded: (device as any).ponVendorIdIncluded !== false,
         macAddress: device.macAddress ? formatMacAddress(device.macAddress) : "",
       })
     } else {
@@ -969,6 +974,7 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
         serialNumber: "",
         macAddress: "",
         ponSerial: "",
+        ponVendorIdIncluded: true,
         notes: "",
         id: undefined,
         inventoryItemId: undefined,
@@ -1011,6 +1017,7 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
         serialNumber: item.serialNumber,
         macAddress: item.macAddress || prev.macAddress,
         ponSerial: item.ponSerialNumber || prev.ponSerial,
+        ponVendorIdIncluded: item.ponVendorIdIncluded !== false,
         brand: item.name || prev.brand,
         model: item.model || item.type || prev.model,
         inventoryItemId: item.id,
@@ -1094,6 +1101,15 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
               />
             </div>
           </div>
+          {formData.deviceType === "ONT" && (
+            <div className="flex items-center justify-between rounded-md border p-3">
+              <div>
+                <Label htmlFor="ponVendorIdIncluded">PON serial includes vendor ID</Label>
+                <p className="text-xs text-muted-foreground">Convert the first four characters (for example ALCL) to ASCII hex for Huawei OLT registration.</p>
+              </div>
+              <Switch id="ponVendorIdIncluded" checked={formData.ponVendorIdIncluded !== false} disabled />
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="serialNumber">Serial Number *</Label>
@@ -1104,6 +1120,17 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
                 placeholder="SN123456"
                 disabled
               />
+              {formData.ponSerial && (
+                <p className="text-xs text-muted-foreground">
+                  OLT serial: <span className="font-mono">{formData.ponVendorIdIncluded === false ? formData.ponSerial.toUpperCase() : (() => {
+                    const vendor = formData.ponSerial!.slice(0, 4)
+                    const rest = formData.ponSerial!.slice(4)
+                    return /^[0-9A-Fa-f]{16}$/.test(formData.ponSerial!)
+                      ? formData.ponSerial!.toUpperCase()
+                      : vendor.split("").map(ch => ch.charCodeAt(0).toString(16).padStart(2, "0")).join("").toUpperCase() + rest.toUpperCase()
+                  })()}</span>
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="macAddress">MAC Address</Label>
@@ -1297,8 +1324,6 @@ interface CustomerProfileProps {
 
 export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileProps = {}) {
   const { user } = useAuth()
-  const currentRoleName = String(typeof user?.role === "string" ? user.role : user?.role?.name || "").toLowerCase()
-  const canExtendTrial = ["admin", "administrator", "isp_admin", "super_admin", "global admin", "global_admin"].includes(currentRoleName)
   const [activeTab, setActiveTab] = useState("overview")
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [loading, setLoading] = useState(true)
@@ -1334,6 +1359,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const [selectedPlanName, setSelectedPlanName] = useState("")
   const [newMacAddress, setNewMacAddress] = useState("")
   const [actionLoading, setActionLoading] = useState(false)
+  const [acsSyncing, setAcsSyncing] = useState(false)
   const [serviceActionLoading, setServiceActionLoading] = useState<"radius" | "nettv" | "account" | "disconnect" | null>(null)
   const [nettvProvisionOpen, setNettvProvisionOpen] = useState(false)
   const [renewLoading, setRenewLoading] = useState(false)
@@ -1380,7 +1406,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       }
     }
     const username = String(cust.customerUniqueId || `customer-${cust.id}`).trim().replace(/\s+/g, '').toLowerCase()
-    return `${username}@customer.local`
+    return username
   }, [])
 
   const getPortalLoginIdentifier = useCallback((value?: string | null) => {
@@ -1580,8 +1606,9 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       // EPON: use MAC address without dots
       return device.macAddress
     } else {
-      // GPON: use ponSerial if available, else convert serialNumber to hex
-      return device.ponSerial ? convertToPonHex(device.ponSerial) : convertToPonHex(device.serialNumber)
+      // GPON: only encode the four-character vendor ID when inventory says it is included.
+      const ponSerial = device.ponSerial || device.serialNumber
+      return device.ponVendorIdIncluded === false ? ponSerial.toUpperCase() : convertToPonHex(ponSerial)
     }
   }, [convertToPonHex])
 
@@ -1613,8 +1640,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       }
 
       const path = getSplitterPath(hwProvisionDetails.splitterId)
-      const lastSplitter = path[path.length - 1]
-      boardPortStr = lastSplitter?.connectedServiceBoard?.boardPort || ""
+      const oltConnectedSplitter = path.find(s => s.connectedServiceBoard?.boardPort)
+      boardPortStr = oltConnectedSplitter?.connectedServiceBoard?.boardPort || ""
       const selectedSplitter = splitters.find(s => s.id.toString() === hwProvisionDetails.splitterId)
       boardType = selectedSplitter?.connectedServiceBoard?.boardType || ultimateOlt.serviceBoards?.[0]?.type
     }
@@ -1711,8 +1738,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       const selectedSplitter = splitters.find(s => s.id.toString() === hwProvisionDetails.splitterId)
       const ultimateOlt = findUltimateOltForSplitter(hwProvisionDetails.splitterId)
       const path = getSplitterPath(hwProvisionDetails.splitterId)
-      const lastSplitter = path[path.length - 1]
-      const boardPortStr = lastSplitter?.connectedServiceBoard?.boardPort || ""
+      const oltConnectedSplitter = path.find(s => s.connectedServiceBoard?.boardPort)
+      const boardPortStr = oltConnectedSplitter?.connectedServiceBoard?.boardPort || ""
 
       if (!boardPortStr) {
         toast.error("Unable to determine board port from splitter")
@@ -2039,17 +2066,19 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     }
   }
 
-  const extendTrial = async () => {
-    if (!customer || !canExtendTrial) return
-    const value = window.prompt("Extend trial by how many days?", "3")
-    if (value === null) return
-    const days = Number(value)
-    if (!Number.isInteger(days) || days <= 0 || days > 365) return toast.error("Enter a valid number of days between 1 and 365")
+  const syncAcsDevice = async () => {
+    const serial = customer?.primaryDeviceSerial
+    if (!serial) return toast.error("No linked TR-069 device was found for this customer")
+    setAcsSyncing(true)
     try {
-      await apiRequest("/billing/extend", { method: "POST", body: JSON.stringify({ customerId: customer.id, days, type: "compensation" }) })
-      toast.success(`Trial extended by ${days} day(s)`)
+      const response = await apiRequest<{ success: boolean; message?: string }>(`/tr069-devices/${encodeURIComponent(serial)}/sync`, { method: "POST" })
+      toast.success(response.message || "ACS device details synchronized")
       await fetchCustomerData()
-    } catch (error: any) { toast.error(error.message || "Failed to extend trial") }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to synchronize ACS device")
+    } finally {
+      setAcsSyncing(false)
+    }
   }
 
   useEffect(() => {
@@ -3312,7 +3341,9 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         <Button size="sm" className="h-9 bg-gradient-to-r from-green-500 to-emerald-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={() => setRenewPackageOpen(true)}>
           <RefreshCw className="mr-2 h-4 w-4" /> Renew Package
         </Button>
-        {latestSubscription?.isTrial && canExtendTrial && <Button size="sm" variant="outline" className="h-9" onClick={extendTrial}><Calendar className="mr-2 h-4 w-4" />Extend Trial</Button>}
+        <Button size="sm" variant="outline" className="h-9" onClick={syncAcsDevice} disabled={acsSyncing || !customer.primaryDeviceSerial}>
+          {acsSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />} Sync ACS
+        </Button>
         <Button size="sm" className="h-9 bg-gradient-to-r from-blue-500 to-indigo-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={() => setChangeUsernameOpen(true)}>
           <User className="mr-2 h-4 w-4" /> Change Username
         </Button>
@@ -4435,8 +4466,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                             <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded font-mono">
                               {(() => {
                                 const path = getSplitterPath(hwProvisionDetails.splitterId);
-                                const lastSplitter = path[path.length - 1];
-                                return lastSplitter?.connectedServiceBoard?.boardPort || 'Not available';
+                                return path.find(s => s.connectedServiceBoard?.boardPort)?.connectedServiceBoard?.boardPort || 'Not available';
                               })()}
                             </code>
                           </div>

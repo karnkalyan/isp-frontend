@@ -459,6 +459,7 @@ interface CustomerDevice {
   serialNumber: string
   macAddress: string
   ponSerial?: string // for GPON
+  ponVendorIdIncluded?: boolean
   notes: string
   inventoryItemId?: number
 }
@@ -559,6 +560,7 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
     serialNumber: "",
     macAddress: "",
     ponSerial: "",
+    ponVendorIdIncluded: true,
     notes: "",
   })
 
@@ -570,6 +572,7 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
       setFormData({
         ...device,
         ponSerial: (device as any).ponSerial || "",
+        ponVendorIdIncluded: (device as any).ponVendorIdIncluded !== false,
         macAddress: device.macAddress ? formatMacAddress(device.macAddress) : "",
       })
     } else {
@@ -580,6 +583,7 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
         serialNumber: "",
         macAddress: "",
         ponSerial: "",
+        ponVendorIdIncluded: true,
         notes: "",
         id: undefined,
         inventoryItemId: undefined,
@@ -622,6 +626,7 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
         serialNumber: item.serialNumber,
         macAddress: item.macAddress || prev.macAddress,
         ponSerial: item.ponSerialNumber || prev.ponSerial,
+        ponVendorIdIncluded: item.ponVendorIdIncluded !== false,
         brand: item.name || prev.brand,
         model: item.model || item.type || prev.model,
         inventoryItemId: item.id,
@@ -1915,8 +1920,8 @@ export function AddCustomerForm() {
       const selectedSplitter = splitters.find(s => s.id.toString() === provisionDetails.splitterId);
       const ultimateOlt = findUltimateOltForSplitter(provisionDetails.splitterId);
       const path = getSplitterPath(provisionDetails.splitterId);
-      const lastSplitter = path[path.length - 1];
-      const boardPortStr = lastSplitter?.connectedServiceBoard?.boardPort || "";
+      const oltConnectedSplitter = path.find(s => s.connectedServiceBoard?.boardPort);
+      const boardPortStr = oltConnectedSplitter?.connectedServiceBoard?.boardPort || "";
 
       if (!boardPortStr) {
         toast.error("Unable to determine board port from splitter");
@@ -2061,8 +2066,8 @@ export function AddCustomerForm() {
       // EPON: use MAC address without dots
       return device.macAddress
     } else {
-      // GPON: use ponSerial if available, else convert serialNumber to hex
-      return device.ponSerial ? convertToPonHex(device.ponSerial) : convertToPonHex(device.serialNumber)
+      const ponSerial = device.ponSerial || device.serialNumber
+      return device.ponVendorIdIncluded === false ? ponSerial.toUpperCase() : convertToPonHex(ponSerial)
     }
   }, [convertToPonHex])
 
@@ -2095,8 +2100,8 @@ export function AddCustomerForm() {
       }
 
       const path = getSplitterPath(provisionDetails.splitterId)
-      const lastSplitter = path[path.length - 1]
-      boardPortStr = lastSplitter?.connectedServiceBoard?.boardPort || ""
+      const oltConnectedSplitter = path.find(s => s.connectedServiceBoard?.boardPort)
+      boardPortStr = oltConnectedSplitter?.connectedServiceBoard?.boardPort || ""
       const selectedSplitter = splitters.find(s => s.id.toString() === provisionDetails.splitterId)
       boardType = selectedSplitter?.connectedServiceBoard?.boardType || ultimateOlt.serviceBoards?.[0]?.type
     }
@@ -2112,7 +2117,7 @@ export function AddCustomerForm() {
     const isEpon = boardType?.toUpperCase().includes("EPON")
 
     // Build serial
-    const serial = getOntSerialForRegistration(matchedDeviceForOnt, isEpon)
+    const serial = getOntSerialForRegistration(matchedDeviceForOnt, Boolean(isEpon))
     if (!serial) {
       toast.error("No serial/MAC available for ONT")
       return false
@@ -4170,8 +4175,7 @@ export function AddCustomerForm() {
                               <code className="bg-gray-100 px-1 py-0.5 rounded">
                                 {(() => {
                                   const path = getSplitterPath(provisionDetails.splitterId);
-                                  const lastSplitter = path[path.length - 1];
-                                  return lastSplitter?.connectedServiceBoard?.boardPort || 'Not available';
+                                  return path.find(s => s.connectedServiceBoard?.boardPort)?.connectedServiceBoard?.boardPort || 'Not available';
                                 })()}
                               </code>
                             </div>
