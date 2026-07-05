@@ -184,11 +184,22 @@ interface Splitter {
     oltId: string
     oltName: string
     boardPort: string
+    port?: string
     boardSlot: number
     boardType?: string // to determine EPON/GPON
   } | null
+  upstreamFiber?: { port?: string } | null
   isMaster?: boolean
   masterSplitterId?: string | null
+}
+
+function resolveSplitterBoardPort(path: Splitter[]): string {
+  for (const splitter of path) {
+    const board = splitter.connectedServiceBoard
+    const port = board?.boardPort || board?.port || splitter.upstreamFiber?.port
+    if (port) return String(port)
+  }
+  return ""
 }
 
 interface CustomerDevice {
@@ -1640,8 +1651,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       }
 
       const path = getSplitterPath(hwProvisionDetails.splitterId)
-      const oltConnectedSplitter = path.find(s => s.connectedServiceBoard?.boardPort)
-      boardPortStr = oltConnectedSplitter?.connectedServiceBoard?.boardPort || ""
+      boardPortStr = resolveSplitterBoardPort(path)
       const selectedSplitter = splitters.find(s => s.id.toString() === hwProvisionDetails.splitterId)
       boardType = selectedSplitter?.connectedServiceBoard?.boardType || ultimateOlt.serviceBoards?.[0]?.type
     }
@@ -1738,8 +1748,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       const selectedSplitter = splitters.find(s => s.id.toString() === hwProvisionDetails.splitterId)
       const ultimateOlt = findUltimateOltForSplitter(hwProvisionDetails.splitterId)
       const path = getSplitterPath(hwProvisionDetails.splitterId)
-      const oltConnectedSplitter = path.find(s => s.connectedServiceBoard?.boardPort)
-      const boardPortStr = oltConnectedSplitter?.connectedServiceBoard?.boardPort || ""
+      const boardPortStr = resolveSplitterBoardPort(path)
 
       if (!boardPortStr) {
         toast.error("Unable to determine board port from splitter")
@@ -4255,9 +4264,9 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                             </div>
                             <div className="grid grid-cols-2 gap-1 text-[11px]">
                               <span className="text-muted-foreground">Name:</span><span className="font-medium">{ultimateOlt.name}</span>
-                              {path[path.length - 1]?.connectedServiceBoard?.boardPort && (
+                              {resolveSplitterBoardPort(path) && (
                                 <>
-                                  <span className="text-muted-foreground">Port:</span><span className="font-mono font-medium">{path[path.length - 1]?.connectedServiceBoard?.boardPort}</span>
+                                  <span className="text-muted-foreground">Port:</span><span className="font-mono font-medium">{resolveSplitterBoardPort(path)}</span>
                                 </>
                               )}
                             </div>
@@ -4466,7 +4475,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                             <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded font-mono">
                               {(() => {
                                 const path = getSplitterPath(hwProvisionDetails.splitterId);
-                                return path.find(s => s.connectedServiceBoard?.boardPort)?.connectedServiceBoard?.boardPort || 'Not available';
+                                return resolveSplitterBoardPort(path) || 'Not available';
                               })()}
                             </code>
                           </div>

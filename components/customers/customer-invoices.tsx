@@ -300,6 +300,7 @@ export function CustomerInvoices({ customer, onRefresh }: CustomerInvoicesProps)
               <th className="h-10 px-4 text-left font-medium">Date</th>
               <th className="h-10 px-4 text-left font-medium">Amount</th>
               <th className="h-10 px-4 text-left font-medium">Status</th>
+              <th className="h-10 px-4 text-left font-medium">Payment Mode</th>
               <th className="h-10 px-4 text-right font-medium">Actions</th>
             </tr>
           </thead>
@@ -311,6 +312,7 @@ export function CustomerInvoices({ customer, onRefresh }: CustomerInvoicesProps)
                     <div className="font-medium">#{order.id}</div>
                     <div className="text-xs text-muted-foreground">{order.invoiceId || "No Invoice ID"}</div>
                   </td>
+                  <td className="p-4 font-medium">{order.isPaid ? String(order.paymentMethodName || order.paymentId || "Payment").replaceAll("_", " ") : "—"}</td>
                   <td className="p-4">{new Date(order.orderDate).toLocaleDateString()}</td>
                   <td className="p-4 font-bold">{formatPrice(order.totalAmount)}</td>
                   <td className="p-4">
@@ -337,7 +339,7 @@ export function CustomerInvoices({ customer, onRefresh }: CustomerInvoicesProps)
               ))
             ) : (
               <tr>
-                <td colSpan={5} className="p-8 text-center text-muted-foreground italic">No billing history found.</td>
+                <td colSpan={6} className="p-8 text-center text-muted-foreground italic">No billing history found.</td>
               </tr>
             )}
           </tbody>

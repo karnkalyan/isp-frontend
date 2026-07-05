@@ -1422,6 +1422,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
                 <th className="py-2">Package Period</th>
                 <th className="py-2">Amount</th>
                 <th className="py-2">Status</th>
+                <th className="py-2">Payment Mode</th>
               </tr>
             </thead>
             <tbody>
@@ -1451,10 +1452,11 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
                           {order.isPaid ? "Paid" : "Unpaid"}
                         </Badge>
                       </td>
+                      <td className="py-3 font-medium">{order.isPaid ? String(order.paymentMethodName || order.paymentId || "Payment").replaceAll("_", " ") : "—"}</td>
                     </tr>
                     {isExpanded && (
                       <tr className="bg-muted/5">
-                        <td colSpan={5} className="p-4 border-b">
+                        <td colSpan={6} className="p-4 border-b">
                           <div className="rounded-xl border border-border bg-card p-4 space-y-4 shadow-sm">
                             <div className="flex items-center justify-between border-b border-border pb-2">
                               <span className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Invoice Item Breakdown</span>

@@ -211,7 +211,7 @@ function PrintableInvoice({
         <div className="grid grid-cols-[1fr_1.6fr]">
           <div className="border-x border-b border-black p-5">
             <div className="font-bold underline">Payment Mode#</div>
-            <div className="mt-3 font-semibold">{invoice?.status === "paid" ? "Paid" : "Unpaid"}</div>
+            <div className="mt-3 font-semibold">{invoice?.status === "paid" ? String(invoice?.paymentMethod || "Payment").replaceAll("_", " ") : "Unpaid"}</div>
           </div>
           <table className="border-collapse text-sm">
             <tbody>
@@ -235,7 +235,7 @@ function PrintableInvoice({
         <div className="mt-8 flex items-end justify-between text-sm">
           <div>In Words : {numberToWords(total)}</div>
           <div className="w-72 text-center">
-            <div className="border-b border-slate-400 pb-1">{invoice?.paymentMethod || "khalti"}</div>
+            <div className="border-b border-slate-400 pb-1">{invoice?.paymentMethod ? String(invoice.paymentMethod).replaceAll("_", " ") : "Payment"}</div>
             <div className="mt-1">For {isp?.companyName || isp?.name || "ISP"}</div>
           </div>
         </div>
@@ -457,6 +457,7 @@ export function InvoicesList() {
                 <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Package</th>
                 <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Amount</th>
                 <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Status</th>
+                <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Payment Mode</th>
                 <th className="text-right p-4 text-sm font-semibold text-muted-foreground"></th>
               </tr>
             </thead>
@@ -484,6 +485,7 @@ export function InvoicesList() {
                   <td className="p-4">
                     <StatusBadge status={invoice.status as any} />
                   </td>
+                  <td className="p-4 text-sm font-medium text-foreground">{invoice.paymentMethod ? String(invoice.paymentMethod).replaceAll("_", " ") : "—"}</td>
                   <td className="p-4 text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>

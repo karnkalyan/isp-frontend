@@ -397,11 +397,22 @@ interface Splitter {
     oltId: string
     oltName: string
     boardPort: string
+    port?: string
     boardSlot: number
     boardType?: string // to determine EPON/GPON
   } | null
+  upstreamFiber?: { port?: string } | null
   isMaster?: boolean
   masterSplitterId?: string | null
+}
+
+function resolveSplitterBoardPort(path: Splitter[]): string {
+  for (const splitter of path) {
+    const board = splitter.connectedServiceBoard
+    const port = board?.boardPort || board?.port || splitter.upstreamFiber?.port
+    if (port) return String(port)
+  }
+  return ""
 }
 
 interface DocumentFile {
@@ -1920,8 +1931,7 @@ export function AddCustomerForm() {
       const selectedSplitter = splitters.find(s => s.id.toString() === provisionDetails.splitterId);
       const ultimateOlt = findUltimateOltForSplitter(provisionDetails.splitterId);
       const path = getSplitterPath(provisionDetails.splitterId);
-      const oltConnectedSplitter = path.find(s => s.connectedServiceBoard?.boardPort);
-      const boardPortStr = oltConnectedSplitter?.connectedServiceBoard?.boardPort || "";
+      const boardPortStr = resolveSplitterBoardPort(path);
 
       if (!boardPortStr) {
         toast.error("Unable to determine board port from splitter");
@@ -2100,8 +2110,7 @@ export function AddCustomerForm() {
       }
 
       const path = getSplitterPath(provisionDetails.splitterId)
-      const oltConnectedSplitter = path.find(s => s.connectedServiceBoard?.boardPort)
-      boardPortStr = oltConnectedSplitter?.connectedServiceBoard?.boardPort || ""
+      boardPortStr = resolveSplitterBoardPort(path)
       const selectedSplitter = splitters.find(s => s.id.toString() === provisionDetails.splitterId)
       boardType = selectedSplitter?.connectedServiceBoard?.boardType || ultimateOlt.serviceBoards?.[0]?.type
     }
@@ -3949,9 +3958,9 @@ export function AddCustomerForm() {
                                   </div>
                                   <div className="grid grid-cols-2 gap-1 text-xs mt-1">
                                     <span>Name:</span><span>{ultimateOlt.name}</span>
-                                    {path[path.length - 1]?.connectedServiceBoard?.boardPort && (
+                                    {resolveSplitterBoardPort(path) && (
                                       <>
-                                        <span>Port:</span><span>{path[path.length - 1].connectedServiceBoard.boardPort}</span>
+                                        <span>Port:</span><span>{resolveSplitterBoardPort(path)}</span>
                                       </>
                                     )}
                                   </div>
@@ -4175,7 +4184,7 @@ export function AddCustomerForm() {
                               <code className="bg-gray-100 px-1 py-0.5 rounded">
                                 {(() => {
                                   const path = getSplitterPath(provisionDetails.splitterId);
-                                  return path.find(s => s.connectedServiceBoard?.boardPort)?.connectedServiceBoard?.boardPort || 'Not available';
+                                  return resolveSplitterBoardPort(path) || 'Not available';
                                 })()}
                               </code>
                             </div>
