@@ -68,29 +68,9 @@ function PrintableInvoice({
     return found || null
   }
 
-  const isEsewaOrRecharge = invoice?.paymentMethod && 
-    ["ESEWA", "ESEWA EPAY", "ESEWA_EPAY", "KHALTI", "CONNECT_IPS", "FONEPAY", "ONLINE", "RECHARGE", "ESEWA EPAY RENEW"].includes(String(invoice.paymentMethod).toUpperCase())
-    || String(invoice?.packageName || "").toLowerCase().includes("recharge");
-
   const isLegacy = Math.abs(itemsSum - invoiceTotalAmount) < 1
 
-  if (isEsewaOrRecharge) {
-    total = invoiceTotalAmount
-    const tscFactor = invoice?.isTscApplicable ? (tscPct / 100) : 0
-    const baseAmount = total / ((1 + tscFactor) * 1.13)
-    totalTsc = Math.round(baseAmount * tscFactor * 100) / 100
-    taxableAmount = Math.round(baseAmount * (1 + tscFactor) * 100) / 100
-    vat = Math.round(taxableAmount * 0.13 * 100) / 100
-    subtotal = Math.round((total - totalTsc - vat) * 100) / 100
-
-    displayItems = [{
-      itemName: invoice.packageName || "Internet Package",
-      preTaxPrice: subtotal,
-      isTaxable: true,
-      isTscApplicable: invoice.isTscApplicable,
-      itemTsc: totalTsc
-    }];
-  } else if (isLegacy) {
+  if (isLegacy) {
     total = invoiceTotalAmount
     const tscFactor = invoice?.isTscApplicable ? (tscPct / 100) : 0
     const baseAmount = total / ((1 + tscFactor) * 1.13)
@@ -644,7 +624,75 @@ export function InvoicesList() {
   }
 
   const printInvoice = () => {
-    window.print()
+    const printTarget = dialogView === "invoice" ? "printable-invoice" : "printable-receipt"
+    const el = document.getElementById(printTarget)
+    if (!el) return
+    const printWindow = window.open("", "_blank", "width=1100,height=800")
+    if (!printWindow) return
+    printWindow.document.write(`<!DOCTYPE html><html><head><title>${dialogView === "invoice" ? "Invoice" : "Receipt"} - ${selectedInvoice?.invoiceId || ""}</title><style>
+      @page { size: A4 landscape; margin: 6mm; }
+      * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      body { font-family: system-ui, -apple-system, sans-serif; background: white; color: black; }
+      .printable-invoice, .printable-receipt { position: relative; width: 100%; max-width: 100%; background: white; padding: 20px; color: black; }
+      .pointer-events-none { pointer-events: none; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+      .pointer-events-none > div { transform: rotate(-45deg); font-size: 3.75rem; font-weight: bold; letter-spacing: 0.1em; color: rgba(148,163,184,0.5); }
+      .relative { position: relative; }
+      .border-2 { border: 2px solid black; }
+      .border { border: 1px solid black; }
+      .border-black { border-color: black; }
+      .border-b { border-bottom: 1px solid black; }
+      .border-r { border-right: 1px solid black; }
+      .border-x { border-left: 1px solid black; border-right: 1px solid black; }
+      .border-dotted { border-style: dotted; }
+      .border-slate-300 { border-color: #cbd5e1; }
+      .border-slate-400 { border-color: #94a3b8; }
+      .p-1 { padding: 4px; } .p-3 { padding: 12px; } .p-4 { padding: 16px; } .p-5 { padding: 20px; }
+      .px-1 { padding-left: 4px; padding-right: 4px; }
+      .py-0\\.5 { padding-top: 2px; padding-bottom: 2px; }
+      .pb-1 { padding-bottom: 4px; } .pb-3 { padding-bottom: 12px; }
+      .pt-1 { padding-top: 4px; }
+      .mt-1 { margin-top: 4px; } .mt-2 { margin-top: 8px; } .mt-3 { margin-top: 12px; } .mt-4 { margin-top: 16px; } .mt-5 { margin-top: 20px; } .mt-8 { margin-top: 32px; }
+      .mr-6 { margin-right: 24px; }
+      .mb-1 { margin-bottom: 4px; }
+      .gap-2 { gap: 8px; } .gap-4 { gap: 16px; } .gap-6 { gap: 24px; }
+      .gap-y-2 { row-gap: 8px; }
+      .text-center { text-align: center; }
+      .text-right { text-align: right; }
+      .text-left { text-align: left; }
+      .text-xs { font-size: 0.75rem; } .text-sm { font-size: 0.875rem; } .text-lg { font-size: 1.125rem; } .text-xl { font-size: 1.25rem; } .text-2xl { font-size: 1.5rem; } .text-3xl { font-size: 1.875rem; }
+      .text-6xl { font-size: 3.75rem; }
+      .text-5xl { font-size: 3rem; }
+      .font-bold { font-weight: 700; } .font-semibold { font-weight: 600; } .font-mono { font-family: monospace; }
+      .uppercase { text-transform: uppercase; } .underline { text-decoration: underline; } .italic { font-style: italic; }
+      .tracking-wide { letter-spacing: 0.025em; } .tracking-widest { letter-spacing: 0.1em; }
+      .leading-none { line-height: 1; }
+      .grid { display: grid; }
+      .grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
+      .grid-cols-3 { grid-template-columns: repeat(3, 1fr); }
+      .grid-cols-\\[1fr_auto\\] { grid-template-columns: 1fr auto; }
+      .grid-cols-\\[1fr_1\\.6fr\\] { grid-template-columns: 1fr 1.6fr; }
+      .grid-cols-\\[110px_1fr\\] { grid-template-columns: 110px 1fr; }
+      .grid-cols-\\[160px_1fr\\] { grid-template-columns: 160px 1fr; }
+      .items-start { align-items: flex-start; } .items-end { align-items: flex-end; } .items-center { align-items: center; }
+      .flex { display: flex; } .inline-flex { display: inline-flex; }
+      .justify-between { justify-content: space-between; } .justify-center { justify-content: center; }
+      .overflow-hidden { overflow: hidden; }
+      .w-full { width: 100%; } .w-36 { width: 9rem; } .w-48 { width: 12rem; } .w-72 { width: 18rem; }
+      .h-10 { height: 2.5rem; }
+      .align-top { vertical-align: top; }
+      table { width: 100%; border-collapse: collapse; }
+      .last\\:border-r-0:last-child { border-right: 0; }
+      .-rotate-45 { transform: rotate(-45deg); }
+      .inset-0 { inset: 0; } .absolute { position: absolute; }
+      .text-slate-300\\/50 { color: rgba(203,213,225,0.5); }
+      .text-slate-300\\/30 { color: rgba(203,213,225,0.3); }
+    </style></head><body>${el.outerHTML}</body></html>`)
+    printWindow.document.close()
+    printWindow.onload = () => {
+      printWindow.focus()
+      printWindow.print()
+      printWindow.onafterprint = () => printWindow.close()
+    }
   }
 
   const handleAddAdjustment = async () => {
