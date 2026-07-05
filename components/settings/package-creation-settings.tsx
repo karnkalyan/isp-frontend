@@ -28,6 +28,8 @@ const DURATION_OPTIONS: Option[] = [
   { value: "12 Months", label: "12 Months" },
 ]
 
+const packageBaseName = (value?: string | null) => String(value || "").replace(/\s+-\s+(1|3|6|12)\s+Months?$/i, "").trim()
+
 const isRecurringItem = (name: string, code: string): boolean => {
   const n = (name || "").toLowerCase()
   const c = (code || "").toLowerCase()
@@ -401,7 +403,7 @@ export function PackageCreationSettings() {
 
   const handleEditClick = (pkg: PackagePrice) => {
     setEditingId(pkg.id)
-    setPackageName(pkg.packagePlanDetails?.planName || "")
+    setPackageName(packageBaseName(pkg.packageName) || pkg.packagePlanDetails?.planName || "")
     setPlanId(String(pkg.planId))
 
     // Find all sibling prices with the same planId
@@ -443,7 +445,7 @@ export function PackageCreationSettings() {
       "6 Months": false,
       "12 Months": false
     }
-    const activeMap: Record<string, boolean> = { "1 Month": true, "3 Months": true, "6 Months": true, "12 Months": true }
+    const activeMap: Record<string, boolean> = { "1 Month": false, "3 Months": false, "6 Months": false, "12 Months": false }
     const onlineMap: Record<string, boolean> = { "1 Month": false, "3 Months": false, "6 Months": false, "12 Months": false }
 
     siblingPrices.forEach(sp => {
@@ -532,6 +534,7 @@ export function PackageCreationSettings() {
 
     const payload = {
       planId: Number(planId),
+      packageName: packageName.trim(),
       prices: pricesPayload
     }
 

@@ -3094,7 +3094,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                   <SelectValue placeholder="Select a plan" />
                 </SelectTrigger>
                 <SelectContent>
-                  {[...new Set(packages.map(pkg => pkg.packagePlanDetails?.planName).filter(Boolean))].map(planName => <SelectItem key={planName} value={planName as string}>{planName}</SelectItem>)}
+                  {packages.filter((pkg, index, rows) => rows.findIndex(item => item.planId === pkg.planId) === index).map(pkg => <SelectItem key={pkg.planId} value={pkg.packagePlanDetails?.planName || String(pkg.planId)}>{String(pkg.packageName || pkg.packagePlanDetails?.planName || "Package").replace(/\s+-\s+(1|3|6|12)\s+Months?$/i, "")}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

@@ -3758,7 +3758,7 @@ export function AddCustomerForm() {
                         options={packages
                           .filter((pkg) => !pkg.isTrial)
                           .filter((pkg, index, rows) => rows.findIndex(p => p.planId === pkg.planId) === index)
-                          .map((pkg) => ({ value: String(pkg.planId), label: pkg.packagePlanDetails?.planName || pkg.packageName }))}
+                          .map((pkg) => ({ value: String(pkg.planId), label: String(pkg.packageName || pkg.packagePlanDetails?.planName || "Package").replace(/\s+-\s+(1|3|6|12)\s+Months?$/i, "") }))}
                         value={selectedServicePlanId}
                         onValueChange={(value) => {
                           const next = Array.isArray(value) ? value[0] || "" : value
