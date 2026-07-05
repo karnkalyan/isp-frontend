@@ -481,6 +481,7 @@ export function InvoicesList() {
   const [loading, setLoading] = useState(true)
   const [invoices, setInvoices] = useState<any[]>([])
   const [search, setSearch] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
   const [status, setStatus] = useState("all")
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -503,7 +504,7 @@ export function InvoicesList() {
     setLoading(true)
     try {
       let url = `/billing/invoices?page=${page}&limit=10`
-      if (search) url += `&search=${encodeURIComponent(search)}`
+      if (debouncedSearch.trim()) url += `&search=${encodeURIComponent(debouncedSearch.trim())}`
       if (status !== "all") url += `&status=${status}`
       
       const res = await apiRequest(url)
@@ -517,7 +518,12 @@ export function InvoicesList() {
     } finally {
       setLoading(false)
     }
-  }, [page, search, status])
+  }, [page, debouncedSearch, status])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(search), 350)
+    return () => window.clearTimeout(timer)
+  }, [search])
 
   useEffect(() => {
     fetchInvoices()
@@ -742,16 +748,16 @@ export function InvoicesList() {
             placeholder="Search by invoice number or name..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="pl-9 bg-background border-input text-foreground rounded-lg"
+            className="rounded-lg border-slate-300 bg-white pl-9 text-slate-900 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
           />
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         </div>
         <div className="flex gap-2 items-center w-full md:w-auto">
           <Select value={status} onValueChange={(val) => { setStatus(val); setPage(1); }}>
-            <SelectTrigger className="w-full md:w-40 bg-background border-input text-foreground">
+            <SelectTrigger className="w-full border-slate-300 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 md:w-40">
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
-            <SelectContent className="bg-popover border-border text-popover-foreground">
+            <SelectContent className="border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100">
               <SelectItem value="all">All Statuses</SelectItem>
               <SelectItem value="paid">Paid</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>

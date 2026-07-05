@@ -246,6 +246,27 @@ export function TR069DeviceWanConnections({ deviceId }: TR069DeviceWanConnection
         dnsServers: "",
     });
     const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
+    const [isLoadingRadiusCredentials, setIsLoadingRadiusCredentials] = useState(false);
+
+    const loadRadiusCredentials = async (target: "add" | "edit") => {
+        try {
+            setIsLoadingRadiusCredentials(true);
+            const response = await apiRequest<{ success: boolean; data: { username: string; password: string; customerId?: string } }>(
+                `/tr069-devices/${encodeURIComponent(deviceId)}/radius-credentials`
+            );
+            if (!response?.success || !response.data?.username) throw new Error("RADIUS credentials were not found");
+            if (target === "add") {
+                setFormData(prev => ({ ...prev, username: response.data.username, password: response.data.password || "" }));
+            } else {
+                setEditFormData(prev => ({ ...prev, username: response.data.username, password: response.data.password || "" }));
+            }
+            toast.success(`Loaded RADIUS credentials${response.data.customerId ? ` for ${response.data.customerId}` : ""}`);
+        } catch (error: any) {
+            toast.error(error?.message || "Failed to load RADIUS credentials");
+        } finally {
+            setIsLoadingRadiusCredentials(false);
+        }
+    };
 
     // Delete confirmation
     const [deleteWanId, setDeleteWanId] = useState<string | null>(null);
@@ -1689,6 +1710,13 @@ export function TR069DeviceWanConnections({ deviceId }: TR069DeviceWanConnection
                         {formData.type === "ppp" && (
                             <>
                                 <div className="grid grid-cols-4 items-center gap-4">
+                                    <div />
+                                    <Button type="button" variant="outline" className="col-span-3" onClick={() => loadRadiusCredentials("add")} disabled={isLoadingRadiusCredentials}>
+                                        <RefreshCw className={`mr-2 h-4 w-4 ${isLoadingRadiusCredentials ? "animate-spin" : ""}`} />
+                                        Use Customer RADIUS Credentials
+                                    </Button>
+                                </div>
+                                <div className="grid grid-cols-4 items-center gap-4">
                                     <Label htmlFor="username" className="text-right">
                                         Username
                                     </Label>
@@ -1880,6 +1908,13 @@ export function TR069DeviceWanConnections({ deviceId }: TR069DeviceWanConnection
                         {/* PPPoE Specific Fields */}
                         {selectedEditConnection?.type === "PPP" && (
                             <>
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <div />
+                                    <Button type="button" variant="outline" className="col-span-3" onClick={() => loadRadiusCredentials("edit")} disabled={isLoadingRadiusCredentials}>
+                                        <RefreshCw className={`mr-2 h-4 w-4 ${isLoadingRadiusCredentials ? "animate-spin" : ""}`} />
+                                        Use Customer RADIUS Credentials
+                                    </Button>
+                                </div>
                                 <div className="grid grid-cols-4 items-center gap-4">
                                     <Label htmlFor="editUsername" className="text-right">Username</Label>
                                     <Input
