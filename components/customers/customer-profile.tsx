@@ -2763,9 +2763,6 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     if (!deletingDevice || !customer) return
     try {
       setActionLoading(true)
-      if (deletingDevice.deviceType === 'ONT' && deletingDevice.serialNumber) {
-        await deleteOntFromOlt(deletingDevice.serialNumber);
-      }
       await apiRequest(`/customer/${customer.id}/devices/${deletingDevice.id}`, {
         method: "DELETE"
       })
