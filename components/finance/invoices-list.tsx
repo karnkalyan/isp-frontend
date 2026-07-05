@@ -417,7 +417,7 @@ function PrintableReceipt({
           <div className="grid grid-cols-2 gap-2">
             <div><span className="font-semibold">Package Name:</span> {invoice?.packageName || "-"}</div>
             <div><span className="font-semibold">Duration:</span> {invoice?.packageDuration || "-"}</div>
-            <div><span className="font-semibold">ISP Provider:</span> {isp?.companyName || isp?.name || "Kisan Net Pvt Ltd"}</div>
+            
             <div>
               <span className="font-semibold">Speed:</span> {invoice?.downSpeed ? `${invoice.downSpeed} Mbps Down / ${invoice.upSpeed || invoice.downSpeed} Mbps Up` : "Standard Speed"}
             </div>
