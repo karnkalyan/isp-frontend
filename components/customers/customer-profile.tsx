@@ -1392,6 +1392,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const [selectedPlanName, setSelectedPlanName] = useState("")
   const [newMacAddress, setNewMacAddress] = useState("")
   const [actionLoading, setActionLoading] = useState(false)
+  const [removingDeviceKey, setRemovingDeviceKey] = useState<string | null>(null)
   const [acsSyncing, setAcsSyncing] = useState(false)
   const [serviceActionLoading, setServiceActionLoading] = useState<"radius" | "nettv" | "account" | "disconnect" | null>(null)
   const [nettvProvisionOpen, setNettvProvisionOpen] = useState(false)
@@ -2771,8 +2772,11 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
 
   const confirmReturnHardware = async (note: string, isFaulty: boolean) => {
     if (!returnHardwareItem) return
+    const removalKey = String(returnHardwareItem.serialNumber || returnHardwareItem.id)
     try {
       setActionLoading(true)
+      setRemovingDeviceKey(removalKey)
+      toast.loading("Please wait while the device is removed from the OLT, customer and TR-069...", { id: "device-removal" })
       const isOnt = String(returnHardwareItem.type || returnHardwareItem.deviceType || '').toUpperCase() === 'ONT';
       if (isOnt) {
         const assignedDevice = customer?.devices?.find((device: any) =>
@@ -2788,13 +2792,14 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           note: note || `Returned from customer ${customer?.customerUniqueId || customerId}`,
         }),
       })
-      toast.success("Hardware returned successfully")
+      toast.success("Hardware returned and TR-069 link removed successfully", { id: "device-removal" })
       setReturnHardwareItem(null)
       fetchCustomerData()
     } catch (error: any) {
-      toast.error(error.message || "Failed to return hardware")
+      toast.error(error.message || "Failed to return hardware", { id: "device-removal" })
     } finally {
       setActionLoading(false)
+      setRemovingDeviceKey(null)
     }
   }
 
@@ -2823,18 +2828,23 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
 
   const confirmDeleteDevice = async () => {
     if (!deletingDevice || !customer) return
+    const targetDevice = deletingDevice
+    const removalKey = String(targetDevice.serialNumber || targetDevice.id)
     try {
       setActionLoading(true)
-      await apiRequest(`/customer/${customer.id}/devices/${deletingDevice.id}`, {
+      setRemovingDeviceKey(removalKey)
+      toast.loading("Please wait while the device is removed from the OLT, customer and TR-069...", { id: "device-removal" })
+      await apiRequest(`/customer/${customer.id}/devices/${targetDevice.id}`, {
         method: "DELETE"
       })
-      toast.success("Device deleted successfully")
+      toast.success("Device deleted and TR-069 link removed successfully", { id: "device-removal" })
       setDeletingDevice(null)
       fetchCustomerData()
     } catch (error: any) {
-      toast.error(error.message || "Failed to delete device")
+      toast.error(error.message || "Failed to delete device", { id: "device-removal" })
     } finally {
       setActionLoading(false)
+      setRemovingDeviceKey(null)
       setDeleteDeviceOpen(false)
     }
   }
@@ -4709,14 +4719,17 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
               <div className="space-y-3">
                 {customer.devices.map((device, index) => {
                   const hasInv = hasInventoryItem(device);
+                  const deviceKey = String(device.serialNumber || device.id)
+                  const isRemoving = removingDeviceKey === deviceKey
                   return (
-                    <div key={`${device.serialNumber || device.macAddress || index}`} className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div key={`${device.serialNumber || device.macAddress || index}`} className={`flex flex-col gap-3 rounded-lg border p-4 transition-opacity sm:flex-row sm:items-center sm:justify-between ${isRemoving ? "pointer-events-none opacity-60" : ""}`}>
                       <div className="space-y-1">
                         <div className="font-medium flex items-center gap-2 flex-wrap">
                           {device.deviceType || "Device"} {device.brand || ""} {device.model || ""}
                           <Badge variant={device.provisioningStatus === "active" ? "default" : "secondary"}>
                             {device.provisioningStatus?.toUpperCase() || "PENDING"}
                           </Badge>
+                          {isRemoving && <Badge variant="secondary"><Loader2 className="mr-1 h-3 w-3 animate-spin" /> Removing...</Badge>}
                         </div>
                         <div className="text-xs text-muted-foreground">
                           Serial: <span className="font-mono">{device.serialNumber || "N/A"}</span> | MAC: <span className="font-mono">{device.macAddress || "N/A"}</span>
@@ -4732,6 +4745,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                           onClick={() => {
                             setAssignHardwareOpen(true);
                           }}
+                          disabled={actionLoading || isRemoving}
                         >
                           <Pencil className="h-4 w-4" />
                           <span className="sr-only">Edit</span>
@@ -4741,8 +4755,9 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                           size="icon" 
                           className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
                           onClick={() => handleReturnOrDeleteDevice(device)}
+                          disabled={actionLoading || isRemoving}
                         >
-                          {hasInv ? <RotateCcw className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
+                          {isRemoving ? <Loader2 className="h-4 w-4 animate-spin" /> : hasInv ? <RotateCcw className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
                           <span className="sr-only">{hasInv ? "Return" : "Delete"}</span>
                         </Button>
                       </div>
