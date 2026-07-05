@@ -157,6 +157,11 @@ interface OLT {
     type: string
     description?: string
   }>
+  loadFiles?: Array<{
+    id: string
+    filename: string
+    tftpHost: string
+  }>
 }
 
 interface Splitter {
@@ -1446,6 +1451,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     oltPort: "",
     selectedVlanIds: [] as string[],
     selectedProfileIds: [] as string[],
+    loadOntConfig: false,
+    selectedLoadFileId: "",
   })
   const [hwDevices, setHwDevices] = useState<CustomerDevice[]>([])
   const [hwDeviceDialogOpen, setHwDeviceDialogOpen] = useState(false)
@@ -1530,6 +1537,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           oltPort: sd.oltPort || "",
           selectedVlanIds,
           selectedProfileIds: [],
+          loadOntConfig: false,
+          selectedLoadFileId: "",
         })
       } else {
         setHwProvisionDetails({
@@ -1541,6 +1550,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           oltPort: "",
           selectedVlanIds: [],
           selectedProfileIds: [],
+          loadOntConfig: false,
+          selectedLoadFileId: "",
         })
       }
       const mappedDevices: CustomerDevice[] = (customer?.devices || []).map((dev) => ({
@@ -1569,6 +1580,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         oltPort: "",
         selectedVlanIds: [],
         selectedProfileIds: [],
+        loadOntConfig: false,
+        selectedLoadFileId: "",
       })
       setSelectedDiscoveredOnt(null)
       setMatchedDeviceForOnt(null)
@@ -1698,6 +1711,14 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       }
     }
 
+    const selectedLoadFile = hwProvisionDetails.loadOntConfig
+      ? selectedOlt.loadFiles?.find(file => file.id === hwProvisionDetails.selectedLoadFileId)
+      : null
+    if (hwProvisionDetails.loadOntConfig && !selectedLoadFile) {
+      toast.error("Please select an ONT configuration file")
+      return false
+    }
+
     const payload = {
       action: "registerONT",
       params: {
@@ -1709,6 +1730,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         service_profile_id: serviceProfileId,
         description: `${customer?.firstName || "Customer"}_${customer?.lastName || ""}_${customer?.street || ""}`.replace(/\s+/g, '_'),
         vlans,
+        load_file: selectedLoadFile?.filename || null,
       },
     }
 
@@ -4391,6 +4413,39 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                     )
                   })()
                 )}
+
+                {hwProvisionDetails.oltId && (() => {
+                  const selectedOlt = olts.find(o => o.id.toString() === hwProvisionDetails.oltId)
+                  const loadFiles = selectedOlt?.loadFiles || []
+                  return (
+                    <div className="space-y-3 rounded-lg border p-3">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <Label>Load ONT configuration file</Label>
+                          <p className="text-xs text-muted-foreground">Runs after ONT registration and service-port creation.</p>
+                        </div>
+                        <Switch
+                          checked={hwProvisionDetails.loadOntConfig}
+                          disabled={loadFiles.length === 0}
+                          onCheckedChange={(checked) => setHwProvisionDetails(prev => ({
+                            ...prev,
+                            loadOntConfig: checked,
+                            selectedLoadFileId: checked ? (prev.selectedLoadFileId || loadFiles[0]?.id || "") : prev.selectedLoadFileId,
+                          }))}
+                        />
+                      </div>
+                      {hwProvisionDetails.loadOntConfig && (
+                        <Select value={hwProvisionDetails.selectedLoadFileId} onValueChange={(value) => handleHwProvisionChange("selectedLoadFileId", value)}>
+                          <SelectTrigger><SelectValue placeholder="Select ONT file" /></SelectTrigger>
+                          <SelectContent>
+                            {loadFiles.map(file => <SelectItem key={file.id} value={file.id}>{file.filename} ({file.tftpHost})</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      {loadFiles.length === 0 && <p className="text-xs text-muted-foreground">Add a load file in the selected OLT first.</p>}
+                    </div>
+                  )
+                })()}
 
                 {/* Customer Devices Section */}
                 <div className="space-y-4">

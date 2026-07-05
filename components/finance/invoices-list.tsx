@@ -45,7 +45,18 @@ function PrintableInvoice({
   tscPercentage?: number
 }) {
   const tscPct = Number(tscPercentage || 10)
-  const items = invoice?.items?.length 
+  const hasConfiguredPackageItems = Array.isArray(invoice?.packageItems) && invoice.packageItems.length > 0
+  const items = hasConfiguredPackageItems
+    ? invoice.packageItems.map((item: any) => ({
+        id: `package-${item.id}`,
+        itemName: item.name || "Package item",
+        description: item.description || item.name || "Package item",
+        referenceId: item.referenceId,
+        itemPrice: Number(item.amount || 0),
+        isTaxable: item.isTaxable,
+        isTscApplicable: item.isTscApplicable,
+      }))
+    : invoice?.items?.length
     ? invoice.items 
     : [{ itemName: invoice?.packageName || "Internet Package", referenceId: null, itemPrice: Number(invoice?.amount || 0) }]
   
@@ -68,7 +79,7 @@ function PrintableInvoice({
     return found || null
   }
 
-  const isLegacy = Math.abs(itemsSum - invoiceTotalAmount) < 1
+  const isLegacy = !hasConfiguredPackageItems && Math.abs(itemsSum - invoiceTotalAmount) < 1
 
   if (isLegacy) {
     total = invoiceTotalAmount
@@ -94,7 +105,10 @@ function PrintableInvoice({
       let isTaxable = true
       let isTscApplicable = false
 
-      if (item.referenceId) {
+      if (hasConfiguredPackageItems) {
+        isTaxable = item.isTaxable !== false
+        isTscApplicable = item.isTscApplicable === true
+      } else if (item.referenceId) {
         const addon = findAddonConfig(item.referenceId)
         if (addon) {
           isTaxable = addon.isTaxable
@@ -546,6 +560,16 @@ export function InvoicesList() {
     setNewPaymentMethodId(defaultPm ? String(defaultPm.id) : (paymentMethods[0] ? String(paymentMethods[0].id) : "CASH"))
   }
 
+  const openChangePaymentMode = (invoice: any) => {
+    const currentMethod = paymentMethods.find(pm =>
+      String(pm.id) === String(invoice.paymentMethodId || "") ||
+      String(pm.code || "").toUpperCase() === String(invoice.paymentMethod || "").replaceAll(" ", "_").toUpperCase() ||
+      String(pm.name || "").toUpperCase() === String(invoice.paymentMethod || "").toUpperCase()
+    )
+    setNewPaymentMethodId(currentMethod ? String(currentMethod.id) : (paymentMethods[0] ? String(paymentMethods[0].id) : "CASH"))
+    setChangeModeInvoice(invoice)
+  }
+
   const openInvoiceDetails = (invoice: any) => {
     setSelectedInvoice(invoice)
     setDialogView("invoice")
@@ -854,7 +878,7 @@ export function InvoicesList() {
                               Print Cash Receipt
                             </DropdownMenuItem>
                             <DropdownMenuSeparator className="bg-border" />
-                            <DropdownMenuItem className="text-blue-600 focus:text-blue-600 dark:focus:bg-blue-950 cursor-pointer" onClick={() => { setChangeModeInvoice(invoice); setNewPaymentMethodId(invoice.paymentMethodId ? String(invoice.paymentMethodId) : "CASH"); }}>
+                            <DropdownMenuItem className="text-blue-600 focus:text-blue-600 dark:focus:bg-blue-950 cursor-pointer" onClick={() => openChangePaymentMode(invoice)}>
                               Change Payment Mode
                             </DropdownMenuItem>
                           </>
