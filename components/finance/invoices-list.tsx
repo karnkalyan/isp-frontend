@@ -245,6 +245,211 @@ function PrintableInvoice({
   )
 }
 
+function PrintableReceipt({
+  invoice,
+  isp,
+  addonCharges = [],
+  tscPercentage = 10
+}: {
+  invoice: any
+  isp: any
+  addonCharges?: any[]
+  tscPercentage?: number
+}) {
+  const tscPct = Number(tscPercentage || 10)
+  const items = invoice?.items?.length 
+    ? invoice.items 
+    : [{ itemName: invoice?.packageName || "Internet Package", referenceId: null, itemPrice: Number(invoice?.amount || 0) }]
+  
+  const itemsSum = items.reduce((sum: number, item: any) => sum + Number(item.itemPrice || 0), 0)
+  const invoiceTotalAmount = Number(invoice?.amount || 0)
+
+  let subtotal = 0
+  let totalTsc = 0
+  let taxableAmount = 0
+  let vat = 0
+  let total = 0
+  let displayItems: any[] = []
+
+  const findAddonConfig = (refId: string) => {
+    if (!refId) return null
+    let found = addonCharges.find(a => a.referenceId === refId)
+    if (found) return found
+    const cleanCode = refId.startsWith('INT-') ? refId.substring(4) : refId
+    found = addonCharges.find(a => a.forPackageCreation && cleanCode.startsWith(a.code))
+    return found || null
+  }
+
+  const isLegacy = Math.abs(itemsSum - invoiceTotalAmount) < 1
+
+  if (isLegacy) {
+    total = invoiceTotalAmount
+    const tscFactor = invoice?.isTscApplicable ? (tscPct / 100) : 0
+    const baseAmount = total / ((1 + tscFactor) * 1.13)
+    totalTsc = Math.round(baseAmount * tscFactor * 100) / 100
+    taxableAmount = Math.round(baseAmount * (1 + tscFactor) * 100) / 100
+    vat = Math.round(taxableAmount * 0.13 * 100) / 100
+    subtotal = Math.round((total - totalTsc - vat) * 100) / 100
+
+    displayItems = items.map((item: any) => {
+      const itemPrice = Number(item.itemPrice || 0)
+      const itemTscFactor = (item.referenceId ? findAddonConfig(item.referenceId)?.isTscApplicable : invoice?.isTscApplicable) ? (tscPct / 100) : 0
+      const itemPreTax = itemPrice / ((1 + itemTscFactor) * 1.13)
+      return {
+        ...item,
+        preTaxPrice: itemPreTax
+      }
+    })
+  } else {
+    displayItems = items.map((item: any) => {
+      const price = Number(item.itemPrice || 0)
+      let isTaxable = true
+      let isTscApplicable = false
+
+      if (item.referenceId) {
+        const addon = findAddonConfig(item.referenceId)
+        if (addon) {
+          isTaxable = addon.isTaxable
+          isTscApplicable = addon.isTscApplicable
+        } else {
+          isTaxable = true
+          isTscApplicable = invoice?.isTscApplicable || false
+        }
+      } else {
+        isTaxable = true
+        isTscApplicable = false
+      }
+
+      const itemTsc = isTscApplicable ? (price * tscPct) / 100 : 0
+
+      return {
+        ...item,
+        preTaxPrice: price,
+        isTaxable,
+        isTscApplicable,
+        itemTsc
+      }
+    })
+
+    subtotal = displayItems.reduce((sum: number, item: any) => sum + item.preTaxPrice, 0)
+    totalTsc = displayItems.reduce((sum: number, item: any) => sum + item.itemTsc, 0)
+    taxableAmount = displayItems.reduce((sum: number, item: any) => {
+      if (item.isTaxable) {
+        return sum + item.preTaxPrice + item.itemTsc
+      }
+      return sum
+    }, 0)
+    vat = Math.round(taxableAmount * 0.13 * 100) / 100
+    total = Math.round((subtotal + totalTsc + vat) * 100) / 100
+  }
+
+  return (
+    <div id="printable-receipt" className="printable-receipt relative mx-auto bg-white p-5 text-black">
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden">
+        <div className="-rotate-45 text-5xl font-bold tracking-widest text-slate-300/30">CASH RECEIPT</div>
+      </div>
+      <div className="relative border border-black p-4">
+        <div className="text-center border-b border-black pb-3">
+          <div className="text-xl font-bold">{isp?.companyName || isp?.name || "Kisan Net Pvt Ltd"}</div>
+          <div className="text-xs font-semibold">{isp?.address || "Address"}</div>
+          <div className="text-xs font-semibold">
+            Tel: {isp?.phoneNumber || "-"} | Email: {isp?.masterEmail || "-"}
+          </div>
+          <div className="text-xs font-bold mt-1">TPIN/PAN: {isp?.panNo || "000000000"}</div>
+          <div className="text-lg font-bold mt-2 uppercase tracking-wide">Cash Receipt</div>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2 text-xs border-b border-black pb-3">
+          <div>
+            <div><span className="font-bold">Receipt No:</span> REC-{invoice?.invoiceId || invoice?.id}</div>
+            <div><span className="font-bold">Date:</span> {new Date(invoice?.date || Date.now()).toLocaleString()}</div>
+            <div><span className="font-bold">Payment Mode:</span> <span className="font-semibold uppercase">{invoice?.paymentMethod ? String(invoice.paymentMethod).replaceAll("_", " ") : "CASH"}</span></div>
+          </div>
+          <div className="text-right">
+            <div><span className="font-bold">Subscriber Name:</span> {invoice?.customer || "-"}</div>
+            <div><span className="font-bold">Subscriber ID:</span> {invoice?.customerId || "-"}</div>
+            <div><span className="font-bold">Phone:</span> {invoice?.customerPhone || "-"}</div>
+          </div>
+        </div>
+
+        <div className="mt-3 text-xs border-b border-black pb-3">
+          <div className="font-bold mb-1 text-sm underline">Subscription Package Information</div>
+          <div className="grid grid-cols-2 gap-2">
+            <div><span className="font-semibold">Package Name:</span> {invoice?.packageName || "-"}</div>
+            <div><span className="font-semibold">Duration:</span> {invoice?.packageDuration || "-"}</div>
+            <div><span className="font-semibold">ISP Provider:</span> {isp?.companyName || isp?.name || "Kisan Net Pvt Ltd"}</div>
+            <div>
+              <span className="font-semibold">Speed:</span> {invoice?.downSpeed ? `${invoice.downSpeed} Mbps Down / ${invoice.upSpeed || invoice.downSpeed} Mbps Up` : "Standard Speed"}
+            </div>
+            <div><span className="font-semibold">Plan Start:</span> {invoice?.date ? new Date(invoice.date).toLocaleDateString() : "-"}</div>
+            <div><span className="font-semibold">Plan End:</span> {invoice?.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : "-"}</div>
+          </div>
+        </div>
+
+        <table className="mt-3 w-full border-collapse text-xs">
+          <thead>
+            <tr className="border-b border-black">
+              <th className="p-1 text-left">S.N.</th>
+              <th className="p-1 text-left">Particulars</th>
+              <th className="p-1 text-right">Rate</th>
+              <th className="p-1 text-right">Amount (Rs.)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {displayItems.map((item: any, index: number) => (
+              <tr key={item.id || index} className="border-b border-dotted border-slate-300">
+                <td className="p-1">{index + 1}</td>
+                <td className="p-1">{item.itemName || invoice?.packageName || "Internet"}</td>
+                <td className="p-1 text-right">{item.preTaxPrice.toFixed(2)}</td>
+                <td className="p-1 text-right">{item.preTaxPrice.toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <div className="mt-3 grid grid-cols-[1fr_auto] text-xs">
+          <div>
+            <div className="mt-1 font-semibold italic">In Words: {numberToWords(total)}</div>
+          </div>
+          <div className="w-48">
+            <div className="flex justify-between py-0.5">
+              <span>Subtotal:</span>
+              <span>Rs. {subtotal.toFixed(2)}</span>
+            </div>
+            {totalTsc > 0 && (
+              <div className="flex justify-between py-0.5">
+                <span>TSC ({tscPct}%):</span>
+                <span>Rs. {totalTsc.toFixed(2)}</span>
+              </div>
+            )}
+            <div className="flex justify-between py-0.5">
+              <span>Taxable Amt:</span>
+              <span>Rs. {taxableAmount.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between py-0.5">
+              <span>VAT (13%):</span>
+              <span>Rs. {vat.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between border-t border-black py-1 font-bold">
+              <span>Total Received:</span>
+              <span>Rs. {total.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-8 flex justify-between items-end text-xs text-center">
+          <div className="w-28 border-t border-black pt-1">
+            Customer Signature
+          </div>
+          <div className="w-28 border-t border-black pt-1">
+            Authorized Signature
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function InvoicesList() {
   const [loading, setLoading] = useState(true)
   const [invoices, setInvoices] = useState<any[]>([])
@@ -263,6 +468,10 @@ export function InvoicesList() {
   const [adjustmentSubmitting, setAdjustmentSubmitting] = useState(false)
   const [addonCharges, setAddonCharges] = useState<any[]>([])
   const [tscPercentage, setTscPercentage] = useState(10)
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([])
+  const [newPaymentMethodId, setNewPaymentMethodId] = useState("")
+  const [changeModeInvoice, setChangeModeInvoice] = useState<any>(null)
+  const [dialogView, setDialogView] = useState<"invoice" | "receipt">("invoice")
 
   const fetchInvoices = useCallback(async () => {
     setLoading(true)
@@ -304,11 +513,22 @@ export function InvoicesList() {
         }
       })
       .catch((err) => console.error("Failed to load settings:", err))
+
+    apiRequest<any[]>("/billing/payment-methods?enabled=true")
+      .then((data) => setPaymentMethods(Array.isArray(data) ? data : []))
+      .catch((err) => console.error("Failed to load payment methods:", err))
   }, [])
 
   const openMarkPaid = (invoice: any) => {
     setPaymentInvoice(invoice)
     setPaymentInvoiceNumber(invoice.invoiceId?.startsWith("INV-") ? "" : invoice.invoiceId || "")
+    const defaultPm = paymentMethods.find(p => p.isDefault)
+    setNewPaymentMethodId(defaultPm ? String(defaultPm.id) : (paymentMethods[0] ? String(paymentMethods[0].id) : "CASH"))
+  }
+
+  const openInvoiceDetails = (invoice: any) => {
+    setSelectedInvoice(invoice)
+    setDialogView("invoice")
   }
 
   const handleMarkPaid = async () => {
@@ -319,14 +539,24 @@ export function InvoicesList() {
     try {
       setPaymentSubmitting(true)
       toast.loading("Processing payment...", { id: "payment" })
+      
+      const body: any = {
+        orderId: paymentInvoice.id,
+        invoiceId: paymentInvoiceNumber.trim(),
+        amount: paymentInvoice.amount
+      }
+      const numericId = Number(newPaymentMethodId)
+      if (!isNaN(numericId)) {
+        body.paymentMethodId = numericId
+        const pm = paymentMethods.find(p => p.id === numericId)
+        body.paymentMethod = pm ? pm.code : "CASH"
+      } else {
+        body.paymentMethod = newPaymentMethodId || "CASH"
+      }
+
       await apiRequest("/billing/pay", {
         method: "POST",
-        body: JSON.stringify({
-          orderId: paymentInvoice.id,
-          invoiceId: paymentInvoiceNumber.trim(),
-          amount: paymentInvoice.amount,
-          paymentMethod: "CASH"
-        })
+        body: JSON.stringify(body)
       })
       toast.success("Payment recorded successfully", { id: "payment" })
       setPaymentInvoice(null)
@@ -334,6 +564,36 @@ export function InvoicesList() {
       fetchInvoices()
     } catch (err: any) {
       toast.error(err.message || "Failed to record payment", { id: "payment" })
+    } finally {
+      setPaymentSubmitting(false)
+    }
+  }
+
+  const handleChangePaymentMode = async () => {
+    if (!changeModeInvoice) return
+    try {
+      setPaymentSubmitting(true)
+      const body: any = {
+        orderId: changeModeInvoice.id
+      }
+      const numericId = Number(newPaymentMethodId)
+      if (!isNaN(numericId)) {
+        body.paymentMethodId = numericId
+        const pm = paymentMethods.find(p => p.id === numericId)
+        body.paymentMethod = pm ? pm.code : "CASH"
+      } else {
+        body.paymentMethod = newPaymentMethodId || "CASH"
+      }
+
+      await apiRequest("/billing/update-payment-mode", {
+        method: "POST",
+        body: JSON.stringify(body)
+      })
+      toast.success("Payment method updated successfully")
+      setChangeModeInvoice(null)
+      fetchInvoices()
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update payment method")
     } finally {
       setPaymentSubmitting(false)
     }
@@ -497,9 +757,20 @@ export function InvoicesList() {
                       <DropdownMenuContent align="end" className="w-[160px] bg-popover border-border text-popover-foreground">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuSeparator className="bg-border" />
-                        <DropdownMenuItem className="cursor-pointer" onClick={() => setSelectedInvoice(invoice)}>
+                        <DropdownMenuItem className="cursor-pointer" onClick={() => openInvoiceDetails(invoice)}>
                           View details
                         </DropdownMenuItem>
+                        {invoice.status === "paid" && (
+                          <>
+                            <DropdownMenuItem className="cursor-pointer" onClick={() => { setSelectedInvoice(invoice); setDialogView("receipt"); }}>
+                              Print Cash Receipt
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator className="bg-border" />
+                            <DropdownMenuItem className="text-blue-600 focus:text-blue-600 dark:focus:bg-blue-950 cursor-pointer" onClick={() => { setChangeModeInvoice(invoice); setNewPaymentMethodId(invoice.paymentMethodId ? String(invoice.paymentMethodId) : "CASH"); }}>
+                              Change Payment Mode
+                            </DropdownMenuItem>
+                          </>
+                        )}
                         {invoice.status !== "paid" && (
                           <>
                             <DropdownMenuSeparator className="bg-border" />
@@ -549,17 +820,43 @@ export function InvoicesList() {
           <DialogHeader>
             <DialogTitle>Mark Invoice as Paid</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-4 my-2">
             <div className="text-sm text-muted-foreground">
               Record payment for {paymentInvoice?.customer || "customer"} totaling {formatNpr(Number(paymentInvoice?.amount || 0))}.
             </div>
-            <Input
-              value={paymentInvoiceNumber}
-              onChange={(event) => setPaymentInvoiceNumber(event.target.value)}
-              placeholder="Enter invoice number"
-              autoFocus
-            />
-            <div className="flex justify-end gap-2">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Invoice Number</label>
+              <Input
+                value={paymentInvoiceNumber}
+                onChange={(event) => setPaymentInvoiceNumber(event.target.value)}
+                placeholder="Enter invoice number"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Payment Method</label>
+              <Select value={newPaymentMethodId} onValueChange={setNewPaymentMethodId}>
+                <SelectTrigger className="bg-background border-input text-foreground">
+                  <SelectValue placeholder="Select Payment Method" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover border-border text-popover-foreground">
+                  {paymentMethods.map((pm) => (
+                    <SelectItem key={pm.id} value={String(pm.id)}>
+                      {pm.name}
+                    </SelectItem>
+                  ))}
+                  {paymentMethods.length === 0 && (
+                    <>
+                      <SelectItem value="CASH">Cash</SelectItem>
+                      <SelectItem value="ESEWA">eSewa</SelectItem>
+                      <SelectItem value="KHALTI">Khalti</SelectItem>
+                      <SelectItem value="BANK_TRANSFER">Bank Transfer</SelectItem>
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setPaymentInvoice(null)} disabled={paymentSubmitting}>Cancel</Button>
               <Button onClick={handleMarkPaid} disabled={paymentSubmitting || !paymentInvoiceNumber.trim()}>
                 {paymentSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -657,19 +954,96 @@ export function InvoicesList() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!changeModeInvoice} onOpenChange={(open) => { if (!open) setChangeModeInvoice(null) }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Change Payment Mode</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 my-2">
+            <div className="text-sm text-muted-foreground">
+              Update the payment method for invoice <span className="font-semibold">{changeModeInvoice?.invoiceId}</span> (Amount: {formatNpr(Number(changeModeInvoice?.amount || 0))}).
+            </div>
+            
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Select Payment Method</label>
+              <Select value={newPaymentMethodId} onValueChange={setNewPaymentMethodId}>
+                <SelectTrigger className="bg-background border-input text-foreground">
+                  <SelectValue placeholder="Select Payment Method" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover border-border text-popover-foreground">
+                  {paymentMethods.map((pm) => (
+                    <SelectItem key={pm.id} value={String(pm.id)}>
+                      {pm.name}
+                    </SelectItem>
+                  ))}
+                  {paymentMethods.length === 0 && (
+                    <>
+                      <SelectItem value="CASH">Cash</SelectItem>
+                      <SelectItem value="ESEWA">eSewa</SelectItem>
+                      <SelectItem value="KHALTI">Khalti</SelectItem>
+                      <SelectItem value="BANK_TRANSFER">Bank Transfer</SelectItem>
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setChangeModeInvoice(null)} disabled={paymentSubmitting}>Cancel</Button>
+              <Button onClick={handleChangePaymentMode} disabled={paymentSubmitting}>
+                {paymentSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Update Payment Mode
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!selectedInvoice} onOpenChange={(open) => !open && setSelectedInvoice(null)}>
         <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
           <DialogHeader className="print:hidden">
-            <div className="flex items-center justify-between gap-3">
-              <DialogTitle>Invoice {selectedInvoice?.invoiceId}</DialogTitle>
-              <Button onClick={printInvoice} className="gap-2">
-                <Printer className="h-4 w-4" />
-                Print Invoice
-              </Button>
+            <div className="flex items-center justify-between gap-3 mr-6">
+              <DialogTitle>
+                {dialogView === "invoice" ? "Invoice" : "Cash Receipt"} - {selectedInvoice?.invoiceId}
+              </DialogTitle>
+              <div className="flex gap-2">
+                <div className="flex border border-input rounded-md overflow-hidden mr-2">
+                  <Button
+                    variant={dialogView === "invoice" ? "default" : "ghost"}
+                    size="sm"
+                    className="rounded-none h-8"
+                    onClick={() => setDialogView("invoice")}
+                  >
+                    Invoice
+                  </Button>
+                  {selectedInvoice?.status === "paid" && (
+                    <Button
+                      variant={dialogView === "receipt" ? "default" : "ghost"}
+                      size="sm"
+                      className="rounded-none h-8"
+                      onClick={() => setDialogView("receipt")}
+                    >
+                      Cash Receipt
+                    </Button>
+                  )}
+                </div>
+                <Button onClick={printInvoice} className="gap-2 h-8">
+                  <Printer className="h-4 w-4" />
+                  Print
+                </Button>
+              </div>
             </div>
           </DialogHeader>
-          {selectedInvoice && (
+          {selectedInvoice && dialogView === "invoice" && (
             <PrintableInvoice 
+              invoice={selectedInvoice} 
+              isp={isp} 
+              addonCharges={addonCharges} 
+              tscPercentage={tscPercentage} 
+            />
+          )}
+          {selectedInvoice && dialogView === "receipt" && (
+            <PrintableReceipt 
               invoice={selectedInvoice} 
               isp={isp} 
               addonCharges={addonCharges} 
