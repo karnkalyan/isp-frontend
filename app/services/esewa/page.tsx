@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { RefreshCw, Search, WalletCards } from "lucide-react"
 import { apiRequest } from "@/lib/api"
+import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -40,6 +41,7 @@ export default function EsewaTransactionsPage() {
   useEffect(() => { load() }, [load])
 
   return (
+    <DashboardLayout>
     <div className="space-y-6 p-4 md:p-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div><h1 className="flex items-center gap-2 text-2xl font-bold"><WalletCards className="h-6 w-6 text-[#60bb46]" />eSewa Transactions</h1><p className="text-sm text-muted-foreground">Token API and ePay payment history for this ISP.</p></div>
@@ -60,5 +62,6 @@ export default function EsewaTransactionsPage() {
         <div className="mt-4 flex items-center justify-between"><Button variant="outline" disabled={page <= 1 || loading} onClick={() => setPage(value => value - 1)}>Previous</Button><span className="text-sm text-muted-foreground">Page {page} of {Math.max(1, pagination.totalPages)}</span><Button variant="outline" disabled={page >= pagination.totalPages || loading} onClick={() => setPage(value => value + 1)}>Next</Button></div>
       </CardContainer>
     </div>
+    </DashboardLayout>
   )
 }
