@@ -504,7 +504,6 @@ export function InvoicesList() {
   const [tscPercentage, setTscPercentage] = useState(10)
   const [paymentMethods, setPaymentMethods] = useState<any[]>([])
   const [newPaymentMethodId, setNewPaymentMethodId] = useState("")
-  const [changeModeInvoice, setChangeModeInvoice] = useState<any>(null)
   const [dialogView, setDialogView] = useState<"invoice" | "receipt">("invoice")
 
   const fetchInvoices = useCallback(async () => {
@@ -560,16 +559,6 @@ export function InvoicesList() {
     setNewPaymentMethodId(defaultPm ? String(defaultPm.id) : (paymentMethods[0] ? String(paymentMethods[0].id) : "CASH"))
   }
 
-  const openChangePaymentMode = (invoice: any) => {
-    const currentMethod = paymentMethods.find(pm =>
-      String(pm.id) === String(invoice.paymentMethodId || "") ||
-      String(pm.code || "").toUpperCase() === String(invoice.paymentMethod || "").replaceAll(" ", "_").toUpperCase() ||
-      String(pm.name || "").toUpperCase() === String(invoice.paymentMethod || "").toUpperCase()
-    )
-    setNewPaymentMethodId(currentMethod ? String(currentMethod.id) : (paymentMethods[0] ? String(paymentMethods[0].id) : "CASH"))
-    setChangeModeInvoice(invoice)
-  }
-
   const openInvoiceDetails = (invoice: any) => {
     setSelectedInvoice(invoice)
     setDialogView("invoice")
@@ -608,36 +597,6 @@ export function InvoicesList() {
       fetchInvoices()
     } catch (err: any) {
       toast.error(err.message || "Failed to record payment", { id: "payment" })
-    } finally {
-      setPaymentSubmitting(false)
-    }
-  }
-
-  const handleChangePaymentMode = async () => {
-    if (!changeModeInvoice) return
-    try {
-      setPaymentSubmitting(true)
-      const body: any = {
-        orderId: changeModeInvoice.id
-      }
-      const numericId = Number(newPaymentMethodId)
-      if (!isNaN(numericId)) {
-        body.paymentMethodId = numericId
-        const pm = paymentMethods.find(p => p.id === numericId)
-        body.paymentMethod = pm ? pm.code : "CASH"
-      } else {
-        body.paymentMethod = newPaymentMethodId || "CASH"
-      }
-
-      await apiRequest("/billing/update-payment-mode", {
-        method: "POST",
-        body: JSON.stringify(body)
-      })
-      toast.success("Payment method updated successfully")
-      setChangeModeInvoice(null)
-      fetchInvoices()
-    } catch (err: any) {
-      toast.error(err.message || "Failed to update payment method")
     } finally {
       setPaymentSubmitting(false)
     }
@@ -877,10 +836,6 @@ export function InvoicesList() {
                             <DropdownMenuItem className="cursor-pointer" onClick={() => { setSelectedInvoice(invoice); setDialogView("receipt"); }}>
                               Print Cash Receipt
                             </DropdownMenuItem>
-                            <DropdownMenuSeparator className="bg-border" />
-                            <DropdownMenuItem className="text-blue-600 focus:text-blue-600 dark:focus:bg-blue-950 cursor-pointer" onClick={() => openChangePaymentMode(invoice)}>
-                              Change Payment Mode
-                            </DropdownMenuItem>
                           </>
                         )}
                         {invoice.status !== "paid" && (
@@ -1060,51 +1015,6 @@ export function InvoicesList() {
             <div className="flex justify-end pt-2">
               <Button variant="outline" onClick={() => setAdjustingInvoice(null)}>
                 Close
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!changeModeInvoice} onOpenChange={(open) => { if (!open) setChangeModeInvoice(null) }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Change Payment Mode</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 my-2">
-            <div className="text-sm text-muted-foreground">
-              Update the payment method for invoice <span className="font-semibold">{changeModeInvoice?.invoiceId}</span> (Amount: {formatNpr(Number(changeModeInvoice?.amount || 0))}).
-            </div>
-            
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Select Payment Method</label>
-              <Select value={newPaymentMethodId} onValueChange={setNewPaymentMethodId}>
-                <SelectTrigger className="bg-background border-input text-foreground">
-                  <SelectValue placeholder="Select Payment Method" />
-                </SelectTrigger>
-                <SelectContent className="bg-popover border-border text-popover-foreground">
-                  {paymentMethods.map((pm) => (
-                    <SelectItem key={pm.id} value={String(pm.id)}>
-                      {pm.name}
-                    </SelectItem>
-                  ))}
-                  {paymentMethods.length === 0 && (
-                    <>
-                      <SelectItem value="CASH">Cash</SelectItem>
-                      <SelectItem value="ESEWA">eSewa</SelectItem>
-                      <SelectItem value="KHALTI">Khalti</SelectItem>
-                      <SelectItem value="BANK_TRANSFER">Bank Transfer</SelectItem>
-                    </>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setChangeModeInvoice(null)} disabled={paymentSubmitting}>Cancel</Button>
-              <Button onClick={handleChangePaymentMode} disabled={paymentSubmitting}>
-                {paymentSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Update Payment Mode
               </Button>
             </div>
           </div>
