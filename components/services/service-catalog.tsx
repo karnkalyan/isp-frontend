@@ -143,6 +143,7 @@ function CatalogProviderGroupCard({
     configuredServices: ISPService[];
     onConfigured: () => void;
 }) {
+    const router = useRouter();
     const [selectedProvider, setSelectedProvider] = useState<Service | null>(null);
     const [selectedConfiguredService, setSelectedConfiguredService] = useState<ISPService | null>(null);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -251,6 +252,11 @@ function CatalogProviderGroupCard({
                                         </div>
                                     </div>
                                     <div className="flex shrink-0 flex-col gap-2">
+                                        {(provider.code === "TSHUL" || provider.code === "NEPURIX") && configuredService && (
+                                            <Button size="sm" onClick={() => router.push(provider.code === "TSHUL" ? "/tshul" : "/nepurix")}>
+                                                Dashboard
+                                            </Button>
+                                        )}
                                         <Button size="sm" variant="outline" onClick={() => handleConfigure(provider)}>
                                             <Settings className="h-3.5 w-3.5 mr-1" />
                                             Configure

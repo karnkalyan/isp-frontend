@@ -307,6 +307,8 @@ const menuCategories: MenuCategory[] = [
           { title: "Service Settings", href: "/services/settings", permission: "services_manage" },
           { title: "Add Service", href: "/services/add", permission: "services_manage" },
           { title: "NetTV Service", href: "/nettv", permission: "services_read" },
+          { title: "Tshul Accounting", href: "/tshul", permission: "services_read" },
+          { title: "Nepurix Accounting", href: "/nepurix", permission: "services_read" },
           { title: "Radius Service", href: "/radius", permission: "services_read" },
           { title: "eSewa Transactions", href: "/services/esewa", permission: "services_read" },
           { title: "Aakash SMS Setup", href: "/services/aakashsms", permission: "services_read" },

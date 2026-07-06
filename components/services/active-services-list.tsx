@@ -49,6 +49,7 @@ function GroupedServiceCard({
     services,
     onStatusChange
 }: GroupedServiceCardProps) {
+    const router = useRouter();
     const [activeService, setActiveService] = useState<ISPService | null>(null);
     const [showConfigure, setShowConfigure] = useState(false);
     const [showCredentials, setShowCredentials] = useState(false);
@@ -222,6 +223,20 @@ function GroupedServiceCard({
                                         <Power className="h-3 w-3 mr-1" />
                                         {service.isActive ? "Deactivate" : "Activate"}
                                     </Button>
+
+                                    {(service.service.code === 'TSHUL' || service.service.code === 'NEPURIX') && (
+                                        <Button
+                                            variant="default"
+                                            size="sm"
+                                            className="h-8 text-xs"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                router.push(service.service.code === 'TSHUL' ? '/tshul' : '/nepurix');
+                                            }}
+                                        >
+                                            Dashboard
+                                        </Button>
+                                    )}
 
                                     <Button
                                         variant="outline"

@@ -60,6 +60,8 @@ const ROUTE_PERMISSIONS: Record<string, string | string[]> = {
   "/services/settings": "services_manage",
   "/services/add": "services_manage",
   "/nettv": "services_read",
+  "/tshul": "services_read",
+  "/nepurix": "services_read",
   "/radius": "services_read",
   "/services/aakashsms": "services_read",
   "/yeaster": "yeaster_read",

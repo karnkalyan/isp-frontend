@@ -42,6 +42,8 @@ const pathPermissionMap: Record<string, string | string[]> = {
   "/mail/templates": "settings_read",
   "/mail": "dashboard_view",
   "/nettv": "services_read",
+  "/tshul": "services_read",
+  "/nepurix": "services_read",
   "/radius": "services_read",
   "/services": "services_read",
   "/dashboard/settings": "settings_read",

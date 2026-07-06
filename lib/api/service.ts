@@ -378,6 +378,28 @@ export const ServicesAPI = {
         );
     },
 
+    async getAccountingDashboard(provider: "TSHUL" | "NEPURIX") {
+        return apiRequest<{ success: boolean; data: any }>(`/services/accounting/${provider}/dashboard`);
+    },
+
+    async getAccountingResource(provider: "TSHUL" | "NEPURIX", resource: string, id: string | number) {
+        return apiRequest<{ success: boolean; data: any }>(`/services/accounting/${provider}/${resource}/${encodeURIComponent(String(id))}`);
+    },
+
+    async createAccountingResource(provider: "TSHUL" | "NEPURIX", resource: string, data: any) {
+        return apiRequest<{ success: boolean; data: any }>(`/services/accounting/${provider}/${resource}`, {
+            method: "POST",
+            body: JSON.stringify(data)
+        });
+    },
+
+    async updateAccountingResource(provider: "TSHUL" | "NEPURIX", resource: string, id: string | number, data: any) {
+        return apiRequest<{ success: boolean; data: any }>(`/services/accounting/${provider}/${resource}/${encodeURIComponent(String(id))}`, {
+            method: "PUT",
+            body: JSON.stringify(data)
+        });
+    },
+
     async getRadiusUser(username: string) {
         return apiRequest<{ success: boolean; data: any }>(
             `/services/radius/users/${username}`
