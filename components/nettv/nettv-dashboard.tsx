@@ -38,7 +38,8 @@ const valueOf = (item: any, keys: string[], fallback = "N/A") => {
 }
 
 const fullName = (item: any) => {
-  const joined = [item?.fname, item?.mname, item?.lname].filter(Boolean).join(" ")
+  const details = item?.details || {}
+  const joined = [item?.fname || details.fname, item?.mname || details.mname, item?.lname || details.lname].filter(Boolean).join(" ")
   return item?.name || item?.full_name || joined || "N/A"
 }
 
@@ -122,7 +123,7 @@ export function NettvDashboard() {
     const term = search.toLowerCase().trim()
     if (!term) return subscribers
     return subscribers.filter(item =>
-      [item?.username, item?.email, item?.mobile, item?.phone, fullName(item), item?.package_name, item?.status]
+      [item?.username, item?.email, item?.mobile, item?.phone, item?.details?.phone_no, item?.details?.mobile_no, fullName(item), item?.package_name, item?.status]
         .filter(Boolean)
         .some(value => String(value).toLowerCase().includes(term))
     )
@@ -236,7 +237,7 @@ export function NettvDashboard() {
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">{valueOf(subscriber, ["email"])}</div>
-                        <div className="text-xs text-muted-foreground">{valueOf(subscriber, ["mobile", "phone", "contact"])}</div>
+                        <div className="text-xs text-muted-foreground">{valueOf(subscriber, ["mobile", "phone", "contact"], valueOf(subscriber?.details, ["mobile_no", "phone_no"]))}</div>
                       </TableCell>
                       <TableCell>
                         <div className="text-sm font-medium">{valueOf(subscriber, ["package_name", "package", "plan_name", "subscription_package"])}</div>
@@ -357,7 +358,27 @@ export function NettvDashboard() {
             </div>
           ) : (
             <div className="space-y-4">
-              <DetailsBlock title="Subscriber" data={selected} />
+              <DetailsBlock title="Subscriber" data={selected?.subscriber || selected} />
+              {selected?.subscriber?.details && <DetailsBlock title="Contact & Address" data={selected.subscriber.details} />}
+              {selected?.reseller && <DetailsBlock title="Reseller Wallet & Payment Methods" data={selected.reseller} />}
+              {(selected?.stbs || []).map((stb: any, index: number) => (
+                <div key={stb.id || stb.serial || index} className="space-y-3 rounded-lg border p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="font-semibold">STB {stb.serial || stb.id}</div>
+                      <div className="text-xs text-muted-foreground">{stb.model?.name || stb.model || "Unknown model"} · {stb.vendor?.name || stb.vendor || "Unknown vendor"}</div>
+                    </div>
+                    <Badge variant={statusVariant(String(stb.status || "unknown"))}>{String(stb.status || "unknown")}</Badge>
+                  </div>
+                  <DetailsBlock title="STB Details" data={stb} />
+                  {stb.stb_user && <DetailsBlock title="STB User" data={stb.stb_user} />}
+                  {stb.active_package && <DetailsBlock title="Active Packages" data={{ packages: stb.active_package }} />}
+                  {stb.subscribed_packages && <DetailsBlock title="Subscribed Packages" data={{ packages: stb.subscribed_packages }} />}
+                  {stb.available_packages && <DetailsBlock title="Available Package Configurations" data={stb.available_packages} />}
+                  {stb.package_details && <DetailsBlock title="Package Details" data={{ packages: stb.package_details }} />}
+                  {stb.bootstrap && <DetailsBlock title="Device Bootstrap Services" data={stb.bootstrap} />}
+                </div>
+              ))}
             </div>
           )}
         </DialogContent>

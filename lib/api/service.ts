@@ -298,6 +298,19 @@ export const ServicesAPI = {
         );
     },
 
+    async subscribeNetTVPackages(serial: string, payload: {
+        pos: string;
+        created_by: string;
+        payment_gateway: string;
+        packages: Array<{ package_sale_id: number; qty: number }>;
+        send_mail?: number;
+    }) {
+        return apiRequest<{ success: boolean; data: any }>(
+            `/services/nettv/stbs/${encodeURIComponent(serial)}/packages`,
+            { method: 'POST', body: JSON.stringify(payload) }
+        );
+    },
+
     // Mikrotik Operations
     async getMikrotikResources() {
         return apiRequest<{ success: boolean; data: any }>('/services/mikrotik/resources');
