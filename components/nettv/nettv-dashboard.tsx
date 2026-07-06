@@ -53,19 +53,69 @@ const statusVariant = (status: string): "success" | "warning" | "destructive" | 
   return "secondary"
 }
 
+function renderValue(value: any): React.ReactNode {
+  if (value === null || value === undefined) return "N/A"
+  
+  if (typeof value === "boolean") {
+    return <Badge variant={value ? "default" : "outline"}>{value ? "Yes" : "No"}</Badge>
+  }
+  
+  if (Array.isArray(value)) {
+    if (value.length === 0) return <span className="text-xs text-muted-foreground">Empty list</span>
+    if (typeof value[0] === "object") {
+      return (
+        <div className="space-y-1.5 mt-1">
+          {value.map((item, idx) => (
+            <div key={idx} className="rounded border bg-muted/30 p-1.5 text-[11px] font-mono leading-tight">
+              {Object.entries(item)
+                .filter(([_, v]) => v !== null && v !== undefined && typeof v !== "object")
+                .map(([k, v]) => `${k}: ${v}`)
+                .join(" | ")}
+            </div>
+          ))}
+        </div>
+      )
+    }
+    return (
+      <div className="flex flex-wrap gap-1 mt-1">
+        {value.map((val, idx) => (
+          <Badge key={idx} variant="secondary" className="text-[10px]">{String(val)}</Badge>
+        ))}
+      </div>
+    )
+  }
+  
+  if (typeof value === "object") {
+    const entries = Object.entries(value).filter(([_, v]) => v !== null && v !== undefined && typeof v !== "object")
+    if (entries.length === 0) return <span className="text-xs text-muted-foreground">Empty object</span>
+    return (
+      <div className="grid grid-cols-1 gap-1 border rounded bg-muted/20 p-1.5 mt-1 text-xs">
+        {entries.map(([k, v]) => (
+          <div key={k} className="flex justify-between gap-2 border-b border-border/30 last:border-0 pb-0.5">
+            <span className="text-muted-foreground text-[10px] uppercase font-mono">{k.replace(/_/g, " ")}</span>
+            <span className="font-mono text-[11px] truncate max-w-[150px]">{String(v)}</span>
+          </div>
+        ))}
+      </div>
+    )
+  }
+  
+  return String(value)
+}
+
 function DetailsBlock({ title, data }: { title: string; data: any }) {
-  const entries = Object.entries(data || {}).filter(([, value]) => value !== null && value !== undefined && value !== "")
+  const entries = Object.entries(data || {}).filter(([key, value]) => value !== null && value !== undefined && value !== "" && key !== "password")
   if (entries.length === 0) return null
 
   return (
-    <div className="rounded-lg border bg-background/60 p-3">
-      <div className="mb-2 text-sm font-semibold">{title}</div>
-      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+    <div className="rounded-lg border bg-background/60 p-3 shadow-sm">
+      <div className="mb-2 text-sm font-semibold border-b pb-1 text-primary">{title}</div>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         {entries.map(([key, value]) => (
-          <div key={key} className="min-w-0">
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{key.replace(/_/g, " ")}</div>
-            <div className="break-words text-sm font-medium">
-              {typeof value === "object" ? JSON.stringify(value) : String(value)}
+          <div key={key} className="min-w-0 flex flex-col justify-start">
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">{key.replace(/_/g, " ")}</div>
+            <div className="break-words text-sm font-medium mt-0.5">
+              {renderValue(value)}
             </div>
           </div>
         ))}
@@ -82,6 +132,21 @@ export function NettvDashboard() {
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(25)
   const [loading, setLoading] = useState(true)
+
+  // Sub-pagination states
+  const [packagePage, setPackagePage] = useState(1)
+  const [stbPage, setStbPage] = useState(1)
+  const subLimit = 10
+
+  const paginatedPackages = useMemo(() => {
+    return packages.slice((packagePage - 1) * subLimit, packagePage * subLimit)
+  }, [packages, packagePage])
+  const totalPackagePages = Math.max(1, Math.ceil(packages.length / subLimit))
+
+  const paginatedStbs = useMemo(() => {
+    return stbs.slice((stbPage - 1) * subLimit, stbPage * subLimit)
+  }, [stbs, stbPage])
+  const totalStbPages = Math.max(1, Math.ceil(stbs.length / subLimit))
   const [selected, setSelected] = useState<any>(null)
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [selectedStbSerial, setSelectedStbSerial] = useState("")
@@ -383,10 +448,10 @@ export function NettvDashboard() {
               <TableBody>
                 {loading ? (
                   <TableRow><TableCell colSpan={4}><Skeleton className="h-7 w-full" /></TableCell></TableRow>
-                ) : packages.length === 0 ? (
+                ) : paginatedPackages.length === 0 ? (
                   <TableRow><TableCell colSpan={4} className="h-20 text-center text-muted-foreground">No packages found.</TableCell></TableRow>
                 ) : (
-                  packages.map((pkg, index) => {
+                  paginatedPackages.map((pkg, index) => {
                     const status = valueOf(pkg, ["status", "state"], "Available")
                     return (
                       <TableRow key={`${valueOf(pkg, ["id", "package_id", "code"], String(index))}-${index}`}>
@@ -404,6 +469,16 @@ export function NettvDashboard() {
               </TableBody>
             </Table>
           </div>
+          <div className="mt-3 flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+            <div>Showing {paginatedPackages.length ? (packagePage - 1) * subLimit + 1 : 0} to {Math.min(packagePage * subLimit, packages.length)} of {packages.length}</div>
+            <div className="flex items-center gap-1.5">
+              <Button variant="outline" size="sm" className="h-7 px-2 text-[10px]" disabled={packagePage === 1} onClick={() => setPackagePage(1)}>First</Button>
+              <Button variant="outline" size="sm" className="h-7 px-2 text-[10px]" disabled={packagePage === 1} onClick={() => setPackagePage(prev => prev - 1)}>Prev</Button>
+              <span className="px-1 text-[11px]">Page {packagePage} of {totalPackagePages}</span>
+              <Button variant="outline" size="sm" className="h-7 px-2 text-[10px]" disabled={packagePage === totalPackagePages} onClick={() => setPackagePage(prev => prev + 1)}>Next</Button>
+              <Button variant="outline" size="sm" className="h-7 px-2 text-[10px]" disabled={packagePage === totalPackagePages} onClick={() => setPackagePage(totalPackagePages)}>Last</Button>
+            </div>
+          </div>
         </CardContainer>
 
         <CardContainer title="NetTV STBs" description="Set-top boxes linked with NetTV subscribers" gradientColor="#f59e0b">
@@ -420,10 +495,10 @@ export function NettvDashboard() {
               <TableBody>
                 {loading ? (
                   <TableRow><TableCell colSpan={4}><Skeleton className="h-7 w-full" /></TableCell></TableRow>
-                ) : stbs.length === 0 ? (
+                ) : paginatedStbs.length === 0 ? (
                   <TableRow><TableCell colSpan={4} className="h-20 text-center text-muted-foreground">No STBs found.</TableCell></TableRow>
                 ) : (
-                  stbs.map((stb, index) => {
+                  paginatedStbs.map((stb, index) => {
                     const status = valueOf(stb, ["status", "state"], "Unknown")
                     const modelName = stb?.model?.name || stb?.model_name || (typeof stb?.model === "string" ? stb.model : "N/A")
                     const vendorName = stb?.vendor?.name || stb?.vendor_name || (typeof stb?.vendor === "string" ? stb.vendor : "N/A")
@@ -444,6 +519,16 @@ export function NettvDashboard() {
                 )}
               </TableBody>
             </Table>
+          </div>
+          <div className="mt-3 flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+            <div>Showing {paginatedStbs.length ? (stbPage - 1) * subLimit + 1 : 0} to {Math.min(stbPage * subLimit, stbs.length)} of {stbs.length}</div>
+            <div className="flex items-center gap-1.5">
+              <Button variant="outline" size="sm" className="h-7 px-2 text-[10px]" disabled={stbPage === 1} onClick={() => setStbPage(1)}>First</Button>
+              <Button variant="outline" size="sm" className="h-7 px-2 text-[10px]" disabled={stbPage === 1} onClick={() => setStbPage(prev => prev - 1)}>Prev</Button>
+              <span className="px-1 text-[11px]">Page {stbPage} of {totalStbPages}</span>
+              <Button variant="outline" size="sm" className="h-7 px-2 text-[10px]" disabled={stbPage === totalStbPages} onClick={() => setStbPage(prev => prev + 1)}>Next</Button>
+              <Button variant="outline" size="sm" className="h-7 px-2 text-[10px]" disabled={stbPage === totalStbPages} onClick={() => setStbPage(totalStbPages)}>Last</Button>
+            </div>
           </div>
         </CardContainer>
       </div>
