@@ -2252,11 +2252,8 @@ export function AddCustomerForm() {
   }, [selectedLead, isFiber, serviceDetails.connectionType, serviceDetails.subscribedPkgId, referenceDetails.customerTypeId, provisionDetails.splitterId, selectedDiscoveredOnt, matchedDeviceForOnt, wirelessCredentials, formValues.idNumber])
 
   const handleTabChange = useCallback((newTab: string) => {
-    setActiveTab(newTab)
-  }, [])
-
-  const handlePersonalNext = useCallback(() => {
-    if (!formValues.idNumber.trim()) {
+    // Do not let users bypass the required identity field by clicking a tab.
+    if (activeTab === "personal" && newTab !== "personal" && !formValues.idNumber.trim()) {
       setErrors((prev) => ({ ...prev, idNumber: "ID number is required" }))
       setTouched((prev) => ({ ...prev, idNumber: true }))
       toast.error("ID number is required")
@@ -2268,6 +2265,17 @@ export function AddCustomerForm() {
       delete next.idNumber
       return next
     })
+    setActiveTab(newTab)
+  }, [activeTab, formValues.idNumber])
+
+  const handlePersonalNext = useCallback(() => {
+    if (!formValues.idNumber.trim()) {
+      setErrors((prev) => ({ ...prev, idNumber: "ID number is required" }))
+      setTouched((prev) => ({ ...prev, idNumber: true }))
+      toast.error("ID number is required")
+      return
+    }
+
     handleTabChange("location")
   }, [formValues.idNumber, handleTabChange])
 
@@ -2943,6 +2951,10 @@ export function AddCustomerForm() {
                     id="tshul"
                     checked={selectedAddonServices.has("TSHUL")}
                     onCheckedChange={(checked) => {
+                      if (checked && !formValues.idNumber.trim()) {
+                        toast.error("ID number is required for account billing.")
+                        return
+                      }
                       if (checked && (!formValues.panNumber || !/^\d{9}$/.test(formValues.panNumber))) {
                         toast.error("A valid 9-digit PAN number is required for account billing.")
                         return
@@ -2993,7 +3005,7 @@ export function AddCustomerForm() {
               <Button
                 type="button"
                 onClick={handleProvisionCustomer}
-                disabled={isProvisioning || createdCustomer.status === "active"}
+                disabled={isProvisioning}
                 className="flex items-center gap-2"
               >
                 <Zap className="h-4 w-4" />
