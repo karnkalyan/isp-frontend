@@ -385,14 +385,18 @@ export function NettvDashboard() {
                 ) : (
                   stbs.map((stb, index) => {
                     const status = valueOf(stb, ["status", "state"], "Unknown")
+                    const modelName = stb?.model?.name || stb?.model_name || (typeof stb?.model === "string" ? stb.model : "N/A")
+                    const vendorName = stb?.vendor?.name || stb?.vendor_name || (typeof stb?.vendor === "string" ? stb.vendor : "N/A")
+                    const subscriberUsername = stb?.stb_user?.user?.username || stb?.username || stb?.subscriber_username || "N/A"
+                    const ownerName = stb?.owner?.name || (typeof stb?.owner === "string" ? stb.owner : "N/A")
                     return (
                       <TableRow key={`${valueOf(stb, ["id", "serial", "serial_number", "mac"], String(index))}-${index}`}>
                         <TableCell>
-                          <div className="font-medium">{valueOf(stb, ["model", "device", "name", "type"])}</div>
-                          <div className="text-xs text-muted-foreground">{valueOf(stb, ["id", "stb_id", "device_id"], "")}</div>
+                          <div className="font-medium">{modelName}</div>
+                          <div className="text-xs text-muted-foreground">{vendorName} · STB #{valueOf(stb, ["id", "stb_id", "device_id"], "N/A")}</div>
                         </TableCell>
-                        <TableCell className="font-mono text-xs">{valueOf(stb, ["username", "subscriber_username", "subscriber_id"])}</TableCell>
-                        <TableCell className="font-mono text-xs">{valueOf(stb, ["mac", "mac_address", "serial", "serial_number"])}</TableCell>
+                        <TableCell><div className="font-mono text-xs">{subscriberUsername}</div><div className="text-xs text-muted-foreground">{ownerName}</div></TableCell>
+                        <TableCell><div className="font-mono text-xs">{stb.serial || stb.serial_number || "N/A"}</div><div className="text-xs text-muted-foreground">MAC: {stb.mac || stb.mac_address || "N/A"}</div></TableCell>
                         <TableCell><Badge variant={statusVariant(status)}>{status}</Badge></TableCell>
                       </TableRow>
                     )
