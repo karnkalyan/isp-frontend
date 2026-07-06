@@ -311,6 +311,12 @@ export const ServicesAPI = {
         );
     },
 
+    async getNetTVSTB(serial: string) {
+        return apiRequest<{ success: boolean; data: any }>(
+            `/services/nettv/stbs/${encodeURIComponent(serial)}`
+        );
+    },
+
     // Mikrotik Operations
     async getMikrotikResources() {
         return apiRequest<{ success: boolean; data: any }>('/services/mikrotik/resources');

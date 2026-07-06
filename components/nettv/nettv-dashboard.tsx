@@ -6,6 +6,7 @@ import { ServicesAPI } from "@/lib/api/service"
 import { CardContainer } from "@/components/ui/card-container"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -82,6 +83,12 @@ export function NettvDashboard() {
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<any>(null)
   const [detailsLoading, setDetailsLoading] = useState(false)
+  const [selectedStbSerial, setSelectedStbSerial] = useState("")
+  const [selectedPackageSaleId, setSelectedPackageSaleId] = useState("")
+  const [packageQty, setPackageQty] = useState(1)
+  const [paymentGateway, setPaymentGateway] = useState("reseller_wallet")
+  const [assigningPackage, setAssigningPackage] = useState(false)
+  const [stbLoading, setStbLoading] = useState(false)
 
   const fetchAllNetTVPages = async (fetcher: (page: number, perPage: number) => Promise<{ data: any }>) => {
     const perPage = 100
@@ -140,11 +147,62 @@ export function NettvDashboard() {
     setDetailsLoading(true)
     try {
       const response = await ServicesAPI.getNetTVSubscriber(username)
-      setSelected(response.data || subscriber)
+      const details = response.data || subscriber
+      setSelected(details)
+      setSelectedStbSerial(details?.stbs?.[0]?.serial || "")
     } catch {
       setSelected(subscriber)
     } finally {
       setDetailsLoading(false)
+    }
+  }
+
+  const selectedStb = (selected?.stbs || []).find((stb: any) => stb.serial === selectedStbSerial) || selected?.stbs?.[0] || null
+  const packageConfigs = useMemo(() => {
+    if (!selectedStb) return []
+    return (selectedStb.package_details || []).flatMap((pkg: any) =>
+      (pkg?.package_config || []).map((config: any) => ({ ...config, package_name: pkg.name, package_id: pkg.id }))
+    )
+  }, [selectedStb])
+
+  const refreshSelectedStb = async () => {
+    if (!selectedStbSerial) return
+    setStbLoading(true)
+    try {
+      const response = await ServicesAPI.getNetTVSTB(selectedStbSerial)
+      setSelected((prev: any) => ({
+        ...prev,
+        stbs: (prev?.stbs || []).map((stb: any) => stb.serial === selectedStbSerial ? { ...stb, ...response.data } : stb)
+      }))
+      toast.success("STB details refreshed")
+    } catch (error: any) {
+      toast.error(error.message || "Failed to get STB details")
+    } finally {
+      setStbLoading(false)
+    }
+  }
+
+  const assignPackage = async () => {
+    if (!selectedStbSerial || !selectedPackageSaleId) {
+      toast.error("Select an STB and package configuration")
+      return
+    }
+    setAssigningPackage(true)
+    try {
+      await ServicesAPI.subscribeNetTVPackages(selectedStbSerial, {
+        pos: selected?.subscriber?.reseller?.address || "Kisan Net",
+        created_by: selected?.subscriber?.reseller?.username || "kisannet",
+        payment_gateway: paymentGateway,
+        packages: [{ package_sale_id: Number(selectedPackageSaleId), qty: Math.max(1, Number(packageQty)) }],
+        send_mail: 0,
+      })
+      toast.success("NetTV package assigned successfully")
+      await openDetails(selected.subscriber)
+      setSelectedPackageSaleId("")
+    } catch (error: any) {
+      toast.error(error.message || "Failed to assign NetTV package")
+    } finally {
+      setAssigningPackage(false)
     }
   }
 
@@ -350,7 +408,7 @@ export function NettvDashboard() {
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-[900px]">
           <DialogHeader>
             <DialogTitle>NetTV Subscriber Details</DialogTitle>
-            <DialogDescription>{selected ? valueOf(selected, ["username", "user_name", "customer_username"]) : ""}</DialogDescription>
+            <DialogDescription>{selected ? valueOf(selected?.subscriber || selected, ["username", "user_name", "customer_username"]) : ""}</DialogDescription>
           </DialogHeader>
           {detailsLoading ? (
             <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
@@ -358,27 +416,43 @@ export function NettvDashboard() {
             </div>
           ) : (
             <div className="space-y-4">
-              <DetailsBlock title="Subscriber" data={selected?.subscriber || selected} />
-              {selected?.subscriber?.details && <DetailsBlock title="Contact & Address" data={selected.subscriber.details} />}
-              {selected?.reseller && <DetailsBlock title="Reseller Wallet & Payment Methods" data={selected.reseller} />}
-              {(selected?.stbs || []).map((stb: any, index: number) => (
-                <div key={stb.id || stb.serial || index} className="space-y-3 rounded-lg border p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="font-semibold">STB {stb.serial || stb.id}</div>
-                      <div className="text-xs text-muted-foreground">{stb.model?.name || stb.model || "Unknown model"} · {stb.vendor?.name || stb.vendor || "Unknown vendor"}</div>
-                    </div>
-                    <Badge variant={statusVariant(String(stb.status || "unknown"))}>{String(stb.status || "unknown")}</Badge>
-                  </div>
-                  <DetailsBlock title="STB Details" data={stb} />
-                  {stb.stb_user && <DetailsBlock title="STB User" data={stb.stb_user} />}
-                  {stb.active_package && <DetailsBlock title="Active Packages" data={{ packages: stb.active_package }} />}
-                  {stb.subscribed_packages && <DetailsBlock title="Subscribed Packages" data={{ packages: stb.subscribed_packages }} />}
-                  {stb.available_packages && <DetailsBlock title="Available Package Configurations" data={stb.available_packages} />}
-                  {stb.package_details && <DetailsBlock title="Package Details" data={{ packages: stb.package_details }} />}
-                  {stb.bootstrap && <DetailsBlock title="Device Bootstrap Services" data={stb.bootstrap} />}
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Subscriber</div><div className="font-semibold">{fullName(selected?.subscriber)}</div><div className="font-mono text-xs">{selected?.subscriber?.username}</div></div>
+                <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Contact</div><div className="font-semibold">{selected?.subscriber?.details?.mobile_no || selected?.subscriber?.details?.phone_no || "N/A"}</div><div className="text-xs">{selected?.subscriber?.email || "N/A"}</div></div>
+                <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Reseller Balance</div><div className="text-xl font-bold">{selected?.reseller?.credit_balance?.credit_balance ?? selected?.subscriber?.balance ?? 0}</div><div className="text-xs">Reseller #{selected?.reseller?.id || "N/A"}</div></div>
+              </div>
+
+              <div className="rounded-lg border p-4">
+                <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-end">
+                  <div className="flex-1 space-y-1"><Label>Select STB</Label><select className="h-10 w-full rounded-md border bg-background px-3" value={selectedStbSerial} onChange={(event) => { setSelectedStbSerial(event.target.value); setSelectedPackageSaleId("") }}><option value="">Select device</option>{(selected?.stbs || []).map((stb: any) => <option key={stb.serial} value={stb.serial}>{stb.serial} · {stb.model?.name || stb.model || "STB"}</option>)}</select></div>
+                  <Button type="button" variant="outline" onClick={refreshSelectedStb} disabled={!selectedStbSerial || stbLoading}>{stbLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Get STB Details</Button>
                 </div>
-              ))}
+                {selectedStb ? (
+                  <div className="grid gap-2 text-sm md:grid-cols-4">
+                    <div><div className="text-xs text-muted-foreground">Serial</div><div className="break-all font-mono">{selectedStb.serial}</div></div>
+                    <div><div className="text-xs text-muted-foreground">Status</div><Badge variant={statusVariant(String(selectedStb.status || "unknown"))}>{selectedStb.status || "unknown"}</Badge></div>
+                    <div><div className="text-xs text-muted-foreground">Vendor</div><div className="font-medium">{selectedStb.vendor?.name || selectedStb.vendor || "N/A"}</div></div>
+                    <div><div className="text-xs text-muted-foreground">Model</div><div className="font-medium">{selectedStb.model?.name || selectedStb.model || "N/A"}</div></div>
+                  </div>
+                ) : <p className="text-sm text-muted-foreground">No STB linked to this subscriber.</p>}
+              </div>
+
+              {selectedStb && <div className="rounded-lg border p-4">
+                <div className="mb-3 font-semibold">Assign Package</div>
+                <div className="grid gap-3 md:grid-cols-4">
+                  <div className="space-y-1 md:col-span-2"><Label>Package</Label><select className="h-10 w-full rounded-md border bg-background px-3" value={selectedPackageSaleId} onChange={(event) => setSelectedPackageSaleId(event.target.value)}><option value="">Select package configuration</option>{packageConfigs.map((config: any) => <option key={config.id} value={config.id}>{config.package_name || "Package"} · {config.display_name} · {config.duration} · Rs. {config.price_with_vat ?? config.price ?? 0}</option>)}</select></div>
+                  <div className="space-y-1"><Label>Payment</Label><select className="h-10 w-full rounded-md border bg-background px-3" value={paymentGateway} onChange={(event) => setPaymentGateway(event.target.value)}><option value="reseller_wallet">Reseller Wallet</option><option value="wallet">Subscriber Wallet</option></select></div>
+                  <div className="space-y-1"><Label>Quantity</Label><Input type="number" min={1} value={packageQty} onChange={(event) => setPackageQty(Math.max(1, Number(event.target.value)))} /></div>
+                </div>
+                <Button type="button" className="mt-3" onClick={assignPackage} disabled={assigningPackage || !selectedPackageSaleId}>{assigningPackage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Assign Selected Package</Button>
+              </div>}
+
+              {selectedStb && <div className="grid gap-4 lg:grid-cols-2">
+                <div className="rounded-lg border p-4"><div className="mb-2 font-semibold">Subscribed Packages</div><div className="space-y-2">{(selectedStb.subscribed_packages || []).map((pkg: any) => <div key={pkg.id} className="rounded-md bg-muted/40 p-3"><div className="font-medium">{pkg.package_config_name}</div><div className="text-xs text-muted-foreground">Package #{pkg.package_id} · {pkg.package_subscription_details?.[0]?.expiry_date ? `Expires ${pkg.package_subscription_details[0].expiry_date}` : "No expiry"}</div></div>)}{!selectedStb.subscribed_packages?.length && <p className="text-sm text-muted-foreground">No subscribed packages.</p>}</div></div>
+                <div className="rounded-lg border p-4"><div className="mb-2 font-semibold">Active Orders</div><div className="space-y-2">{(selectedStb.active_package || []).map((pkg: any) => <div key={pkg.id} className="rounded-md bg-muted/40 p-3"><div className="flex justify-between"><span className="font-medium">{pkg.name}</span><Badge variant={statusVariant(String(pkg.status || "unknown"))}>{pkg.status}</Badge></div><div className="text-xs text-muted-foreground">Order #{pkg.id} · Qty {pkg.qty} · {pkg.total_with_vat}</div></div>)}{!selectedStb.active_package?.length && <p className="text-sm text-muted-foreground">No active orders.</p>}</div></div>
+              </div>}
+
+              {selectedStb?.bootstrap?.services?.length > 0 && <div className="rounded-lg border p-4"><div className="mb-2 font-semibold">Device Services</div><div className="flex flex-wrap gap-2">{selectedStb.bootstrap.services.map((service: any) => <Badge key={service.name} variant="outline" title={service.baseURL}>{service.name}</Badge>)}</div></div>}
             </div>
           )}
         </DialogContent>
