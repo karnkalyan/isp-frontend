@@ -63,6 +63,7 @@ import {
   Tv,
   WifiOff,
   Download,
+  Upload,
   ExternalLink,
   ImageIcon
 } from "lucide-react"
@@ -1409,6 +1410,15 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const [reprovisionPkgId, setReprovisionPkgId] = useState("")
   const [reprovisionUsername, setReprovisionUsername] = useState("")
   const [reprovisionPassword, setReprovisionPassword] = useState("")
+  const [provisionServicesOpen, setProvisionServicesOpen] = useState(false)
+  const [identityOpen, setIdentityOpen] = useState(false)
+  const [identityIdNumber, setIdentityIdNumber] = useState("")
+  const [identityPanNumber, setIdentityPanNumber] = useState("")
+  const [identitySaving, setIdentitySaving] = useState(false)
+  const [documentUploadOpen, setDocumentUploadOpen] = useState(false)
+  const [documentType, setDocumentType] = useState("idProof")
+  const [documentFile, setDocumentFile] = useState<File | null>(null)
+  const [documentUploading, setDocumentUploading] = useState(false)
 
   // ========== Radius Login Details ==========
   const [radiusAuthLogs, setRadiusAuthLogs] = useState<any[]>([])
@@ -2564,6 +2574,63 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     }
   }
 
+  const openIdentityDialog = () => {
+    if (!customer) return
+    setIdentityIdNumber(customer.idNumber || "")
+    setIdentityPanNumber(customer.panNo || "")
+    setIdentityOpen(true)
+  }
+
+  const handleIdentitySave = async () => {
+    if (!identityIdNumber.trim()) {
+      toast.error("ID number is required")
+      return
+    }
+    if (identityPanNumber.trim() && !/^\d{9}$/.test(identityPanNumber.trim())) {
+      toast.error("PAN number must contain exactly 9 digits")
+      return
+    }
+    try {
+      setIdentitySaving(true)
+      await apiRequest(`/customer/${customerId}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          idNumber: identityIdNumber.trim(),
+          panNumber: identityPanNumber.trim(),
+        }),
+        headers: { "Content-Type": "application/json" },
+      })
+      toast.success("Customer ID and PAN updated")
+      setIdentityOpen(false)
+      await fetchCustomerData()
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update customer identity")
+    } finally {
+      setIdentitySaving(false)
+    }
+  }
+
+  const handleDocumentUpload = async () => {
+    if (!documentFile) {
+      toast.error("Select a document to upload")
+      return
+    }
+    try {
+      setDocumentUploading(true)
+      const formData = new FormData()
+      formData.append(documentType, documentFile)
+      await apiRequest(`/customer/${customerId}/documents`, { method: "POST", body: formData })
+      toast.success("Document uploaded successfully")
+      setDocumentUploadOpen(false)
+      setDocumentFile(null)
+      await fetchCustomerData()
+    } catch (error: any) {
+      toast.error(error.message || "Failed to upload document")
+    } finally {
+      setDocumentUploading(false)
+    }
+  }
+
   const handleReprovisionRadiusSubmit = async () => {
     if (!reprovisionPkgId || !reprovisionUsername || !reprovisionPassword) {
       toast.error("Package, username, and password are required")
@@ -3062,6 +3129,71 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         defaultMobile={customer.secondaryPhone || customer.phoneNumber || ""}
       />
 
+      <Dialog open={provisionServicesOpen} onOpenChange={setProvisionServicesOpen}>
+        <DialogContent className="w-[95vw] sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Activate / Provision Services</DialogTitle>
+            <DialogDescription>
+              Resume a failed customer activation or provision any missing service.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-3">
+            <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
+              <div><div className="font-medium">RADIUS Authentication</div><div className="text-sm text-muted-foreground">Create or repair the PPPoE login.</div></div>
+              <Button type="button" onClick={() => { setProvisionServicesOpen(false); openReprovisionRadiusDialog() }}>Configure</Button>
+            </div>
+            <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
+              <div><div className="font-medium">NETTV IPTV</div><div className="text-sm text-muted-foreground">Create or repair the NETTV subscriber.</div></div>
+              <Button type="button" onClick={() => { setProvisionServicesOpen(false); setNettvProvisionOpen(true) }}>Configure</Button>
+            </div>
+            <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
+              <div><div className="font-medium">Account Billing</div><div className="text-sm text-muted-foreground">Requires an ID number and valid 9-digit PAN.</div></div>
+              <Button type="button" disabled={serviceActionLoading === "account"} onClick={() => {
+                if (!customer.idNumber || !/^\d{9}$/.test(customer.panNo || "")) {
+                  toast.error("Update the customer ID and 9-digit PAN before provisioning Account Billing.")
+                  setProvisionServicesOpen(false)
+                  openIdentityDialog()
+                  return
+                }
+                handleReprovisionAccount()
+              }}>
+                {serviceActionLoading === "account" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Provision
+              </Button>
+            </div>
+          </div>
+          <DialogFooter><Button type="button" variant="outline" onClick={() => setProvisionServicesOpen(false)}>Close</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={identityOpen} onOpenChange={setIdentityOpen}>
+        <DialogContent className="w-[95vw] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Update Customer ID and PAN</DialogTitle>
+            <DialogDescription>Identity is required for customer activation; PAN is required for Account Billing.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-3">
+            <div className="space-y-2"><Label htmlFor="profile-id-number">ID Number / Passport *</Label><Input id="profile-id-number" value={identityIdNumber} onChange={(e) => setIdentityIdNumber(e.target.value)} /></div>
+            <div className="space-y-2"><Label htmlFor="profile-pan-number">PAN Number</Label><Input id="profile-pan-number" inputMode="numeric" maxLength={9} value={identityPanNumber} onChange={(e) => setIdentityPanNumber(e.target.value.replace(/\D/g, ""))} placeholder="9-digit PAN" /></div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIdentityOpen(false)}>Cancel</Button>
+            <Button type="button" onClick={handleIdentitySave} disabled={identitySaving}>{identitySaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={documentUploadOpen} onOpenChange={setDocumentUploadOpen}>
+        <DialogContent className="w-[95vw] sm:max-w-md">
+          <DialogHeader><DialogTitle>Upload Customer Document</DialogTitle><DialogDescription>Upload an image, PDF, Word document, or other supported customer record.</DialogDescription></DialogHeader>
+          <div className="space-y-4 py-3">
+            <div className="space-y-2"><Label>Document Type</Label><Select value={documentType} onValueChange={setDocumentType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="idProof">ID Proof</SelectItem><SelectItem value="addressProof">Address Proof</SelectItem><SelectItem value="photo">Customer Photo</SelectItem><SelectItem value="otherDocuments">Other Document</SelectItem></SelectContent></Select></div>
+            <div className="space-y-2"><Label htmlFor="customer-document">File *</Label><Input id="customer-document" type="file" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" onChange={(e) => setDocumentFile(e.target.files?.[0] || null)} /></div>
+          </div>
+          <DialogFooter><Button type="button" variant="outline" onClick={() => setDocumentUploadOpen(false)}>Cancel</Button><Button type="button" onClick={handleDocumentUpload} disabled={documentUploading}>{documentUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Upload</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={reprovisionRadiusOpen} onOpenChange={setReprovisionRadiusOpen}>
         <DialogContent className="w-[95vw] sm:max-w-md">
           <DialogHeader>
@@ -3416,6 +3548,15 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       </CardContainer>
 
       <div className="flex flex-wrap gap-2 p-2 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-lg shadow-sm">
+        <Button size="sm" className="h-9 bg-gradient-to-r from-violet-600 to-purple-600 text-white border-0 shadow-sm" onClick={() => setProvisionServicesOpen(true)}>
+          <Zap className="mr-2 h-4 w-4" /> Activate / Provision Services
+        </Button>
+        <Button size="sm" variant="outline" className="h-9" onClick={openIdentityDialog}>
+          <Pencil className="mr-2 h-4 w-4" /> Update ID & PAN
+        </Button>
+        <Button size="sm" variant="outline" className="h-9" onClick={() => setDocumentUploadOpen(true)}>
+          <Upload className="mr-2 h-4 w-4" /> Upload Document
+        </Button>
         <Button size="sm" className="h-9 bg-gradient-to-r from-green-500 to-emerald-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={() => setRenewPackageOpen(true)}>
           <RefreshCw className="mr-2 h-4 w-4" /> Renew Package
         </Button>
@@ -4816,6 +4957,9 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         <TabsContent value="documents" className="space-y-4">
           <CardContainer title="Customer Documents" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
             <div className="space-y-4">
+              <div className="flex justify-end">
+                <Button size="sm" type="button" onClick={() => setDocumentUploadOpen(true)}><Upload className="mr-2 h-4 w-4" />Upload Document</Button>
+              </div>
               {customer.documents.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {customer.documents.map((doc) => (
