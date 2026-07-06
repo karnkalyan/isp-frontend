@@ -48,15 +48,8 @@ function PrintableInvoice({
   const hasConfiguredPackageItems = Array.isArray(invoice?.packageItems) && invoice.packageItems.length > 0
   const configuredByReference = new Map((invoice?.packageItems || []).filter((item: any) => item.referenceId).map((item: any) => [item.referenceId, item]))
   const hasActualOrderItems = Array.isArray(invoice?.items) && invoice.items.length > 0
-  const items = hasActualOrderItems
-    ? invoice.items.map((item: any) => {
-        const configured: any = item.referenceId ? configuredByReference.get(item.referenceId) : null
-        return {
-          ...item,
-          isTaxable: configured ? configured.isTaxable !== false : true,
-          isTscApplicable: configured ? configured.isTscApplicable === true : false,
-        }
-      })
+  const items = invoice?.isTrialInvoice
+    ? [{ itemName: invoice?.packageName || "Trial Package", description: "Trial subscription", referenceId: null, itemPrice: 0, isTaxable: false, isTscApplicable: false }]
     : hasConfiguredPackageItems
     ? invoice.packageItems.map((item: any) => ({
         id: `package-${item.id}`,
@@ -67,6 +60,15 @@ function PrintableInvoice({
         isTaxable: item.isTaxable,
         isTscApplicable: item.isTscApplicable,
       }))
+    : hasActualOrderItems
+    ? invoice.items.map((item: any) => {
+        const configured: any = item.referenceId ? configuredByReference.get(item.referenceId) : null
+        return {
+          ...item,
+          isTaxable: configured ? configured.isTaxable !== false : true,
+          isTscApplicable: configured ? configured.isTscApplicable === true : false,
+        }
+      })
     : [{ itemName: invoice?.packageName || "Internet Package", referenceId: null, itemPrice: Number(invoice?.amount || 0) }]
   
   const itemsSum = items.reduce((sum: number, item: any) => sum + Number(item.itemPrice || 0), 0)
@@ -88,7 +90,7 @@ function PrintableInvoice({
     return found || null
   }
 
-  const isLegacy = !hasConfiguredPackageItems && Math.abs(itemsSum - invoiceTotalAmount) < 1
+  const isLegacy = !invoice?.isTrialInvoice && !hasConfiguredPackageItems && Math.abs(itemsSum - invoiceTotalAmount) < 1
 
   if (isLegacy) {
     total = invoiceTotalAmount
@@ -286,8 +288,8 @@ function PrintableReceipt({
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden">
         <div className="-rotate-45 text-5xl font-bold tracking-widest text-slate-300/30">CASH RECEIPT</div>
       </div>
-      <div className="relative mx-auto max-w-3xl border-2 border-black p-6">
-        <div className="text-center border-b border-black pb-3">
+      <div className="receipt-shell relative mx-auto max-w-3xl border-2 border-black p-6">
+        <div className="receipt-header text-center border-b border-black pb-3">
           <div className="text-xl font-bold">{isp?.companyName || isp?.name || "Kisan Net Pvt Ltd"}</div>
           <div className="text-xs font-semibold">{isp?.address || "Address"}</div>
           <div className="text-xs font-semibold">
@@ -297,38 +299,38 @@ function PrintableReceipt({
           <div className="text-lg font-bold mt-2 uppercase tracking-wide">Cash Receipt</div>
         </div>
 
-        <div className="mt-4 flex justify-between border-b border-black pb-3 text-sm">
+        <div className="receipt-meta mt-4 flex justify-between border-b border-black pb-3 text-sm">
           <div><span className="font-bold">Receipt No.:</span> {receiptNumber}</div>
           <div><span className="font-bold">Date:</span> {new Date(invoice?.date || Date.now()).toLocaleDateString()}</div>
         </div>
 
-        <div className="space-y-6 py-8 text-base leading-9">
+        <div className="receipt-body space-y-6 py-8 text-base leading-9">
           <p>
-            Received with thanks from <span className="inline-block min-w-64 border-b border-dotted border-black px-2 font-semibold">{invoice?.customer || ""}</span>
+            Received with thanks from <span className="receipt-line inline-block min-w-64 border-b border-black px-2 font-semibold">{invoice?.customer || ""}</span>
             <span className="ml-2 text-sm">(Subscriber ID: {invoice?.customerId || "____________"})</span>
           </p>
           <p>
-            the sum of <span className="inline-block min-w-96 border-b border-dotted border-black px-2 font-semibold">{numberToWords(amount)}</span>
+            the sum of <span className="receipt-line receipt-line-wide inline-block min-w-96 border-b border-black px-2 font-semibold">{numberToWords(amount)}</span>
           </p>
           <p>
-            as <span className="inline-block min-w-32 border-b border-dotted border-black px-2">&nbsp;</span> part / full payment against order / bill / subscription for
-            <span className="ml-2 inline-block min-w-56 border-b border-dotted border-black px-2 font-semibold">{invoice?.packageName || ""}</span>.
+            as <span className="receipt-line receipt-line-short inline-block min-w-32 border-b border-black px-2">&nbsp;</span> part / full payment against order / bill / subscription for
+            <span className="receipt-line ml-2 inline-block min-w-56 border-b border-black px-2 font-semibold">{invoice?.packageName || ""}</span>.
           </p>
           <p>
-            Paid in cash / by cheque no. <span className="inline-block min-w-48 border-b border-dotted border-black">&nbsp;</span>
-            <span className="ml-2">against</span> <span className="inline-block min-w-48 border-b border-dotted border-black px-2">&nbsp;</span>.
+            Paid in cash / by cheque no. <span className="receipt-line inline-block min-w-48 border-b border-black">&nbsp;</span>
+            <span className="ml-2">against</span> <span className="receipt-line inline-block min-w-48 border-b border-black px-2">&nbsp;</span>.
           </p>
 
           <div className="flex items-center gap-3 pt-2 text-lg font-bold">
             <span>Amount:</span>
-            <span className="inline-block min-w-64 border-2 border-black px-4 py-2">NPR {amount.toLocaleString("en-NP", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <span className="receipt-amount inline-block min-w-64 border-2 border-black px-4 py-2">NPR {amount.toLocaleString("en-NP", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
         </div>
 
-        <div className="mt-10 flex items-end justify-between text-sm">
+        <div className="receipt-footer mt-10 flex items-end justify-between text-sm">
           <div>
             <div><span className="font-semibold">Payment mode:</span> {paymentMethod}</div>
-            <div className="mt-4">Remarks: <span className="inline-block min-w-72 border-b border-dotted border-black">&nbsp;</span></div>
+            <div className="mt-4">Remarks: <span className="receipt-line receipt-line-wide inline-block min-w-72 border-b border-black">&nbsp;</span></div>
           </div>
           <div className="w-48 border-t border-black pt-2 text-center">
             Received by
@@ -361,6 +363,7 @@ export function InvoicesList() {
   const [paymentMethods, setPaymentMethods] = useState<any[]>([])
   const [newPaymentMethodId, setNewPaymentMethodId] = useState("")
   const [dialogView, setDialogView] = useState<"invoice" | "receipt">("invoice")
+  const [accountingSyncingId, setAccountingSyncingId] = useState<number | null>(null)
 
   const fetchInvoices = useCallback(async () => {
     setLoading(true)
@@ -463,6 +466,20 @@ export function InvoicesList() {
     }
   }
 
+  const handleSendToAccounting = async (invoice: any) => {
+    try {
+      setAccountingSyncingId(invoice.id)
+      toast.loading("Sending sales invoice to accounting...", { id: "accounting-sync" })
+      await apiRequest(`/billing/invoices/${invoice.id}/sync-accounting`, { method: "POST" })
+      toast.success("Sales invoice created in accounting", { id: "accounting-sync" })
+      await fetchInvoices()
+    } catch (error: any) {
+      toast.error(error.message || "Failed to send invoice to accounting", { id: "accounting-sync" })
+    } finally {
+      setAccountingSyncingId(null)
+    }
+  }
+
   const formatNpr = (val: number) => {
     return new Intl.NumberFormat("en-NP", { style: "currency", currency: "NPR", maximumFractionDigits: 0 }).format(val)
   }
@@ -478,6 +495,17 @@ export function InvoicesList() {
       * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
       body { font-family: system-ui, -apple-system, sans-serif; background: white; color: black; }
       .printable-invoice, .printable-receipt { position: relative; width: 100%; max-width: 100%; background: white; padding: 20px; color: black; }
+      .printable-receipt { padding: 0; }
+      .receipt-shell { position: relative; max-width: 100%; border: 2px solid #000; padding: 18px; }
+      .receipt-header { text-align: center; border-bottom: 1px solid #000; padding-bottom: 10px; }
+      .receipt-meta { display: flex; justify-content: space-between; margin-top: 12px; padding-bottom: 10px; border-bottom: 1px solid #000; font-size: 13px; }
+      .receipt-body { padding: 18px 0; font-size: 14px; line-height: 2.6; }
+      .receipt-body p { margin: 0; }
+      .receipt-line { display: inline-block; min-width: 180px; padding: 0 6px 2px; border: 0 !important; border-bottom: 1px solid #000 !important; vertical-align: baseline; }
+      .receipt-line-short { min-width: 80px; }
+      .receipt-line-wide { min-width: 300px; }
+      .receipt-amount { display: inline-block; min-width: 210px; padding: 6px 12px; border: 2px solid #000 !important; }
+      .receipt-footer { display: flex; align-items: flex-end; justify-content: space-between; margin-top: 24px; font-size: 13px; }
       .pointer-events-none { pointer-events: none; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
       .pointer-events-none > div { transform: rotate(-45deg); font-size: 3.75rem; font-weight: bold; letter-spacing: 0.1em; color: rgba(148,163,184,0.5); }
       .relative { position: relative; }
@@ -712,6 +740,15 @@ export function InvoicesList() {
                             <DropdownMenuItem className="cursor-pointer" onClick={() => { setSelectedInvoice(invoice); setDialogView("receipt"); }}>
                               Print Cash Receipt
                             </DropdownMenuItem>
+                            {!invoice.accountingInvoiceId && !invoice.isTrialInvoice && Number(invoice.amount) > 0 && (
+                              <DropdownMenuItem
+                                className="cursor-pointer text-blue-600 focus:text-blue-600"
+                                disabled={accountingSyncingId === invoice.id}
+                                onClick={() => handleSendToAccounting(invoice)}
+                              >
+                                {accountingSyncingId === invoice.id ? "Sending to accounting..." : "Send to Accounting"}
+                              </DropdownMenuItem>
+                            )}
                           </>
                         )}
                         {invoice.status !== "paid" && (

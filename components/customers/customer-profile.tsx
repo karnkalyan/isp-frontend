@@ -388,6 +388,7 @@ interface Customer {
     isPaid: boolean
     isActive: boolean
     isRenewalOrder?: boolean
+    isTrialOrder?: boolean
     packageItems?: Array<{
       id: number
       name?: string
@@ -4297,7 +4298,29 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                   {customer.orders.map((order) => {
                     const configuredItems = order.packageItems || []
                     const configuredByReference = new Map(configuredItems.filter(item => item.referenceId).map(item => [item.referenceId, item]))
-                    const resolvedItems = order.items && order.items.length > 0
+                    const resolvedItems = order.isTrialOrder
+                      ? [{
+                          sn: 1,
+                          itemName: order.packagePrice?.packageName || customer.subscribedPkg?.packageName || 'Trial Package',
+                          referenceId: order.packagePrice?.referenceId || customer.subscribedPkg?.referenceId || 'N/A',
+                          qty: 1,
+                          price: 0,
+                          total: 0,
+                          isTaxable: false,
+                          isTscApplicable: false,
+                        }]
+                      : configuredItems.length > 0
+                      ? configuredItems.map((item, idx) => ({
+                          sn: idx + 1,
+                          itemName: item.name || 'Package item',
+                          referenceId: item.referenceId || 'N/A',
+                          qty: 1,
+                          price: Number(item.amount || 0),
+                          total: Number(item.amount || 0),
+                          isTaxable: item.isTaxable !== false,
+                          isTscApplicable: item.isTscApplicable === true,
+                        }))
+                      : order.items && order.items.length > 0
                       ? order.items.map((item: any, idx: number) => {
                           const configured = item.referenceId ? configuredByReference.get(item.referenceId) : null
                           return {
@@ -4311,17 +4334,6 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                             isTscApplicable: configured ? configured.isTscApplicable === true : false,
                           }
                         })
-                      : configuredItems.length > 0
-                      ? configuredItems.map((item, idx) => ({
-                          sn: idx + 1,
-                          itemName: item.name || 'Package item',
-                          referenceId: item.referenceId || 'N/A',
-                          qty: 1,
-                          price: Number(order.totalAmount) === 0 ? 0 : Number(item.amount || 0),
-                          total: Number(order.totalAmount) === 0 ? 0 : Number(item.amount || 0),
-                          isTaxable: item.isTaxable !== false,
-                          isTscApplicable: item.isTscApplicable === true,
-                        }))
                       : [
                           {
                             sn: 1,
