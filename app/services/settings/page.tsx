@@ -18,6 +18,7 @@ import {
     CheckCircle,
     Clock,
     Database,
+    CreditCard,
     Loader2,
     Lock,
     Phone,
@@ -32,10 +33,11 @@ import { toast } from "react-hot-toast";
 
 const SMS_PROVIDER_CODES = ["AAKASHSMS", "SPARROWSMS"];
 const VOIP_PROVIDER_CODES = ["YEASTAR", "ASTERISK"];
-const GROUPED_SERVICE_CODES = [...SMS_PROVIDER_CODES, ...VOIP_PROVIDER_CODES, "SMS_GATEWAY"];
+const ACCOUNTING_PROVIDER_CODES = ["TSHUL", "NEPURIX"];
+const GROUPED_SERVICE_CODES = [...SMS_PROVIDER_CODES, ...VOIP_PROVIDER_CODES, ...ACCOUNTING_PROVIDER_CODES, "SMS_GATEWAY"];
 
 type ProviderGroup = {
-    key: "sms" | "voip";
+    key: "sms" | "voip" | "accounting";
     title: string;
     description: string;
     category: string;
@@ -59,6 +61,14 @@ const providerGroups: ProviderGroup[] = [
         category: "VOIP",
         codes: VOIP_PROVIDER_CODES,
         icon: <Phone className="h-5 w-5" />
+    },
+    {
+        key: "accounting",
+        title: "Accounting Provider",
+        description: "Tshul and Nepurix accounting integrations. Choose exactly one default provider for sales invoices.",
+        category: "BILLING",
+        codes: ACCOUNTING_PROVIDER_CODES,
+        icon: <CreditCard className="h-5 w-5" />
     }
 ];
 
@@ -152,7 +162,8 @@ export default function ServiceSettingsPage() {
             ispServices.filter(
                 (service) =>
                     !SMS_PROVIDER_CODES.includes(service.service.code) &&
-                    !VOIP_PROVIDER_CODES.includes(service.service.code)
+                    !VOIP_PROVIDER_CODES.includes(service.service.code) &&
+                    !ACCOUNTING_PROVIDER_CODES.includes(service.service.code)
             ),
         [ispServices]
     );

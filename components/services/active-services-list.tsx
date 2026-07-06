@@ -21,7 +21,8 @@ import {
     XCircle,
     AlertCircle,
     Phone,
-    Smartphone
+    Smartphone,
+    CreditCard
 } from "lucide-react";
 import { ISPService } from "@/types/service.types";
 import { ServicesAPI } from "@/lib/api/service";
@@ -372,11 +373,14 @@ export function ActiveServicesList() {
 
     const smsServices = filteredServices.filter(s => s.service.code === 'AAKASHSMS' || s.service.code === 'SPARROWSMS');
     const voipServices = filteredServices.filter(s => s.service.code === 'YEASTAR' || s.service.code === 'ASTERISK');
+    const accountingServices = filteredServices.filter(s => s.service.code === 'TSHUL' || s.service.code === 'NEPURIX');
     const otherServices = filteredServices.filter(s => 
         s.service.code !== 'AAKASHSMS' && 
         s.service.code !== 'SPARROWSMS' && 
         s.service.code !== 'YEASTAR' && 
         s.service.code !== 'ASTERISK' &&
+        s.service.code !== 'TSHUL' &&
+        s.service.code !== 'NEPURIX' &&
         s.service.code !== 'SMS_GATEWAY'
     );
 
@@ -519,6 +523,17 @@ export function ActiveServicesList() {
                                 icon={<Phone className="h-6 w-6" />}
                                 category="VOIP"
                                 services={voipServices}
+                                onStatusChange={fetchServices}
+                            />
+                        )}
+
+                        {accountingServices.length > 0 && (
+                            <GroupedServiceCard
+                                title="Accounting Provider"
+                                description="Configure Tshul and Nepurix integrations. Select one default provider for accounting sales invoices."
+                                icon={<CreditCard className="h-6 w-6" />}
+                                category="BILLING"
+                                services={accountingServices}
                                 onStatusChange={fetchServices}
                             />
                         )}
