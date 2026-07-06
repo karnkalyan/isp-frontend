@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, Fragment } from "react"
-import { Laptop, Loader2, Send, Ticket, Wifi, Activity, Cpu, Thermometer, ShieldAlert, RefreshCw, Network, Radio, ArrowUpDown, Smartphone, Tv, HardDrive, ChevronDown, ChevronUp, Download, ExternalLink, FileText, ImageIcon, MessageSquare, CreditCard } from "lucide-react"
+import { Laptop, Loader2, Send, Ticket, Wifi, Activity, Cpu, Thermometer, ShieldAlert, RefreshCw, Network, Radio, ArrowUpDown, Smartphone, Tv, HardDrive, ChevronDown, ChevronUp, Download, ExternalLink, FileText, ImageIcon, MessageSquare, CreditCard, CalendarDays } from "lucide-react"
 import toast from "react-hot-toast"
 import { apiRequest, buildApiAssetUrl, getDynamicBaseUrl } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
@@ -302,6 +302,14 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
   const deviceInfo = deviceData.deviceInfo?.data
   const plan = profile?.subscribedPkg
   const planDetails = plan?.packagePlanDetails
+  const subscriptionExpiry = useMemo(() => {
+    const value = profile?.activeSubscription?.planEnd
+    if (!value) return { daysRemaining: 0, expired: true }
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return { daysRemaining: 0, expired: true }
+    const remainingMs = date.getTime() - Date.now()
+    return { daysRemaining: Math.max(0, Math.ceil(remainingMs / 86400000)), expired: remainingMs <= 0 }
+  }, [profile?.activeSubscription?.planEnd])
 
   const ipv6Info = useMemo(() => {
     const conns = deviceData.wanInfo?.data?.wanConnections;
@@ -345,7 +353,8 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
       ["PPPoE Username", wanConnection?.username || profile?.connectionUsers?.[0]?.username || "N/A"],
       ["WAN IP", wanConnection?.externalIPAddress || wanConnection?.ipAddress || profile?.tr069Devices?.[0]?.ipAddress || "N/A"],
       ["Branch", profile?.branch?.name || "N/A"],
-      ["Plan End", formatDate(profile?.activeSubscription?.planEnd)],
+      ["Expiry Date", formatDate(profile?.activeSubscription?.planEnd)],
+      ["Days Remaining", subscriptionExpiry.expired ? "Expired" : `${subscriptionExpiry.daysRemaining} days`],
       ["Model", deviceInfo?.deviceInfo?.modelName || profile?.tr069Devices?.[0]?.modelName || "N/A"],
       ["Firmware", deviceInfo?.deviceInfo?.softwareVersion || deviceInfo?.deviceInfo?.firmwareVersion || "N/A"],
     ];
@@ -353,14 +362,15 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
     if (ipv6Info?.prefix) baseRows.push(["IPv6 Prefix", ipv6Info.prefix]);
     if (ipv6Info?.gateway) baseRows.push(["IPv6 Gateway", ipv6Info.gateway]);
     return baseRows;
-  }, [wanConnection, profile, deviceInfo, ipv6Info]);
+  }, [wanConnection, profile, deviceInfo, ipv6Info, subscriptionExpiry]);
 
   const overviewRows = useMemo(() => {
     const baseRows: Array<[string, any]> = [
       ["PPPoE Username", wanConnection?.username || profile?.connectionUsers?.[0]?.username || "N/A"],
       ["WAN IP", wanConnection?.externalIPAddress || wanConnection?.ipAddress || profile?.tr069Devices?.[0]?.ipAddress || "N/A"],
       ["Branch", profile?.branch?.name || "N/A"],
-      ["Plan End", formatDate(profile?.activeSubscription?.planEnd)],
+      ["Expiry Date", formatDate(profile?.activeSubscription?.planEnd)],
+      ["Days Remaining", subscriptionExpiry.expired ? "Expired" : `${subscriptionExpiry.daysRemaining} days`],
       ["Model", deviceInfo?.deviceInfo?.modelName || profile?.tr069Devices?.[0]?.modelName || "N/A"],
       ["Firmware", deviceInfo?.deviceInfo?.softwareVersion || deviceInfo?.deviceInfo?.firmwareVersion || "N/A"],
       ["RX Power", deviceInfo?.deviceInfo?.rxPower || "N/A"],
@@ -370,7 +380,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
     if (ipv6Info?.prefix) baseRows.push(["IPv6 Prefix", ipv6Info.prefix]);
     if (ipv6Info?.gateway) baseRows.push(["IPv6 Gateway", ipv6Info.gateway]);
     return baseRows;
-  }, [wanConnection, profile, deviceInfo, ipv6Info]);
+  }, [wanConnection, profile, deviceInfo, ipv6Info, subscriptionExpiry]);
 
   const customerName = useMemo(() => {
     const parts = [profile?.lead?.firstName, profile?.lead?.middleName, profile?.lead?.lastName].filter(Boolean)
@@ -607,6 +617,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
           </div>
           <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
             <span className="rounded-full bg-muted px-3 py-1">Plan ends: {formatDate(profile.activeSubscription?.planEnd)}</span>
+            <span className="rounded-full bg-muted px-3 py-1">{subscriptionExpiry.expired ? "Plan expired" : `${subscriptionExpiry.daysRemaining} days remaining`}</span>
             <span className="rounded-full bg-muted px-3 py-1">Branch: {profile.branch?.name || "N/A"}</span>
           </div>
         </div>
@@ -643,14 +654,21 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
               <span className="text-muted-foreground">Renewal amount</span>
               <span className="font-semibold">{money(plan?.renewAmountWithTax ?? plan?.price)}</span>
             </div>
-            {profile.activeSubscription?.planEnd && new Date(profile.activeSubscription.planEnd) > new Date() && <Badge className="mb-2 bg-blue-600 text-white">PAY IN ADVANCE · starts after current expiry</Badge>}
-            <Button type="button" onClick={renewWithEsewa} disabled={esewaProcessing || !plan} className="w-full gap-2 bg-[#60bb46] text-white hover:bg-[#4da638]">
+            {!subscriptionExpiry.expired && <Badge className="mb-2 bg-blue-600 text-white">PAY IN ADVANCE · {subscriptionExpiry.daysRemaining} days remaining · starts after current expiry</Badge>}
+            <Button type="button" onClick={renewWithEsewa} disabled={esewaProcessing || !plan} className="h-12 w-full gap-3 bg-[#60bb46] text-white hover:bg-[#4da638]">
               {esewaProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-              <img src="https://developer.esewa.com.np/assets/img/esewa_logo.png" alt="eSewa" className="h-5 w-auto rounded bg-white px-1" />
+              <img src="https://developer.esewa.com.np/assets/img/esewa_logo.png" alt="eSewa" className="h-8 w-auto rounded bg-white px-2 py-1" />
               Renew with eSewa
             </Button>
-            <p className="mt-2 text-[10px] text-muted-foreground">UAT: 9711111111 · Password Nepal@123 · Token 123456</p>
           </div>
+        </div>
+      </CardContainer>
+      <CardContainer title="Plan Expiry" className="border-0 bg-gradient-to-br from-violet-50 to-purple-50 shadow-sm dark:from-violet-950/30 dark:to-purple-950/20">
+        <div className="space-y-2">
+          <CalendarDays className="h-6 w-6 text-violet-600" />
+          <div className="text-3xl font-bold">{subscriptionExpiry.expired ? 0 : subscriptionExpiry.daysRemaining}</div>
+          <p className="text-sm font-medium">{subscriptionExpiry.expired ? "Plan expired" : "days remaining"}</p>
+          <p className="text-xs text-muted-foreground">Expires: {formatDate(profile.activeSubscription?.planEnd)}</p>
         </div>
       </CardContainer>
       <CardContainer title="Support" className="border-0 bg-gradient-to-br from-amber-50 to-orange-50 shadow-sm dark:from-amber-950/30 dark:to-orange-950/20">
