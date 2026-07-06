@@ -288,7 +288,7 @@ function PrintableReceipt({
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden">
         <div className="-rotate-45 text-5xl font-bold tracking-widest text-slate-300/30">CASH RECEIPT</div>
       </div>
-      <div className="receipt-shell relative mx-auto max-w-3xl border-2 border-black p-6">
+      <div className="receipt-shell relative mx-auto max-h-[400px] max-w-3xl overflow-hidden border-2 border-black p-4">
         <div className="receipt-header text-center border-b border-black pb-3">
           <div className="text-xl font-bold">{isp?.companyName || isp?.name || "Kisan Net Pvt Ltd"}</div>
           <div className="text-xs font-semibold">{isp?.address || "Address"}</div>
@@ -299,12 +299,12 @@ function PrintableReceipt({
           <div className="text-lg font-bold mt-2 uppercase tracking-wide">Cash Receipt</div>
         </div>
 
-        <div className="receipt-meta mt-4 flex justify-between border-b border-black pb-3 text-sm">
+        <div className="receipt-meta mt-2 flex justify-between border-b border-black pb-2 text-xs">
           <div><span className="font-bold">Receipt No.:</span> {receiptNumber}</div>
           <div><span className="font-bold">Date:</span> {new Date(invoice?.date || Date.now()).toLocaleDateString()}</div>
         </div>
 
-        <div className="receipt-body space-y-6 py-8 text-base leading-9">
+        <div className="receipt-body space-y-2 py-3 text-sm leading-6">
           <p>
             Received with thanks from <span className="receipt-line inline-block min-w-64 border-b border-black px-2 font-semibold">{invoice?.customer || ""}</span>
             <span className="ml-2 text-sm">(Subscriber ID: {invoice?.customerId || "____________"})</span>
@@ -321,13 +321,13 @@ function PrintableReceipt({
             <span className="ml-2">against</span> <span className="receipt-line inline-block min-w-48 border-b border-black px-2">&nbsp;</span>.
           </p>
 
-          <div className="flex items-center gap-3 pt-2 text-lg font-bold">
+          <div className="flex items-center gap-3 pt-1 text-base font-bold">
             <span>Amount:</span>
-            <span className="receipt-amount inline-block min-w-64 border-2 border-black px-4 py-2">NPR {amount.toLocaleString("en-NP", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <span className="receipt-amount inline-block min-w-64 border-2 border-black px-3 py-1">NPR {amount.toLocaleString("en-NP", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
         </div>
 
-        <div className="receipt-footer mt-10 flex items-end justify-between text-sm">
+        <div className="receipt-footer mt-4 flex items-end justify-between text-xs">
           <div>
             <div><span className="font-semibold">Payment mode:</span> {paymentMethod}</div>
             <div className="mt-4">Remarks: <span className="receipt-line receipt-line-wide inline-block min-w-72 border-b border-black">&nbsp;</span></div>
@@ -491,21 +491,27 @@ export function InvoicesList() {
     const printWindow = window.open("", "_blank", "width=1100,height=800")
     if (!printWindow) return
     printWindow.document.write(`<!DOCTYPE html><html><head><title>${dialogView === "invoice" ? "Invoice" : "Receipt"} - ${selectedInvoice?.invoiceId || ""}</title><style>
-      @page { size: ${dialogView === "invoice" ? "A4 landscape" : "A5 landscape"}; margin: 6mm; }
+      @page { size: ${dialogView === "invoice" ? "A4 landscape" : "A4 portrait"}; margin: ${dialogView === "invoice" ? "6mm" : "5mm"}; }
       * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
       body { font-family: system-ui, -apple-system, sans-serif; background: white; color: black; }
       .printable-invoice, .printable-receipt { position: relative; width: 100%; max-width: 100%; background: white; padding: 20px; color: black; }
-      .printable-receipt { padding: 0; }
-      .receipt-shell { position: relative; max-width: 100%; border: 2px solid #000; padding: 18px; }
-      .receipt-header { text-align: center; border-bottom: 1px solid #000; padding-bottom: 10px; }
-      .receipt-meta { display: flex; justify-content: space-between; margin-top: 12px; padding-bottom: 10px; border-bottom: 1px solid #000; font-size: 13px; }
-      .receipt-body { padding: 18px 0; font-size: 14px; line-height: 2.6; }
+      .printable-receipt { width: 100%; padding: 0; break-inside: avoid; page-break-inside: avoid; }
+      .receipt-shell { position: relative; width: 100%; max-width: 190mm; height: 88mm !important; max-height: 88mm !important; margin: 0 auto; overflow: hidden; break-inside: avoid; page-break-inside: avoid; border: 1.5px solid #000; padding: 4mm 5mm !important; }
+      .receipt-header { text-align: center; border-bottom: 1px solid #000; padding-bottom: 2mm; line-height: 1.15; }
+      .receipt-header .text-xl { font-size: 16px; }
+      .receipt-header .text-lg { font-size: 14px; margin-top: 2px; }
+      .receipt-header .text-xs { font-size: 9px; }
+      .receipt-meta { display: flex; justify-content: space-between; margin-top: 2mm !important; padding-bottom: 2mm !important; border-bottom: 1px solid #000; font-size: 10px; }
+      .receipt-body { padding: 2.5mm 0 1.5mm !important; font-size: 10px; line-height: 1.75; }
       .receipt-body p { margin: 0; }
-      .receipt-line { display: inline-block; min-width: 180px; padding: 0 6px 2px; border: 0 !important; border-bottom: 1px solid #000 !important; vertical-align: baseline; }
-      .receipt-line-short { min-width: 80px; }
-      .receipt-line-wide { min-width: 300px; }
-      .receipt-amount { display: inline-block; min-width: 210px; padding: 6px 12px; border: 2px solid #000 !important; }
-      .receipt-footer { display: flex; align-items: flex-end; justify-content: space-between; margin-top: 24px; font-size: 13px; }
+      .receipt-line { display: inline-block; min-width: 42mm; padding: 0 1.5mm 1px; border: 0 !important; border-bottom: 1px solid #000 !important; vertical-align: baseline; }
+      .receipt-line-short { min-width: 18mm; }
+      .receipt-line-wide { min-width: 70mm; }
+      .receipt-amount { display: inline-block; min-width: 48mm; padding: 1.5mm 3mm; border: 1.5px solid #000 !important; }
+      .receipt-body .text-lg { font-size: 12px; }
+      .receipt-footer { display: flex; align-items: flex-end; justify-content: space-between; margin-top: 1.5mm !important; font-size: 10px; }
+      .receipt-footer .mt-4 { margin-top: 2mm; }
+      .receipt-footer .w-48 { width: 38mm; }
       .pointer-events-none { pointer-events: none; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
       .pointer-events-none > div { transform: rotate(-45deg); font-size: 3.75rem; font-weight: bold; letter-spacing: 0.1em; color: rgba(148,163,184,0.5); }
       .relative { position: relative; }

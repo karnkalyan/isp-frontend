@@ -3133,7 +3133,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         defaultFname={customer.firstName || ""}
         defaultLname={customer.lastName || ""}
         defaultEmail={customer.email || ""}
-        defaultUsername={customer.customerUniqueId || customer.connectionUsers?.[0]?.username || ""}
+        defaultUsername={customer.connectionUsers?.[0]?.username ? `_nettv${customer.connectionUsers[0].username}` : (customer.customerUniqueId ? `_nettv${customer.customerUniqueId}` : "")}
+        defaultPassword={customer.connectionUsers?.[0]?.password ? `_nettv${customer.connectionUsers[0].password}` : ""}
         defaultAddress={customer.street || customerProfileData.address || ""}
         defaultCity={customerProfileData.city || customer.district || ""}
         defaultDistrict={customer.district || customerProfileData.city || ""}

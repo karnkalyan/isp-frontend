@@ -785,6 +785,7 @@ interface NetTVDialogProps {
   defaultLname?: string
   defaultEmail?: string
   defaultUsername?: string
+  defaultPassword?: string
   defaultAddress?: string
   defaultCity?: string
   defaultDistrict?: string
@@ -796,6 +797,16 @@ interface NetTVDialogProps {
   defaultLng?: string
 }
 
+interface UploadedDocument {
+  type: string
+  data: string
+  mime_type: string
+  extension: string
+  size: string
+  fileName?: string
+  previewUrl?: string
+}
+
 export function NetTVDialog({
   open,
   onOpenChange,
@@ -804,6 +815,7 @@ export function NetTVDialog({
   defaultLname = "",
   defaultEmail = "",
   defaultUsername = "",
+  defaultPassword = "",
   defaultAddress = "",
   defaultCity = "",
   defaultDistrict = "",
@@ -834,6 +846,71 @@ export function NetTVDialog({
   const [website, setWebsite] = useState("")
   const [longitude, setLongitude] = useState(defaultLng)
   const [latitude, setLatitude] = useState(defaultLat)
+
+  // Document upload state
+  const [documents, setDocuments] = useState<UploadedDocument[]>([])
+  const [uploadingDoc, setUploadingDoc] = useState(false)
+
+  const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate it's an image
+    if (!file.type.startsWith("image/")) {
+      toast.error("Only image files are allowed (JPEG, PNG, GIF, WebP)")
+      return
+    }
+
+    // Max 5MB
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File size must be less than 5MB")
+      return
+    }
+
+    setUploadingDoc(true)
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => {
+          const result = reader.result as string
+          // Remove the data:image/xxx;base64, prefix
+          const base64Data = result.split(",")[1] || result
+          resolve(base64Data)
+        }
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+
+      const extension = file.name.split(".").pop()?.toLowerCase() || "jpg"
+      const mimeType = extension === "png" ? "png" : extension === "gif" ? "gif" : extension === "webp" ? "webp" : "jpg"
+
+      const doc: UploadedDocument = {
+        type: mimeType,
+        data: base64,
+        mime_type: mimeType,
+        extension: extension,
+        size: String(file.size),
+        fileName: file.name,
+        previewUrl: URL.createObjectURL(file),
+      }
+
+      setDocuments(prev => [...prev, doc])
+    } catch {
+      toast.error("Failed to read the file")
+    } finally {
+      setUploadingDoc(false)
+      // Reset the input so the same file can be re-selected
+      e.target.value = ""
+    }
+  }
+
+  const removeDocument = (index: number) => {
+    setDocuments(prev => {
+      const removed = prev[index]
+      if (removed?.previewUrl) URL.revokeObjectURL(removed.previewUrl)
+      return prev.filter((_, i) => i !== index)
+    })
+  }
 
   // Validation errors for name fields
   const [nameErrors, setNameErrors] = useState({ fname: "", lname: "" })
@@ -912,6 +989,7 @@ export function NetTVDialog({
   useEffect(() => {
     if (open) {
       setUsername(defaultUsername || defaultEmail || "")
+      setPassword(defaultPassword || "")
       setEmail(defaultEmail)
       setFname(defaultFname)
       setLname(defaultLname)
@@ -923,8 +1001,9 @@ export function NetTVDialog({
       setLongitude(defaultLng)
       setLatitude(defaultLat)
       setNameErrors({ fname: "", lname: "" })
+      setDocuments([])
     }
-  }, [open, defaultFname, defaultLname, defaultEmail, defaultUsername, defaultAddress, defaultCity, defaultDistrict, defaultPhone, defaultMobile, defaultLat, defaultLng])
+  }, [open, defaultFname, defaultLname, defaultEmail, defaultUsername, defaultPassword, defaultAddress, defaultCity, defaultDistrict, defaultPhone, defaultMobile, defaultLat, defaultLng])
 
   const handleConfirm = () => {
     // Validate required fields
@@ -941,7 +1020,12 @@ export function NetTVDialog({
     const country = countries.find(c => c.id === selectedCountryId)
     const province = provinces.find(p => p.id === selectedProvinceId)
 
-    const payload = {
+    // Build documents array (strip preview fields before sending)
+    const docsPayload = documents.map(({ type, data, mime_type, extension, size }) => ({
+      type, data, mime_type, extension, size
+    }))
+
+    const payload: any = {
       username,
       password,
       email,
@@ -959,6 +1043,9 @@ export function NetTVDialog({
       longitude: longitude || "0",
       latitude: latitude || "0",
       website,
+    }
+    if (docsPayload.length > 0) {
+      payload.documents = docsPayload
     }
     onConfirm(payload)
     onOpenChange(false)
@@ -1137,6 +1224,63 @@ export function NetTVDialog({
               onChange={(e) => setWebsite(e.target.value)}
               placeholder="https://example.com"
             />
+          </div>
+
+          {/* Document Upload Section */}
+          <div className="space-y-3 rounded-lg border p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-base font-semibold">Documents</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">Upload identity documents (images only, max 5MB each)</p>
+              </div>
+              <label className="cursor-pointer">
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  className="hidden"
+                  onChange={handleDocumentUpload}
+                  disabled={uploadingDoc}
+                />
+                <Button type="button" variant="outline" size="sm" asChild disabled={uploadingDoc}>
+                  <span>{uploadingDoc ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}Add Document</span>
+                </Button>
+              </label>
+            </div>
+
+            {documents.length > 0 && (
+              <div className="space-y-2">
+                {documents.map((doc, index) => (
+                  <div key={index} className="flex items-center gap-3 rounded-md border bg-muted/30 p-2">
+                    {doc.previewUrl && (
+                      <img
+                        src={doc.previewUrl}
+                        alt={doc.fileName || "document"}
+                        className="h-12 w-12 rounded object-cover border"
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{doc.fileName || `document.${doc.extension}`}</div>
+                      <div className="text-xs text-muted-foreground">{doc.extension.toUpperCase()} · {Math.round(Number(doc.size) / 1024)} KB</div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive shrink-0"
+                      onClick={() => removeDocument(index)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {documents.length === 0 && (
+              <div className="text-center py-4 text-sm text-muted-foreground border-2 border-dashed rounded-md">
+                No documents uploaded. Click "Add Document" to upload an image.
+              </div>
+            )}
           </div>
         </div>
         <DialogFooter>
@@ -2819,7 +2963,14 @@ export function AddCustomerForm() {
           defaultFname={formValues.firstName}
           defaultLname={formValues.lastName}
           defaultEmail={formValues.email}
-          defaultUsername={createdCustomer.customerUniqueId}
+          defaultUsername={(() => {
+            const cred = wirelessCredentials.find(c => c.username && c.password)
+            return cred ? `_nettv${cred.username}` : (createdCustomer.customerUniqueId ? `_nettv${createdCustomer.customerUniqueId}` : "")
+          })()}
+          defaultPassword={(() => {
+            const cred = wirelessCredentials.find(c => c.username && c.password)
+            return cred ? `_nettv${cred.password}` : ""
+          })()}
           defaultAddress={formValues.streetAddress}
           defaultCity={formValues.district}
           defaultDistrict={formValues.district}

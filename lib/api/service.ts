@@ -400,6 +400,12 @@ export const ServicesAPI = {
         });
     },
 
+    async deleteAccountingResource(provider: "TSHUL" | "NEPURIX", resource: string, id: string | number) {
+        return apiRequest<{ success: boolean; data: any }>(`/services/accounting/${provider}/${resource}/${encodeURIComponent(String(id))}`, {
+            method: "DELETE"
+        });
+    },
+
     async getRadiusUser(username: string) {
         return apiRequest<{ success: boolean; data: any }>(
             `/services/radius/users/${username}`
