@@ -2139,7 +2139,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   }
 
   const syncAcsDevice = async () => {
-    const serial = customer?.primaryDeviceSerial
+    const serial = customer?.primaryDeviceSerial || customer?.devices?.find((device) => device.deviceType === "ONT")?.serialNumber
     if (!serial) return toast.error("No linked TR-069 device was found for this customer")
     setAcsSyncing(true)
     try {
@@ -3551,16 +3551,10 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         <Button size="sm" className="h-9 bg-gradient-to-r from-violet-600 to-purple-600 text-white border-0 shadow-sm" onClick={() => setProvisionServicesOpen(true)}>
           <Zap className="mr-2 h-4 w-4" /> Activate / Provision Services
         </Button>
-        <Button size="sm" variant="outline" className="h-9" onClick={openIdentityDialog}>
-          <Pencil className="mr-2 h-4 w-4" /> Update ID & PAN
-        </Button>
-        <Button size="sm" variant="outline" className="h-9" onClick={() => setDocumentUploadOpen(true)}>
-          <Upload className="mr-2 h-4 w-4" /> Upload Document
-        </Button>
         <Button size="sm" className="h-9 bg-gradient-to-r from-green-500 to-emerald-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={() => setRenewPackageOpen(true)}>
           <RefreshCw className="mr-2 h-4 w-4" /> Renew Package
         </Button>
-        <Button size="sm" variant="outline" className="h-9" onClick={syncAcsDevice} disabled={acsSyncing || !customer.primaryDeviceSerial}>
+        <Button size="sm" variant="outline" className="h-9" onClick={syncAcsDevice} disabled={acsSyncing}>
           {acsSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />} Sync ACS
         </Button>
         <Button size="sm" className="h-9 bg-gradient-to-r from-blue-500 to-indigo-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={() => setChangeUsernameOpen(true)}>
@@ -3623,6 +3617,13 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                     <span className="text-muted-foreground">ID Number:</span>
                     <span className="font-medium">{customer.idNumber || "N/A"}</span>
                   </div>
+                  <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                    <span className="text-muted-foreground">PAN Number:</span>
+                    <span className="font-medium">{customer.panNo || "N/A"}</span>
+                  </div>
+                  <Button type="button" size="sm" variant="outline" className="mt-1 w-full" onClick={openIdentityDialog}>
+                    <Pencil className="mr-2 h-4 w-4" /> Update ID & PAN
+                  </Button>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Full Name:</span>
                     <span className="font-medium">{getCustomerFullName()}</span>
