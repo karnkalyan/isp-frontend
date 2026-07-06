@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { CardContainer } from "@/components/ui/card-container"
 import { StatusBadge } from "@/components/ui/status-badge"
-import { MoreHorizontal, FileText, Loader2, Printer, Search, Trash, Plus } from "lucide-react"
+import { MoreHorizontal, FileText, Loader2, Printer, Search, Trash, Plus, ExternalLink } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,7 +46,18 @@ function PrintableInvoice({
 }) {
   const tscPct = Number(tscPercentage || 10)
   const hasConfiguredPackageItems = Array.isArray(invoice?.packageItems) && invoice.packageItems.length > 0
-  const items = hasConfiguredPackageItems
+  const configuredByReference = new Map((invoice?.packageItems || []).filter((item: any) => item.referenceId).map((item: any) => [item.referenceId, item]))
+  const hasActualOrderItems = Array.isArray(invoice?.items) && invoice.items.length > 0
+  const items = hasActualOrderItems
+    ? invoice.items.map((item: any) => {
+        const configured: any = item.referenceId ? configuredByReference.get(item.referenceId) : null
+        return {
+          ...item,
+          isTaxable: configured ? configured.isTaxable !== false : true,
+          isTscApplicable: configured ? configured.isTscApplicable === true : false,
+        }
+      })
+    : hasConfiguredPackageItems
     ? invoice.packageItems.map((item: any) => ({
         id: `package-${item.id}`,
         itemName: item.name || "Package item",
@@ -56,8 +67,6 @@ function PrintableInvoice({
         isTaxable: item.isTaxable,
         isTscApplicable: item.isTscApplicable,
       }))
-    : invoice?.items?.length
-    ? invoice.items 
     : [{ itemName: invoice?.packageName || "Internet Package", referenceId: null, itemPrice: Number(invoice?.amount || 0) }]
   
   const itemsSum = items.reduce((sum: number, item: any) => sum + Number(item.itemPrice || 0), 0)
@@ -105,7 +114,7 @@ function PrintableInvoice({
       let isTaxable = true
       let isTscApplicable = false
 
-      if (hasConfiguredPackageItems) {
+      if (hasActualOrderItems || hasConfiguredPackageItems) {
         isTaxable = item.isTaxable !== false
         isTscApplicable = item.isTscApplicable === true
       } else if (item.referenceId) {
@@ -261,121 +270,23 @@ function PrintableInvoice({
 
 function PrintableReceipt({
   invoice,
-  isp,
-  addonCharges = [],
-  tscPercentage = 10
+  isp
 }: {
   invoice: any
   isp: any
   addonCharges?: any[]
   tscPercentage?: number
 }) {
-  const tscPct = Number(tscPercentage || 10)
-  const hasConfiguredPackageItems = Array.isArray(invoice?.packageItems) && invoice.packageItems.length > 0
-  const items = hasConfiguredPackageItems
-    ? invoice.packageItems.map((item: any) => ({
-        id: `package-${item.id}`,
-        itemName: item.name || "Package item",
-        referenceId: item.referenceId,
-        itemPrice: Number(item.amount || 0),
-        isTaxable: item.isTaxable,
-        isTscApplicable: item.isTscApplicable,
-      }))
-    : invoice?.items?.length
-    ? invoice.items
-    : [{ itemName: invoice?.packageName || "Internet Package", referenceId: null, itemPrice: Number(invoice?.amount || 0) }]
-  
-  const itemsSum = items.reduce((sum: number, item: any) => sum + Number(item.itemPrice || 0), 0)
-  const invoiceTotalAmount = Number(invoice?.amount || 0)
-
-  let subtotal = 0
-  let totalTsc = 0
-  let taxableAmount = 0
-  let vat = 0
-  let total = 0
-  let displayItems: any[] = []
-
-  const findAddonConfig = (refId: string) => {
-    if (!refId) return null
-    let found = addonCharges.find(a => a.referenceId === refId)
-    if (found) return found
-    const cleanCode = refId.startsWith('INT-') ? refId.substring(4) : refId
-    found = addonCharges.find(a => a.forPackageCreation && cleanCode.startsWith(a.code))
-    return found || null
-  }
-
-  const isLegacy = !hasConfiguredPackageItems && Math.abs(itemsSum - invoiceTotalAmount) < 1
-
-  if (isLegacy) {
-    total = invoiceTotalAmount
-    const tscFactor = invoice?.isTscApplicable ? (tscPct / 100) : 0
-    const baseAmount = total / ((1 + tscFactor) * 1.13)
-    totalTsc = Math.round(baseAmount * tscFactor * 100) / 100
-    taxableAmount = Math.round(baseAmount * (1 + tscFactor) * 100) / 100
-    vat = Math.round(taxableAmount * 0.13 * 100) / 100
-    subtotal = Math.round((total - totalTsc - vat) * 100) / 100
-
-    displayItems = items.map((item: any) => {
-      const itemPrice = Number(item.itemPrice || 0)
-      const itemTscFactor = (item.referenceId ? findAddonConfig(item.referenceId)?.isTscApplicable : invoice?.isTscApplicable) ? (tscPct / 100) : 0
-      const itemPreTax = itemPrice / ((1 + itemTscFactor) * 1.13)
-      return {
-        ...item,
-        preTaxPrice: itemPreTax
-      }
-    })
-  } else {
-    displayItems = items.map((item: any) => {
-      const price = Number(item.itemPrice || 0)
-      let isTaxable = true
-      let isTscApplicable = false
-
-      if (hasConfiguredPackageItems) {
-        isTaxable = item.isTaxable !== false
-        isTscApplicable = item.isTscApplicable === true
-      } else if (item.referenceId) {
-        const addon = findAddonConfig(item.referenceId)
-        if (addon) {
-          isTaxable = addon.isTaxable
-          isTscApplicable = addon.isTscApplicable
-        } else {
-          isTaxable = true
-          isTscApplicable = invoice?.isTscApplicable || false
-        }
-      } else {
-        isTaxable = true
-        isTscApplicable = false
-      }
-
-      const itemTsc = isTscApplicable ? (price * tscPct) / 100 : 0
-
-      return {
-        ...item,
-        preTaxPrice: price,
-        isTaxable,
-        isTscApplicable,
-        itemTsc
-      }
-    })
-
-    subtotal = displayItems.reduce((sum: number, item: any) => sum + item.preTaxPrice, 0)
-    totalTsc = displayItems.reduce((sum: number, item: any) => sum + item.itemTsc, 0)
-    taxableAmount = displayItems.reduce((sum: number, item: any) => {
-      if (item.isTaxable) {
-        return sum + item.preTaxPrice + item.itemTsc
-      }
-      return sum
-    }, 0)
-    vat = Math.round(taxableAmount * 0.13 * 100) / 100
-    total = Math.round((subtotal + totalTsc + vat) * 100) / 100
-  }
+  const amount = Number(invoice?.amount || 0)
+  const paymentMethod = invoice?.paymentMethod ? String(invoice.paymentMethod).replaceAll("_", " ") : "Cash"
+  const receiptNumber = `REC-${invoice?.invoiceId || invoice?.id || ""}`
 
   return (
     <div id="printable-receipt" className="printable-receipt relative mx-auto bg-white p-5 text-black">
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden">
         <div className="-rotate-45 text-5xl font-bold tracking-widest text-slate-300/30">CASH RECEIPT</div>
       </div>
-      <div className="relative border border-black p-4">
+      <div className="relative mx-auto max-w-3xl border-2 border-black p-6">
         <div className="text-center border-b border-black pb-3">
           <div className="text-xl font-bold">{isp?.companyName || isp?.name || "Kisan Net Pvt Ltd"}</div>
           <div className="text-xs font-semibold">{isp?.address || "Address"}</div>
@@ -386,90 +297,41 @@ function PrintableReceipt({
           <div className="text-lg font-bold mt-2 uppercase tracking-wide">Cash Receipt</div>
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-2 text-xs border-b border-black pb-3">
+        <div className="mt-4 flex justify-between border-b border-black pb-3 text-sm">
+          <div><span className="font-bold">Receipt No.:</span> {receiptNumber}</div>
+          <div><span className="font-bold">Date:</span> {new Date(invoice?.date || Date.now()).toLocaleDateString()}</div>
+        </div>
+
+        <div className="space-y-6 py-8 text-base leading-9">
+          <p>
+            Received with thanks from <span className="inline-block min-w-64 border-b border-dotted border-black px-2 font-semibold">{invoice?.customer || ""}</span>
+            <span className="ml-2 text-sm">(Subscriber ID: {invoice?.customerId || "____________"})</span>
+          </p>
+          <p>
+            the sum of <span className="inline-block min-w-96 border-b border-dotted border-black px-2 font-semibold">{numberToWords(amount)}</span>
+          </p>
+          <p>
+            as <span className="inline-block min-w-32 border-b border-dotted border-black px-2">&nbsp;</span> part / full payment against order / bill / subscription for
+            <span className="ml-2 inline-block min-w-56 border-b border-dotted border-black px-2 font-semibold">{invoice?.packageName || ""}</span>.
+          </p>
+          <p>
+            Paid in cash / by cheque no. <span className="inline-block min-w-48 border-b border-dotted border-black">&nbsp;</span>
+            <span className="ml-2">against</span> <span className="inline-block min-w-48 border-b border-dotted border-black px-2">&nbsp;</span>.
+          </p>
+
+          <div className="flex items-center gap-3 pt-2 text-lg font-bold">
+            <span>Amount:</span>
+            <span className="inline-block min-w-64 border-2 border-black px-4 py-2">NPR {amount.toLocaleString("en-NP", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          </div>
+        </div>
+
+        <div className="mt-10 flex items-end justify-between text-sm">
           <div>
-            <div><span className="font-bold">Receipt No:</span> REC-{invoice?.invoiceId || invoice?.id}</div>
-            <div><span className="font-bold">Date:</span> {new Date(invoice?.date || Date.now()).toLocaleString()}</div>
-            <div><span className="font-bold">Payment Mode:</span> <span className="font-semibold uppercase">{invoice?.paymentMethod ? String(invoice.paymentMethod).replaceAll("_", " ") : "CASH"}</span></div>
+            <div><span className="font-semibold">Payment mode:</span> {paymentMethod}</div>
+            <div className="mt-4">Remarks: <span className="inline-block min-w-72 border-b border-dotted border-black">&nbsp;</span></div>
           </div>
-          <div className="text-right">
-            <div><span className="font-bold">Subscriber Name:</span> {invoice?.customer || "-"}</div>
-            <div><span className="font-bold">Subscriber ID:</span> {invoice?.customerId || "-"}</div>
-            <div><span className="font-bold">Phone:</span> {invoice?.customerPhone || "-"}</div>
-          </div>
-        </div>
-
-        <div className="mt-3 text-xs border-b border-black pb-3">
-          <div className="font-bold mb-1 text-sm underline">Subscription Package Information</div>
-          <div className="grid grid-cols-2 gap-2">
-            <div><span className="font-semibold">Package Name:</span> {invoice?.packageName || "-"}</div>
-            <div><span className="font-semibold">Duration:</span> {invoice?.packageDuration || "-"}</div>
-            
-            <div>
-              <span className="font-semibold">Speed:</span> {invoice?.downSpeed ? `${invoice.downSpeed} Mbps Down / ${invoice.upSpeed || invoice.downSpeed} Mbps Up` : "Standard Speed"}
-            </div>
-            <div><span className="font-semibold">Plan Start:</span> {invoice?.date ? new Date(invoice.date).toLocaleDateString() : "-"}</div>
-            <div><span className="font-semibold">Plan End:</span> {invoice?.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : "-"}</div>
-          </div>
-        </div>
-
-        <table className="mt-3 w-full border-collapse text-xs">
-          <thead>
-            <tr className="border-b border-black">
-              <th className="p-1 text-left">S.N.</th>
-              <th className="p-1 text-left">Particulars</th>
-              <th className="p-1 text-right">Rate</th>
-              <th className="p-1 text-right">Amount (Rs.)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {displayItems.map((item: any, index: number) => (
-              <tr key={item.id || index} className="border-b border-dotted border-slate-300">
-                <td className="p-1">{index + 1}</td>
-                <td className="p-1">{item.itemName || invoice?.packageName || "Internet"}</td>
-                <td className="p-1 text-right">{item.preTaxPrice.toFixed(2)}</td>
-                <td className="p-1 text-right">{item.preTaxPrice.toFixed(2)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        <div className="mt-3 grid grid-cols-[1fr_auto] text-xs">
-          <div>
-            <div className="mt-1 font-semibold italic">In Words: {numberToWords(total)}</div>
-          </div>
-          <div className="w-48">
-            <div className="flex justify-between py-0.5">
-              <span>Subtotal:</span>
-              <span>Rs. {subtotal.toFixed(2)}</span>
-            </div>
-            {totalTsc > 0 && (
-              <div className="flex justify-between py-0.5">
-                <span>TSC ({tscPct}%):</span>
-                <span>Rs. {totalTsc.toFixed(2)}</span>
-              </div>
-            )}
-            <div className="flex justify-between py-0.5">
-              <span>Taxable Amt:</span>
-              <span>Rs. {taxableAmount.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between py-0.5">
-              <span>VAT (13%):</span>
-              <span>Rs. {vat.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between border-t border-black py-1 font-bold">
-              <span>Total Received:</span>
-              <span>Rs. {total.toFixed(2)}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-8 flex justify-between items-end text-xs text-center">
-          <div className="w-28 border-t border-black pt-1">
-            Customer Signature
-          </div>
-          <div className="w-28 border-t border-black pt-1">
-            Authorized Signature
+          <div className="w-48 border-t border-black pt-2 text-center">
+            Received by
           </div>
         </div>
       </div>
@@ -612,7 +474,7 @@ export function InvoicesList() {
     const printWindow = window.open("", "_blank", "width=1100,height=800")
     if (!printWindow) return
     printWindow.document.write(`<!DOCTYPE html><html><head><title>${dialogView === "invoice" ? "Invoice" : "Receipt"} - ${selectedInvoice?.invoiceId || ""}</title><style>
-      @page { size: A4 landscape; margin: 6mm; }
+      @page { size: ${dialogView === "invoice" ? "A4 landscape" : "A5 landscape"}; margin: 6mm; }
       * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
       body { font-family: system-ui, -apple-system, sans-serif; background: white; color: black; }
       .printable-invoice, .printable-receipt { position: relative; width: 100%; max-width: 100%; background: white; padding: 20px; color: black; }
@@ -788,6 +650,7 @@ export function InvoicesList() {
                 <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Amount</th>
                 <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Status</th>
                 <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Payment Mode</th>
+                <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Accounting</th>
                 <th className="text-right p-4 text-sm font-semibold text-muted-foreground"></th>
               </tr>
             </thead>
@@ -816,6 +679,20 @@ export function InvoicesList() {
                     <StatusBadge status={invoice.status as any} />
                   </td>
                   <td className="p-4 text-sm font-medium text-foreground">{invoice.paymentMethod ? String(invoice.paymentMethod).replaceAll("_", " ") : "—"}</td>
+                  <td className="p-4 text-sm">
+                    {invoice.accountingInvoiceId ? (
+                      <div className="space-y-1">
+                        <div className="font-medium">{invoice.accountingProvider} #{invoice.accountingInvoiceId}</div>
+                        {invoice.accountingInvoiceUrl && (
+                          <a href={invoice.accountingInvoiceUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
+                            Open sales invoice <ExternalLink className="h-3 w-3" />
+                          </a>
+                        )}
+                      </div>
+                    ) : invoice.accountingSyncError ? (
+                      <span className="text-xs text-red-600" title={invoice.accountingSyncError}>Sync failed</span>
+                    ) : <span className="text-muted-foreground">—</span>}
+                  </td>
                   <td className="p-4 text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>

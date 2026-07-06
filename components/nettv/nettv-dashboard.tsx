@@ -1,8 +1,9 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Eye, Loader2, Package, RefreshCw, Search, Tv, UserCheck, Users } from "lucide-react"
+import { Eye, Loader2, Package, Plus, RefreshCw, Search, Tv, UserCheck, Users } from "lucide-react"
 import { ServicesAPI } from "@/lib/api/service"
+import { NetTVDialog } from "@/components/customers/add-customer-form"
 import { CardContainer } from "@/components/ui/card-container"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -89,6 +90,8 @@ export function NettvDashboard() {
   const [paymentGateway, setPaymentGateway] = useState("reseller_wallet")
   const [assigningPackage, setAssigningPackage] = useState(false)
   const [stbLoading, setStbLoading] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [creatingSubscriber, setCreatingSubscriber] = useState(false)
 
   const fetchAllNetTVPages = async (fetcher: (page: number, perPage: number) => Promise<{ data: any }>) => {
     const perPage = 100
@@ -157,6 +160,40 @@ export function NettvDashboard() {
     }
   }
 
+  const refreshSelectedSubscriber = async () => {
+    const username = valueOf(selected?.subscriber || selected, ["username", "user_name", "customer_username"], "")
+    if (!username) return
+    const response = await ServicesAPI.getNetTVSubscriber(username)
+    const refreshed = response.data
+    setSelected(refreshed)
+    const serials = (refreshed?.stbs || []).map((stb: any) => stb.serial)
+    setSelectedStbSerial((current) => serials.includes(current) ? current : (serials[0] || ""))
+    setSubscribers((current) => current.map((subscriber) =>
+      valueOf(subscriber, ["username", "user_name", "customer_username"], "") === username
+        ? { ...subscriber, ...(refreshed?.subscriber || {}) }
+        : subscriber
+    ))
+  }
+
+  const createSubscriber = async (payload: any) => {
+    setCreatingSubscriber(true)
+    try {
+      await ServicesAPI.createNetTVSubscriber(payload)
+      const response = await ServicesAPI.getNetTVSubscriber(payload.username).catch(() => null)
+      const created = response?.data?.subscriber || payload
+      setSubscribers((current) => [created, ...current.filter((item) =>
+        valueOf(item, ["username", "user_name", "customer_username"], "") !== payload.username
+      )])
+      setCreateOpen(false)
+      toast.success("NetTV subscriber added successfully")
+    } catch (error: any) {
+      setCreateOpen(true)
+      toast.error(error.message || "Failed to add NetTV subscriber")
+    } finally {
+      setCreatingSubscriber(false)
+    }
+  }
+
   const selectedStb = (selected?.stbs || []).find((stb: any) => stb.serial === selectedStbSerial) || selected?.stbs?.[0] || null
   const packageConfigs = useMemo(() => {
     if (!selectedStb) return []
@@ -197,7 +234,7 @@ export function NettvDashboard() {
         send_mail: 0,
       })
       toast.success("NetTV package assigned successfully")
-      await openDetails(selected.subscriber)
+      await refreshSelectedSubscriber()
       setSelectedPackageSaleId("")
     } catch (error: any) {
       toast.error(error.message || "Failed to assign NetTV package")
@@ -239,7 +276,10 @@ export function NettvDashboard() {
         title="NetTV Subscribers"
         description="Subscriber accounts, plans, status, contact data, devices, and service identifiers"
         gradientColor="#10b981"
-        actions={[{ label: "Refresh", onClick: fetchData, icon: <RefreshCw className="h-4 w-4" />, variant: "outline" }]}
+        actions={[
+          { label: "Add Subscriber", onClick: () => setCreateOpen(true), icon: <Plus className="h-4 w-4" /> },
+          { label: "Refresh", onClick: fetchData, icon: <RefreshCw className="h-4 w-4" />, variant: "outline" }
+        ]}
       >
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="relative max-w-md flex-1">
@@ -426,6 +466,12 @@ export function NettvDashboard() {
                 <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Reseller Balance</div><div className="text-xl font-bold">{selected?.reseller?.credit_balance?.credit_balance ?? selected?.subscriber?.balance ?? 0}</div><div className="text-xs">Reseller #{selected?.reseller?.id || "N/A"}</div></div>
               </div>
 
+              <div className="grid gap-4 lg:grid-cols-2">
+                <DetailsBlock title="Subscriber Account" data={selected?.subscriber} />
+                <DetailsBlock title="Subscriber Contact & Address" data={selected?.subscriber?.details} />
+                <DetailsBlock title="Reseller & Payment" data={selected?.reseller} />
+              </div>
+
               <div className="rounded-lg border p-4">
                 <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-end">
                   <div className="flex-1 space-y-1"><Label>Select STB</Label><select className="h-10 w-full rounded-md border bg-background px-3" value={selectedStbSerial} onChange={(event) => { setSelectedStbSerial(event.target.value); setSelectedPackageSaleId("") }}><option value="">Select device</option>{(selected?.stbs || []).map((stb: any) => <option key={stb.serial} value={stb.serial}>{stb.serial} · {stb.model?.name || stb.model || "STB"}</option>)}</select></div>
@@ -461,6 +507,11 @@ export function NettvDashboard() {
           )}
         </DialogContent>
       </Dialog>
+      <NetTVDialog
+        open={createOpen}
+        onOpenChange={(open) => { if (!creatingSubscriber) setCreateOpen(open) }}
+        onConfirm={createSubscriber}
+      />
     </div>
   )
 }

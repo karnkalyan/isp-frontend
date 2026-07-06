@@ -3086,7 +3086,20 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const invoiceAmount = customer.orders.reduce((sum, order) => sum + order.totalAmount, 0)
   const totalPaid = customer.orders.filter(order => order.isPaid).reduce((sum, order) => sum + order.totalAmount, 0)
   const dueAmount = invoiceAmount - totalPaid
-  const latestOrder = customer.orders.length > 0 ? customer.orders[customer.orders.length - 1] : null
+  const latestOrder = customer.orders.length > 0
+    ? [...customer.orders].sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime())[0]
+    : null
+  const billingPackageItems = latestOrder?.packageItems?.length
+    ? latestOrder.packageItems.map((item) => ({
+        name: item.name || "Package item",
+        referenceId: item.referenceId || "N/A",
+        amount: Number(latestOrder.totalAmount) === 0 ? 0 : Number(item.amount || 0),
+      }))
+    : (latestOrder?.items || []).map((item) => ({
+        name: item.itemName,
+        referenceId: item.referenceId || "N/A",
+        amount: Number(item.itemPrice || 0),
+      }))
   const latestSubscription = customer.customerSubscriptions.length > 0 ? customer.customerSubscriptions[0] : null
 
   const getDaysUntilExpiry = () => {
@@ -4216,6 +4229,22 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                     </div>
                   </div>
                 </div>
+                {billingPackageItems.length > 0 && (
+                  <div className="border-t pt-3">
+                    <div className="mb-2 text-sm font-semibold">Current Package Items</div>
+                    <div className="space-y-2">
+                      {billingPackageItems.map((item, index) => (
+                        <div key={`${item.referenceId}-${index}`} className="flex items-center justify-between gap-4 rounded-md bg-background/60 px-3 py-2 text-sm">
+                          <div className="min-w-0">
+                            <div className="truncate font-medium">{item.name}</div>
+                            <div className="font-mono text-xs text-muted-foreground">{item.referenceId}</div>
+                          </div>
+                          <div className="shrink-0 font-mono font-semibold">{formatPrice(item.amount)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContainer>
 
@@ -4267,7 +4296,22 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                 <div className="space-y-3">
                   {customer.orders.map((order) => {
                     const configuredItems = order.packageItems || []
-                    const resolvedItems = configuredItems.length > 0
+                    const configuredByReference = new Map(configuredItems.filter(item => item.referenceId).map(item => [item.referenceId, item]))
+                    const resolvedItems = order.items && order.items.length > 0
+                      ? order.items.map((item: any, idx: number) => {
+                          const configured = item.referenceId ? configuredByReference.get(item.referenceId) : null
+                          return {
+                            sn: idx + 1,
+                            itemName: item.itemName,
+                            referenceId: item.referenceId || 'N/A',
+                            qty: 1,
+                            price: item.itemPrice,
+                            total: item.itemPrice,
+                            isTaxable: configured ? configured.isTaxable !== false : true,
+                            isTscApplicable: configured ? configured.isTscApplicable === true : false,
+                          }
+                        })
+                      : configuredItems.length > 0
                       ? configuredItems.map((item, idx) => ({
                           sn: idx + 1,
                           itemName: item.name || 'Package item',
@@ -4277,17 +4321,6 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                           total: Number(order.totalAmount) === 0 ? 0 : Number(item.amount || 0),
                           isTaxable: item.isTaxable !== false,
                           isTscApplicable: item.isTscApplicable === true,
-                        }))
-                      : order.items && order.items.length > 0
-                      ? order.items.map((item: any, idx: number) => ({
-                          sn: idx + 1,
-                          itemName: item.itemName,
-                          referenceId: item.referenceId || 'N/A',
-                          qty: 1,
-                          price: item.itemPrice,
-                          total: item.itemPrice,
-                          isTaxable: true,
-                          isTscApplicable: false,
                         }))
                       : [
                           {
