@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Eye, Loader2, Package, Plus, RefreshCw, Search, Tv, UserCheck, Users } from "lucide-react"
+import { Eye, Loader2, Package, Plus, RefreshCw, Search, Tv, UserCheck, Users, ArrowLeft } from "lucide-react"
 import { ServicesAPI } from "@/lib/api/service"
 import { NetTVDialog } from "@/components/customers/add-customer-form"
 import { CardContainer } from "@/components/ui/card-container"
@@ -308,6 +308,182 @@ export function NettvDashboard() {
     }
   }
 
+  if (selected) {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm" onClick={() => setSelected(null)}>
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Subscribers
+          </Button>
+          <h1 className="text-2xl font-bold">NetTV Subscriber Details</h1>
+        </div>
+
+        {detailsLoading ? (
+          <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading details...
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Top overview Cards */}
+            <div className="grid gap-4 md:grid-cols-3">
+              <CardContainer title="Subscriber Account" gradientColor="#10b981">
+                <div className="py-1">
+                  <div className="text-xl font-bold">{fullName(selected?.subscriber)}</div>
+                  <div className="font-mono text-sm text-muted-foreground">{selected?.subscriber?.username || valueOf(selected?.subscriber || selected, ["username", "user_name", "customer_username"])}</div>
+                </div>
+              </CardContainer>
+              <CardContainer title="Contact Information" gradientColor="#3b82f6">
+                <div className="py-1">
+                  <div className="text-base font-semibold">{selected?.subscriber?.details?.mobile_no || selected?.subscriber?.details?.phone_no || "N/A"}</div>
+                  <div className="text-sm text-muted-foreground">{selected?.subscriber?.email || "N/A"}</div>
+                </div>
+              </CardContainer>
+              <CardContainer title="Reseller Balance" gradientColor="#f59e0b">
+                <div className="py-1">
+                  <div className="text-2xl font-bold">NPR {selected?.reseller?.credit_balance?.credit_balance ?? selected?.subscriber?.balance ?? 0}</div>
+                  <div className="text-xs text-muted-foreground">Reseller ID: #{selected?.reseller?.id || "N/A"}</div>
+                </div>
+              </CardContainer>
+            </div>
+
+            {/* Structured details blocks */}
+            <div className="grid gap-6 lg:grid-cols-2">
+              <DetailsBlock title="Subscriber Account Details" data={selected?.subscriber} />
+              <DetailsBlock title="Subscriber Contact & Address" data={selected?.subscriber?.details} />
+              <DetailsBlock title="Reseller & Payment Info" data={selected?.reseller} />
+            </div>
+
+            {/* STB Devices management section */}
+            <div className="rounded-lg border bg-card p-6 shadow-sm space-y-4">
+              <h2 className="text-lg font-bold border-b pb-2">Set-Top Box (STB) & Service Provisioning</h2>
+              
+              <div className="flex flex-col gap-3 md:flex-row md:items-end">
+                <div className="flex-1 space-y-1.5">
+                  <Label className="text-sm font-semibold">Select Linked STB</Label>
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    value={selectedStbSerial}
+                    onChange={(event) => { setSelectedStbSerial(event.target.value); setSelectedPackageSaleId("") }}
+                  >
+                    <option value="">Select device</option>
+                    {(selected?.stbs || []).map((stb: any) => (
+                      <option key={stb.serial} value={stb.serial}>{stb.serial} · {stb.model?.name || stb.model || "STB"}</option>
+                    ))}
+                  </select>
+                </div>
+                <Button type="button" variant="outline" className="h-10" onClick={refreshSelectedStb} disabled={!selectedStbSerial || stbLoading}>
+                  {stbLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                  Get Device Details
+                </Button>
+              </div>
+
+              {selectedStb ? (
+                <div className="space-y-6 pt-2">
+                  <div className="grid gap-4 text-sm md:grid-cols-4 rounded-lg bg-muted/40 p-4 border">
+                    <div><div className="text-xs text-muted-foreground">Serial / MAC</div><div className="break-all font-mono font-semibold">{selectedStb.serial}</div></div>
+                    <div><div className="text-xs text-muted-foreground">Status</div><Badge variant={statusVariant(String(selectedStb.status || "unknown"))} className="mt-1">{selectedStb.status || "unknown"}</Badge></div>
+                    <div><div className="text-xs text-muted-foreground">Vendor</div><div className="font-semibold">{selectedStb.vendor?.name || selectedStb.vendor || "N/A"}</div></div>
+                    <div><div className="text-xs text-muted-foreground">Model</div><div className="font-semibold">{selectedStb.model?.name || selectedStb.model || "N/A"}</div></div>
+                  </div>
+
+                  {/* Assign packages */}
+                  <div className="rounded-lg border p-4 bg-background shadow-xs space-y-4">
+                    <div className="font-semibold border-b pb-2 text-primary">Assign Subscription Package</div>
+                    <div className="grid gap-4 md:grid-cols-4">
+                      <div className="space-y-1.5 md:col-span-2">
+                        <Label>Select Package</Label>
+                        <select
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          value={selectedPackageSaleId}
+                          onChange={(event) => setSelectedPackageSaleId(event.target.value)}
+                        >
+                          <option value="">Select package configuration</option>
+                          {packageConfigs.map((config: any) => (
+                            <option key={config.id} value={config.id}>
+                              {config.package_name || "Package"} · {config.display_name} · {config.duration} · Rs. {config.price_with_vat ?? config.price ?? 0}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Payment Mode</Label>
+                        <select
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          value={paymentGateway}
+                          onChange={(event) => setPaymentGateway(event.target.value)}
+                        >
+                          <option value="reseller_wallet">Reseller Wallet</option>
+                          <option value="wallet">Subscriber Wallet</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Quantity</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={packageQty}
+                          onChange={(event) => setPackageQty(Math.max(1, Number(event.target.value)))}
+                        />
+                      </div>
+                    </div>
+                    <Button type="button" onClick={assignPackage} disabled={assigningPackage || !selectedPackageSaleId}>
+                      {assigningPackage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Assign Selected Package
+                    </Button>
+                  </div>
+
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    <div className="rounded-lg border p-4 bg-background">
+                      <div className="mb-3 font-semibold border-b pb-1">Subscribed Packages</div>
+                      <div className="space-y-2">
+                        {(selectedStb.subscribed_packages || []).map((pkg: any) => (
+                          <div key={pkg.id} className="rounded-md bg-muted/40 p-3 text-sm">
+                            <div className="font-semibold text-primary">{pkg.package_config_name}</div>
+                            <div className="text-xs text-muted-foreground mt-1">Package #{pkg.package_id} · {pkg.package_subscription_details?.[0]?.expiry_date ? `Expires ${pkg.package_subscription_details[0].expiry_date}` : "No expiry"}</div>
+                          </div>
+                        ))}
+                        {!selectedStb.subscribed_packages?.length && <p className="text-sm text-muted-foreground py-2">No subscribed packages.</p>}
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border p-4 bg-background">
+                      <div className="mb-3 font-semibold border-b pb-1">Active Orders</div>
+                      <div className="space-y-2">
+                        {(selectedStb.active_package || []).map((pkg: any) => (
+                          <div key={pkg.id} className="rounded-md bg-muted/40 p-3 text-sm flex flex-col justify-between">
+                            <div className="flex justify-between items-start">
+                              <span className="font-semibold text-primary">{pkg.name}</span>
+                              <Badge variant={statusVariant(String(pkg.status || "unknown"))}>{pkg.status}</Badge>
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-1.5">Order #{pkg.id} · Qty {pkg.qty} · Rs. {pkg.total_with_vat}</div>
+                          </div>
+                        ))}
+                        {!selectedStb.active_package?.length && <p className="text-sm text-muted-foreground py-2">No active orders.</p>}
+                      </div>
+                    </div>
+                  </div>
+
+                  {selectedStb?.bootstrap?.services?.length > 0 && (
+                    <div className="rounded-lg border p-4 bg-background">
+                      <div className="mb-2 font-semibold">Device Services</div>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedStb.bootstrap.services.map((service: any) => (
+                          <Badge key={service.name} variant="outline" title={service.baseURL}>{service.name}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground py-4 border rounded-lg text-center bg-muted/10 border-dashed">No set-top box linked/selected. Pick a device from the list above to assign packages or view STB subscriptions.</p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
@@ -533,65 +709,6 @@ export function NettvDashboard() {
         </CardContainer>
       </div>
 
-      <Dialog open={!!selected} onOpenChange={(open) => { if (!open) setSelected(null) }}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-[900px]">
-          <DialogHeader>
-            <DialogTitle>NetTV Subscriber Details</DialogTitle>
-            <DialogDescription>{selected ? valueOf(selected?.subscriber || selected, ["username", "user_name", "customer_username"]) : ""}</DialogDescription>
-          </DialogHeader>
-          {detailsLoading ? (
-            <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> Loading details...
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Subscriber</div><div className="font-semibold">{fullName(selected?.subscriber)}</div><div className="font-mono text-xs">{selected?.subscriber?.username}</div></div>
-                <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Contact</div><div className="font-semibold">{selected?.subscriber?.details?.mobile_no || selected?.subscriber?.details?.phone_no || "N/A"}</div><div className="text-xs">{selected?.subscriber?.email || "N/A"}</div></div>
-                <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Reseller Balance</div><div className="text-xl font-bold">{selected?.reseller?.credit_balance?.credit_balance ?? selected?.subscriber?.balance ?? 0}</div><div className="text-xs">Reseller #{selected?.reseller?.id || "N/A"}</div></div>
-              </div>
-
-              <div className="grid gap-4 lg:grid-cols-2">
-                <DetailsBlock title="Subscriber Account" data={selected?.subscriber} />
-                <DetailsBlock title="Subscriber Contact & Address" data={selected?.subscriber?.details} />
-                <DetailsBlock title="Reseller & Payment" data={selected?.reseller} />
-              </div>
-
-              <div className="rounded-lg border p-4">
-                <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-end">
-                  <div className="flex-1 space-y-1"><Label>Select STB</Label><select className="h-10 w-full rounded-md border bg-background px-3" value={selectedStbSerial} onChange={(event) => { setSelectedStbSerial(event.target.value); setSelectedPackageSaleId("") }}><option value="">Select device</option>{(selected?.stbs || []).map((stb: any) => <option key={stb.serial} value={stb.serial}>{stb.serial} · {stb.model?.name || stb.model || "STB"}</option>)}</select></div>
-                  <Button type="button" variant="outline" onClick={refreshSelectedStb} disabled={!selectedStbSerial || stbLoading}>{stbLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Get STB Details</Button>
-                </div>
-                {selectedStb ? (
-                  <div className="grid gap-2 text-sm md:grid-cols-4">
-                    <div><div className="text-xs text-muted-foreground">Serial</div><div className="break-all font-mono">{selectedStb.serial}</div></div>
-                    <div><div className="text-xs text-muted-foreground">Status</div><Badge variant={statusVariant(String(selectedStb.status || "unknown"))}>{selectedStb.status || "unknown"}</Badge></div>
-                    <div><div className="text-xs text-muted-foreground">Vendor</div><div className="font-medium">{selectedStb.vendor?.name || selectedStb.vendor || "N/A"}</div></div>
-                    <div><div className="text-xs text-muted-foreground">Model</div><div className="font-medium">{selectedStb.model?.name || selectedStb.model || "N/A"}</div></div>
-                  </div>
-                ) : <p className="text-sm text-muted-foreground">No STB linked to this subscriber.</p>}
-              </div>
-
-              {selectedStb && <div className="rounded-lg border p-4">
-                <div className="mb-3 font-semibold">Assign Package</div>
-                <div className="grid gap-3 md:grid-cols-4">
-                  <div className="space-y-1 md:col-span-2"><Label>Package</Label><select className="h-10 w-full rounded-md border bg-background px-3" value={selectedPackageSaleId} onChange={(event) => setSelectedPackageSaleId(event.target.value)}><option value="">Select package configuration</option>{packageConfigs.map((config: any) => <option key={config.id} value={config.id}>{config.package_name || "Package"} · {config.display_name} · {config.duration} · Rs. {config.price_with_vat ?? config.price ?? 0}</option>)}</select></div>
-                  <div className="space-y-1"><Label>Payment</Label><select className="h-10 w-full rounded-md border bg-background px-3" value={paymentGateway} onChange={(event) => setPaymentGateway(event.target.value)}><option value="reseller_wallet">Reseller Wallet</option><option value="wallet">Subscriber Wallet</option></select></div>
-                  <div className="space-y-1"><Label>Quantity</Label><Input type="number" min={1} value={packageQty} onChange={(event) => setPackageQty(Math.max(1, Number(event.target.value)))} /></div>
-                </div>
-                <Button type="button" className="mt-3" onClick={assignPackage} disabled={assigningPackage || !selectedPackageSaleId}>{assigningPackage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Assign Selected Package</Button>
-              </div>}
-
-              {selectedStb && <div className="grid gap-4 lg:grid-cols-2">
-                <div className="rounded-lg border p-4"><div className="mb-2 font-semibold">Subscribed Packages</div><div className="space-y-2">{(selectedStb.subscribed_packages || []).map((pkg: any) => <div key={pkg.id} className="rounded-md bg-muted/40 p-3"><div className="font-medium">{pkg.package_config_name}</div><div className="text-xs text-muted-foreground">Package #{pkg.package_id} · {pkg.package_subscription_details?.[0]?.expiry_date ? `Expires ${pkg.package_subscription_details[0].expiry_date}` : "No expiry"}</div></div>)}{!selectedStb.subscribed_packages?.length && <p className="text-sm text-muted-foreground">No subscribed packages.</p>}</div></div>
-                <div className="rounded-lg border p-4"><div className="mb-2 font-semibold">Active Orders</div><div className="space-y-2">{(selectedStb.active_package || []).map((pkg: any) => <div key={pkg.id} className="rounded-md bg-muted/40 p-3"><div className="flex justify-between"><span className="font-medium">{pkg.name}</span><Badge variant={statusVariant(String(pkg.status || "unknown"))}>{pkg.status}</Badge></div><div className="text-xs text-muted-foreground">Order #{pkg.id} · Qty {pkg.qty} · {pkg.total_with_vat}</div></div>)}{!selectedStb.active_package?.length && <p className="text-sm text-muted-foreground">No active orders.</p>}</div></div>
-              </div>}
-
-              {selectedStb?.bootstrap?.services?.length > 0 && <div className="rounded-lg border p-4"><div className="mb-2 font-semibold">Device Services</div><div className="flex flex-wrap gap-2">{selectedStb.bootstrap.services.map((service: any) => <Badge key={service.name} variant="outline" title={service.baseURL}>{service.name}</Badge>)}</div></div>}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
       <NetTVDialog
         open={createOpen}
         onOpenChange={(open) => { if (!creatingSubscriber) setCreateOpen(open) }}
