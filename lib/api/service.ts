@@ -303,6 +303,13 @@ export const ServicesAPI = {
         });
     },
 
+    async resetNetTVPassword(payload: any) {
+        return apiRequest<{ success: boolean; data: any }>('/services/nettv/subscribers/pwd/reset', {
+            method: 'PATCH',
+            body: JSON.stringify(payload)
+        });
+    },
+
     async getNetTVPackages(page = 1, perPage = 20) {
         const params = new URLSearchParams({
             page: page.toString(),
@@ -311,6 +318,18 @@ export const ServicesAPI = {
 
         return apiRequest<{ success: boolean; data: any }>(
             `/services/nettv/packages?${params.toString()}`
+        );
+    },
+
+    async getNetTVPackageConfigs(serial: string) {
+        return apiRequest<{ success: boolean; data: any }>(
+            `/services/nettv/config/${encodeURIComponent(serial)}/packages`
+        );
+    },
+
+    async getNetTVPackageConfig(serial: string, packageId: string | number) {
+        return apiRequest<{ success: boolean; data: any }>(
+            `/services/nettv/config/${encodeURIComponent(serial)}/packages/${encodeURIComponent(String(packageId))}`
         );
     },
 
@@ -334,6 +353,34 @@ export const ServicesAPI = {
     async getNetTVVendors(page = 1, perPage = 100) {
         const params = new URLSearchParams({ page: page.toString(), perPage: perPage.toString() });
         return apiRequest<{ success: boolean; data: any }>(`/services/nettv/vendors?${params.toString()}`);
+    },
+
+    async getNetTVMacReplaceReasons() {
+        return apiRequest<{ success: boolean; data: any }>('/services/nettv/mac/replace-reasons/config');
+    },
+
+    async getNetTVOrders(page = 1, perPage = 20, username?: string) {
+        const params = new URLSearchParams({ page: page.toString(), perPage: perPage.toString() });
+        if (username) params.append('username', username);
+        return apiRequest<{ success: boolean; data: any }>(`/services/nettv/subscribers/orders?${params.toString()}`);
+    },
+
+    async getNetTVOrder(orderId: string | number) {
+        return apiRequest<{ success: boolean; data: any }>(
+            `/services/nettv/subscribers/orders/${encodeURIComponent(String(orderId))}`
+        );
+    },
+
+    async getNetTVInvoicePrint(companyPaymentId: string) {
+        return apiRequest<{ success: boolean; data: any }>(
+            `/services/nettv/invoices/${encodeURIComponent(companyPaymentId)}/print`
+        );
+    },
+
+    async getNetTVCreditNotePrint(companyPaymentId: string) {
+        return apiRequest<{ success: boolean; data: any }>(
+            `/services/nettv/credit-notes/${encodeURIComponent(companyPaymentId)}/print`
+        );
     },
 
     async createNetTVSTB(payload: any) {

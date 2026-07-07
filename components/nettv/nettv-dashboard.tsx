@@ -225,6 +225,9 @@ export function NettvDashboard() {
   const [subscribers, setSubscribers] = useState<any[]>([])
   const [packages, setPackages] = useState<any[]>([])
   const [stbs, setStbs] = useState<any[]>([])
+  const [models, setModels] = useState<any[]>([])
+  const [vendors, setVendors] = useState<any[]>([])
+  const [replaceReasons, setReplaceReasons] = useState<any[]>([])
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(25)
@@ -248,6 +251,8 @@ export function NettvDashboard() {
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [selectedStbSerial, setSelectedStbSerial] = useState("")
   const [selectedPackageSaleId, setSelectedPackageSaleId] = useState("")
+  const [packageConfigItems, setPackageConfigItems] = useState<any[]>([])
+  const [packageConfigLoading, setPackageConfigLoading] = useState(false)
   const [packageQty, setPackageQty] = useState(1)
   const [paymentGateway, setPaymentGateway] = useState("reseller_wallet")
   const [assigningPackage, setAssigningPackage] = useState(false)
@@ -280,6 +285,11 @@ export function NettvDashboard() {
   const [cancelPackageOpen, setCancelPackageOpen] = useState(false)
   const [cancelPackageSaving, setCancelPackageSaving] = useState(false)
   const [cancelPackageForm, setCancelPackageForm] = useState({ order_id: "", notes: "", cancel_by: "" })
+  const [invoicePaymentId, setInvoicePaymentId] = useState("")
+  const [creditNotePaymentId, setCreditNotePaymentId] = useState("")
+  const [printLookupLoading, setPrintLookupLoading] = useState<"invoice" | "credit" | null>(null)
+  const [printLookupResult, setPrintLookupResult] = useState<any>(null)
+  const [printLookupOpen, setPrintLookupOpen] = useState(false)
 
   const fetchAllNetTVPages = async (fetcher: (page: number, perPage: number) => Promise<{ data: any }>) => {
     const perPage = 100
@@ -303,9 +313,17 @@ export function NettvDashboard() {
         fetchAllNetTVPages((page, perPage) => ServicesAPI.getNetTVPackages(page, perPage)).catch(() => []),
         fetchAllNetTVPages((page, perPage) => ServicesAPI.getNetTVSTBs(page, perPage)).catch(() => []),
       ])
+      const [modelRes, vendorRes, reasonRes] = await Promise.all([
+        ServicesAPI.getNetTVModels(1, 100).then(response => unwrapList(response.data)).catch(() => []),
+        ServicesAPI.getNetTVVendors(1, 100).then(response => unwrapList(response.data)).catch(() => []),
+        ServicesAPI.getNetTVMacReplaceReasons().then(response => unwrapList(response.data)).catch(() => []),
+      ])
       setSubscribers(subscriberList)
       setPackages(packageRes)
       setStbs(stbRes)
+      setModels(modelRes)
+      setVendors(vendorRes)
+      setReplaceReasons(reasonRes)
     } catch (error: any) {
       toast.error(error.message || "Failed to load NetTV service data")
     } finally {
@@ -550,13 +568,73 @@ export function NettvDashboard() {
     }
   }
 
+  const lookupInvoicePrint = async () => {
+    if (!invoicePaymentId.trim()) {
+      toast.error("Invoice payment ID is required")
+      return
+    }
+    setPrintLookupLoading("invoice")
+    try {
+      const response = await ServicesAPI.getNetTVInvoicePrint(invoicePaymentId.trim())
+      setPrintLookupResult(response.data)
+      setPrintLookupOpen(true)
+    } catch (error: any) {
+      toast.error(error.message || "Failed to get invoice print")
+    } finally {
+      setPrintLookupLoading(null)
+    }
+  }
+
+  const lookupCreditNotePrint = async () => {
+    if (!creditNotePaymentId.trim()) {
+      toast.error("Credit-note payment ID is required")
+      return
+    }
+    setPrintLookupLoading("credit")
+    try {
+      const response = await ServicesAPI.getNetTVCreditNotePrint(creditNotePaymentId.trim())
+      setPrintLookupResult(response.data)
+      setPrintLookupOpen(true)
+    } catch (error: any) {
+      toast.error(error.message || "Failed to get credit-note print")
+    } finally {
+      setPrintLookupLoading(null)
+    }
+  }
+
   const selectedStb = (selected?.stbs || []).find((stb: any) => stb.serial === selectedStbSerial) || selected?.stbs?.[0] || null
   const packageConfigs = useMemo(() => {
     if (!selectedStb) return []
+    const configItems = packageConfigItems.flatMap((pkg: any) =>
+      (pkg?.package_for_sale || pkg?.package_config || []).map((config: any) => ({ ...config, package_name: pkg.name, package_id: pkg.id }))
+    )
+    if (configItems.length) return configItems
     return (selectedStb.package_details || []).flatMap((pkg: any) =>
       (pkg?.package_config || []).map((config: any) => ({ ...config, package_name: pkg.name, package_id: pkg.id }))
     )
-  }, [selectedStb])
+  }, [selectedStb, packageConfigItems])
+
+  useEffect(() => {
+    if (!selected || !selectedStbSerial) {
+      setPackageConfigItems([])
+      return
+    }
+    let cancelled = false
+    setPackageConfigLoading(true)
+    ServicesAPI.getNetTVPackageConfigs(selectedStbSerial)
+      .then(response => {
+        if (!cancelled) setPackageConfigItems(unwrapList(response.data))
+      })
+      .catch(() => {
+        if (!cancelled) setPackageConfigItems([])
+      })
+      .finally(() => {
+        if (!cancelled) setPackageConfigLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selected, selectedStbSerial])
 
   const refreshSelectedStb = async () => {
     if (!selectedStbSerial) return
@@ -946,7 +1024,7 @@ export function NettvDashboard() {
                           value={selectedPackageSaleId}
                           onChange={(event) => setSelectedPackageSaleId(event.target.value)}
                         >
-                          <option value="">Select package configuration</option>
+                          <option value="">{packageConfigLoading ? "Loading package configurations..." : "Select package configuration"}</option>
                           {packageConfigs.map((config: any) => (
                             <option key={config.id} value={config.id}>
                               {config.package_name || "Package"} · {config.display_name} · {config.duration} · Rs. {config.price_with_vat ?? config.price ?? 0}
@@ -982,6 +1060,11 @@ export function NettvDashboard() {
                     <Button type="button" variant="outline" onClick={() => setCancelPackageOpen(true)} disabled={!selectedStbSerial}>
                       <Wrench className="mr-2 h-4 w-4" /> Cancel Order
                     </Button>
+                    <div className="text-xs text-muted-foreground">
+                      {packageConfigItems.length
+                        ? `${packageConfigItems.length} package groups loaded from NetTV config API`
+                        : "Package options fall back to STB package details when the config API has no data."}
+                    </div>
                   </div>
 
                   <div className="grid gap-6 lg:grid-cols-2">
@@ -1285,6 +1368,95 @@ export function NettvDashboard() {
           </div>
         </CardContainer>
       </div>
+
+      <CardContainer title="NetTV Reference Data" description="Vendors, models, and MAC replacement reasons from NetTV configuration APIs" gradientColor="#14b8a6">
+        <div className="grid gap-4 xl:grid-cols-3">
+          <div className="rounded-lg border bg-background p-4">
+            <div className="mb-3 flex items-center justify-between border-b pb-2">
+              <div className="font-semibold">STB Vendors</div>
+              <Badge variant="secondary">{vendors.length}</Badge>
+            </div>
+            <div className="max-h-72 space-y-2 overflow-auto">
+              {vendors.slice(0, 80).map((vendor: any, index: number) => (
+                <div key={`${vendor?.id || vendor?.name || index}-${index}`} className="rounded-md bg-muted/30 p-2 text-sm">
+                  <div className="font-medium">{vendor?.name || vendor?.vendor_name || "Unnamed vendor"}</div>
+                  <div className="text-xs text-muted-foreground">ID: {vendor?.id || "N/A"}</div>
+                </div>
+              ))}
+              {!vendors.length && <div className="text-sm text-muted-foreground">No vendor data returned.</div>}
+            </div>
+          </div>
+          <div className="rounded-lg border bg-background p-4">
+            <div className="mb-3 flex items-center justify-between border-b pb-2">
+              <div className="font-semibold">STB Models</div>
+              <Badge variant="secondary">{models.length}</Badge>
+            </div>
+            <div className="max-h-72 space-y-2 overflow-auto">
+              {models.slice(0, 80).map((model: any, index: number) => (
+                <div key={`${model?.id || model?.name || index}-${index}`} className="rounded-md bg-muted/30 p-2 text-sm">
+                  <div className="font-medium">{model?.name || model?.model_name || "Unnamed model"}</div>
+                  <div className="text-xs text-muted-foreground">ID: {model?.id || "N/A"}{model?.vendor_id ? ` - Vendor ${model.vendor_id}` : ""}</div>
+                </div>
+              ))}
+              {!models.length && <div className="text-sm text-muted-foreground">No model data returned.</div>}
+            </div>
+          </div>
+          <div className="rounded-lg border bg-background p-4">
+            <div className="mb-3 flex items-center justify-between border-b pb-2">
+              <div className="font-semibold">Replacement Reasons</div>
+              <Badge variant="secondary">{replaceReasons.length}</Badge>
+            </div>
+            <div className="max-h-72 space-y-2 overflow-auto">
+              {replaceReasons.slice(0, 80).map((reason: any, index: number) => (
+                <div key={`${reason?.id || reason?.name || index}-${index}`} className="rounded-md bg-muted/30 p-2 text-sm">
+                  <div className="font-medium">{reason?.name || reason?.title || reason?.reason || "Replacement reason"}</div>
+                  <div className="text-xs text-muted-foreground">ID: {reason?.id || "N/A"}</div>
+                </div>
+              ))}
+              {!replaceReasons.length && <div className="text-sm text-muted-foreground">No replacement reasons returned.</div>}
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 rounded-lg border bg-background p-4">
+          <div className="mb-3 font-semibold">Billing Document Lookup</div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                value={invoicePaymentId}
+                onChange={(event) => setInvoicePaymentId(event.target.value)}
+                placeholder="Invoice company payment ID"
+              />
+              <Button type="button" variant="outline" onClick={lookupInvoicePrint} disabled={printLookupLoading === "invoice"}>
+                {printLookupLoading === "invoice" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Invoice Print
+              </Button>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                value={creditNotePaymentId}
+                onChange={(event) => setCreditNotePaymentId(event.target.value)}
+                placeholder="Credit-note company payment ID"
+              />
+              <Button type="button" variant="outline" onClick={lookupCreditNotePrint} disabled={printLookupLoading === "credit"}>
+                {printLookupLoading === "credit" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Credit Note Print
+              </Button>
+            </div>
+          </div>
+        </div>
+      </CardContainer>
+
+      <Dialog open={printLookupOpen} onOpenChange={setPrintLookupOpen}>
+        <DialogContent className="max-h-[85vh] w-[95vw] overflow-y-auto sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>NetTV Billing Document</DialogTitle>
+            <DialogDescription>Response returned by the NetTV print endpoint.</DialogDescription>
+          </DialogHeader>
+          <pre className="max-h-[65vh] overflow-auto rounded-md bg-slate-950 p-4 text-xs text-slate-50">
+            {typeof printLookupResult === "string" ? printLookupResult : JSON.stringify(printLookupResult, null, 2)}
+          </pre>
+        </DialogContent>
+      </Dialog>
 
       <NetTVDialog
         open={createOpen}
