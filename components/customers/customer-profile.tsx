@@ -1374,6 +1374,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const [nettvMessage, setNettvMessage] = useState("")
   const [loadingTshul, setLoadingTshul] = useState(false)
   const [loadingNettv, setLoadingNettv] = useState(false)
+  const [syncingNettv, setSyncingNettv] = useState(false)
 
   // Modal states
   const [changeUsernameOpen, setChangeUsernameOpen] = useState(false)
@@ -2431,9 +2432,33 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     }
   }, [customer?.customerUniqueId, customer?.subscribedApps])
 
-  const toggleSetting = (setting: keyof typeof networkSettings) => {
+    const toggleSetting = (setting: keyof typeof networkSettings) => {
     setNetworkSettings((prev) => ({ ...prev, [setting]: !prev[setting] }))
     toast.success(`${setting} has been ${!networkSettings[setting] ? "enabled" : "disabled"}.`)
+  }
+
+  const handleSyncNettv = async () => {
+    if (!customer?.id) return
+    setSyncingNettv(true)
+    try {
+      const res = await apiRequest(`/customer/${customer.id}/sync/nettv`, { method: "POST" })
+      if (res.success) {
+        toast.success("NetTV subscriber details synchronized successfully!")
+        if (customer.customerUniqueId) {
+          const fetchRes = await apiRequest(`/services/nettv/subscribers/${customer.customerUniqueId}`)
+          if (fetchRes.success) {
+            setNettvDetails(fetchRes.data)
+            setNettvMessage("")
+          }
+        }
+      } else {
+        toast.error(res.message || "Failed to sync NetTV details.")
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to sync NetTV details.")
+    } finally {
+      setSyncingNettv(false)
+    }
   }
 
   const handleChangeUsername = async () => {
@@ -3621,6 +3646,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           <TabsTrigger value="realtime" className="flex-1 flex-shrink-0"><Activity className="mr-2 h-4 w-4" />Realtime Usage</TabsTrigger>
           <TabsTrigger value="documents" className="flex-1 flex-shrink-0"><FileText className="mr-2 h-4 w-4" />Documents</TabsTrigger>
           <TabsTrigger value="radius" className="flex-1 flex-shrink-0"><Key className="mr-2 h-4 w-4" />Radius Login</TabsTrigger>
+          <TabsTrigger value="nettv" className="flex-1 flex-shrink-0"><Tv className="mr-2 h-4 w-4" />NetTV</TabsTrigger>
           <TabsTrigger value="support" className="flex-1 flex-shrink-0"><LifeBuoy className="mr-2 h-4 w-4" />Support</TabsTrigger>
         </TabsList>
 
@@ -5308,6 +5334,156 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
               );
             })()}
           </CardContainer>
+        </TabsContent>
+
+        <TabsContent value="nettv" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-semibold dark:text-white">NetTV Service Details</h3>
+            <Button
+              onClick={handleSyncNettv}
+              disabled={syncingNettv || loadingNettv || !customer?.customerUniqueId}
+              className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white shadow-sm border-0"
+            >
+              {syncingNettv ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+              Sync NetTV Details
+            </Button>
+          </div>
+
+          {loadingNettv ? (
+            <div className="flex flex-col items-center justify-center p-8 bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-100 dark:border-slate-800">
+              <Loader2 className="h-8 w-8 animate-spin text-purple-600 mb-2" />
+              <p className="text-slate-500 dark:text-slate-400">Loading NetTV subscriber details...</p>
+            </div>
+          ) : nettvMessage ? (
+            <div className="p-6 bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-300 rounded-lg border border-amber-200 dark:border-amber-900/50 flex items-center space-x-3">
+              <AlertTriangle className="h-6 w-6 flex-shrink-0" />
+              <div>
+                <p className="font-medium">NetTV Info</p>
+                <p className="text-sm opacity-90">{nettvMessage}</p>
+              </div>
+            </div>
+          ) : nettvDetails ? (
+            <div className="space-y-6">
+              {/* Subscriber info card */}
+              <CardContainer title="Subscriber Information" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700">
+                    <span className="text-xs text-muted-foreground block mb-1">Username</span>
+                    <span className="font-medium text-slate-800 dark:text-slate-200">{nettvDetails.subscriber?.username || "N/A"}</span>
+                  </div>
+                  <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700">
+                    <span className="text-xs text-muted-foreground block mb-1">Full Name</span>
+                    <span className="font-medium text-slate-800 dark:text-slate-200">
+                      {nettvDetails.subscriber?.fname || ""} {nettvDetails.subscriber?.mname || ""} {nettvDetails.subscriber?.lname || ""}
+                    </span>
+                  </div>
+                  <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700">
+                    <span className="text-xs text-muted-foreground block mb-1">Status</span>
+                    <Badge variant={nettvDetails.subscriber?.status === 1 ? "default" : "destructive"}>
+                      {nettvDetails.subscriber?.status === 1 ? "Active" : "Inactive"}
+                    </Badge>
+                  </div>
+                  <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700">
+                    <span className="text-xs text-muted-foreground block mb-1">Email</span>
+                    <span className="font-medium text-slate-800 dark:text-slate-200">{nettvDetails.subscriber?.email || "N/A"}</span>
+                  </div>
+                  <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700">
+                    <span className="text-xs text-muted-foreground block mb-1">Phone Number</span>
+                    <span className="font-medium text-slate-800 dark:text-slate-200">{nettvDetails.subscriber?.phone_no || "N/A"}</span>
+                  </div>
+                  <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700">
+                    <span className="text-xs text-muted-foreground block mb-1">Address</span>
+                    <span className="font-medium text-slate-800 dark:text-slate-200">{nettvDetails.subscriber?.address || "N/A"}</span>
+                  </div>
+                </div>
+              </CardContainer>
+
+              {/* Set Top Box List card */}
+              <CardContainer title="Provisioned Set Top Boxes (STBs)" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
+                {(!nettvDetails.subscriber?.user_stbs || nettvDetails.subscriber.user_stbs.length === 0) ? (
+                  <p className="text-slate-500 dark:text-slate-400 p-4 text-center">No STBs provisioned for this subscriber.</p>
+                ) : (
+                  <div className="space-y-6">
+                    {nettvDetails.subscriber.user_stbs.map((stb: any, index: number) => (
+                      <div key={index} className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm space-y-4">
+                        <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-700 pb-2">
+                          <div className="flex items-center space-x-2">
+                            <Tv className="h-5 w-5 text-purple-600" />
+                            <span className="font-semibold text-slate-800 dark:text-slate-200">STB #{index + 1} ({stb.stb_model || "Generic"})</span>
+                          </div>
+                          <Badge variant={stb.status === 1 ? "default" : "destructive"}>
+                            {stb.status === 1 ? "Active" : "Inactive"}
+                          </Badge>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <span className="text-xs text-muted-foreground block mb-1">Serial Number</span>
+                            <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{stb.serial_no || "N/A"}</span>
+                          </div>
+                          <div>
+                            <span className="text-xs text-muted-foreground block mb-1">MAC Address</span>
+                            <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{stb.mac_addr || "N/A"}</span>
+                          </div>
+                          <div>
+                            <span className="text-xs text-muted-foreground block mb-1">Chip ID</span>
+                            <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{stb.chip_id || "N/A"}</span>
+                          </div>
+                          <div>
+                            <span className="text-xs text-muted-foreground block mb-1">Expiry Date</span>
+                            <span className="font-medium text-slate-800 dark:text-slate-200">
+                              {stb.expiry_date ? new Date(stb.expiry_date).toLocaleDateString() : "N/A"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* STB Packages list */}
+                        <div className="space-y-2">
+                          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Active STB Packages</h4>
+                          {!stb.stb_packages || stb.stb_packages.length === 0 ? (
+                            <p className="text-xs text-slate-500 dark:text-slate-400">No active packages on this STB.</p>
+                          ) : (
+                            <div className="overflow-x-auto rounded-lg border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+                              <table className="w-full text-left text-xs border-collapse">
+                                <thead>
+                                  <tr className="border-b border-slate-100 dark:border-slate-700 text-slate-500 dark:text-slate-400">
+                                    <th className="py-2 px-3 font-semibold">Package Name</th>
+                                    <th className="py-2 px-3 font-semibold">Price</th>
+                                    <th className="py-2 px-3 font-semibold">Expiry Date</th>
+                                    <th className="py-2 px-3 font-semibold">Status</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {stb.stb_packages.map((pkg: any, pkgIdx: number) => (
+                                    <tr key={pkgIdx} className="border-b border-slate-100 dark:border-slate-700 last:border-0 hover:bg-slate-100/50 dark:hover:bg-slate-800/50">
+                                      <td className="py-2 px-3 font-medium text-slate-800 dark:text-slate-200">{pkg.name || `Pkg ID: ${pkg.package_id}`}</td>
+                                      <td className="py-2 px-3 text-slate-600 dark:text-slate-400">Rs. {pkg.price || 0}</td>
+                                      <td className="py-2 px-3 text-slate-600 dark:text-slate-400">
+                                        {pkg.expiry_date ? new Date(pkg.expiry_date).toLocaleDateString() : "N/A"}
+                                      </td>
+                                      <td className="py-2 px-3">
+                                        <Badge variant={pkg.status === 1 ? "default" : "secondary"} className="text-[10px]">
+                                          {pkg.status === 1 ? "Active" : "Inactive"}
+                                        </Badge>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContainer>
+            </div>
+          ) : (
+            <div className="p-8 text-center bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-100 dark:border-slate-800">
+              <p className="text-slate-500 dark:text-slate-400">No NetTV details available. Click sync to retrieve.</p>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="support" className="space-y-4">

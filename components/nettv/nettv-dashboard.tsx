@@ -12,6 +12,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useRouter } from "next/navigation"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "react-hot-toast"
@@ -257,6 +259,8 @@ function NettvLocationMap({ lat, lng, label }: { lat: number; lng: number; label
 }
 
 export function NettvDashboard() {
+  const router = useRouter()
+  const [resellerInfo, setResellerInfo] = useState<any>(null)
   const [subscribers, setSubscribers] = useState<any[]>([])
   const [packages, setPackages] = useState<any[]>([])
   const [stbs, setStbs] = useState<any[]>([])
@@ -345,10 +349,11 @@ export function NettvDashboard() {
   const fetchData = async () => {
     setLoading(true)
     try {
-      const [subscriberList, packageRes, stbRes] = await Promise.all([
+      const [subscriberList, packageRes, stbRes, resellerRes] = await Promise.all([
         fetchAllNetTVPages((page, perPage) => ServicesAPI.getNetTVSubscribers(page, perPage)),
         fetchAllNetTVPages((page, perPage) => ServicesAPI.getNetTVPackages(page, perPage)).catch(() => []),
         fetchAllNetTVPages((page, perPage) => ServicesAPI.getNetTVSTBs(page, perPage)).catch(() => []),
+        ServicesAPI.getNetTVResellerInfo().catch(() => null)
       ])
       const [modelRes, vendorRes, reasonRes] = await Promise.all([
         ServicesAPI.getNetTVModels(1, 100).then(response => unwrapList(response.data)).catch(() => []),
@@ -358,6 +363,9 @@ export function NettvDashboard() {
       setSubscribers(subscriberList)
       setPackages(packageRes)
       setStbs(stbRes)
+      if (resellerRes && resellerRes.success) {
+        setResellerInfo(resellerRes.data)
+      }
       setModels(modelRes)
       setVendors(vendorRes)
       setReplaceReasons(reasonRes)
@@ -992,247 +1000,269 @@ export function NettvDashboard() {
               </CardContainer>
             </div>
 
-            <div className="grid gap-6 xl:grid-cols-2">
-              <DetailGrid
-                title="Subscriber Account"
-                items={[
-                  { label: "Username", value: subscriber?.username },
-                  { label: "Email", value: subscriber?.email },
-                  { label: "Status", value: subscriber?.status },
-                  { label: "ERP ID", value: subscriber?.erp_id },
-                  { label: "Registration Type", value: subscriber?.registration_type },
-                  { label: "Wallet Enabled", value: formatBoolean(subscriber?.is_wallet_enable) },
-                  { label: "Remote Enabled", value: formatBoolean(subscriber?.is_remote_enable) },
-                  { label: "STBs", value: subscriber?.user_stbs_count },
-                  { label: "Active STBs", value: subscriber?.active_user_stbs_count },
-                  { label: "Balance", value: subscriber?.balance },
-                  { label: "Created", value: subscriber?.created_at },
-                  { label: "Updated", value: subscriber?.updated_at },
-                ]}
-              />
-              <DetailGrid
-                title="Subscriber Contact & Address"
-                items={[
-                  { label: "Display Name", value: contact?.display_name || subscriberLabel },
-                  { label: "First Name", value: contact?.fname },
-                  { label: "Middle Name", value: contact?.mname },
-                  { label: "Last Name", value: contact?.lname },
-                  { label: "Phone", value: contact?.phone_no },
-                  { label: "Mobile", value: contact?.mobile_no },
-                  { label: "Address", value: contact?.address },
-                  { label: "City", value: contact?.city },
-                  { label: "District", value: contact?.district },
-                  { label: "Province", value: provinceName },
-                  { label: "Country", value: countryName },
-                  { label: "PAN", value: contact?.pan },
-                  { label: "Branch", value: contact?.branch },
-                  { label: "Website", value: contact?.website },
-                ]}
-              />
-              <DetailGrid
-                title="Reseller"
-                items={[
-                  { label: "Name", value: reseller?.name },
-                  { label: "Username", value: reseller?.username },
-                  { label: "Profile", value: reseller?.profile },
-                  { label: "Status", value: reseller?.status },
-                  { label: "KYC Status", value: reseller?.kyc_status },
-                  { label: "ERP Code", value: reseller?.erp_cust_code },
-                  { label: "Mobile", value: reseller?.details?.mobile_no || reseller?.mobile_no },
-                  { label: "Email", value: reseller?.details?.email || reseller?.email },
-                  { label: "Expiry Date", value: reseller?.expiry_date },
-                  { label: "Credit Balance", value: reseller?.credit_balance?.credit_balance },
-                ]}
-              />
-              <div className="rounded-lg border bg-card p-4 shadow-sm">
-                <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
-                  <MapPin className="h-4 w-4" /> Subscriber Location
+            <Tabs defaultValue="overview" className="w-full space-y-4">
+              <TabsList className="grid w-full grid-cols-5 h-auto p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="devices">Devices & Orders</TabsTrigger>
+                <TabsTrigger value="reseller">Reseller Info</TabsTrigger>
+                <TabsTrigger value="location">Location Map</TabsTrigger>
+                <TabsTrigger value="raw-api">Raw API Fields</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="overview" className="space-y-4">
+                <div className="grid gap-6 xl:grid-cols-2">
+                  <DetailGrid
+                    title="Subscriber Account"
+                    items={[
+                      { label: "Username", value: subscriber?.username },
+                      { label: "Email", value: subscriber?.email },
+                      { label: "Status", value: subscriber?.status },
+                      { label: "ERP ID", value: subscriber?.erp_id },
+                      { label: "Registration Type", value: subscriber?.registration_type },
+                      { label: "Wallet Enabled", value: formatBoolean(subscriber?.is_wallet_enable) },
+                      { label: "Remote Enabled", value: formatBoolean(subscriber?.is_remote_enable) },
+                      { label: "STBs", value: subscriber?.user_stbs_count },
+                      { label: "Active STBs", value: subscriber?.active_user_stbs_count },
+                      { label: "Balance", value: subscriber?.balance },
+                      { label: "Created", value: subscriber?.created_at },
+                      { label: "Updated", value: subscriber?.updated_at },
+                    ]}
+                  />
+                  <DetailGrid
+                    title="Subscriber Contact & Address"
+                    items={[
+                      { label: "Display Name", value: contact?.display_name || subscriberLabel },
+                      { label: "First Name", value: contact?.fname },
+                      { label: "Middle Name", value: contact?.mname },
+                      { label: "Last Name", value: contact?.lname },
+                      { label: "Phone", value: contact?.phone_no },
+                      { label: "Mobile", value: contact?.mobile_no },
+                      { label: "Address", value: contact?.address },
+                      { label: "City", value: contact?.city },
+                      { label: "District", value: contact?.district },
+                      { label: "Province", value: provinceName },
+                      { label: "Country", value: countryName },
+                      { label: "PAN", value: contact?.pan },
+                      { label: "Branch", value: contact?.branch },
+                      { label: "Website", value: contact?.website },
+                    ]}
+                  />
                 </div>
-                {latitude !== null && longitude !== null ? (
-                  <div className="space-y-3">
-                    <NettvLocationMap lat={latitude} lng={longitude} label={subscriberLabel} />
-                    <div className="grid gap-2 text-sm sm:grid-cols-2">
-                      <div className="rounded-md bg-muted/30 px-3 py-2"><span className="text-muted-foreground">Latitude</span><div className="font-mono">{latitude.toFixed(6)}</div></div>
-                      <div className="rounded-md bg-muted/30 px-3 py-2"><span className="text-muted-foreground">Longitude</span><div className="font-mono">{longitude.toFixed(6)}</div></div>
+              </TabsContent>
+
+              <TabsContent value="devices" className="space-y-4">
+                {/* STB Devices management section */}
+                <div className="rounded-lg border bg-card p-6 shadow-sm space-y-4">
+                  <div className="flex flex-col gap-3 border-b pb-3 md:flex-row md:items-center md:justify-between">
+                    <h2 className="text-lg font-bold">Set-Top Box (STB) & Service Provisioning</h2>
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" variant="outline" size="sm" onClick={() => setSubscriberStbOpen(true)}>
+                        <Plus className="mr-2 h-4 w-4" /> Link STB
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" onClick={() => setReplaceStbOpen(true)} disabled={!selectedStbSerial}>
+                        <Repeat className="mr-2 h-4 w-4" /> Replace
+                      </Button>
+                      <Button type="button" variant="destructive" size="sm" onClick={() => setRemoveStbOpen(true)} disabled={!selectedStbSerial}>
+                        <Trash2 className="mr-2 h-4 w-4" /> Remove
+                      </Button>
                     </div>
                   </div>
-                ) : (
-                  <div className="flex h-[320px] items-center justify-center rounded-lg border border-dashed bg-muted/20 text-sm text-muted-foreground">No coordinates available for this subscriber.</div>
-                )}
-              </div>
-            </div>
-
-            {/* STB Devices management section */}
-            <div className="rounded-lg border bg-card p-6 shadow-sm space-y-4">
-              <div className="flex flex-col gap-3 border-b pb-3 md:flex-row md:items-center md:justify-between">
-                <h2 className="text-lg font-bold">Set-Top Box (STB) & Service Provisioning</h2>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="outline" size="sm" onClick={() => setSubscriberStbOpen(true)}>
-                    <Plus className="mr-2 h-4 w-4" /> Link STB
-                  </Button>
-                  <Button type="button" variant="outline" size="sm" onClick={() => setReplaceStbOpen(true)} disabled={!selectedStbSerial}>
-                    <Repeat className="mr-2 h-4 w-4" /> Replace
-                  </Button>
-                  <Button type="button" variant="destructive" size="sm" onClick={() => setRemoveStbOpen(true)} disabled={!selectedStbSerial}>
-                    <Trash2 className="mr-2 h-4 w-4" /> Remove
-                  </Button>
-                </div>
-              </div>
-              
-              <div className="flex flex-col gap-3 md:flex-row md:items-end">
-                <div className="flex-1 space-y-1.5">
-                  <Label className="text-sm font-semibold">Select Linked STB</Label>
-                  <select
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    value={selectedStbSerial}
-                    onChange={(event) => { setSelectedStbSerial(event.target.value); setSelectedPackageSaleId("") }}
-                  >
-                    <option value="">Select device</option>
-                    {(selected?.stbs || []).map((stb: any) => (
-                      <option key={stb.serial} value={stb.serial}>{stb.serial} · {stb.model?.name || stb.model || "STB"}</option>
-                    ))}
-                  </select>
-                </div>
-                <Button type="button" variant="outline" className="h-10" onClick={refreshSelectedStb} disabled={!selectedStbSerial || stbLoading}>
-                  {stbLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                  Get Device Details
-                </Button>
-              </div>
-
-              {selectedStb ? (
-                <div className="space-y-6 pt-2">
-                  <div className="grid gap-4 text-sm md:grid-cols-4 rounded-lg bg-muted/40 p-4 border">
-                    <div><div className="text-xs text-muted-foreground">Serial / MAC</div><div className="break-all font-mono font-semibold">{selectedStb.serial}</div></div>
-                    <div><div className="text-xs text-muted-foreground">Status</div><Badge variant={statusVariant(String(selectedStb.status || "unknown"))} className="mt-1">{selectedStb.status || "unknown"}</Badge></div>
-                    <div><div className="text-xs text-muted-foreground">Vendor</div><div className="font-semibold">{selectedStb.vendor?.name || selectedStb.vendor || "N/A"}</div></div>
-                    <div><div className="text-xs text-muted-foreground">Model</div><div className="font-semibold">{selectedStb.model?.name || selectedStb.model || "N/A"}</div></div>
-                  </div>
-
-                  {/* Assign packages */}
-                  <div className="rounded-lg border p-4 bg-background shadow-xs space-y-4">
-                    <div className="font-semibold border-b pb-2 text-primary">Assign Subscription Package</div>
-                    <div className="grid gap-4 md:grid-cols-4">
-                      <div className="space-y-1.5 md:col-span-2">
-                        <Label>Select Package</Label>
-                        <select
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          value={selectedPackageSaleId}
-                          onChange={(event) => setSelectedPackageSaleId(event.target.value)}
-                        >
-                          <option value="">{packageConfigLoading ? "Loading package configurations..." : "Select package configuration"}</option>
-                          {packageConfigs.map((config: any) => (
-                            <option key={config.id} value={config.id}>
-                              {config.package_name || "Package"} · {config.display_name} · {config.duration} · Rs. {config.price_with_vat ?? config.price ?? 0}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label>Payment Mode</Label>
-                        <select
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          value={paymentGateway}
-                          onChange={(event) => setPaymentGateway(event.target.value)}
-                        >
-                          <option value="reseller_wallet">Reseller Wallet</option>
-                          <option value="wallet">Subscriber Wallet</option>
-                        </select>
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label>Quantity</Label>
-                        <Input
-                          type="number"
-                          min={1}
-                          value={packageQty}
-                          onChange={(event) => setPackageQty(Math.max(1, Number(event.target.value)))}
-                        />
-                      </div>
-                    </div>
-                    <Button type="button" onClick={assignPackage} disabled={assigningPackage || !selectedPackageSaleId}>
-                      {assigningPackage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Assign Selected Package
-                    </Button>
-                    <Button type="button" variant="outline" onClick={() => setCancelPackageOpen(true)} disabled={!selectedStbSerial}>
-                      <Wrench className="mr-2 h-4 w-4" /> Cancel Order
-                    </Button>
-                    <div className="text-xs text-muted-foreground">
-                      {packageConfigItems.length
-                        ? `${packageConfigItems.length} package groups loaded from NetTV config API`
-                        : "Package options fall back to STB package details when the config API has no data."}
-                    </div>
-                  </div>
-
-                  <div className="grid gap-6 lg:grid-cols-2">
-                    <div className="rounded-lg border p-4 bg-background">
-                      <div className="mb-3 font-semibold border-b pb-1">Subscribed Packages</div>
-                      <div className="space-y-2">
-                        {(selectedStb.subscribed_packages || []).map((pkg: any) => (
-                          <div key={pkg.id} className="rounded-md bg-muted/40 p-3 text-sm">
-                            <div className="font-semibold text-primary">{pkg.package_config_name}</div>
-                            <div className="text-xs text-muted-foreground mt-1">Package #{pkg.package_id} · {pkg.package_subscription_details?.[0]?.expiry_date ? `Expires ${pkg.package_subscription_details[0].expiry_date}` : "No expiry"}</div>
-                          </div>
+                  
+                  <div className="flex flex-col gap-3 md:flex-row md:items-end">
+                    <div className="flex-1 space-y-1.5">
+                      <Label className="text-sm font-semibold">Select Linked STB</Label>
+                      <select
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        value={selectedStbSerial}
+                        onChange={(event) => { setSelectedStbSerial(event.target.value); setSelectedPackageSaleId("") }}
+                      >
+                        <option value="">Select device</option>
+                        {(selected?.stbs || []).map((stb: any) => (
+                          <option key={stb.serial} value={stb.serial}>{stb.serial} · {stb.model?.name || stb.model || "STB"}</option>
                         ))}
-                        {!selectedStb.subscribed_packages?.length && <p className="text-sm text-muted-foreground py-2">No subscribed packages.</p>}
-                      </div>
+                      </select>
                     </div>
-
-                    <div className="rounded-lg border p-4 bg-background">
-                      <div className="mb-3 font-semibold border-b pb-1">Active Orders</div>
-                      <div className="space-y-2">
-                        {(selectedStb.active_package || []).map((pkg: any) => (
-                          <div key={pkg.id} className="rounded-md bg-muted/40 p-3 text-sm flex flex-col justify-between">
-                            <div className="flex justify-between items-start">
-                              <span className="font-semibold text-primary">{pkg.name}</span>
-                              <Badge variant={statusVariant(String(pkg.status || "unknown"))}>{pkg.status}</Badge>
-                            </div>
-                            <div className="text-xs text-muted-foreground mt-1.5">Order #{pkg.id} · Qty {pkg.qty} · Rs. {pkg.total_with_vat}</div>
-                          </div>
-                        ))}
-                        {!selectedStb.active_package?.length && <p className="text-sm text-muted-foreground py-2">No active orders.</p>}
-                      </div>
-                    </div>
+                    <Button type="button" variant="outline" className="h-10" onClick={refreshSelectedStb} disabled={!selectedStbSerial || stbLoading}>
+                      {stbLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                      Get Device Details
+                    </Button>
                   </div>
 
-                  {selectedStb?.bootstrap?.services?.length > 0 && (
-                    <div className="rounded-lg border p-4 bg-background">
-                      <div className="mb-2 font-semibold">Device Services</div>
-                      <div className="flex flex-wrap gap-2">
-                        {selectedStb.bootstrap.services.map((service: any) => (
-                          <Badge key={service.name} variant="outline" title={service.baseURL}>{service.name}</Badge>
+                  {selectedStb ? (
+                    <div className="space-y-6 pt-2">
+                      <div className="grid gap-4 text-sm md:grid-cols-4 rounded-lg bg-muted/40 p-4 border">
+                        <div><div className="text-xs text-muted-foreground">Serial / MAC</div><div className="break-all font-mono font-semibold">{selectedStb.serial}</div></div>
+                        <div><div className="text-xs text-muted-foreground">Status</div><Badge variant={statusVariant(String(selectedStb.status || "unknown"))} className="mt-1">{selectedStb.status || "unknown"}</Badge></div>
+                        <div><div className="text-xs text-muted-foreground">Vendor</div><div className="font-semibold">{selectedStb.vendor?.name || selectedStb.vendor || "N/A"}</div></div>
+                        <div><div className="text-xs text-muted-foreground">Model</div><div className="font-semibold">{selectedStb.model?.name || selectedStb.model || "N/A"}</div></div>
+                      </div>
+
+                      {/* Assign packages */}
+                      <div className="rounded-lg border p-4 bg-background shadow-xs space-y-4">
+                        <div className="font-semibold border-b pb-2 text-primary">Assign Subscription Package</div>
+                        <div className="grid gap-4 md:grid-cols-4">
+                          <div className="space-y-1.5 md:col-span-2">
+                            <Label>Select Package</Label>
+                            <select
+                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              value={selectedPackageSaleId}
+                              onChange={(event) => setSelectedPackageSaleId(event.target.value)}
+                            >
+                              <option value="">{packageConfigLoading ? "Loading package configurations..." : "Select package configuration"}</option>
+                              {packageConfigs.map((config: any) => (
+                                <option key={config.id} value={config.id}>
+                                  {config.package_name || "Package"} · {config.display_name} · {config.duration} · Rs. {config.price_with_vat ?? config.price ?? 0}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>Payment Mode</Label>
+                            <select
+                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              value={paymentGateway}
+                              onChange={(event) => setPaymentGateway(event.target.value)}
+                            >
+                              <option value="reseller_wallet">Reseller Wallet</option>
+                              <option value="wallet">Subscriber Wallet</option>
+                            </select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>Quantity</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              value={packageQty}
+                              onChange={(event) => setPackageQty(Math.max(1, Number(event.target.value)))}
+                            />
+                          </div>
+                        </div>
+                        <Button type="button" onClick={assignPackage} disabled={assigningPackage || !selectedPackageSaleId}>
+                          {assigningPackage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Assign Selected Package
+                        </Button>
+                        <Button type="button" variant="outline" onClick={() => setCancelPackageOpen(true)} disabled={!selectedStbSerial}>
+                          <Wrench className="mr-2 h-4 w-4" /> Cancel Order
+                        </Button>
+                        <div className="text-xs text-muted-foreground">
+                          {packageConfigItems.length
+                            ? `\\${packageConfigItems.length} package groups loaded from NetTV config API`
+                            : "Package options fall back to STB package details when the config API has no data."}
+                        </div>
+                      </div>
+
+                      <div className="grid gap-6 lg:grid-cols-2">
+                        <div className="rounded-lg border p-4 bg-background">
+                          <div className="mb-3 font-semibold border-b pb-1">Subscribed Packages</div>
+                          <div className="space-y-2">
+                            {(selectedStb.subscribed_packages || []).map((pkg: any) => (
+                              <div key={pkg.id} className="rounded-md bg-muted/40 p-3 text-sm">
+                                <div className="font-semibold text-primary">{pkg.package_config_name}</div>
+                                <div className="text-xs text-muted-foreground mt-1">Package #\\${pkg.package_id} · {pkg.package_subscription_details?.[0]?.expiry_date ? `Expires \\${pkg.package_subscription_details[0].expiry_date}` : "No expiry"}</div>
+                              </div>
+                            ))}
+                            {!selectedStb.subscribed_packages?.length && <p className="text-sm text-muted-foreground py-2">No subscribed packages.</p>}
+                          </div>
+                        </div>
+
+                        <div className="rounded-lg border p-4 bg-background">
+                          <div className="mb-3 font-semibold border-b pb-1">Active Orders</div>
+                          <div className="space-y-2">
+                            {(selectedStb.active_package || []).map((pkg: any) => (
+                              <div key={pkg.id} className="rounded-md bg-muted/40 p-3 text-sm flex flex-col justify-between">
+                                <div className="flex justify-between items-start">
+                                  <span className="font-semibold text-primary">{pkg.name}</span>
+                                  <Badge variant={statusVariant(String(pkg.status || "unknown"))}>{pkg.status}</Badge>
+                                </div>
+                                <div className="text-xs text-muted-foreground mt-1.5">Order #\\${pkg.id} · Qty \\${pkg.qty} · Rs. \\${pkg.total_with_vat}</div>
+                              </div>
+                            ))}
+                            {!selectedStb.active_package?.length && <p className="text-sm text-muted-foreground py-2">No active orders.</p>}
+                          </div>
+                        </div>
+                      </div>
+
+                      {selectedStb?.bootstrap?.services?.length > 0 && (
+                        <div className="rounded-lg border p-4 bg-background">
+                          <div className="mb-2 font-semibold">Device Services</div>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedStb.bootstrap.services.map((service: any) => (
+                              <Badge key={service.name} variant="outline" title={service.baseURL}>{service.name}</Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground py-4 border rounded-lg text-center bg-muted/10 border-dashed">No set-top box linked/selected. Pick a device from the list above to assign packages or view STB subscriptions.</p>
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="reseller" className="space-y-4">
+                <DetailGrid
+                  title="Reseller Details"
+                  items={[
+                    { label: "Name", value: reseller?.name },
+                    { label: "Username", value: reseller?.username },
+                    { label: "Profile", value: reseller?.profile },
+                    { label: "Status", value: reseller?.status },
+                    { label: "KYC Status", value: reseller?.kyc_status },
+                    { label: "ERP Code", value: reseller?.erp_cust_code },
+                    { label: "Mobile", value: reseller?.details?.mobile_no || reseller?.mobile_no },
+                    { label: "Email", value: reseller?.details?.email || reseller?.email },
+                    { label: "Expiry Date", value: reseller?.expiry_date },
+                    { label: "Credit Balance", value: reseller?.credit_balance?.credit_balance },
+                  ]}
+                />
+              </TabsContent>
+
+              <TabsContent value="location" className="space-y-4">
+                <div className="rounded-lg border bg-card p-4 shadow-sm">
+                  <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                    <MapPin className="h-4 w-4" /> Subscriber Location
+                  </div>
+                  {latitude !== null && longitude !== null ? (
+                    <div className="space-y-3">
+                      <NettvLocationMap lat={latitude} lng={longitude} label={subscriberLabel} />
+                      <div className="grid gap-2 text-sm sm:grid-cols-2">
+                        <div className="rounded-md bg-muted/30 px-3 py-2"><span className="text-muted-foreground">Latitude</span><div className="font-mono">{latitude.toFixed(6)}</div></div>
+                        <div className="rounded-md bg-muted/30 px-3 py-2"><span className="text-muted-foreground">Longitude</span><div className="font-mono">{longitude.toFixed(6)}</div></div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex h-[320px] items-center justify-center rounded-lg border border-dashed bg-muted/20 text-sm text-muted-foreground">No coordinates available for this subscriber.</div>
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="raw-api" className="space-y-4">
+                <div className="space-y-4">
+                  <div>
+                    <h2 className="text-lg font-bold">Complete NetTV Details</h2>
+                    <p className="text-sm text-muted-foreground">All non-empty fields returned by the NetTV APIs, grouped for scanning.</p>
+                  </div>
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    <DetailsBlock title="Subscriber Account Details" data={subscriber} />
+                    <DetailsBlock title="Subscriber Contact Details" data={contact} />
+                    <DetailsBlock title="Reseller Details" data={subscriber?.reseller || {}} />
+                    <DetailsBlock title="Payment Methods" data={reseller?.payment_methods || {}} />
+                    <DetailsBlock title="Credit Balance" data={reseller?.credit_balance || {}} />
+                    <DetailsBlock title="Selected STB Full Details" data={selectedStb || {}} />
+                  </div>
+                  {(selected?.stbs || []).length > 0 && (
+                    <div className="rounded-lg border bg-card p-4 shadow-sm">
+                      <div className="mb-3 text-sm font-semibold">All Linked STBs</div>
+                      <div className="grid gap-3 lg:grid-cols-2">
+                        {(selected?.stbs || []).map((stb: any, index: number) => (
+                          <DetailsBlock key={`\\${stb?.serial || stb?.id || index}-\\${index}`} title={stb?.serial || `STB \\${index + 1}`} data={stb} />
                         ))}
                       </div>
                     </div>
                   )}
                 </div>
-              ) : (
-                <p className="text-sm text-muted-foreground py-4 border rounded-lg text-center bg-muted/10 border-dashed">No set-top box linked/selected. Pick a device from the list above to assign packages or view STB subscriptions.</p>
-              )}
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <h2 className="text-lg font-bold">Complete NetTV Details</h2>
-                <p className="text-sm text-muted-foreground">All non-empty fields returned by the NetTV APIs, grouped for scanning.</p>
-              </div>
-              <div className="grid gap-4 xl:grid-cols-2">
-                <DetailsBlock title="Subscriber Account Details" data={subscriber} />
-                <DetailsBlock title="Subscriber Contact Details" data={contact} />
-                <DetailsBlock title="Reseller Details" data={subscriber?.reseller || {}} />
-                <DetailsBlock title="Payment Methods" data={reseller?.payment_methods || {}} />
-                <DetailsBlock title="Credit Balance" data={reseller?.credit_balance || {}} />
-                <DetailsBlock title="Selected STB Full Details" data={selectedStb || {}} />
-              </div>
-              {(selected?.stbs || []).length > 0 && (
-                <div className="rounded-lg border bg-card p-4 shadow-sm">
-                  <div className="mb-3 text-sm font-semibold">All Linked STBs</div>
-                  <div className="grid gap-3 lg:grid-cols-2">
-                    {(selected?.stbs || []).map((stb: any, index: number) => (
-                      <DetailsBlock key={`${stb?.serial || stb?.id || index}-${index}`} title={stb?.serial || `STB ${index + 1}`} data={stb} />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+              </TabsContent>
+            </Tabs>
           </div>
         )}
       </div>
@@ -1241,7 +1271,7 @@ export function NettvDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
         <CardContainer title="Subscribers" gradientColor="#10b981">
           <div className="flex items-center gap-3 py-2">
             <Users className="h-8 w-8 text-emerald-500" />
@@ -1264,6 +1294,16 @@ export function NettvDashboard() {
           <div className="flex items-center gap-3 py-2">
             <Tv className="h-8 w-8 text-amber-500" />
             <div className="text-3xl font-bold">{stbs.length}</div>
+          </div>
+        </CardContainer>
+        <CardContainer title="Reseller Wallet" gradientColor="#a855f7">
+          <div className="flex flex-col justify-center py-1">
+            <span className="text-lg font-bold text-purple-600 dark:text-purple-400">
+              {resellerInfo?.creditBalance?.credit_balance !== undefined
+                ? `Rs. ${resellerInfo.creditBalance.credit_balance}`
+                : "N/A"}
+            </span>
+            <span className="text-[10px] text-muted-foreground font-mono">ID: #${resellerInfo?.resellerId || "N/A"}</span>
           </div>
         </CardContainer>
       </div>
@@ -1301,6 +1341,7 @@ export function NettvDashboard() {
             <TableHeader>
               <TableRow>
                 <TableHead>Subscriber</TableHead>
+                <TableHead>Local Customer</TableHead>
                 <TableHead>Contact</TableHead>
                 <TableHead>Subscription</TableHead>
                 <TableHead>Status</TableHead>
@@ -1328,6 +1369,27 @@ export function NettvDashboard() {
                       <TableCell>
                         <div className="font-semibold">{fullName(subscriber)}</div>
                         <div className="font-mono text-xs text-muted-foreground">{username}</div>
+                      </TableCell>
+                      <TableCell>
+                        {subscriber.local_customer ? (
+                          <div className="space-y-1">
+                            <span className="font-medium text-slate-800 dark:text-slate-200">
+                              {subscriber.local_customer.firstName} {subscriber.local_customer.lastName}
+                            </span>
+                            <span className="block">
+                              <Button
+                                variant="link"
+                                size="sm"
+                                className="h-auto p-0 text-xs text-blue-500 hover:text-blue-600 flex items-center"
+                                onClick={() => router.push(`/customers/${subscriber.local_customer.id}`)}
+                              >
+                                <Users className="mr-1 h-3 w-3" /> View Profile
+                              </Button>
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400">Unlinked</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">{valueOf(subscriber, ["email"])}</div>

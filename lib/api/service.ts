@@ -444,6 +444,17 @@ export const ServicesAPI = {
         );
     },
 
+    async getNetTVResellerInfo() {
+        return apiRequest<{ success: boolean; data: any }>('/services/nettv/reseller/info');
+    },
+
+    async syncNetTVSubscriber(customerId: number | string) {
+        return apiRequest<{ success: boolean; data: any; message?: string }>(
+            `/customer/${encodeURIComponent(String(customerId))}/sync/nettv`,
+            { method: 'POST' }
+        );
+    },
+
     // Mikrotik Operations
     async getMikrotikResources() {
         return apiRequest<{ success: boolean; data: any }>('/services/mikrotik/resources');
