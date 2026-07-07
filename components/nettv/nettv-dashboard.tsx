@@ -89,16 +89,25 @@ function renderValue(value: any): React.ReactNode {
   if (Array.isArray(value)) {
     if (value.length === 0) return <span className="text-xs text-muted-foreground">Empty list</span>
     if (typeof value[0] === "object") {
+      const columns = Array.from(new Set(value.flatMap((item: any) =>
+        Object.keys(item || {}).filter(key => item?.[key] !== null && item?.[key] !== undefined && typeof item?.[key] !== "object")
+      ))).slice(0, 8)
       return (
-        <div className="space-y-1.5 mt-1">
-          {value.map((item, idx) => (
-            <div key={idx} className="rounded border bg-muted/30 p-1.5 text-[11px] font-mono leading-tight">
-              {Object.entries(item)
-                .filter(([_, v]) => v !== null && v !== undefined && typeof v !== "object")
-                .map(([k, v]) => `${k}: ${v}`)
-                .join(" | ")}
-            </div>
-          ))}
+        <div className="mt-1 overflow-auto rounded-md border">
+          <table className="w-full text-left text-[11px]">
+            <thead className="bg-muted/50">
+              <tr>
+                {columns.map(column => <th key={column} className="whitespace-nowrap px-2 py-1 font-semibold">{column.replace(/_/g, " ")}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {value.map((item, idx) => (
+                <tr key={idx} className="border-t">
+                  {columns.map(column => <td key={column} className="max-w-[220px] truncate px-2 py-1 font-mono">{String(item?.[column] ?? "")}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )
     }
@@ -173,6 +182,32 @@ function FormField({ label, value, onChange, type = "text" }: { label: string; v
     <div className="space-y-1.5">
       <Label>{label}</Label>
       <Input type={type} value={value} onChange={(event) => onChange(event.target.value)} />
+    </div>
+  )
+}
+
+function DataTable({ items, columns, emptyText }: { items: any[]; columns: Array<{ key: string; label: string; render?: (item: any) => React.ReactNode }>; emptyText: string }) {
+  if (!items?.length) return <p className="py-3 text-sm text-muted-foreground">{emptyText}</p>
+  return (
+    <div className="overflow-auto rounded-md border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            {columns.map(column => <TableHead key={column.key}>{column.label}</TableHead>)}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {items.map((item, index) => (
+            <TableRow key={`${item?.id || item?.package_id || item?.serial || index}-${index}`}>
+              {columns.map(column => (
+                <TableCell key={column.key} className="align-top text-sm">
+                  {column.render ? column.render(item) : valueOf(item, [column.key], "")}
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   )
 }
@@ -290,6 +325,8 @@ export function NettvDashboard() {
   const [printLookupLoading, setPrintLookupLoading] = useState<"invoice" | "credit" | null>(null)
   const [printLookupResult, setPrintLookupResult] = useState<any>(null)
   const [printLookupOpen, setPrintLookupOpen] = useState(false)
+  const [statusChanging, setStatusChanging] = useState("")
+  const [requestedSubscriber, setRequestedSubscriber] = useState("")
 
   const fetchAllNetTVPages = async (fetcher: (page: number, perPage: number) => Promise<{ data: any }>) => {
     const perPage = 100
@@ -332,8 +369,21 @@ export function NettvDashboard() {
   }
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      setRequestedSubscriber(new URLSearchParams(window.location.search).get("subscriber") || "")
+    }
     fetchData()
   }, [])
+
+  useEffect(() => {
+    if (!requestedSubscriber || loading || selected) return
+    const match = subscribers.find(item => valueOf(item, ["username", "user_name", "customer_username"], "") === requestedSubscriber)
+    if (match) {
+      openDetails(match)
+    } else if (requestedSubscriber) {
+      setSearch(requestedSubscriber)
+    }
+  }, [requestedSubscriber, loading, subscribers, selected])
 
   const filteredSubscribers = useMemo(() => {
     const term = search.toLowerCase().trim()
@@ -402,11 +452,37 @@ export function NettvDashboard() {
 
   const selectedUsername = () => valueOf(selected?.subscriber || selected, ["username", "user_name", "customer_username"], "")
 
+  const buildSubscriberUpdatePayload = (subscriber: any, overrides: Record<string, any> = {}) => {
+    const contact = subscriber?.details || {}
+    const base = {
+      email: subscriber?.email,
+      status: subscriber?.status,
+      fname: firstDefined(contact?.fname, subscriber?.fname),
+      mname: firstDefined(contact?.mname, subscriber?.mname),
+      lname: firstDefined(contact?.lname, subscriber?.lname),
+      address: contact?.address,
+      city: contact?.city,
+      district: contact?.district,
+      province: firstDefined(contact?.province, contact?.province_info?.id),
+      country: firstDefined(contact?.country, contact?.country_info?.id),
+      phone_no: contact?.phone_no,
+      mobile_no: contact?.mobile_no,
+      website: contact?.website,
+      longitude: contact?.longitude,
+      latitude: contact?.latitude,
+      pan: contact?.pan,
+      gender: contact?.gender,
+      dob: contact?.dob,
+      branch: contact?.branch,
+      ...overrides,
+    }
+    return Object.fromEntries(Object.entries(base).filter(([_, value]) => value !== undefined && value !== null && value !== ""))
+  }
+
   const openEditDialog = () => {
     const subscriber = selected?.subscriber || selected || {}
     const contact = subscriber?.details || selected?.details || {}
     setEditForm({
-      username: toInputValue(subscriber?.username),
       email: toInputValue(subscriber?.email),
       status: toInputValue(subscriber?.status),
       fname: toInputValue(firstDefined(contact?.fname, subscriber?.fname)),
@@ -437,7 +513,7 @@ export function NettvDashboard() {
     if (!username) return
     setSavingEdit(true)
     try {
-      const payload = Object.fromEntries(Object.entries(editForm).filter(([_, value]) => value !== ""))
+      const payload = Object.fromEntries(Object.entries(editForm).filter(([key, value]) => key !== "username" && value !== ""))
       await ServicesAPI.updateNetTVSubscriber(username, payload)
       toast.success("NetTV subscriber updated")
       setEditOpen(false)
@@ -446,6 +522,25 @@ export function NettvDashboard() {
       toast.error(error.message || "Failed to update NetTV subscriber")
     } finally {
       setSavingEdit(false)
+    }
+  }
+
+  const changeSubscriberStatus = async (subscriber: any) => {
+    const username = valueOf(subscriber, ["username", "user_name", "customer_username"], "")
+    if (!username) return
+    const currentStatus = String(subscriber?.status ?? "").toLowerCase()
+    const nextStatus = currentStatus === "1" || currentStatus === "active" ? "0" : "1"
+    setStatusChanging(username)
+    try {
+      await ServicesAPI.updateNetTVSubscriber(username, buildSubscriberUpdatePayload(subscriber, { status: nextStatus }))
+      setSubscribers((current) => current.map((item) =>
+        valueOf(item, ["username", "user_name", "customer_username"], "") === username ? { ...item, status: nextStatus } : item
+      ))
+      toast.success(`NetTV subscriber ${nextStatus === "1" ? "activated" : "deactivated"}`)
+    } catch (error: any) {
+      toast.error(error.message || "Failed to change NetTV status")
+    } finally {
+      setStatusChanging("")
     }
   }
 
@@ -732,7 +827,7 @@ export function NettvDashboard() {
             </DialogHeader>
             <div className="grid gap-4 md:grid-cols-3">
               {[
-                ["username", "Username"], ["email", "Email"], ["status", "Status"],
+                ["email", "Email"], ["status", "Status"],
                 ["fname", "First Name"], ["mname", "Middle Name"], ["lname", "Last Name"],
                 ["phone_no", "Phone"], ["mobile_no", "Mobile"], ["pan", "PAN"],
                 ["address", "Address"], ["city", "City"], ["district", "District"],
@@ -1210,7 +1305,7 @@ export function NettvDashboard() {
                 <TableHead>Subscription</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Expiry</TableHead>
-                <TableHead className="w-[80px]">Action</TableHead>
+                <TableHead className="w-[180px]">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1245,9 +1340,20 @@ export function NettvDashboard() {
                       <TableCell><Badge variant={statusVariant(status)}>{status}</Badge></TableCell>
                       <TableCell className="text-sm">{valueOf(subscriber, ["expires_at", "expiry_date", "expire_date", "valid_till", "end_date"])}</TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="sm" onClick={() => openDetails(subscriber)}>
-                          <Eye className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-1.5">
+                          <Button variant="ghost" size="sm" onClick={() => openDetails(subscriber)} title="View details">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => changeSubscriberStatus(subscriber)}
+                            disabled={statusChanging === username}
+                            title="Change NetTV status"
+                          >
+                            {statusChanging === username ? <Loader2 className="h-4 w-4 animate-spin" /> : statusVariant(status) === "success" ? "Deactivate" : "Activate"}
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   )

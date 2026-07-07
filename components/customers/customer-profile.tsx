@@ -3589,6 +3589,15 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           {serviceActionLoading === "nettv" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Tv className="mr-2 h-4 w-4" />}
           Reprovision NetTV
         </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-9"
+          onClick={() => customer?.customerUniqueId && router.push(`/nettv?subscriber=${encodeURIComponent(customer.customerUniqueId)}`)}
+          disabled={!customer?.customerUniqueId}
+        >
+          <ExternalLink className="mr-2 h-4 w-4" /> Open NetTV Details
+        </Button>
         <Button size="sm" className="h-9 bg-gradient-to-r from-cyan-500 to-blue-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={handleReprovisionAccount} disabled={serviceActionLoading === "account"}>
           {serviceActionLoading === "account" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
           Reprovision Account
