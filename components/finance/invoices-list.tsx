@@ -718,8 +718,8 @@ export function InvoicesList() {
                       <div className="space-y-1">
                         <div className="font-medium">{invoice.accountingProvider} #{invoice.accountingInvoiceId}</div>
                         {invoice.accountingInvoiceUrl && (
-                          <a href={invoice.accountingInvoiceUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
-                            Open sales invoice <ExternalLink className="h-3 w-3" />
+                          <a href={invoice.accountingInvoiceUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline font-medium">
+                            {invoice.accountingProvider === "NEPURIX" ? "Print Nepurix Invoice" : "Open sales invoice"} <ExternalLink className="h-3 w-3" />
                           </a>
                         )}
                       </div>
@@ -746,6 +746,11 @@ export function InvoicesList() {
                             <DropdownMenuItem className="cursor-pointer" onClick={() => { setSelectedInvoice(invoice); setDialogView("receipt"); }}>
                               Print Cash Receipt
                             </DropdownMenuItem>
+                            {invoice.accountingInvoiceId && invoice.accountingProvider === "NEPURIX" && invoice.accountingInvoiceUrl && (
+                              <DropdownMenuItem className="cursor-pointer text-purple-600 focus:text-purple-600" onClick={() => window.open(invoice.accountingInvoiceUrl, "_blank")}>
+                                Print Nepurix Invoice
+                              </DropdownMenuItem>
+                            )}
                             {!invoice.accountingInvoiceId && !invoice.isTrialInvoice && Number(invoice.amount) > 0 && (
                               <DropdownMenuItem
                                 className="cursor-pointer text-blue-600 focus:text-blue-600"
