@@ -2,15 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react"
 import dynamic from "next/dynamic"
-import { Eye, Loader2, Package, Plus, RefreshCw, Search, Tv, UserCheck, Users, ArrowLeft, MapPin, Info } from "lucide-react"
+import { ArrowLeft, Eye, Info, KeyRound, Loader2, MapPin, Package, Plus, RefreshCw, Repeat, Save, Search, Trash2, Tv, UserCheck, Users, Wrench } from "lucide-react"
 import { ServicesAPI } from "@/lib/api/service"
 import { NetTVDialog } from "@/components/customers/add-customer-form"
 import { CardContainer } from "@/components/ui/card-container"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "react-hot-toast"
@@ -57,6 +58,13 @@ const formatBoolean = (value: any) => {
   return "N/A"
 }
 
+const firstDefined = (...values: any[]) => values.find(value => value !== undefined && value !== null && value !== "")
+
+const toInputValue = (value: any) => {
+  if (value === undefined || value === null) return ""
+  return String(value)
+}
+
 const fullName = (item: any) => {
   const details = item?.details || {}
   const joined = [item?.fname || details.fname, item?.mname || details.mname, item?.lname || details.lname].filter(Boolean).join(" ")
@@ -65,9 +73,9 @@ const fullName = (item: any) => {
 
 const statusVariant = (status: string): "success" | "warning" | "destructive" | "secondary" => {
   const normalized = status.toLowerCase()
-  if (normalized.includes("active") || normalized.includes("enabled")) return "success"
+  if (normalized === "1" || normalized === "true" || normalized.includes("active") || normalized.includes("enabled")) return "success"
   if (normalized.includes("pending") || normalized.includes("hold")) return "warning"
-  if (normalized.includes("inactive") || normalized.includes("disabled") || normalized.includes("expired")) return "destructive"
+  if (normalized === "0" || normalized === "false" || normalized.includes("inactive") || normalized.includes("disabled") || normalized.includes("expired")) return "destructive"
   return "secondary"
 }
 
@@ -160,6 +168,15 @@ function DetailGrid({ title, items }: { title: string; items: Array<{ label: str
   )
 }
 
+function FormField({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      <Input type={type} value={value} onChange={(event) => onChange(event.target.value)} />
+    </div>
+  )
+}
+
 function NettvLocationMap({ lat, lng, label }: { lat: number; lng: number; label: string }) {
   const [icon, setIcon] = useState<any>(null)
 
@@ -238,6 +255,31 @@ export function NettvDashboard() {
   const [createOpen, setCreateOpen] = useState(false)
   const [creatingSubscriber, setCreatingSubscriber] = useState(false)
   const [rawDetailsOpen, setRawDetailsOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [editForm, setEditForm] = useState<Record<string, string>>({})
+  const [passwordOpen, setPasswordOpen] = useState(false)
+  const [passwordSaving, setPasswordSaving] = useState(false)
+  const [passwordForm, setPasswordForm] = useState({ password: "", conf_password: "", reseller_id: "" })
+  const [subscriberStbOpen, setSubscriberStbOpen] = useState(false)
+  const [subscriberStbSaving, setSubscriberStbSaving] = useState(false)
+  const [subscriberStbForm, setSubscriberStbForm] = useState({
+    serial: "",
+    package_id: "",
+    status: "1",
+    balance: "",
+    expiry_date: "",
+    extended_date: "",
+  })
+  const [removeStbOpen, setRemoveStbOpen] = useState(false)
+  const [removeStbSaving, setRemoveStbSaving] = useState(false)
+  const [removeStbForm, setRemoveStbForm] = useState({ reason_id: "1", detail: "" })
+  const [replaceStbOpen, setReplaceStbOpen] = useState(false)
+  const [replaceStbSaving, setReplaceStbSaving] = useState(false)
+  const [replaceStbForm, setReplaceStbForm] = useState({ serial: "", reason_id: "1", detail: "" })
+  const [cancelPackageOpen, setCancelPackageOpen] = useState(false)
+  const [cancelPackageSaving, setCancelPackageSaving] = useState(false)
+  const [cancelPackageForm, setCancelPackageForm] = useState({ order_id: "", notes: "", cancel_by: "" })
 
   const fetchAllNetTVPages = async (fetcher: (page: number, perPage: number) => Promise<{ data: any }>) => {
     const perPage = 100
@@ -340,6 +382,174 @@ export function NettvDashboard() {
     }
   }
 
+  const selectedUsername = () => valueOf(selected?.subscriber || selected, ["username", "user_name", "customer_username"], "")
+
+  const openEditDialog = () => {
+    const subscriber = selected?.subscriber || selected || {}
+    const contact = subscriber?.details || selected?.details || {}
+    setEditForm({
+      username: toInputValue(subscriber?.username),
+      email: toInputValue(subscriber?.email),
+      status: toInputValue(subscriber?.status),
+      fname: toInputValue(firstDefined(contact?.fname, subscriber?.fname)),
+      mname: toInputValue(firstDefined(contact?.mname, subscriber?.mname)),
+      lname: toInputValue(firstDefined(contact?.lname, subscriber?.lname)),
+      address: toInputValue(contact?.address),
+      city: toInputValue(contact?.city),
+      district: toInputValue(contact?.district),
+      province: toInputValue(firstDefined(contact?.province, contact?.province_info?.id)),
+      country: toInputValue(firstDefined(contact?.country, contact?.country_info?.id)),
+      phone_no: toInputValue(contact?.phone_no),
+      mobile_no: toInputValue(contact?.mobile_no),
+      website: toInputValue(contact?.website),
+      longitude: toInputValue(contact?.longitude),
+      latitude: toInputValue(contact?.latitude),
+      pan: toInputValue(contact?.pan),
+      gender: toInputValue(contact?.gender),
+      dob: toInputValue(contact?.dob),
+      branch: toInputValue(contact?.branch),
+    })
+    setEditOpen(true)
+  }
+
+  const updateEditField = (field: string, value: string) => setEditForm((current) => ({ ...current, [field]: value }))
+
+  const saveSubscriberEdit = async () => {
+    const username = selectedUsername()
+    if (!username) return
+    setSavingEdit(true)
+    try {
+      const payload = Object.fromEntries(Object.entries(editForm).filter(([_, value]) => value !== ""))
+      await ServicesAPI.updateNetTVSubscriber(username, payload)
+      toast.success("NetTV subscriber updated")
+      setEditOpen(false)
+      await refreshSelectedSubscriber()
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update NetTV subscriber")
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
+  const deleteSubscriber = async () => {
+    const username = selectedUsername()
+    if (!username || !window.confirm(`Delete NetTV subscriber ${username}?`)) return
+    try {
+      await ServicesAPI.deleteNetTVSubscriber(username)
+      setSubscribers((current) => current.filter((subscriber) => valueOf(subscriber, ["username", "user_name", "customer_username"], "") !== username))
+      setSelected(null)
+      toast.success("NetTV subscriber deleted")
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete NetTV subscriber")
+    }
+  }
+
+  const forcePassword = async () => {
+    const username = selectedUsername()
+    if (!username) return
+    if (!passwordForm.password || passwordForm.password !== passwordForm.conf_password) {
+      toast.error("Password and confirmation must match")
+      return
+    }
+    setPasswordSaving(true)
+    try {
+      await ServicesAPI.forceNetTVPassword(username, {
+        password: passwordForm.password,
+        conf_password: passwordForm.conf_password,
+        reseller_id: passwordForm.reseller_id || selected?.subscriber?.reseller_id || selected?.reseller?.id,
+      })
+      toast.success("NetTV password updated")
+      setPasswordOpen(false)
+      setPasswordForm({ password: "", conf_password: "", reseller_id: "" })
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update NetTV password")
+    } finally {
+      setPasswordSaving(false)
+    }
+  }
+
+  const addSubscriberStb = async () => {
+    const username = selectedUsername()
+    if (!username || !subscriberStbForm.serial) {
+      toast.error("STB serial is required")
+      return
+    }
+    setSubscriberStbSaving(true)
+    try {
+      const payload = Object.fromEntries(Object.entries({ username, ...subscriberStbForm }).filter(([_, value]) => value !== ""))
+      await ServicesAPI.addNetTVSubscriberSTB(username, payload)
+      toast.success("STB linked to subscriber")
+      setSubscriberStbOpen(false)
+      setSubscriberStbForm({ serial: "", package_id: "", status: "1", balance: "", expiry_date: "", extended_date: "" })
+      await refreshSelectedSubscriber()
+    } catch (error: any) {
+      toast.error(error.message || "Failed to link STB")
+    } finally {
+      setSubscriberStbSaving(false)
+    }
+  }
+
+  const removeSubscriberStb = async () => {
+    const username = selectedUsername()
+    if (!username || !selectedStbSerial) return
+    setRemoveStbSaving(true)
+    try {
+      await ServicesAPI.removeNetTVSubscriberSTB(username, selectedStbSerial, removeStbForm)
+      toast.success("STB removed from subscriber")
+      setRemoveStbOpen(false)
+      await refreshSelectedSubscriber()
+    } catch (error: any) {
+      toast.error(error.message || "Failed to remove STB")
+    } finally {
+      setRemoveStbSaving(false)
+    }
+  }
+
+  const replaceSubscriberStb = async () => {
+    const username = selectedUsername()
+    if (!username || !selectedStbSerial || !replaceStbForm.serial) {
+      toast.error("Current and replacement STB serials are required")
+      return
+    }
+    setReplaceStbSaving(true)
+    try {
+      await ServicesAPI.replaceNetTVSubscriberSTB(username, selectedStbSerial, {
+        serial: replaceStbForm.serial,
+        reason_id: replaceStbForm.reason_id,
+        detail: replaceStbForm.detail,
+      })
+      toast.success("Subscriber STB replaced")
+      setReplaceStbOpen(false)
+      await refreshSelectedSubscriber()
+    } catch (error: any) {
+      toast.error(error.message || "Failed to replace STB")
+    } finally {
+      setReplaceStbSaving(false)
+    }
+  }
+
+  const cancelSelectedPackage = async () => {
+    if (!selectedStbSerial || !cancelPackageForm.order_id) {
+      toast.error("Order ID is required")
+      return
+    }
+    setCancelPackageSaving(true)
+    try {
+      await ServicesAPI.cancelNetTVPackage(selectedStbSerial, {
+        order_id: Number(cancelPackageForm.order_id),
+        notes: cancelPackageForm.notes,
+        cancel_by: cancelPackageForm.cancel_by || selected?.subscriber?.reseller?.username || "admin",
+      })
+      toast.success("Package order cancelled")
+      setCancelPackageOpen(false)
+      await refreshSelectedSubscriber()
+    } catch (error: any) {
+      toast.error(error.message || "Failed to cancel package")
+    } finally {
+      setCancelPackageSaving(false)
+    }
+  }
+
   const selectedStb = (selected?.stbs || []).find((stb: any) => stb.serial === selectedStbSerial) || selected?.stbs?.[0] || null
   const packageConfigs = useMemo(() => {
     if (!selectedStb) return []
@@ -408,9 +618,20 @@ export function NettvDashboard() {
           </Button>
           <h1 className="text-2xl font-bold">NetTV Subscriber Details</h1>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setRawDetailsOpen(true)}>
-            <Info className="mr-2 h-4 w-4" /> API Details
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={openEditDialog}>
+              <Save className="mr-2 h-4 w-4" /> Edit
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setPasswordOpen(true)}>
+              <KeyRound className="mr-2 h-4 w-4" /> Password
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setRawDetailsOpen(true)}>
+              <Info className="mr-2 h-4 w-4" /> API Details
+            </Button>
+            <Button variant="destructive" size="sm" onClick={deleteSubscriber}>
+              <Trash2 className="mr-2 h-4 w-4" /> Delete
+            </Button>
+          </div>
         </div>
 
         <Dialog open={rawDetailsOpen} onOpenChange={setRawDetailsOpen}>
@@ -422,6 +643,151 @@ export function NettvDashboard() {
             <pre className="max-h-[65vh] overflow-auto rounded-md bg-slate-950 p-4 text-xs text-slate-50">
               {JSON.stringify(selected, null, 2)}
             </pre>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={editOpen} onOpenChange={(open) => { if (!savingEdit) setEditOpen(open) }}>
+          <DialogContent className="max-h-[90vh] w-[95vw] overflow-y-auto sm:max-w-5xl">
+            <DialogHeader>
+              <DialogTitle>Edit NetTV Subscriber</DialogTitle>
+              <DialogDescription>Updates the subscriber through the NetTV PATCH subscriber API.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 md:grid-cols-3">
+              {[
+                ["username", "Username"], ["email", "Email"], ["status", "Status"],
+                ["fname", "First Name"], ["mname", "Middle Name"], ["lname", "Last Name"],
+                ["phone_no", "Phone"], ["mobile_no", "Mobile"], ["pan", "PAN"],
+                ["address", "Address"], ["city", "City"], ["district", "District"],
+                ["province", "Province ID"], ["country", "Country ID"], ["branch", "Branch"],
+                ["website", "Website"], ["longitude", "Longitude"], ["latitude", "Latitude"],
+                ["gender", "Gender"], ["dob", "DOB"],
+              ].map(([field, label]) => (
+                <FormField key={field} label={label} value={editForm[field] || ""} onChange={(value) => updateEditField(field, value)} />
+              ))}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditOpen(false)} disabled={savingEdit}>Cancel</Button>
+              <Button onClick={saveSubscriberEdit} disabled={savingEdit}>
+                {savingEdit && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={passwordOpen} onOpenChange={(open) => { if (!passwordSaving) setPasswordOpen(open) }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Force Password Change</DialogTitle>
+              <DialogDescription>Sets a new NetTV password for this subscriber.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4">
+              <FormField label="Password" type="password" value={passwordForm.password} onChange={(value) => setPasswordForm((current) => ({ ...current, password: value }))} />
+              <FormField label="Confirm Password" type="password" value={passwordForm.conf_password} onChange={(value) => setPasswordForm((current) => ({ ...current, conf_password: value }))} />
+              <FormField label="Reseller ID" value={passwordForm.reseller_id} onChange={(value) => setPasswordForm((current) => ({ ...current, reseller_id: value }))} />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPasswordOpen(false)} disabled={passwordSaving}>Cancel</Button>
+              <Button onClick={forcePassword} disabled={passwordSaving}>
+                {passwordSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Update Password
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={subscriberStbOpen} onOpenChange={(open) => { if (!subscriberStbSaving) setSubscriberStbOpen(open) }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add Subscriber STB</DialogTitle>
+              <DialogDescription>Links an existing NetTV STB serial to this subscriber.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormField label="Serial" value={subscriberStbForm.serial} onChange={(value) => setSubscriberStbForm((current) => ({ ...current, serial: value }))} />
+              <FormField label="Package ID" value={subscriberStbForm.package_id} onChange={(value) => setSubscriberStbForm((current) => ({ ...current, package_id: value }))} />
+              <FormField label="Status" value={subscriberStbForm.status} onChange={(value) => setSubscriberStbForm((current) => ({ ...current, status: value }))} />
+              <FormField label="Balance" value={subscriberStbForm.balance} onChange={(value) => setSubscriberStbForm((current) => ({ ...current, balance: value }))} />
+              <FormField label="Expiry Date" type="date" value={subscriberStbForm.expiry_date} onChange={(value) => setSubscriberStbForm((current) => ({ ...current, expiry_date: value }))} />
+              <FormField label="Extended Date" type="date" value={subscriberStbForm.extended_date} onChange={(value) => setSubscriberStbForm((current) => ({ ...current, extended_date: value }))} />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSubscriberStbOpen(false)} disabled={subscriberStbSaving}>Cancel</Button>
+              <Button onClick={addSubscriberStb} disabled={subscriberStbSaving}>
+                {subscriberStbSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Link STB
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={removeStbOpen} onOpenChange={(open) => { if (!removeStbSaving) setRemoveStbOpen(open) }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Remove Subscriber STB</DialogTitle>
+              <DialogDescription>Removes {selectedStbSerial || "the selected STB"} from this subscriber.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4">
+              <FormField label="Reason ID" value={removeStbForm.reason_id} onChange={(value) => setRemoveStbForm((current) => ({ ...current, reason_id: value }))} />
+              <div className="space-y-1.5">
+                <Label>Detail</Label>
+                <Textarea value={removeStbForm.detail} onChange={(event) => setRemoveStbForm((current) => ({ ...current, detail: event.target.value }))} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setRemoveStbOpen(false)} disabled={removeStbSaving}>Cancel</Button>
+              <Button variant="destructive" onClick={removeSubscriberStb} disabled={removeStbSaving}>
+                {removeStbSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Remove STB
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={replaceStbOpen} onOpenChange={(open) => { if (!replaceStbSaving) setReplaceStbOpen(open) }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Replace Subscriber STB</DialogTitle>
+              <DialogDescription>Replaces {selectedStbSerial || "the selected STB"} with another STB serial.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4">
+              <FormField label="New Serial" value={replaceStbForm.serial} onChange={(value) => setReplaceStbForm((current) => ({ ...current, serial: value }))} />
+              <FormField label="Reason ID" value={replaceStbForm.reason_id} onChange={(value) => setReplaceStbForm((current) => ({ ...current, reason_id: value }))} />
+              <div className="space-y-1.5">
+                <Label>Detail</Label>
+                <Textarea value={replaceStbForm.detail} onChange={(event) => setReplaceStbForm((current) => ({ ...current, detail: event.target.value }))} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setReplaceStbOpen(false)} disabled={replaceStbSaving}>Cancel</Button>
+              <Button onClick={replaceSubscriberStb} disabled={replaceStbSaving}>
+                {replaceStbSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Replace STB
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={cancelPackageOpen} onOpenChange={(open) => { if (!cancelPackageSaving) setCancelPackageOpen(open) }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Cancel Package Order</DialogTitle>
+              <DialogDescription>Cancels a NetTV subscription order on the selected STB.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4">
+              <FormField label="Order ID" value={cancelPackageForm.order_id} onChange={(value) => setCancelPackageForm((current) => ({ ...current, order_id: value }))} />
+              <FormField label="Cancelled By" value={cancelPackageForm.cancel_by} onChange={(value) => setCancelPackageForm((current) => ({ ...current, cancel_by: value }))} />
+              <div className="space-y-1.5">
+                <Label>Notes</Label>
+                <Textarea value={cancelPackageForm.notes} onChange={(event) => setCancelPackageForm((current) => ({ ...current, notes: event.target.value }))} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCancelPackageOpen(false)} disabled={cancelPackageSaving}>Cancel</Button>
+              <Button variant="destructive" onClick={cancelSelectedPackage} disabled={cancelPackageSaving}>
+                {cancelPackageSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Cancel Order
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 
@@ -525,7 +891,20 @@ export function NettvDashboard() {
 
             {/* STB Devices management section */}
             <div className="rounded-lg border bg-card p-6 shadow-sm space-y-4">
-              <h2 className="text-lg font-bold border-b pb-2">Set-Top Box (STB) & Service Provisioning</h2>
+              <div className="flex flex-col gap-3 border-b pb-3 md:flex-row md:items-center md:justify-between">
+                <h2 className="text-lg font-bold">Set-Top Box (STB) & Service Provisioning</h2>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setSubscriberStbOpen(true)}>
+                    <Plus className="mr-2 h-4 w-4" /> Link STB
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setReplaceStbOpen(true)} disabled={!selectedStbSerial}>
+                    <Repeat className="mr-2 h-4 w-4" /> Replace
+                  </Button>
+                  <Button type="button" variant="destructive" size="sm" onClick={() => setRemoveStbOpen(true)} disabled={!selectedStbSerial}>
+                    <Trash2 className="mr-2 h-4 w-4" /> Remove
+                  </Button>
+                </div>
+              </div>
               
               <div className="flex flex-col gap-3 md:flex-row md:items-end">
                 <div className="flex-1 space-y-1.5">
@@ -600,6 +979,9 @@ export function NettvDashboard() {
                       {assigningPackage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       Assign Selected Package
                     </Button>
+                    <Button type="button" variant="outline" onClick={() => setCancelPackageOpen(true)} disabled={!selectedStbSerial}>
+                      <Wrench className="mr-2 h-4 w-4" /> Cancel Order
+                    </Button>
                   </div>
 
                   <div className="grid gap-6 lg:grid-cols-2">
@@ -646,6 +1028,31 @@ export function NettvDashboard() {
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground py-4 border rounded-lg text-center bg-muted/10 border-dashed">No set-top box linked/selected. Pick a device from the list above to assign packages or view STB subscriptions.</p>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-lg font-bold">Complete NetTV Details</h2>
+                <p className="text-sm text-muted-foreground">All non-empty fields returned by the NetTV APIs, grouped for scanning.</p>
+              </div>
+              <div className="grid gap-4 xl:grid-cols-2">
+                <DetailsBlock title="Subscriber Account Details" data={subscriber} />
+                <DetailsBlock title="Subscriber Contact Details" data={contact} />
+                <DetailsBlock title="Reseller Details" data={subscriber?.reseller || {}} />
+                <DetailsBlock title="Payment Methods" data={reseller?.payment_methods || {}} />
+                <DetailsBlock title="Credit Balance" data={reseller?.credit_balance || {}} />
+                <DetailsBlock title="Selected STB Full Details" data={selectedStb || {}} />
+              </div>
+              {(selected?.stbs || []).length > 0 && (
+                <div className="rounded-lg border bg-card p-4 shadow-sm">
+                  <div className="mb-3 text-sm font-semibold">All Linked STBs</div>
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    {(selected?.stbs || []).map((stb: any, index: number) => (
+                      <DetailsBlock key={`${stb?.serial || stb?.id || index}-${index}`} title={stb?.serial || `STB ${index + 1}`} data={stb} />
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           </div>

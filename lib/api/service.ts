@@ -275,6 +275,34 @@ export const ServicesAPI = {
         });
     },
 
+    async updateNetTVSubscriber(username: string, subscriberData: any) {
+        return apiRequest<{ success: boolean; data: any }>(
+            `/services/nettv/subscribers/${encodeURIComponent(username)}`,
+            { method: 'PATCH', body: JSON.stringify(subscriberData) }
+        );
+    },
+
+    async deleteNetTVSubscriber(username: string) {
+        return apiRequest<{ success: boolean; data: any }>(
+            `/services/nettv/subscribers/${encodeURIComponent(username)}`,
+            { method: 'DELETE' }
+        );
+    },
+
+    async forceNetTVPassword(username: string, payload: any) {
+        return apiRequest<{ success: boolean; data: any }>(
+            `/services/nettv/subscribers/${encodeURIComponent(username)}/pwd`,
+            { method: 'PATCH', body: JSON.stringify(payload) }
+        );
+    },
+
+    async requestNetTVPasswordReset(payload: any) {
+        return apiRequest<{ success: boolean; data: any }>('/services/nettv/subscribers/pwd/reset', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+    },
+
     async getNetTVPackages(page = 1, perPage = 20) {
         const params = new URLSearchParams({
             page: page.toString(),
@@ -298,6 +326,51 @@ export const ServicesAPI = {
         );
     },
 
+    async getNetTVModels(page = 1, perPage = 100) {
+        const params = new URLSearchParams({ page: page.toString(), perPage: perPage.toString() });
+        return apiRequest<{ success: boolean; data: any }>(`/services/nettv/models?${params.toString()}`);
+    },
+
+    async getNetTVVendors(page = 1, perPage = 100) {
+        const params = new URLSearchParams({ page: page.toString(), perPage: perPage.toString() });
+        return apiRequest<{ success: boolean; data: any }>(`/services/nettv/vendors?${params.toString()}`);
+    },
+
+    async createNetTVSTB(payload: any) {
+        return apiRequest<{ success: boolean; data: any }>('/services/nettv/stbs', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+    },
+
+    async updateNetTVSTB(serial: string, payload: any) {
+        return apiRequest<{ success: boolean; data: any }>(
+            `/services/nettv/stbs/${encodeURIComponent(serial)}`,
+            { method: 'PATCH', body: JSON.stringify(payload) }
+        );
+    },
+
+    async addNetTVSubscriberSTB(username: string, payload: any) {
+        return apiRequest<{ success: boolean; data: any }>(
+            `/services/nettv/subscribers/${encodeURIComponent(username)}/stbs`,
+            { method: 'POST', body: JSON.stringify(payload) }
+        );
+    },
+
+    async removeNetTVSubscriberSTB(username: string, serial: string, payload: any) {
+        return apiRequest<{ success: boolean; data: any }>(
+            `/services/nettv/subscribers/${encodeURIComponent(username)}/stbs/${encodeURIComponent(serial)}`,
+            { method: 'DELETE', body: JSON.stringify(payload) }
+        );
+    },
+
+    async replaceNetTVSubscriberSTB(username: string, serial: string, payload: any) {
+        return apiRequest<{ success: boolean; data: any }>(
+            `/services/nettv/subscribers/${encodeURIComponent(username)}/replace/stb/${encodeURIComponent(serial)}`,
+            { method: 'POST', body: JSON.stringify(payload) }
+        );
+    },
+
     async subscribeNetTVPackages(serial: string, payload: {
         pos: string;
         created_by: string;
@@ -308,6 +381,13 @@ export const ServicesAPI = {
         return apiRequest<{ success: boolean; data: any }>(
             `/services/nettv/stbs/${encodeURIComponent(serial)}/packages`,
             { method: 'POST', body: JSON.stringify(payload) }
+        );
+    },
+
+    async cancelNetTVPackage(serial: string, payload: any) {
+        return apiRequest<{ success: boolean; data: any }>(
+            `/services/nettv/stbs/${encodeURIComponent(serial)}/packages`,
+            { method: 'PATCH', body: JSON.stringify(payload) }
         );
     },
 
