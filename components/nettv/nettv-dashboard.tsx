@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Eye, Loader2, Package, Plus, RefreshCw, Search, Tv, UserCheck, Users, ArrowLeft } from "lucide-react"
+import dynamic from "next/dynamic"
+import { Eye, Loader2, Package, Plus, RefreshCw, Search, Tv, UserCheck, Users, ArrowLeft, MapPin, Info } from "lucide-react"
 import { ServicesAPI } from "@/lib/api/service"
 import { NetTVDialog } from "@/components/customers/add-customer-form"
 import { CardContainer } from "@/components/ui/card-container"
@@ -13,6 +14,12 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "react-hot-toast"
+import "leaflet/dist/leaflet.css"
+
+const MapContainer = dynamic(() => import("react-leaflet").then(mod => mod.MapContainer), { ssr: false })
+const TileLayer = dynamic(() => import("react-leaflet").then(mod => mod.TileLayer), { ssr: false })
+const Marker = dynamic(() => import("react-leaflet").then(mod => mod.Marker), { ssr: false })
+const Popup = dynamic(() => import("react-leaflet").then(mod => mod.Popup), { ssr: false })
 
 const unwrapList = (payload: any): any[] => {
   if (Array.isArray(payload)) return payload
@@ -37,6 +44,17 @@ const valueOf = (item: any, keys: string[], fallback = "N/A") => {
     if (value !== undefined && value !== null && value !== "") return String(value)
   }
   return fallback
+}
+
+const numberOf = (value: any) => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+const formatBoolean = (value: any) => {
+  if (value === true || value === 1 || value === "1") return "Yes"
+  if (value === false || value === 0 || value === "0") return "No"
+  return "N/A"
 }
 
 const fullName = (item: any) => {
@@ -124,6 +142,68 @@ function DetailsBlock({ title, data }: { title: string; data: any }) {
   )
 }
 
+function DetailGrid({ title, items }: { title: string; items: Array<{ label: string; value: any }> }) {
+  const visibleItems = items.filter(item => item.value !== undefined && item.value !== null && item.value !== "")
+  if (!visibleItems.length) return null
+  return (
+    <div className="rounded-lg border bg-card p-4 shadow-sm">
+      <div className="mb-3 text-sm font-semibold">{title}</div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {visibleItems.map(item => (
+          <div key={item.label} className="min-w-0 rounded-md bg-muted/30 px-3 py-2">
+            <div className="text-[10px] font-semibold uppercase text-muted-foreground">{item.label}</div>
+            <div className="mt-1 break-words text-sm font-medium">{String(item.value)}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function NettvLocationMap({ lat, lng, label }: { lat: number; lng: number; label: string }) {
+  const [icon, setIcon] = useState<any>(null)
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const L = require("leaflet")
+    delete (L.Icon.Default.prototype as any)._getIconUrl
+    L.Icon.Default.mergeOptions({
+      iconRetinaUrl: "/leaflet/images/marker-icon-2x.png",
+      iconUrl: "/leaflet/images/marker-icon.png",
+      shadowUrl: "/leaflet/images/marker-shadow.png",
+    })
+    setIcon(new L.Icon({
+      iconUrl: "/leaflet/images/marker-icon.png",
+      iconRetinaUrl: "/leaflet/images/marker-icon-2x.png",
+      shadowUrl: "/leaflet/images/marker-shadow.png",
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41],
+    }))
+  }, [])
+
+  if (!icon) return <div className="flex h-[320px] items-center justify-center rounded-lg border bg-muted/30 text-sm text-muted-foreground">Loading map...</div>
+
+  return (
+    <div className="overflow-hidden rounded-lg border">
+      <MapContainer center={[lat, lng]} zoom={15} scrollWheelZoom={false} className="h-[320px] w-full z-0">
+        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="" />
+        <Marker position={[lat, lng]} icon={icon}>
+          <Popup>
+            <div className="text-sm">
+              <div className="font-semibold">{label}</div>
+              <div>Lat: {lat.toFixed(6)}</div>
+              <div>Lng: {lng.toFixed(6)}</div>
+            </div>
+          </Popup>
+        </Marker>
+      </MapContainer>
+      <style jsx>{`:global(.leaflet-control-attribution) { display: none !important; }`}</style>
+    </div>
+  )
+}
+
 export function NettvDashboard() {
   const [subscribers, setSubscribers] = useState<any[]>([])
   const [packages, setPackages] = useState<any[]>([])
@@ -157,6 +237,7 @@ export function NettvDashboard() {
   const [stbLoading, setStbLoading] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [creatingSubscriber, setCreatingSubscriber] = useState(false)
+  const [rawDetailsOpen, setRawDetailsOpen] = useState(false)
 
   const fetchAllNetTVPages = async (fetcher: (page: number, perPage: number) => Promise<{ data: any }>) => {
     const perPage = 100
@@ -309,14 +390,40 @@ export function NettvDashboard() {
   }
 
   if (selected) {
+    const subscriber = selected?.subscriber || selected
+    const contact = subscriber?.details || selected?.details || {}
+    const reseller = selected?.reseller || subscriber?.reseller || {}
+    const countryName = contact?.country_info?.name || contact?.country_name || valueOf(contact, ["country"], "")
+    const provinceName = contact?.province_info?.name || contact?.province_name || valueOf(contact, ["province"], "")
+    const latitude = numberOf(contact?.latitude)
+    const longitude = numberOf(contact?.longitude)
+    const subscriberLabel = fullName(subscriber)
+
     return (
       <div className="space-y-6 animate-in fade-in duration-300">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-3">
           <Button variant="outline" size="sm" onClick={() => setSelected(null)}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Subscribers
           </Button>
           <h1 className="text-2xl font-bold">NetTV Subscriber Details</h1>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setRawDetailsOpen(true)}>
+            <Info className="mr-2 h-4 w-4" /> API Details
+          </Button>
         </div>
+
+        <Dialog open={rawDetailsOpen} onOpenChange={setRawDetailsOpen}>
+          <DialogContent className="max-h-[85vh] w-[95vw] sm:max-w-4xl overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>NetTV API Details</DialogTitle>
+              <DialogDescription>Full subscriber payload returned by NetTV.</DialogDescription>
+            </DialogHeader>
+            <pre className="max-h-[65vh] overflow-auto rounded-md bg-slate-950 p-4 text-xs text-slate-50">
+              {JSON.stringify(selected, null, 2)}
+            </pre>
+          </DialogContent>
+        </Dialog>
 
         {detailsLoading ? (
           <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
@@ -328,29 +435,92 @@ export function NettvDashboard() {
             <div className="grid gap-4 md:grid-cols-3">
               <CardContainer title="Subscriber Account" gradientColor="#10b981">
                 <div className="py-1">
-                  <div className="text-xl font-bold">{fullName(selected?.subscriber)}</div>
-                  <div className="font-mono text-sm text-muted-foreground">{selected?.subscriber?.username || valueOf(selected?.subscriber || selected, ["username", "user_name", "customer_username"])}</div>
+                  <div className="text-xl font-bold">{subscriberLabel}</div>
+                  <div className="font-mono text-sm text-muted-foreground">{subscriber?.username || valueOf(subscriber, ["user_name", "customer_username"])}</div>
                 </div>
               </CardContainer>
               <CardContainer title="Contact Information" gradientColor="#3b82f6">
                 <div className="py-1">
-                  <div className="text-base font-semibold">{selected?.subscriber?.details?.mobile_no || selected?.subscriber?.details?.phone_no || "N/A"}</div>
-                  <div className="text-sm text-muted-foreground">{selected?.subscriber?.email || "N/A"}</div>
+                  <div className="text-base font-semibold">{contact?.mobile_no || contact?.phone_no || "N/A"}</div>
+                  <div className="text-sm text-muted-foreground">{subscriber?.email || "N/A"}</div>
                 </div>
               </CardContainer>
               <CardContainer title="Reseller Balance" gradientColor="#f59e0b">
                 <div className="py-1">
-                  <div className="text-2xl font-bold">NPR {selected?.reseller?.credit_balance?.credit_balance ?? selected?.subscriber?.balance ?? 0}</div>
-                  <div className="text-xs text-muted-foreground">Reseller ID: #{selected?.reseller?.id || "N/A"}</div>
+                  <div className="text-2xl font-bold">NPR {reseller?.credit_balance?.credit_balance ?? subscriber?.balance ?? 0}</div>
+                  <div className="text-xs text-muted-foreground">Reseller ID: #{reseller?.id || "N/A"}</div>
                 </div>
               </CardContainer>
             </div>
 
-            {/* Structured details blocks */}
-            <div className="grid gap-6 lg:grid-cols-2">
-              <DetailsBlock title="Subscriber Account Details" data={selected?.subscriber} />
-              <DetailsBlock title="Subscriber Contact & Address" data={selected?.subscriber?.details} />
-              <DetailsBlock title="Reseller & Payment Info" data={selected?.reseller} />
+            <div className="grid gap-6 xl:grid-cols-2">
+              <DetailGrid
+                title="Subscriber Account"
+                items={[
+                  { label: "Username", value: subscriber?.username },
+                  { label: "Email", value: subscriber?.email },
+                  { label: "Status", value: subscriber?.status },
+                  { label: "ERP ID", value: subscriber?.erp_id },
+                  { label: "Registration Type", value: subscriber?.registration_type },
+                  { label: "Wallet Enabled", value: formatBoolean(subscriber?.is_wallet_enable) },
+                  { label: "Remote Enabled", value: formatBoolean(subscriber?.is_remote_enable) },
+                  { label: "STBs", value: subscriber?.user_stbs_count },
+                  { label: "Active STBs", value: subscriber?.active_user_stbs_count },
+                  { label: "Balance", value: subscriber?.balance },
+                  { label: "Created", value: subscriber?.created_at },
+                  { label: "Updated", value: subscriber?.updated_at },
+                ]}
+              />
+              <DetailGrid
+                title="Subscriber Contact & Address"
+                items={[
+                  { label: "Display Name", value: contact?.display_name || subscriberLabel },
+                  { label: "First Name", value: contact?.fname },
+                  { label: "Middle Name", value: contact?.mname },
+                  { label: "Last Name", value: contact?.lname },
+                  { label: "Phone", value: contact?.phone_no },
+                  { label: "Mobile", value: contact?.mobile_no },
+                  { label: "Address", value: contact?.address },
+                  { label: "City", value: contact?.city },
+                  { label: "District", value: contact?.district },
+                  { label: "Province", value: provinceName },
+                  { label: "Country", value: countryName },
+                  { label: "PAN", value: contact?.pan },
+                  { label: "Branch", value: contact?.branch },
+                  { label: "Website", value: contact?.website },
+                ]}
+              />
+              <DetailGrid
+                title="Reseller"
+                items={[
+                  { label: "Name", value: reseller?.name },
+                  { label: "Username", value: reseller?.username },
+                  { label: "Profile", value: reseller?.profile },
+                  { label: "Status", value: reseller?.status },
+                  { label: "KYC Status", value: reseller?.kyc_status },
+                  { label: "ERP Code", value: reseller?.erp_cust_code },
+                  { label: "Mobile", value: reseller?.details?.mobile_no || reseller?.mobile_no },
+                  { label: "Email", value: reseller?.details?.email || reseller?.email },
+                  { label: "Expiry Date", value: reseller?.expiry_date },
+                  { label: "Credit Balance", value: reseller?.credit_balance?.credit_balance },
+                ]}
+              />
+              <div className="rounded-lg border bg-card p-4 shadow-sm">
+                <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                  <MapPin className="h-4 w-4" /> Subscriber Location
+                </div>
+                {latitude !== null && longitude !== null ? (
+                  <div className="space-y-3">
+                    <NettvLocationMap lat={latitude} lng={longitude} label={subscriberLabel} />
+                    <div className="grid gap-2 text-sm sm:grid-cols-2">
+                      <div className="rounded-md bg-muted/30 px-3 py-2"><span className="text-muted-foreground">Latitude</span><div className="font-mono">{latitude.toFixed(6)}</div></div>
+                      <div className="rounded-md bg-muted/30 px-3 py-2"><span className="text-muted-foreground">Longitude</span><div className="font-mono">{longitude.toFixed(6)}</div></div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex h-[320px] items-center justify-center rounded-lg border border-dashed bg-muted/20 text-sm text-muted-foreground">No coordinates available for this subscriber.</div>
+                )}
+              </div>
             </div>
 
             {/* STB Devices management section */}

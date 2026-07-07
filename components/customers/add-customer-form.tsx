@@ -293,6 +293,11 @@ const formatDistance = (distance: any): string => {
   }
 }
 
+const buildNettvCredential = (value?: string | null) => {
+  const cleaned = String(value || "").trim().replace(/^_?nettv/i, "").replace(/_nettv$/i, "")
+  return cleaned ? `${cleaned}_nettv` : ""
+}
+
 // ==================== Type Definitions ====================
 interface Package {
   id: number
@@ -1461,6 +1466,7 @@ export function AddCustomerForm() {
   const [selectedAddonServices, setSelectedAddonServices] = useState<Set<string>>(new Set()) // "TSHUL", "RADIUS", "NETTV"
   const [nasOptions, setNasOptions] = useState<any[]>([])
   const [selectedNasId, setSelectedNasId] = useState("")
+  const [accountBillingDialogOpen, setAccountBillingDialogOpen] = useState(false)
   const [nettvDialogOpen, setNettvDialogOpen] = useState(false)
   const [nettvData, setNettvData] = useState<any>(null)
 
@@ -2349,8 +2355,26 @@ export function AddCustomerForm() {
   // Helper to get Radius group by package ID. Radius groups are keyed by plan code.
   const getRadiusGroupByPackageId = useCallback((pkgId: string): string => {
     const pkg = packages.find(p => p.id.toString() === pkgId)
-    return pkg ? (pkg.packagePlanDetails?.planCode || pkg.referenceId || pkg.packageName) : `pkg_${pkgId}`
+    return pkg ? (pkg.packagePlanDetails?.planCode || pkg.packageName) : `pkg_${pkgId}`
   }, [packages])
+
+  const addAccountBillingService = useCallback(() => {
+    if (!formValues.idNumber.trim()) {
+      toast.error("ID number is required for account billing.")
+      return false
+    }
+    if (!formValues.panNumber || !/^\d{9}$/.test(formValues.panNumber)) {
+      toast.error("A valid 9-digit PAN number is required for account billing.")
+      return false
+    }
+    setSelectedAddonServices((current) => {
+      const next = new Set(current)
+      next.add("TSHUL")
+      return next
+    })
+    setAccountBillingDialogOpen(false)
+    return true
+  }, [formValues.idNumber, formValues.panNumber])
 
   // Validation
   const validateForm = useCallback(() => {
@@ -2510,7 +2534,7 @@ export function AddCustomerForm() {
         if (response.customerLogin) {
           toast.success(`Customer login: ${response.customerLogin.username} / ${response.customerLogin.password}`)
         }
-        toast.success("Customer created successfully in draft status!")
+        toast.success(response.customer?.status === "active" ? "Customer is active. Add-on services can be provisioned now." : "Customer created successfully in draft status!")
       } else {
         throw new Error(response.error || "Failed to create customer")
       }
@@ -2545,6 +2569,7 @@ export function AddCustomerForm() {
       if (selectedAddonServices.has("TSHUL")) {
         // Validate PAN
         if (!formValues.panNumber || !/^\d{9}$/.test(formValues.panNumber)) {
+          setAccountBillingDialogOpen(true)
           toast.error("Account billing requires a valid 9-digit PAN number.")
           setIsProvisioning(false)
           return
@@ -2606,6 +2631,7 @@ export function AddCustomerForm() {
           data: {
             username,
             password,
+            planCode: radiusGroupName,
             attributes: {
               Expiration: expiryDate,
               ...(selectedNas?.nasname ? { "NAS-IP-Address": selectedNas.nasname } : {}),
@@ -2954,6 +2980,44 @@ export function AddCustomerForm() {
         onSave={handleDeviceSave}
       />
 
+      <Dialog open={accountBillingDialogOpen} onOpenChange={setAccountBillingDialogOpen}>
+        <DialogContent className="w-[95vw] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Account Billing Details</DialogTitle>
+            <DialogDescription>
+              Enter the billing identifiers required before activating Account Billing.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="billingIdNumber">ID Number *</Label>
+              <Input
+                id="billingIdNumber"
+                value={formValues.idNumber}
+                onChange={(event) => setFormValues((prev) => ({ ...prev, idNumber: event.target.value }))}
+                placeholder="Citizenship, passport, or customer ID"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="billingPanNumber">PAN Number *</Label>
+              <Input
+                id="billingPanNumber"
+                inputMode="numeric"
+                maxLength={9}
+                value={formValues.panNumber}
+                onChange={(event) => setFormValues((prev) => ({ ...prev, panNumber: event.target.value.replace(/\D/g, "").slice(0, 9) }))}
+                placeholder="9-digit PAN number"
+              />
+              <p className="text-xs text-muted-foreground">A valid 9-digit PAN number is required for account billing.</p>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => setAccountBillingDialogOpen(false)}>Cancel</Button>
+            <Button type="button" onClick={addAccountBillingService}>Use for Billing</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* NETTV Dialog (only shown after customer creation) */}
       {showProvisionSection && createdCustomer && (
         <NetTVDialog
@@ -2965,11 +3029,11 @@ export function AddCustomerForm() {
           defaultEmail={formValues.email}
           defaultUsername={(() => {
             const cred = wirelessCredentials.find(c => c.username && c.password)
-            return cred ? `_nettv${cred.username}` : (createdCustomer.customerUniqueId ? `_nettv${createdCustomer.customerUniqueId}` : "")
+            return buildNettvCredential(cred?.username || createdCustomer.customerUniqueId)
           })()}
           defaultPassword={(() => {
             const cred = wirelessCredentials.find(c => c.username && c.password)
-            return cred ? `_nettv${cred.password}` : ""
+            return buildNettvCredential(cred?.password)
           })()}
           defaultAddress={formValues.streetAddress}
           defaultCity={formValues.district}
@@ -3061,10 +3125,9 @@ export function AddCustomerForm() {
           <CardContent className="space-y-4 pt-6">
             <Alert>
               <AlertDescription>
-                Customer <strong>{createdCustomer.name}</strong> has been created in draft status.
                 {createdCustomer.status === "draft"
-                  ? " You can now provision services to activate the customer."
-                  : " Customer is already active."}
+                  ? <>Customer <strong>{createdCustomer.name}</strong> has been created in draft status. You can now provision services to activate the customer.</>
+                  : <>Customer <strong>{createdCustomer.name}</strong> is active. You can provision any missing add-on services below.</>}
               </AlertDescription>
             </Alert>
 
@@ -3103,10 +3166,12 @@ export function AddCustomerForm() {
                     checked={selectedAddonServices.has("TSHUL")}
                     onCheckedChange={(checked) => {
                       if (checked && !formValues.idNumber.trim()) {
+                        setAccountBillingDialogOpen(true)
                         toast.error("ID number is required for account billing.")
                         return
                       }
                       if (checked && (!formValues.panNumber || !/^\d{9}$/.test(formValues.panNumber))) {
+                        setAccountBillingDialogOpen(true)
                         toast.error("A valid 9-digit PAN number is required for account billing.")
                         return
                       }

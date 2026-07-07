@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 import { apiRequest } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { AlertTriangle, Loader2, UserCheck, Building2 } from "lucide-react"
+import { AlertTriangle, Loader2, UserCheck } from "lucide-react"
 import toast from "react-hot-toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
@@ -33,11 +33,8 @@ interface AssignDeviceDialogProps {
 }
 
 export function AssignDeviceDialog({ open, onOpenChange, item, onSuccess }: AssignDeviceDialogProps) {
-  const [assignType, setAssignType] = useState<"branch" | "user" | "customer">("branch")
-  const [branches, setBranches] = useState<any[]>([])
   const [users, setUsers] = useState<any[]>([])
-  const [customers, setCustomers] = useState<any[]>([])
-  const [selectedId, setSelectedId] = useState<string>("")
+  const [selectedId, setSelectedId] = useState("")
   const [note, setNote] = useState("")
   const [qtyToAssign, setQtyToAssign] = useState("1")
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -53,44 +50,30 @@ export function AssignDeviceDialog({ open, onOpenChange, item, onSuccess }: Assi
   useEffect(() => {
     if (!open) return
 
-    const loadData = async () => {
+    const loadUsers = async () => {
       setLoading(true)
       try {
-        const [branchData, userData] = await Promise.all([
-          apiRequest("/branches/my-access"),
-          apiRequest("/users"),
-        ])
-        setBranches(branchData || [])
-        setUsers(userData || [])
+        const userData = await apiRequest("/users")
+        setUsers(Array.isArray(userData) ? userData : [])
       } catch (err) {
-        console.error("Failed to load assignment data:", err)
+        console.error("Failed to load users for inventory assignment:", err)
       } finally {
         setLoading(false)
       }
     }
 
-    loadData()
+    loadUsers()
   }, [open])
 
-  // Load customers separately (can be large)
-  useEffect(() => {
-    if (!open || assignType !== "customer") return
-
-    const loadCustomers = async () => {
-      try {
-        const data = await apiRequest("/customer?limit=200")
-        setCustomers(data?.data || data || [])
-      } catch (err) {
-        console.error("Failed to load customers:", err)
-      }
-    }
-
-    loadCustomers()
-  }, [open, assignType])
+  const resetForm = () => {
+    setSelectedId("")
+    setNote("")
+    setQtyToAssign("1")
+  }
 
   const handleSubmit = async () => {
     if (!selectedId) {
-      toast.error("Please select an assignment target")
+      toast.error("Please select a user")
       return
     }
 
@@ -106,34 +89,20 @@ export function AssignDeviceDialog({ open, onOpenChange, item, onSuccess }: Assi
     }
 
     setIsSubmitting(true)
-    const loadingToast = toast.loading("Assigning device...")
+    const loadingToast = toast.loading("Assigning item...")
 
     try {
-      if (assignType === "branch") {
-        await apiRequest(`/inventory/${item.id}/transfer`, {
-          method: "PUT",
-          body: JSON.stringify({
-            toBranchId: Number(selectedId),
-            status: "ASSIGNED_TO_BRANCH",
-            note: note || `Transferred to branch`,
-            qty: parsedQty,
-          }),
-        })
-      } else {
-        await apiRequest(`/inventory/${item.id}/assign`, {
-          method: "PUT",
-          body: JSON.stringify({
-            ...(assignType === "customer"
-              ? { customerId: Number(selectedId) }
-              : { userId: Number(selectedId) }),
-            note: note || `Assigned to ${assignType}`,
-            qty: parsedQty,
-          }),
-        })
-      }
+      await apiRequest(`/inventory/${item.id}/assign`, {
+        method: "PUT",
+        body: JSON.stringify({
+          userId: Number(selectedId),
+          note: note || "Assigned to user",
+          qty: parsedQty,
+        }),
+      })
 
       toast.dismiss(loadingToast)
-      toast.success(`Device assigned successfully!`)
+      toast.success("Item assigned successfully")
       onSuccess()
       onOpenChange(false)
       resetForm()
@@ -145,21 +114,6 @@ export function AssignDeviceDialog({ open, onOpenChange, item, onSuccess }: Assi
     }
   }
 
-  const resetForm = () => {
-    setAssignType("branch")
-    setSelectedId("")
-    setNote("")
-    setQtyToAssign("1")
-  }
-
-  const getCustomerName = (c: any) => {
-    const lead = c.lead
-    if (lead) {
-      return `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || c.customerUniqueId || `#${c.id}`
-    }
-    return c.customerUniqueId || `#${c.id}`
-  }
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[480px]">
@@ -169,7 +123,7 @@ export function AssignDeviceDialog({ open, onOpenChange, item, onSuccess }: Assi
             Assign Item
           </DialogTitle>
           <DialogDescription>
-            Assign <span className="font-semibold text-foreground">{item?.name || item?.serialNumber || "item"}</span> to a branch, user, or customer.
+            Assign <span className="font-semibold text-foreground">{item?.name || item?.serialNumber || "item"}</span> to a staff user.
           </DialogDescription>
         </DialogHeader>
 
@@ -203,58 +157,17 @@ export function AssignDeviceDialog({ open, onOpenChange, item, onSuccess }: Assi
 
         <div className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label>Assign To</Label>
-            <Select value={assignType} onValueChange={(v: any) => { setAssignType(v); setSelectedId(""); }} disabled={isAssignedToCustomer}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="branch">
-                  <div className="flex items-center gap-2">
-                    <Building2 className="h-4 w-4" /> Branch
-                  </div>
-                </SelectItem>
-                <SelectItem value="user">
-                  <div className="flex items-center gap-2">
-                    <UserCheck className="h-4 w-4" /> Staff / User
-                  </div>
-                </SelectItem>
-                <SelectItem value="customer">
-                  <div className="flex items-center gap-2">
-                    <UserCheck className="h-4 w-4" /> Customer
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label>
-              {assignType === "branch" ? "Select Branch" : assignType === "user" ? "Select User" : "Select Customer"}
-            </Label>
+            <Label>Select User</Label>
             <Select value={selectedId} onValueChange={setSelectedId} disabled={loading || isAssignedToCustomer}>
               <SelectTrigger>
-                <SelectValue placeholder={`Choose a ${assignType}...`} />
+                <SelectValue placeholder={loading ? "Loading users..." : "Choose a user..."} />
               </SelectTrigger>
               <SelectContent>
-                {assignType === "branch" &&
-                  branches.map((b: any) => (
-                    <SelectItem key={b.id} value={b.id.toString()}>
-                      {b.name} {b.code ? `(${b.code})` : ""}
-                    </SelectItem>
-                  ))}
-                {assignType === "user" &&
-                  users.map((u: any) => (
-                    <SelectItem key={u.id} value={u.id.toString()}>
-                      {u.name || u.email} {u.role?.name ? `— ${u.role.name}` : ""}
-                    </SelectItem>
-                  ))}
-                {assignType === "customer" &&
-                  customers.map((c: any) => (
-                    <SelectItem key={c.id} value={c.id.toString()}>
-                      {getCustomerName(c)} {c.customerUniqueId ? `(${c.customerUniqueId})` : ""}
-                    </SelectItem>
-                  ))}
+                {users.map((user: any) => (
+                  <SelectItem key={user.id} value={user.id.toString()}>
+                    {user.name || user.email} {user.role?.name ? `- ${user.role.name}` : ""}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -273,7 +186,7 @@ export function AssignDeviceDialog({ open, onOpenChange, item, onSuccess }: Assi
                 min="1"
                 max={item.availableQty}
                 value={qtyToAssign}
-                onChange={(e) => setQtyToAssign(e.target.value)}
+                onChange={(event) => setQtyToAssign(event.target.value)}
               />
             </div>
           )}
@@ -283,7 +196,7 @@ export function AssignDeviceDialog({ open, onOpenChange, item, onSuccess }: Assi
             <Textarea
               placeholder="Add a note about this assignment..."
               value={note}
-              onChange={(e) => setNote(e.target.value)}
+              onChange={(event) => setNote(event.target.value)}
               rows={2}
             />
           </div>

@@ -3133,8 +3133,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         defaultFname={customer.firstName || ""}
         defaultLname={customer.lastName || ""}
         defaultEmail={customer.email || ""}
-        defaultUsername={customer.connectionUsers?.[0]?.username ? `_nettv${customer.connectionUsers[0].username}` : (customer.customerUniqueId ? `_nettv${customer.customerUniqueId}` : "")}
-        defaultPassword={customer.connectionUsers?.[0]?.password ? `_nettv${customer.connectionUsers[0].password}` : ""}
+        defaultUsername={buildNettvCredential(customer.connectionUsers?.[0]?.username || customer.customerUniqueId)}
+        defaultPassword={buildNettvCredential(customer.connectionUsers?.[0]?.password)}
         defaultAddress={customer.street || customerProfileData.address || ""}
         defaultCity={customerProfileData.city || customer.district || ""}
         defaultDistrict={customer.district || customerProfileData.city || ""}
@@ -5307,4 +5307,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       </Tabs>
     </div>
   )
+}
+const buildNettvCredential = (value?: string | null) => {
+  const cleaned = String(value || "").trim().replace(/^_?nettv/i, "").replace(/_nettv$/i, "")
+  return cleaned ? `${cleaned}_nettv` : ""
 }
