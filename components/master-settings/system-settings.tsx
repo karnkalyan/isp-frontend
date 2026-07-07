@@ -120,6 +120,9 @@ export function SystemSettings() {
     customerIdIncludeNamePart: true,
     customerIdNamePartLength: 5,
     showLicenseTab: true,
+    leadBranchValidation: "optional",
+    autoGenerateRadius: "false",
+    autoGenerateCustomerLogin: "false",
     // NEW: global discount settings for members
     newMemberDiscount: {
       enabled: true,
@@ -254,6 +257,9 @@ export function SystemSettings() {
             customerIdIncludeNamePart: data.customerIdIncludeNamePart !== 'false',
             customerIdNamePartLength: parseInt(data.customerIdNamePartLength || '5'),
             showLicenseTab: data.showLicenseTab !== 'false',
+            leadBranchValidation: data.leadBranchValidation || prev.leadBranchValidation,
+            autoGenerateRadius: data.autoGenerateRadius || prev.autoGenerateRadius,
+            autoGenerateCustomerLogin: data.autoGenerateCustomerLogin || prev.autoGenerateCustomerLogin,
             newMemberDiscount: data.newMemberDiscount ? JSON.parse(data.newMemberDiscount) : prev.newMemberDiscount,
             renewalDiscount: data.renewalDiscount ? JSON.parse(data.renewalDiscount) : prev.renewalDiscount,
           }))
@@ -1237,6 +1243,52 @@ export function SystemSettings() {
                 value={settings.privacyPolicy}
                 onChange={(e) => updateSetting("privacyPolicy", e.target.value)}
                 placeholder="Enter privacy policy..."
+              />
+            </div>
+          </div>
+        </CardContainer>
+
+        <CardContainer title="Lead & Customer Settings" description="Configure branch validation rules and auto-generation of credentials during customer onboarding">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <Label className="text-base">Lead Branch Requirement</Label>
+                <p className="text-xs text-muted-foreground">Validation rules for branch selection during lead creation</p>
+              </div>
+              <Select
+                value={settings.leadBranchValidation || "optional"}
+                onValueChange={(value) => updateSetting("leadBranchValidation", value)}
+              >
+                <SelectTrigger className="w-64">
+                  <SelectValue placeholder="Select validation rule" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="optional">Not Required (Optional)</SelectItem>
+                  <SelectItem value="branch_only">Branch Compulsory</SelectItem>
+                  <SelectItem value="both">Branch &amp; Sub-Branch Compulsory</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <Label className="text-base">Auto-generate Radius Credentials</Label>
+                <p className="text-xs text-muted-foreground">Automatically create FreeRADIUS username &amp; password when adding a customer (Fiber / Infra Share)</p>
+              </div>
+              <Switch
+                checked={settings.autoGenerateRadius === "true"}
+                onCheckedChange={(checked) => updateSetting("autoGenerateRadius", checked.toString())}
+              />
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <Label className="text-base">Auto-generate Customer Login</Label>
+                <p className="text-xs text-muted-foreground">Automatically create Customer Portal login username &amp; password</p>
+              </div>
+              <Switch
+                checked={settings.autoGenerateCustomerLogin === "true"}
+                onCheckedChange={(checked) => updateSetting("autoGenerateCustomerLogin", checked.toString())}
               />
             </div>
           </div>
