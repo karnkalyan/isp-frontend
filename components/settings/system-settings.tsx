@@ -21,7 +21,10 @@ export function SystemSettings() {
     smtpPass: "",
     smtpFrom: "",
     enableTickets: "true",
-    enableMailNotifications: "true"
+    enableMailNotifications: "true",
+    leadBranchValidation: "optional",
+    autoGenerateRadius: "false",
+    autoGenerateCustomerLogin: "false"
   })
 
   useEffect(() => {
@@ -147,6 +150,56 @@ export function SystemSettings() {
             <Switch 
               checked={settings.enableMailNotifications === "true"} 
               onCheckedChange={checked => handleChange("enableMailNotifications", checked.toString())} 
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Lead & Customer Settings */}
+      <div className="space-y-4 pt-4">
+        <h3 className="text-lg font-medium flex items-center gap-2 border-b pb-2">
+          <Save className="h-5 w-5 text-primary" />
+          Lead & Customer Settings
+        </h3>
+
+        <div className="space-y-4">
+          <div className="flex flex-col gap-2 p-4 border rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label className="text-base">Lead Branch Requirement</Label>
+                <p className="text-sm text-muted-foreground">Select validation rules for branch selection during lead creation</p>
+              </div>
+              <select
+                value={settings.leadBranchValidation || "optional"}
+                onChange={e => handleChange("leadBranchValidation", e.target.value)}
+                className="h-10 w-64 rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="optional">Not Required (Optional)</option>
+                <option value="branch_only">Branch Compulsory</option>
+                <option value="both">Branch & Sub-Branch Compulsory</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between p-4 border rounded-lg">
+            <div className="space-y-0.5">
+              <Label className="text-base">Auto-generate Radius Credentials</Label>
+              <p className="text-sm text-muted-foreground">Automatically generate Username & Password for FreeRADIUS during onboarding</p>
+            </div>
+            <Switch 
+              checked={settings.autoGenerateRadius === "true"} 
+              onCheckedChange={checked => handleChange("autoGenerateRadius", checked.toString())} 
+            />
+          </div>
+
+          <div className="flex items-center justify-between p-4 border rounded-lg">
+            <div className="space-y-0.5">
+              <Label className="text-base">Auto-generate Customer Login</Label>
+              <p className="text-sm text-muted-foreground">Automatically generate Customer Login Portal username & password</p>
+            </div>
+            <Switch 
+              checked={settings.autoGenerateCustomerLogin === "true"} 
+              onCheckedChange={checked => handleChange("autoGenerateCustomerLogin", checked.toString())} 
             />
           </div>
         </div>

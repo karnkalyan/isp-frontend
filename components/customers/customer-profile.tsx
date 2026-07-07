@@ -3635,6 +3635,16 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           {actionLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
           Delete Customer
         </Button>
+        {customer?.leadId && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-9 border-amber-300 hover:bg-amber-50 hover:text-amber-800 dark:hover:bg-amber-950/20"
+            onClick={() => router.push(`/leads/edit/${customer.leadId}`)}
+          >
+            <Pencil className="mr-2 h-4 w-4 text-amber-500" /> Edit Lead Details
+          </Button>
+        )}
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
@@ -3752,7 +3762,21 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                   )}
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Lead ID:</span>
-                    <span className="font-medium">{customer.leadId || "N/A"}</span>
+                    <span className="font-medium flex items-center gap-1.5">
+                      {customer.leadId ? (
+                        <>
+                          <span>{customer.leadId}</span>
+                          <span
+                            className="text-xs text-blue-500 hover:text-blue-600 cursor-pointer hover:underline flex items-center ml-1"
+                            onClick={() => router.push(`/leads/edit/${customer.leadId}`)}
+                          >
+                            (Edit Lead)
+                          </span>
+                        </>
+                      ) : (
+                        "N/A"
+                      )}
+                    </span>
                   </div>
                   <div className="flex justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <span className="text-muted-foreground">Reference Status:</span>

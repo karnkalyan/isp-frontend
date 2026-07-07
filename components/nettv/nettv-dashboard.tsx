@@ -141,17 +141,24 @@ function renderValue(value: any): React.ReactNode {
 }
 
 function DetailsBlock({ title, data }: { title: string; data: any }) {
-  const entries = Object.entries(data || {}).filter(([key, value]) => value !== null && value !== undefined && value !== "" && key !== "password")
+  const entries = Object.entries(data || {}).filter(
+    ([key, value]) =>
+      value !== null &&
+      value !== undefined &&
+      value !== "" &&
+      key !== "password" &&
+      typeof value !== "object"
+  )
   if (entries.length === 0) return null
 
   return (
-    <div className="rounded-lg border bg-background/60 p-3 shadow-sm">
-      <div className="mb-2 text-sm font-semibold border-b pb-1 text-primary">{title}</div>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+    <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900/60 p-4 shadow-sm hover:shadow-md transition-all duration-200">
+      <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/80 border-b border-slate-100 dark:border-slate-800/50 pb-2 text-primary/90">{title}</div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
         {entries.map(([key, value]) => (
           <div key={key} className="min-w-0 flex flex-col justify-start">
             <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">{key.replace(/_/g, " ")}</div>
-            <div className="break-words text-sm font-medium mt-0.5">
+            <div className="break-words text-sm font-medium mt-0.5 text-slate-800 dark:text-slate-200">
               {renderValue(value)}
             </div>
           </div>

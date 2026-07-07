@@ -42,7 +42,6 @@ import {
   Clock,
   CalendarDays,
   MessageSquare,
-  Send,
   PhoneCall,
   Mail as MailIcon,
   Users as UsersIcon,
@@ -84,42 +83,29 @@ import { SearchableSelect, type Option } from "@/components/ui/searchable-select
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 
-import dynamic from 'next/dynamic'
+// Add Leaflet imports
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMapEvents, useMap } from "react-leaflet"
 import "leaflet/dist/leaflet.css"
-import { useMapEvents, useMap } from 'react-leaflet'
+import L from "leaflet"
 
-// Dynamically import Leaflet components
-const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
-const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
-const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
-const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false })
-const Circle = dynamic(() => import('react-leaflet').then(mod => mod.Circle), { ssr: false })
+// Fix Leaflet marker icons
+delete (L.Icon.Default.prototype as any)._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: '/leaflet/images/marker-icon-2x.png',
+  iconUrl: '/leaflet/images/marker-icon.png',
+  shadowUrl: '/leaflet/images/marker-shadow.png',
+})
 
-// Custom icon factory function (only runs on client)
-const getCustomIcon = () => {
-  if (typeof window === 'undefined') return null
-
-  // Dynamically import Leaflet only on client side
-  const L = require('leaflet')
-
-  // Fix Leaflet marker icons
-  delete (L.Icon.Default.prototype as any)._getIconUrl
-  L.Icon.Default.mergeOptions({
-    iconRetinaUrl: '/leaflet/images/marker-icon-2x.png',
-    iconUrl: '/leaflet/images/marker-icon.png',
-    shadowUrl: '/leaflet/images/marker-shadow.png',
-  })
-
-  return new L.Icon({
-    iconUrl: '/leaflet/images/marker-icon.png',
-    iconRetinaUrl: '/leaflet/images/marker-icon-2x.png',
-    shadowUrl: '/leaflet/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41]
-  })
-}
+// Custom marker icon
+const customIcon = new L.Icon({
+  iconUrl: '/leaflet/images/marker-icon.png',
+  iconRetinaUrl: '/leaflet/images/marker-icon-2x.png',
+  shadowUrl: '/leaflet/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+})
 
 type LeadStatus = 'new' | 'contacted' | 'qualified' | 'unqualified' | 'converted'
 type FollowUpType = 'CALL' | 'EMAIL' | 'MEETING' | 'VISIT' | 'OTHER'
@@ -136,7 +122,6 @@ interface Lead {
   secondaryContactNumber?: string
   source?: string
   status: LeadStatus
-  smsSent?: boolean
   notes?: string
   memberShipId?: string
   membership?: {
@@ -240,9 +225,6 @@ interface User {
 
 interface PackagePlan {
   id: string
-  planId?: string
-  packageDuration?: string
-  isActive?: boolean
   name?: string
   packageName?: string
   price?: number | null
@@ -394,11 +376,6 @@ const LocationMarker = ({ position, draggable = true, onDragEnd }: {
   onDragEnd?: (lat: number, lng: number) => void
 }) => {
   const [markerPosition, setMarkerPosition] = useState<[number, number] | null>(position)
-  const [customIcon, setCustomIcon] = useState<any>(null)
-
-  useEffect(() => {
-    setCustomIcon(getCustomIcon())
-  }, [])
 
   const eventHandlers = useMemo(() => ({
     dragend: (e: any) => {
@@ -419,7 +396,7 @@ const LocationMarker = ({ position, draggable = true, onDragEnd }: {
     }
   }, [position])
 
-  if (!markerPosition || !customIcon) return null
+  if (!markerPosition) return null
 
   return (
     <Marker
@@ -458,7 +435,6 @@ const SplitterMarker = ({ splitter }: { splitter: Splitter }) => {
   }
 
   const getSplitterIcon = (isMaster: boolean) => {
-    const L = require('leaflet')
     return new L.DivIcon({
       html: `
         <div class="relative">
@@ -537,11 +513,6 @@ const formatCoordinate = (coord: any): string => {
 
 export function LeadManagement() {
   const router = useRouter()
-  const [customIcon, setCustomIcon] = useState<any>(null)
-
-  useEffect(() => {
-    setCustomIcon(getCustomIcon())
-  }, [])
   const [activeTab, setActiveTab] = useState("list")
   const [leads, setLeads] = useState<Lead[]>([])
   const [convertedLeads, setConvertedLeads] = useState<Lead[]>([])
@@ -549,12 +520,9 @@ export function LeadManagement() {
   const [unqualifiedLeads, setUnqualifiedLeads] = useState<Lead[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [packages, setPackages] = useState<PackagePlan[]>([])
-  const [interestedPlanId, setInterestedPlanId] = useState("")
   const [memberships, setMemberships] = useState<Membership[]>([])
   const [existingISPs, setExistingISPs] = useState<ExistingISP[]>([])
   const [splitters, setSplitters] = useState<Splitter[]>([])
-  const [branches, setBranches] = useState<Array<{ id: string; name: string; parentId?: number | null }>>([])
-  const [subBranches, setSubBranches] = useState<Array<{ id: string; name: string; parentId?: number | null }>>([])
   const [loading, setLoading] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showConvertDialog, setShowConvertDialog] = useState(false)
@@ -571,11 +539,6 @@ export function LeadManagement() {
   const [showStatusChangeDialog, setShowStatusChangeDialog] = useState(false)
   const [statusChangeLead, setStatusChangeLead] = useState<Lead | null>(null)
   const [newStatus, setNewStatus] = useState<LeadStatus>('new')
-  const [smsProviders, setSmsProviders] = useState<any[]>([])
-  const [selectedSmsProvider, setSelectedSmsProvider] = useState("")
-  const [smsLead, setSmsLead] = useState<Lead | null>(null)
-  const [smsMessage, setSmsMessage] = useState("")
-  const [sendingSms, setSendingSms] = useState(false)
 
   // Pagination and filter states
   const [searchQuery, setSearchQuery] = useState("")
@@ -681,14 +644,8 @@ export function LeadManagement() {
     fullAddress: "",
     latitude: "" as string | "",
     longitude: "" as string | "",
-    serviceRadius: "0.1" as string | "", // Default 100 meters
-    branchId: "",
-    subBranchId: ""
+    serviceRadius: "0.1" as string | "" // Default 100 meters
   })
-  useEffect(() => {
-    const selected = packages.find(pkg => pkg.id === formData.interestedPackageId)
-    if (selected) setInterestedPlanId(selected.planId || selected.id)
-  }, [packages, formData.interestedPackageId])
 
   // Prepare options from data using useMemo for performance
   const userOptions: Option[] = useMemo(() =>
@@ -733,8 +690,6 @@ export function LeadManagement() {
     fetchMemberships()
     fetchExistingISPs()
     fetchSplitters()
-    fetchBranches()
-    fetchSmsProviders()
   }, [])
 
   // Fetch leads when active tab or filters change
@@ -969,7 +924,7 @@ export function LeadManagement() {
       const data = await apiRequest("/users")
 
       const processedUsers = Array.isArray(data)
-        ? data.filter((user: any) => user.role?.name?.trim().toLowerCase() !== "customer").map((user: any) => ({
+        ? data.map((user: any) => ({
           ...user,
           id: String(user.id),
           role: user.role || undefined
@@ -996,9 +951,6 @@ export function LeadManagement() {
 
           return {
             id: String(id),
-            planId: String(pkg.planId || ''),
-            packageDuration: pkg.packageDuration || '',
-            isActive: pkg.isActive !== false,
             name: name,
             packageName: name,
             price: price,
@@ -1095,94 +1047,6 @@ export function LeadManagement() {
     } catch (error: any) {
       console.error("Failed to fetch splitters:", error)
       toast.error("Failed to load splitters")
-    }
-  }
-
-  const fetchBranches = async () => {
-    try {
-      const data = await apiRequest("/branches")
-      const list = Array.isArray(data) ? data : (data?.data || [])
-      const processed = list.map((b: any) => ({
-        id: String(b.id),
-        name: b.name,
-        parentId: b.parentId ? String(b.parentId) : null
-      }))
-
-      // Level 1: Branch (has parent which has no parent)
-      const level1 = processed.filter((b: any) => {
-        if (!b.parentId) return false; // Level 0 (Head Office / Org)
-        const parent = processed.find((p: any) => p.id === b.parentId);
-        return !parent || !parent.parentId; // Parent has no parent
-      });
-
-      // Level 2: Sub-branch (has parent which has a parent)
-      const level2 = processed.filter((b: any) => {
-        if (!b.parentId) return false;
-        const parent = processed.find((p: any) => p.id === b.parentId);
-        return parent && parent.parentId; // Parent has a parent itself
-      });
-
-      setBranches(level1)
-      setSubBranches(level2)
-    } catch (error: any) {
-      console.error("Failed to fetch branches:", error)
-    }
-  }
-
-  const fetchSmsProviders = async () => {
-    try {
-      const response = await apiRequest<any>("/service/isp?includeInactive=true")
-      const list = Array.isArray(response) ? response : response?.data || []
-      const providers = list.filter((item: any) =>
-        (item.service?.code === "AAKASHSMS" || item.service?.code === "SPARROWSMS") &&
-        item.isActive !== false &&
-        item.isDeleted !== true
-      )
-      setSmsProviders(providers)
-      const defaultProvider = providers.find((item: any) => item.config?.isDefault === true) || providers[0]
-      if (defaultProvider?.service?.code) setSelectedSmsProvider(defaultProvider.service.code)
-    } catch (error) {
-      console.error("Failed to fetch SMS providers:", error)
-      setSmsProviders([])
-    }
-  }
-
-  const openSmsDialog = (lead: Lead) => {
-    if (!lead.phoneNumber) {
-      toast.error("Phone number is not available")
-      return
-    }
-    setSmsLead(lead)
-    setSmsMessage(`Dear ${lead.firstName || "Customer"}, thank you for contacting us.`)
-  }
-
-  const sendManualSms = async () => {
-    if (!smsLead) return
-    if (!selectedSmsProvider) return toast.error("No enabled SMS provider is configured")
-    if (!smsMessage.trim()) return toast.error("Message is required")
-    if (!smsLead.phoneNumber) return toast.error("Phone number is not available")
-
-    try {
-      setSendingSms(true)
-      await apiRequest("/service/sms/send-bulk", {
-        method: "POST",
-        body: JSON.stringify({
-          to: smsLead.phoneNumber,
-          text: smsMessage.trim(),
-          type: "lead",
-          provider: selectedSmsProvider,
-        })
-      })
-      toast.success("SMS sent successfully")
-      setLeads(prev => prev.map(l => l.id === smsLead.id ? { ...l, smsSent: true } : l))
-      setQualifiedLeads(prev => prev.map(l => l.id === smsLead.id ? { ...l, smsSent: true } : l))
-      setUnqualifiedLeads(prev => prev.map(l => l.id === smsLead.id ? { ...l, smsSent: true } : l))
-      setSmsLead(null)
-      setSmsMessage("")
-    } catch (error: any) {
-      toast.error(error.message || "Failed to send SMS")
-    } finally {
-      setSendingSms(false)
     }
   }
 
@@ -1318,8 +1182,8 @@ export function LeadManagement() {
 
     // If lat/lon fields are updated, update the map
     if (field === 'latitude' || field === 'longitude') {
-      const lat = field === 'latitude' ? parseFloat(value) : parseFloat(formData.latitude || '')
-      const lon = field === 'longitude' ? parseFloat(value) : parseFloat(formData.longitude || '')
+      const lat = field === 'latitude' ? parseFloat(value) : parseFloat(prev.latitude || '')
+      const lon = field === 'longitude' ? parseFloat(value) : parseFloat(prev.longitude || '')
       if (!isNaN(lat) && !isNaN(lon)) {
         setLeadMapPosition([lat, lon])
         const radius = leadServiceRadius || 5
@@ -1353,8 +1217,8 @@ export function LeadManagement() {
 
     // If lat/lon fields are updated, update the map
     if (field === 'lat' || field === 'lon') {
-      const lat = field === 'lat' ? parseFloat(value) : parseFloat(conversionForm.lat || '')
-      const lon = field === 'lon' ? parseFloat(value) : parseFloat(conversionForm.lon || '')
+      const lat = field === 'lat' ? parseFloat(value) : parseFloat(prev.lat || '')
+      const lon = field === 'lon' ? parseFloat(value) : parseFloat(prev.lon || '')
       if (!isNaN(lat) && !isNaN(lon)) {
         setConvertMapPosition([lat, lon])
         const radius = convertServiceRadius || 5
@@ -1399,8 +1263,6 @@ export function LeadManagement() {
 
       const leadData = {
         ...formData,
-        branchId: formData.branchId ? formData.branchId : undefined,
-        subBranchId: formData.subBranchId ? formData.subBranchId : undefined,
         metadata: {
           fullAddress: formData.fullAddress,
           age: formData.age ? parseInt(formData.age as any) : undefined,
@@ -1467,9 +1329,7 @@ export function LeadManagement() {
       fullAddress: lead.metadata?.fullAddress || undefined,
       latitude: lead.metadata?.latitude?.toString() || "",
       longitude: lead.metadata?.longitude?.toString() || "",
-      serviceRadius: lead.metadata?.serviceRadius?.toString() || "0.1",
-      branchId: (lead as any).branchId ? String((lead as any).branchId) : "",
-      subBranchId: (lead as any).subBranchId ? String((lead as any).subBranchId) : ""
+      serviceRadius: lead.metadata?.serviceRadius?.toString() || "0.1"
     })
 
     // Set map position if coordinates exist
@@ -1529,7 +1389,7 @@ export function LeadManagement() {
         type: followUp.type,
         title: followUp.title,
         description: followUp.description || "",
-        scheduledAt: formatForDateTimeLocal(followUp.scheduledAt),
+        scheduledAt: followUp.scheduledAt.split('T')[0],
         assignedUserId: followUp.assignedUserId,
         notes: followUp.notes || "",
         status: followUp.status,
@@ -1538,13 +1398,12 @@ export function LeadManagement() {
     } else {
       const tomorrow = new Date()
       tomorrow.setDate(tomorrow.getDate() + 1)
-      tomorrow.setHours(10, 0, 0, 0)
 
       setFollowUpForm({
         type: "CALL",
         title: `Follow-up with ${lead.firstName} ${lead.lastName}`,
         description: "",
-        scheduledAt: formatForDateTimeLocal(tomorrow),
+        scheduledAt: tomorrow.toISOString().split('T')[0],
         assignedUserId: lead.assignedUserId || "",
         notes: "",
         status: "SCHEDULED",
@@ -1560,21 +1419,17 @@ export function LeadManagement() {
 
     try {
       setLoading(true)
-      const payload = {
-        ...followUpForm,
-        scheduledAt: followUpForm.scheduledAt ? new Date(followUpForm.scheduledAt).toISOString() : ""
-      }
 
       if (editingFollowUp) {
         await apiRequest(`/followup/follow-ups/${editingFollowUp.id}`, {
           method: 'PUT',
-          body: JSON.stringify(payload)
+          body: JSON.stringify(followUpForm)
         })
         toast.success("Follow-up updated successfully")
       } else {
         await apiRequest(`/followup/leads/${selectedLead.id}/follow-ups`, {
           method: 'POST',
-          body: JSON.stringify(payload)
+          body: JSON.stringify(followUpForm)
         })
         toast.success("Follow-up created successfully")
       }
@@ -1625,7 +1480,37 @@ export function LeadManagement() {
   }
 
   const openConvertDialog = (lead: Lead) => {
-    router.push(`/customers/new?leadId=${encodeURIComponent(String(lead.id))}`)
+    setSelectedLead(lead)
+
+    // Use lead's coordinates if available
+    const leadLat = lead.metadata?.latitude || ""
+    const leadLon = lead.metadata?.longitude || ""
+
+    setConversionForm({
+      idNumber: "",
+      streetAddress: "",
+      city: "",
+      state: "",
+      zipCode: "",
+      lat: leadLat ? leadLat.toString() : "", // Use existing lat if available
+      lon: leadLon ? leadLon.toString() : "", // Use existing lon if available
+      deviceName: "",
+      deviceMac: "",
+      assignedPkg: lead.interestedPackageId || "",
+      rechargeable: false,
+      membershipId: lead.memberShipId || "",
+      existingISPId: "",
+      isReferenced: false,
+      referencedById: ""
+    })
+
+    // Reset map state
+    setConvertMapPosition([27.7172, 85.3240]) // Kathmandu coordinates
+    setConvertNearestSplitters([])
+    setConvertServiceAvailable(null)
+    setConvertServiceRadius(0.1) // Default 100 meters
+
+    setShowConvertDialog(true)
   }
 
   const handleOutboundcalls = async (phoneNumber: string) => {
@@ -1832,9 +1717,7 @@ export function LeadManagement() {
       fullAddress: "",
       latitude: "",
       longitude: "",
-      serviceRadius: "0.1", // Default 100 meters
-      branchId: "",
-      subBranchId: ""
+      serviceRadius: "0.1" // Default 100 meters
     })
     setLeadMapPosition([27.7172, 85.3240])
     setLeadNearestSplitters([])
@@ -1999,15 +1882,6 @@ export function LeadManagement() {
     } catch (error) {
       return "Invalid date"
     }
-  }
-
-  const formatForDateTimeLocal = (dateInput: string | Date) => {
-    if (!dateInput) return ""
-    const d = new Date(dateInput)
-    if (isNaN(d.getTime())) return ""
-    const offset = d.getTimezoneOffset()
-    const localTime = new Date(d.getTime() - offset * 60 * 1000)
-    return localTime.toISOString().slice(0, 16)
   }
 
   const getPackageDisplayName = (pkg: any) => {
@@ -2345,38 +2219,6 @@ export function LeadManagement() {
                     onChange={(e) => updateFormField("age", e.target.value)}
                   />
                 </div>
-
-                {/* Branch & Sub-branch Selection */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="branchId">Branch</Label>
-                    <SearchableSelect
-                      options={branches.map(b => ({ value: b.id, label: b.name }))}
-                      value={formData.branchId}
-                      onValueChange={(value) => {
-                        updateFormField("branchId", value as string)
-                        updateFormField("subBranchId", "") // reset sub-branch when branch changes
-                      }}
-                      placeholder="Select branch"
-                      emptyMessage="No branches found"
-                      clearable
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="subBranchId">Sub-branch</Label>
-                    <SearchableSelect
-                      options={subBranches
-                        .filter(sb => !formData.branchId || String(sb.parentId) === formData.branchId)
-                        .map(b => ({ value: b.id, label: b.name }))}
-                      value={formData.subBranchId}
-                      onValueChange={(value) => updateFormField("subBranchId", value as string)}
-                      placeholder={formData.branchId ? "Select sub-branch" : "Select a branch first"}
-                      emptyMessage="No sub-branches found"
-                      clearable
-                    />
-                  </div>
-                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -2485,28 +2327,17 @@ export function LeadManagement() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <div className="space-y-2">
-                <Label>Interested Plan</Label>
+              <div className="space-y-2">
+                <Label htmlFor="interestedPackageId">Interested Package</Label>
                 <SearchableSelect
-                  options={packages.filter((pkg, i, rows) => pkg.isActive !== false && rows.findIndex(p => p.planId === pkg.planId) === i).map(pkg => ({ value: pkg.planId || pkg.id, label: (pkg.packageName || pkg.name || '').replace(/\s+-\s+(1|3|6|12)\s+Months?$/i, '') }))}
-                  value={interestedPlanId}
-                  onValueChange={(value) => { setInterestedPlanId(value as string); updateFormField("interestedPackageId", "") }}
-                  placeholder="Select plan"
-                  clearable
-                />
-               </div>
-               <div className="space-y-2">
-                <Label htmlFor="interestedPackageId">Duration</Label>
-                <SearchableSelect
-                  options={packages.filter(pkg => pkg.isActive !== false && (pkg.planId || pkg.id) === interestedPlanId).map(pkg => ({ value: pkg.id, label: pkg.packageDuration || pkg.packageName || pkg.name || '', description: pkg.price ? `NPR ${pkg.price}` : '' }))}
+                  key={`package-select-${formData.interestedPackageId || 'empty'}`}
+                  options={packageOptions}
                   value={formData.interestedPackageId}
                   onValueChange={(value) => updateFormField("interestedPackageId", value as string)}
-                  placeholder={interestedPlanId ? "Select duration" : "Select a plan first"}
-                  disabled={!interestedPlanId}
+                  placeholder="Select package"
+                  emptyMessage="No packages found"
                   clearable
                 />
-               </div>
               </div>
 
               {/* Map Section for Lead Form */}
@@ -2705,7 +2536,7 @@ export function LeadManagement() {
                                 <div>
                                   <div className="font-medium">{splitter.name}</div>
                                   <div className="text-sm text-gray-500">
-                                    ID: {splitter.splitterId} â€¢ Ratio: {splitter.splitRatio}
+                                    ID: {splitter.splitterId} • Ratio: {splitter.splitRatio}
                                   </div>
                                   <div className="text-xs text-gray-500 mt-1">
                                     {splitter.location.site || 'No site specified'}
@@ -2725,9 +2556,9 @@ export function LeadManagement() {
                               </div>
                               <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
                                 <span>Available Ports: {splitter.availablePorts}/{splitter.portCount}</span>
-                                <span>â€¢</span>
+                                <span>•</span>
                                 <span>Type: {splitter.splitterType}</span>
-                                <span>â€¢</span>
+                                <span>•</span>
                                 <span className={`px-2 py-0.5 rounded ${splitter.status === 'active'
                                   ? 'bg-green-500/10 text-green-800'
                                   : 'bg-red-500/10 text-red-800'
@@ -3054,14 +2885,7 @@ export function LeadManagement() {
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center gap-2">
-                                <div className="flex flex-wrap gap-1 items-center">
-                                  {getStatusBadge(lead.status)}
-                                  {lead.smsSent && (
-                                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 whitespace-nowrap text-[10px] py-0.5 px-1.5 font-medium">
-                                      SMS Sent
-                                    </Badge>
-                                  )}
-                                </div>
+                                {getStatusBadge(lead.status)}
                                 <Button
                                   variant="ghost"
                                   size="icon"
@@ -3152,17 +2976,6 @@ export function LeadManagement() {
                                 >
                                   <Clock className="h-4 w-4 text-purple-600" />
                                 </Button>
-                                {lead.phoneNumber && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => openSmsDialog(lead)}
-                                    className="h-8 w-8 hover:bg-blue-100"
-                                    title="Send SMS"
-                                  >
-                                    <MessageSquare className="h-4 w-4 text-blue-600" />
-                                  </Button>
-                                )}
                                 {lead.status === 'qualified' && !lead.convertedToCustomer && (
                                   <Button
                                     variant="ghost"
@@ -3361,17 +3174,6 @@ export function LeadManagement() {
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
-                              {lead.phoneNumber && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => openSmsDialog(lead)}
-                                  className="h-8 w-8 hover:bg-blue-100"
-                                  title="Send SMS"
-                                >
-                                  <MessageSquare className="h-4 w-4 text-blue-600" />
-                                </Button>
-                              )}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -3537,17 +3339,6 @@ export function LeadManagement() {
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
-                              {lead.phoneNumber && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => openSmsDialog(lead)}
-                                  className="h-8 w-8 hover:bg-blue-100"
-                                  title="Send SMS"
-                                >
-                                  <MessageSquare className="h-4 w-4 text-blue-600" />
-                                </Button>
-                              )}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -3791,14 +3582,7 @@ export function LeadManagement() {
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <Label className="text-sm text-muted-foreground mb-1 block">Status</Label>
-                          <div className="mt-1 flex flex-wrap gap-1 items-center">
-                            {getStatusBadge(viewLead.status, viewLead.convertedToCustomer)}
-                            {viewLead.smsSent && (
-                              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 whitespace-nowrap text-[10px] py-0.5 px-1.5 font-medium">
-                                SMS Sent
-                              </Badge>
-                            )}
-                          </div>
+                          <div className="mt-1">{getStatusBadge(viewLead.status, viewLead.convertedToCustomer)}</div>
                         </div>
                         <div>
                           <Label className="text-sm text-muted-foreground mb-1 block">Source</Label>
@@ -4255,13 +4039,13 @@ export function LeadManagement() {
             <div className="rounded-lg bg-blue-50 p-4">
               <h4 className="font-medium text-blue-800 mb-2">CSV Format Requirements:</h4>
               <ul className="text-sm text-blue-700 space-y-1">
-                <li>â€¢ File must be in CSV format with UTF-8 encoding</li>
-                <li>â€¢ First row should contain column headers</li>
-                <li>â€¢ Required columns: firstName, lastName, phoneNumber</li>
-                <li>â€¢ Optional columns: email, source, address, district, etc.</li>
-                <li>â€¢ Membership ID, Assigned User ID, and Package ID should reference existing records</li>
-                <li>â€¢ Maximum file size: 10MB</li>
-                <li>â€¢ Maximum 1000 records per import</li>
+                <li>• File must be in CSV format with UTF-8 encoding</li>
+                <li>• First row should contain column headers</li>
+                <li>• Required columns: firstName, lastName, phoneNumber</li>
+                <li>• Optional columns: email, source, address, district, etc.</li>
+                <li>• Membership ID, Assigned User ID, and Package ID should reference existing records</li>
+                <li>• Maximum file size: 10MB</li>
+                <li>• Maximum 1000 records per import</li>
               </ul>
             </div>
           </div>
@@ -4294,57 +4078,6 @@ export function LeadManagement() {
                   Import Leads
                 </>
               )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Send SMS Dialog */}
-      <Dialog open={!!smsLead} onOpenChange={(open) => !open && setSmsLead(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Send SMS</DialogTitle>
-            <DialogDescription>
-              Send a manual SMS to {smsLead ? `${smsLead.firstName} ${smsLead.lastName}` : "lead"}.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>SMS Provider</Label>
-              <Select value={selectedSmsProvider} onValueChange={setSelectedSmsProvider}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select provider" />
-                </SelectTrigger>
-                <SelectContent>
-                  {smsProviders.length > 0 ? (
-                    smsProviders.map((provider) => (
-                      <SelectItem key={String(provider.service?.code || provider.id)} value={String(provider.service?.code || "")}>
-                        {provider.service?.name || provider.service?.code}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <>
-                      <SelectItem value="AAKASHSMS">Aakash SMS</SelectItem>
-                      <SelectItem value="SPARROWSMS">Sparrow SMS</SelectItem>
-                    </>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Phone</Label>
-              <Input value={smsLead?.phoneNumber || ""} readOnly />
-            </div>
-            <div className="space-y-2">
-              <Label>Message</Label>
-              <Textarea value={smsMessage} onChange={(event) => setSmsMessage(event.target.value)} rows={5} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSmsLead(null)}>Cancel</Button>
-            <Button onClick={sendManualSms} disabled={sendingSms}>
-              <Send className="mr-2 h-4 w-4" />
-              {sendingSms ? "Sending..." : "Send SMS"}
             </Button>
           </DialogFooter>
         </DialogContent>
