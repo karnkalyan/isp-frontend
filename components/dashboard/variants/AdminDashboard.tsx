@@ -6,6 +6,7 @@ import { ActivityFeed } from "@/components/dashboard/activity-feed"
 import { ActiveSessions } from "@/components/dashboard/active-sessions"
 import { QuickActions } from "@/components/dashboard/quick-actions"
 import { RealTimeStats } from "@/components/dashboard/real-time-stats"
+import { NepaliCalendarWidget } from "@/components/dashboard/nepali-calendar-widget"
 import { useAuth } from "@/contexts/AuthContext"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -13,12 +14,14 @@ import { Activity, Shield, MapPin, Users } from "lucide-react"
 
 export function AdminDashboard() {
     const { user } = useAuth()
-    
+
     const dashboardTitle = useMemo(() => {
         if (!user) return "Dashboard"
         const isGlobal = user.role?.name === 'Administrator' || user.role?.name === 'Global Manager'
-        if (isGlobal && !user.selectedBranchId) return "Global ISP Command Center"
-        
+        if (isGlobal && !user.selectedBranchId) {
+            return user.isp?.companyName || "ISP Dashboard"
+        }
+
         const branchName = user.selectedBranch?.name || user.branch?.name || "Branch"
         return `${branchName} Operations`
     }, [user])
@@ -58,8 +61,8 @@ export function AdminDashboard() {
 
             <StatsCards />
 
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-                <Card className="col-span-4 shadow-sm border-muted/60 bg-card/50 backdrop-blur-sm">
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-10">
+                <Card className="lg:col-span-5 shadow-sm border-muted/60 bg-card/50 backdrop-blur-sm">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <div className="space-y-1">
                             <CardTitle className="text-xl font-bold">Performance Analytics</CardTitle>
@@ -70,7 +73,7 @@ export function AdminDashboard() {
                         <RevenueChart />
                     </CardContent>
                 </Card>
-                <Card className="col-span-3 shadow-sm border-muted/60 bg-card/50 backdrop-blur-sm">
+                <Card className="lg:col-span-3 shadow-sm border-muted/60 bg-card/50 backdrop-blur-sm">
                     <CardHeader>
                         <CardTitle className="text-xl font-bold">Quick Actions</CardTitle>
                         <CardDescription>Essential tasks and shortcuts</CardDescription>
@@ -79,6 +82,9 @@ export function AdminDashboard() {
                         <QuickActions />
                     </CardContent>
                 </Card>
+                <div className="lg:col-span-2 flex flex-col h-full">
+                    <NepaliCalendarWidget />
+                </div>
             </div>
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
