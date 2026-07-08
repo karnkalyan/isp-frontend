@@ -6,6 +6,7 @@ import { RevenueChart } from "@/components/dashboard/revenue-chart"
 import { ActivityFeed } from "@/components/dashboard/activity-feed"
 import { TasksList } from "@/components/dashboard/tasks-list"
 import { ProjectStatus } from "@/components/dashboard/project-status"
+import { NepaliCalendarWidget } from "@/components/dashboard/nepali-calendar-widget"
 
 export default function DashboardOverviewPage() {
   return (
@@ -22,9 +23,16 @@ export default function DashboardOverviewPage() {
 
         <StatsCards />
 
-        <div className="grid gap-6 md:grid-cols-2">
-          <TasksList />
-          <ProjectStatus />
+        <div className="grid gap-6 md:grid-cols-3">
+          <div className="md:col-span-2">
+            <div className="grid gap-6 md:grid-cols-2 h-full">
+              <TasksList />
+              <ProjectStatus />
+            </div>
+          </div>
+          <div className="flex flex-col h-full">
+            <NepaliCalendarWidget />
+          </div>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
