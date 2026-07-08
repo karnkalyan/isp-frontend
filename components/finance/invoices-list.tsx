@@ -264,7 +264,12 @@ function PrintableInvoice({
             <div className="mt-1">For {isp?.companyName || isp?.name || "ISP"}</div>
           </div>
         </div>
-        <div className="mt-8 text-sm">Note: This is a pdf copy of computer generated invoice.</div>
+        <div className="mt-8 text-sm">
+          Note: This is a pdf copy of computer generated invoice.
+          {invoice?.packageStart && invoice?.packageEnd && (
+            <span> Effective from {new Date(invoice.packageStart).toLocaleDateString()} to {new Date(invoice.packageEnd).toLocaleDateString()} - {invoice.planName || invoice.packageName || "Internet"}</span>
+          )}
+        </div>
       </div>
     </div>
   )
