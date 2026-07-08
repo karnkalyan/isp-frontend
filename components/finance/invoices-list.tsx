@@ -33,6 +33,15 @@ const numberToWords = (amount: number) => {
   return `${toWords(Math.round(amount)) || "Zero"} Only`
 }
 
+const getDisplayPaymentMethod = (pm: string) => {
+  if (!pm) return "Payment"
+  const cleaned = String(pm).toUpperCase()
+  if (cleaned.includes("ESEWA")) return "eSewa"
+  if (cleaned.includes("KHALTI")) return "Khalti"
+  if (cleaned.includes("EPAY")) return "ePay"
+  return String(pm).replaceAll("_", " ")
+}
+
 function PrintableInvoice({
   invoice,
   isp,
@@ -247,7 +256,14 @@ function PrintableInvoice({
         <div className="grid grid-cols-[1fr_1.6fr]">
           <div className="border-x border-b border-black p-5">
             <div className="font-bold underline">Payment Mode#</div>
-            <div className="mt-3 font-semibold">{invoice?.status === "paid" ? String(invoice?.paymentMethod || "Payment").replaceAll("_", " ") : "Unpaid"}</div>
+            <div className="mt-3 font-semibold text-xs">
+              <div>{invoice?.status === "paid" ? getDisplayPaymentMethod(invoice?.paymentMethod) : "Unpaid"}</div>
+              {invoice?.status === "paid" && invoice?.paymentTransactionCode && (
+                <div className="mt-1 font-mono text-[10px] text-slate-700 font-normal">
+                  Txn ID: {invoice.paymentTransactionCode}
+                </div>
+              )}
+            </div>
           </div>
           <table className="border-collapse text-sm">
             <tbody>
@@ -291,7 +307,7 @@ function PrintableReceipt({
   tscPercentage?: number
 }) {
   const amount = Number(invoice?.amount || 0)
-  const paymentMethod = invoice?.paymentMethod ? String(invoice.paymentMethod).replaceAll("_", " ") : "Cash"
+  const paymentMethod = invoice?.paymentMethod ? getDisplayPaymentMethod(invoice.paymentMethod) : "Cash"
   const receiptNumber = `REC-${invoice?.invoiceId || invoice?.id || ""}`
 
   return (
@@ -340,7 +356,12 @@ function PrintableReceipt({
 
         <div className="receipt-footer mt-4 flex items-end justify-between text-xs">
           <div>
-            <div><span className="font-semibold">Payment mode:</span> {paymentMethod}</div>
+            <div>
+              <span className="font-semibold">Payment mode:</span> {paymentMethod}
+              {invoice?.paymentTransactionCode && (
+                <div className="mt-1 font-mono text-[10px] text-slate-700">Txn ID: {invoice.paymentTransactionCode}</div>
+              )}
+            </div>
             <div className="mt-4">Remarks: <span className="receipt-line receipt-line-wide inline-block min-w-72 border-b border-black">&nbsp;</span></div>
           </div>
           <div className="w-48 border-t border-black pt-2 text-center">
