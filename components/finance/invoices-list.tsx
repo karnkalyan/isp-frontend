@@ -502,7 +502,7 @@ export function InvoicesList() {
     const printWindow = window.open("", "_blank", "width=1100,height=800")
     if (!printWindow) return
     printWindow.document.write(`<!DOCTYPE html><html><head><title>${dialogView === "invoice" ? "Invoice" : "Receipt"} - ${selectedInvoice?.invoiceId || ""}</title><style>
-      @page { size: ${dialogView === "invoice" ? "A4 landscape" : "A4 portrait"}; margin: ${dialogView === "invoice" ? "6mm" : "5mm"}; }
+      @page { size: A4 portrait; margin: ${dialogView === "invoice" ? "6mm" : "5mm"}; }
       * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
       body { font-family: system-ui, -apple-system, sans-serif; background: white; color: black; }
       .printable-invoice, .printable-receipt { position: relative; width: 100%; max-width: 100%; background: white; padding: 20px; color: black; }
