@@ -206,6 +206,12 @@ function PrintableInvoice({
           </div>
         </div>
 
+        {invoice?.packageStart && invoice?.packageEnd && (
+          <div className="mt-4 text-sm font-semibold">
+            Effective from {new Date(invoice.packageStart).toLocaleDateString()} to {new Date(invoice.packageEnd).toLocaleDateString()} - {invoice.planName || invoice.packageName || "Internet"}
+          </div>
+        )}
+
         <table className="mt-8 w-full border-collapse text-sm">
           <thead>
             <tr>
@@ -217,12 +223,17 @@ function PrintableInvoice({
           <tbody>
             {displayItems.map((item: any, index: number) => {
               const price = item.preTaxPrice
+              const isInternet = !item.referenceId || item.itemName?.toUpperCase().includes('INTERNET');
+              const itemDesc = isInternet && invoice?.packageStart && invoice?.packageEnd
+                ? `INTERNET CHARGE FOR ${invoice.planName || invoice.packageName || "Internet"} EFFECTIVE FROM ${new Date(invoice.packageStart).toLocaleDateString()} TO ${new Date(invoice.packageEnd).toLocaleDateString()}`
+                : (item.description || item.itemName || "Internet service package");
+
               return (
                 <tr key={item.id || index}>
                   <td className="border-x border-black p-1 align-top">{index + 1}</td>
                   <td className="border-x border-black p-1 align-top"></td>
                   <td className="border-x border-black p-1 align-top">{item.itemName || invoice?.packageName || "Internet"}</td>
-                  <td className="border-x border-black p-1 align-top">{item.description || invoice?.packageName || "Internet service package"}</td>
+                  <td className="border-x border-black p-1 align-top">{itemDesc}</td>
                   <td className="border-x border-black p-1 align-top">1</td>
                   <td className="border-x border-black p-1 text-right align-top">{price.toFixed(2)}</td>
                   <td className="border-x border-black p-1 text-right align-top">{price.toFixed(2)}</td>
@@ -264,12 +275,7 @@ function PrintableInvoice({
             <div className="mt-1">For {isp?.companyName || isp?.name || "ISP"}</div>
           </div>
         </div>
-        <div className="mt-8 text-sm">
-          Note: This is a pdf copy of computer generated invoice.
-          {invoice?.packageStart && invoice?.packageEnd && (
-            <span> Effective from {new Date(invoice.packageStart).toLocaleDateString()} to {new Date(invoice.packageEnd).toLocaleDateString()} - {invoice.planName || invoice.packageName || "Internet"}</span>
-          )}
-        </div>
+        <div className="mt-8 text-sm">Note: This is a pdf copy of computer generated invoice.</div>
       </div>
     </div>
   )
