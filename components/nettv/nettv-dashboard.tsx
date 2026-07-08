@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import dynamic from "next/dynamic"
-import { ArrowLeft, Eye, Info, KeyRound, Loader2, MapPin, Package, Plus, RefreshCw, Repeat, Save, Search, Trash2, Tv, UserCheck, Users, Wrench } from "lucide-react"
+import { ArrowLeft, Eye, Info, KeyRound, Loader2, MapPin, Package, Plus, RefreshCw, Repeat, Save, Search, Trash2, Tv, UserCheck, Users, Wrench, AlertTriangle } from "lucide-react"
 import { ServicesAPI } from "@/lib/api/service"
 import { NetTVDialog } from "@/components/customers/add-customer-form"
 import { CardContainer } from "@/components/ui/card-container"
@@ -313,6 +313,7 @@ export function NettvDashboard() {
   const [passwordOpen, setPasswordOpen] = useState(false)
   const [passwordSaving, setPasswordSaving] = useState(false)
   const [passwordForm, setPasswordForm] = useState({ password: "", conf_password: "", reseller_id: "" })
+  const [isResellerConfigured, setIsResellerConfigured] = useState(true)
   const [subscriberStbOpen, setSubscriberStbOpen] = useState(false)
   const [subscriberStbSaving, setSubscriberStbSaving] = useState(false)
   const [subscriberStbForm, setSubscriberStbForm] = useState({
@@ -374,6 +375,9 @@ export function NettvDashboard() {
       setStbs(stbRes)
       if (resellerRes && resellerRes.success) {
         setResellerInfo(resellerRes.data)
+        setIsResellerConfigured(resellerRes.configured !== false)
+      } else {
+        setIsResellerConfigured(false)
       }
       setModels(modelRes)
       setVendors(vendorRes)
@@ -1039,6 +1043,15 @@ export function NettvDashboard() {
           </div>
         ) : (
           <div className="space-y-6">
+            {!isResellerConfigured && (
+              <div className="p-4 text-amber-800 bg-amber-50 dark:bg-amber-950/20 dark:text-amber-300 rounded-lg border border-amber-200 dark:border-amber-900/50 flex items-center gap-2.5 shadow-sm">
+                <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 animate-pulse" />
+                <div>
+                  <h4 className="font-semibold text-sm">Reseller ID is not configured</h4>
+                  <p className="text-xs opacity-90">Please configure the reseller ID in the NetTV integration settings to activate full billing, package, and credit wallet operations.</p>
+                </div>
+              </div>
+            )}
             {/* Top overview Cards */}
             <div className="grid gap-4 md:grid-cols-3">
               <CardContainer title="Subscriber Account" gradientColor="#10b981">

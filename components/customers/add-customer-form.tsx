@@ -1175,7 +1175,10 @@ export function NetTVDialog({
               <SearchableSelect
                 options={countries.map(c => ({ value: c.id.toString(), label: c.name }))}
                 value={selectedCountryId?.toString() || ""}
-                onValueChange={(value) => setSelectedCountryId(parseInt(value))}
+                onValueChange={(value) => {
+                  const val = Array.isArray(value) ? value[0] : value;
+                  setSelectedCountryId(parseInt(val || ""));
+                }}
                 placeholder={loadingCountries ? "Loading countries..." : "Select country"}
                 disabled={loadingCountries}
               />
@@ -1185,7 +1188,10 @@ export function NetTVDialog({
               <SearchableSelect
                 options={provinces.map(p => ({ value: p.id.toString(), label: p.name }))}
                 value={selectedProvinceId?.toString() || ""}
-                onValueChange={(value) => setSelectedProvinceId(parseInt(value))}
+                onValueChange={(value) => {
+                  const val = Array.isArray(value) ? value[0] : value;
+                  setSelectedProvinceId(parseInt(val || ""));
+                }}
                 placeholder="Select province"
                 disabled={!selectedCountryId}
               />
@@ -1562,7 +1568,8 @@ export function AddCustomerForm() {
     while (current) {
       path.push(current)
       if (!current.masterSplitterId) break
-      const parent = splitters.find(s => s.splitterId === current.masterSplitterId)
+      const currentSplitter = current
+      const parent = splitters.find(s => s.splitterId === currentSplitter.masterSplitterId)
       if (!parent) break
       current = parent
     }
@@ -2198,7 +2205,7 @@ export function AddCustomerForm() {
 
       if (candidateIdentifiers.includes(normalizedOnt)) {
         setMatchedDeviceForOnt(device)
-        setSelectedDiscoveredOnt(prev => ({ ...prev, ont_id: ont.ont_id }))
+        setSelectedDiscoveredOnt((prev: any) => ({ ...prev, ont_id: ont.ont_id }))
         toast.success(`Matched with device: ${device.brand} ${device.model}`)
         return
       }
@@ -2208,7 +2215,7 @@ export function AddCustomerForm() {
         const normalizedMac = normalizeIdentifier(device.macAddress)
         if (normalizedMac && normalizedMac === normalizedOnt) {
           setMatchedDeviceForOnt(device)
-          setSelectedDiscoveredOnt(prev => ({ ...prev, ont_id: ont.ont_id }))
+          setSelectedDiscoveredOnt((prev: any) => ({ ...prev, ont_id: ont.ont_id }))
           toast.success(`Matched with device: ${device.brand} ${device.model}`)
           return
         }
@@ -2218,7 +2225,7 @@ export function AddCustomerForm() {
         const devicePonHex = convertToPonHex(device.ponSerial || "")
         if ((devicePonHex && devicePonHex === ontIdentifier) || (deviceSerialHex && deviceSerialHex === ontIdentifier)) {
           setMatchedDeviceForOnt(device)
-          setSelectedDiscoveredOnt(prev => ({ ...prev, ont_id: ont.ont_id }))
+          setSelectedDiscoveredOnt((prev: any) => ({ ...prev, ont_id: ont.ont_id }))
           toast.success(`Matched with device: ${device.brand} ${device.model}`)
           return
         }
@@ -3355,7 +3362,10 @@ export function AddCustomerForm() {
                           { value: "other", label: "Other" },
                         ]}
                         value={formValues.gender}
-                        onValueChange={(value) => setFormValues((prev) => ({ ...prev, gender: value }))}
+                        onValueChange={(value) => {
+                          const val = Array.isArray(value) ? value[0] : value;
+                          setFormValues((prev) => ({ ...prev, gender: val || "" }));
+                        }}
                         disabled
                       />
                     </div>
@@ -3536,7 +3546,7 @@ export function AddCustomerForm() {
                               serviceAvailable={serviceAvailable}
                               nearestSplitter={
                                 nearestSplitters[0]
-                                  ? { distance: nearestSplitters[0].distance, name: nearestSplitters[0].name }
+                                  ? { distance: nearestSplitters[0].distance ?? 0, name: nearestSplitters[0].name }
                                   : null
                               }
                             />
@@ -3816,7 +3826,7 @@ export function AddCustomerForm() {
                         label: m.name,
                       }))}
                       value={referenceDetails.membershipId}
-                      onValueChange={(value) => handleReferenceChange("membershipId", value)}
+                      onValueChange={(value) => handleReferenceChange("membershipId", Array.isArray(value) ? value[0] : value)}
                       placeholder={loading.memberships ? "Loading memberships..." : "Select membership"}
                       disabled={loading.memberships}
                     />
@@ -3841,7 +3851,7 @@ export function AddCustomerForm() {
                         description: user.email,
                       }))}
                       value={referenceDetails.installedById}
-                      onValueChange={(value) => handleReferenceChange("installedById", value)}
+                      onValueChange={(value) => handleReferenceChange("installedById", Array.isArray(value) ? value[0] : value)}
                       placeholder={loading.users ? "Loading users..." : "Select technician"}
                       disabled={loading.users}
                     />
@@ -3882,7 +3892,7 @@ export function AddCustomerForm() {
                         <SearchableSelect
                           options={[]}
                           value={referenceDetails.referencedById}
-                          onValueChange={(value) => handleReferenceChange("referencedById", value)}
+                          onValueChange={(value) => handleReferenceChange("referencedById", Array.isArray(value) ? value[0] : value)}
                           placeholder="Select customer"
                           disabled
                         />
@@ -3904,7 +3914,7 @@ export function AddCustomerForm() {
                         description: isp.type ? `Type: ${isp.type.charAt(0).toUpperCase() + isp.type.slice(1)}` : undefined,
                       }))}
                       value={referenceDetails.existingISPId}
-                      onValueChange={(value) => handleReferenceChange("existingISPId", value)}
+                      onValueChange={(value) => handleReferenceChange("existingISPId", Array.isArray(value) ? value[0] : value)}
                       placeholder={loading.existingISPs ? "Loading ISPs..." : "Select previous ISP"}
                       disabled={loading.existingISPs}
                     />
@@ -4464,7 +4474,7 @@ export function AddCustomerForm() {
                                   label: `${ont.ont_id_details} (on ${ont.interface})`,
                                 }))}
                                 value={selectedDiscoveredOnt?.ont_id_details || ''}
-                                onValueChange={handleSelectDiscoveredOnt}
+                                onValueChange={(value) => handleSelectDiscoveredOnt(Array.isArray(value) ? value[0] : value)}
                                 placeholder="Choose an ONT from the list"
                               />
                             </div>

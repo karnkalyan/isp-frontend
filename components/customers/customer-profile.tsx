@@ -1399,6 +1399,9 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const [acsSyncing, setAcsSyncing] = useState(false)
   const [serviceActionLoading, setServiceActionLoading] = useState<"radius" | "nettv" | "account" | "disconnect" | null>(null)
   const [nettvProvisionOpen, setNettvProvisionOpen] = useState(false)
+  const [nettvPasswordOpen, setNettvPasswordOpen] = useState(false)
+  const [nettvPasswordSaving, setNettvPasswordSaving] = useState(false)
+  const [nettvPasswordForm, setNettvPasswordForm] = useState({ password: "", conf_password: "" })
   const [renewLoading, setRenewLoading] = useState(false)
   const [assignHardwareOpen, setAssignHardwareOpen] = useState(false)
   const [hardwareSearch, setHardwareSearch] = useState("")
@@ -2341,6 +2344,37 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       toast.error(error.message || "Failed to update Radius password")
     } finally {
       setRadiusPasswordSubmitting(false)
+    }
+  }
+
+  const handleForceNettvPassword = async () => {
+    const username = nettvDetails?.subscriber?.username || customer?.customerUniqueId;
+    if (!username) {
+      toast.error("Subscriber username not found.");
+      return;
+    }
+    if (!nettvPasswordForm.password || nettvPasswordForm.password !== nettvPasswordForm.conf_password) {
+      toast.error("Password and confirmation must match");
+      return;
+    }
+    setNettvPasswordSaving(true);
+    try {
+      const resellerId = nettvDetails?.subscriber?.reseller?.id || nettvDetails?.subscriber?.reseller_id || 5;
+      await apiRequest(`/services/nettv/subscribers/${encodeURIComponent(username)}/pwd`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          password: nettvPasswordForm.password,
+          conf_password: nettvPasswordForm.conf_password,
+          reseller_id: resellerId
+        })
+      });
+      toast.success("NetTV password updated successfully!");
+      setNettvPasswordOpen(false);
+      setNettvPasswordForm({ password: "", conf_password: "" });
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update NetTV password");
+    } finally {
+      setNettvPasswordSaving(false);
     }
   }
 
@@ -3529,6 +3563,44 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
             <Button variant="outline" onClick={() => setRadiusPasswordOpen(false)}>Cancel</Button>
             <Button onClick={handleChangeRadiusPassword} disabled={radiusPasswordSubmitting}>
               {radiusPasswordSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Update Password
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={nettvPasswordOpen} onOpenChange={(open) => { if (!nettvPasswordSaving) setNettvPasswordOpen(open) }}>
+        <DialogContent className="w-[95vw] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Force NetTV Password Change</DialogTitle>
+            <DialogDescription>Sets a new IPTV account password for this subscriber.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="nettv-password">New Password</Label>
+              <Input
+                id="nettv-password"
+                type="password"
+                value={nettvPasswordForm.password}
+                onChange={(e) => setNettvPasswordForm((prev) => ({ ...prev, password: e.target.value }))}
+                placeholder="Enter password"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="nettv-conf-password">Confirm Password</Label>
+              <Input
+                id="nettv-conf-password"
+                type="password"
+                value={nettvPasswordForm.conf_password}
+                onChange={(e) => setNettvPasswordForm((prev) => ({ ...prev, conf_password: e.target.value }))}
+                placeholder="Confirm password"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNettvPasswordOpen(false)} disabled={nettvPasswordSaving}>Cancel</Button>
+            <Button onClick={handleForceNettvPassword} disabled={nettvPasswordSaving}>
+              {nettvPasswordSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Update Password
             </Button>
           </DialogFooter>
@@ -5365,14 +5437,28 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         <TabsContent value="nettv" className="space-y-4">
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-semibold dark:text-white">NetTV Service Details</h3>
-            <Button
-              onClick={handleSyncNettv}
-              disabled={syncingNettv || loadingNettv || !customer?.customerUniqueId}
-              className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white shadow-sm border-0"
-            >
-              {syncingNettv ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-              Sync NetTV Details
-            </Button>
+            <div className="flex items-center space-x-2">
+              {nettvDetails && (
+                <Button
+                  onClick={() => {
+                    setNettvPasswordForm({ password: "", conf_password: "" });
+                    setNettvPasswordOpen(true);
+                  }}
+                  className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-sm border-0"
+                >
+                  <Key className="mr-2 h-4 w-4" />
+                  Change Password
+                </Button>
+              )}
+              <Button
+                onClick={handleSyncNettv}
+                disabled={syncingNettv || loadingNettv || !customer?.customerUniqueId}
+                className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white shadow-sm border-0"
+              >
+                {syncingNettv ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                Sync NetTV Details
+              </Button>
+            </div>
           </div>
 
           {loadingNettv ? (

@@ -398,6 +398,7 @@ const menuCategories: MenuCategory[] = [
           { title: "Mail & SMS Templates", href: "/mail/templates", permission: "settings_read" },
           { title: "Notifications", href: "/notifications", permission: "dashboard_view" },
           { title: "Notices", href: "/notices", permission: "dashboard_view" },
+          { title: "Push Notifications", href: "/notifications/push", permission: "dashboard_view" },
         ],
       },
     ],

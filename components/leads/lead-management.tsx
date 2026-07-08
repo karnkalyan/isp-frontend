@@ -1182,8 +1182,8 @@ export function LeadManagement() {
 
     // If lat/lon fields are updated, update the map
     if (field === 'latitude' || field === 'longitude') {
-      const lat = field === 'latitude' ? parseFloat(value) : parseFloat(prev.latitude || '')
-      const lon = field === 'longitude' ? parseFloat(value) : parseFloat(prev.longitude || '')
+      const lat = field === 'latitude' ? parseFloat(value) : parseFloat(formData.latitude || '')
+      const lon = field === 'longitude' ? parseFloat(value) : parseFloat(formData.longitude || '')
       if (!isNaN(lat) && !isNaN(lon)) {
         setLeadMapPosition([lat, lon])
         const radius = leadServiceRadius || 5

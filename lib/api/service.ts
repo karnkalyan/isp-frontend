@@ -445,7 +445,7 @@ export const ServicesAPI = {
     },
 
     async getNetTVResellerInfo() {
-        return apiRequest<{ success: boolean; data: any }>('/services/nettv/reseller/info');
+        return apiRequest<{ success: boolean; data: any; configured?: boolean }>('/services/nettv/reseller/info');
     },
 
     async getNetTVCountries() {
