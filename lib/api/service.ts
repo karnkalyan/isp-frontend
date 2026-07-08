@@ -448,6 +448,10 @@ export const ServicesAPI = {
         return apiRequest<{ success: boolean; data: any }>('/services/nettv/reseller/info');
     },
 
+    async getNetTVCountries() {
+        return apiRequest<{ success: boolean; data: any }>('/services/nettv/countries');
+    },
+
     async syncNetTVSubscriber(customerId: number | string) {
         return apiRequest<{ success: boolean; data: any; message?: string }>(
             `/customer/${encodeURIComponent(String(customerId))}/sync/nettv`,

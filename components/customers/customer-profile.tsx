@@ -3167,6 +3167,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         defaultZip={customerProfileData.zipCode || ""}
         defaultPhone={customer.phoneNumber || ""}
         defaultMobile={customer.secondaryPhone || customer.phoneNumber || ""}
+        defaultLat={(customer as any).lead?.metadata?.latitude || ""}
+        defaultLng={(customer as any).lead?.metadata?.longitude || ""}
       />
 
       <Dialog open={provisionServicesOpen} onOpenChange={setProvisionServicesOpen}>

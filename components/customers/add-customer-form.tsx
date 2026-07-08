@@ -929,10 +929,20 @@ export function NetTVDialog({
           const response = await apiRequest("/services/nettv/countries")
           if (response.success && response.data) {
             setCountries(response.data)
+            
+            // Set default country to Nepal (id 156 or name Nepal)
+            const nepal = response.data.find((c: Country) => c.name.toLowerCase() === "nepal" || c.id === 156)
+            if (nepal) {
+              setSelectedCountryId(nepal.id)
+            }
+
             // If defaultProvince is provided, try to find matching province
             if (defaultProvince) {
-              // This is simplified; you might need to map by name
-              const foundProvince = response.data.flatMap((c: Country) => c.provinces).find((p: Province) => p.name === defaultProvince)
+              const cleanDefault = String(defaultProvince).toLowerCase().replace(/province/gi, "").replace(/state/gi, "").replace(/no\./gi, "").trim();
+              const foundProvince = response.data.flatMap((c: Country) => c.provinces).find((p: Province) => {
+                const cleanName = p.name.toLowerCase().replace(/province/gi, "").replace(/state/gi, "").replace(/no\./gi, "").trim();
+                return cleanName === cleanDefault || cleanName.includes(cleanDefault) || cleanDefault.includes(cleanName);
+              })
               if (foundProvince) {
                 setSelectedProvinceId(foundProvince.id)
                 setSelectedCountryId(foundProvince.country_id)

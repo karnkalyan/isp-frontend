@@ -274,6 +274,7 @@ export function NettvDashboard() {
   const [models, setModels] = useState<any[]>([])
   const [vendors, setVendors] = useState<any[]>([])
   const [replaceReasons, setReplaceReasons] = useState<any[]>([])
+  const [countriesList, setCountriesList] = useState<any[]>([])
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(25)
@@ -362,10 +363,11 @@ export function NettvDashboard() {
         fetchAllNetTVPages((page, perPage) => ServicesAPI.getNetTVSTBs(page, perPage)).catch(() => []),
         ServicesAPI.getNetTVResellerInfo().catch(() => null)
       ])
-      const [modelRes, vendorRes, reasonRes] = await Promise.all([
+      const [modelRes, vendorRes, reasonRes, countriesRes] = await Promise.all([
         ServicesAPI.getNetTVModels(1, 100).then(response => unwrapList(response.data)).catch(() => []),
         ServicesAPI.getNetTVVendors(1, 100).then(response => unwrapList(response.data)).catch(() => []),
         ServicesAPI.getNetTVMacReplaceReasons().then(response => unwrapList(response.data)).catch(() => []),
+        ServicesAPI.getNetTVCountries().then(response => response.data || []).catch(() => []),
       ])
       setSubscribers(subscriberList)
       setPackages(packageRes)
@@ -376,6 +378,7 @@ export function NettvDashboard() {
       setModels(modelRes)
       setVendors(vendorRes)
       setReplaceReasons(reasonRes)
+      setCountriesList(countriesRes)
     } catch (error: any) {
       toast.error(error.message || "Failed to load NetTV service data")
     } finally {
@@ -581,10 +584,11 @@ export function NettvDashboard() {
     }
     setPasswordSaving(true)
     try {
+      const resellerId = selected?.subscriber?.reseller?.id || selected?.subscriber?.reseller_id || selected?.reseller?.id || 5;
       await ServicesAPI.forceNetTVPassword(username, {
         password: passwordForm.password,
         conf_password: passwordForm.conf_password,
-        reseller_id: passwordForm.reseller_id || selected?.subscriber?.reseller_id || selected?.reseller?.id,
+        reseller_id: resellerId,
       })
       toast.success("NetTV password updated")
       setPasswordOpen(false)
@@ -791,8 +795,29 @@ export function NettvDashboard() {
     const subscriber = selected?.subscriber || selected
     const contact = subscriber?.details || selected?.details || {}
     const reseller = selected?.reseller || subscriber?.reseller || {}
-    const countryName = contact?.country_info?.name || contact?.country_name || valueOf(contact, ["country"], "")
-    const provinceName = contact?.province_info?.name || contact?.province_name || valueOf(contact, ["province"], "")
+    
+    const resolveCountryName = (val: any) => {
+      if (!val) return "N/A"
+      const num = Number(val)
+      if (!isNaN(num) && countriesList.length > 0) {
+        const matched = countriesList.find(c => c.id === num)
+        if (matched) return matched.name
+      }
+      return String(val)
+    }
+
+    const resolveProvinceName = (val: any) => {
+      if (!val) return "N/A"
+      const num = Number(val)
+      if (!isNaN(num) && countriesList.length > 0) {
+        const matched = countriesList.flatMap(c => c.provinces || []).find(p => p.id === num)
+        if (matched) return matched.name
+      }
+      return String(val)
+    }
+
+    const countryName = contact?.country_info?.name || contact?.country_name || resolveCountryName(valueOf(contact, ["country"], ""))
+    const provinceName = contact?.province_info?.name || contact?.province_name || resolveProvinceName(valueOf(contact, ["province"], ""))
     const latitude = numberOf(contact?.latitude)
     const longitude = numberOf(contact?.longitude)
     const subscriberLabel = fullName(subscriber)
@@ -846,12 +871,42 @@ export function NettvDashboard() {
                 ["fname", "First Name"], ["mname", "Middle Name"], ["lname", "Last Name"],
                 ["phone_no", "Phone"], ["mobile_no", "Mobile"], ["pan", "PAN"],
                 ["address", "Address"], ["city", "City"], ["district", "District"],
-                ["province", "Province ID"], ["country", "Country ID"], ["branch", "Branch"],
+                ["branch", "Branch"],
                 ["website", "Website"], ["longitude", "Longitude"], ["latitude", "Latitude"],
                 ["gender", "Gender"], ["dob", "DOB"],
               ].map(([field, label]) => (
                 <FormField key={field} label={label} value={editForm[field] || ""} onChange={(value) => updateEditField(field, value)} />
               ))}
+              
+              {/* Country Select */}
+              <div className="space-y-1.5">
+                <Label>Country</Label>
+                <select
+                  value={editForm.country || ""}
+                  onChange={(e) => updateEditField("country", e.target.value)}
+                  className="w-full flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-950 border-slate-200 dark:border-slate-800"
+                >
+                  <option value="">Select Country</option>
+                  {countriesList.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Province Select */}
+              <div className="space-y-1.5">
+                <Label>Province</Label>
+                <select
+                  value={editForm.province || ""}
+                  onChange={(e) => updateEditField("province", e.target.value)}
+                  className="w-full flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-950 border-slate-200 dark:border-slate-800"
+                >
+                  <option value="">Select Province</option>
+                  {(countriesList.find(c => String(c.id) === String(editForm.country))?.provinces || []).map((p: any) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditOpen(false)} disabled={savingEdit}>Cancel</Button>
@@ -872,7 +927,6 @@ export function NettvDashboard() {
             <div className="grid gap-4">
               <FormField label="Password" type="password" value={passwordForm.password} onChange={(value) => setPasswordForm((current) => ({ ...current, password: value }))} />
               <FormField label="Confirm Password" type="password" value={passwordForm.conf_password} onChange={(value) => setPasswordForm((current) => ({ ...current, conf_password: value }))} />
-              <FormField label="Reseller ID" value={passwordForm.reseller_id} onChange={(value) => setPasswordForm((current) => ({ ...current, reseller_id: value }))} />
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setPasswordOpen(false)} disabled={passwordSaving}>Cancel</Button>
