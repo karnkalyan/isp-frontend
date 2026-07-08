@@ -17,6 +17,7 @@ interface CardContainerProps {
   gradientColor?: string
   forceDarkMode?: boolean
   className?: string
+  contentClassName?: string
   action?: ReactNode
   actions?: CardAction[]
 }
@@ -28,6 +29,7 @@ export function CardContainer({
   gradientColor = "#3B82F6",
   forceDarkMode = false,
   className = "",
+  contentClassName = "",
   action,
   actions
 }: CardContainerProps) {
@@ -89,7 +91,7 @@ export function CardContainer({
           </div>
         </CardHeader>
       )}
-      <CardContent className="relative z-10">{children}</CardContent>
+      <CardContent className={`relative z-10 ${contentClassName}`}>{children}</CardContent>
     </Card>
   )
 }

@@ -5387,122 +5387,252 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
               </div>
             </div>
           ) : nettvDetails ? (
-            <div className="space-y-6">
-              {/* Subscriber info card */}
-              <CardContainer title="Subscriber Information" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700">
-                    <span className="text-xs text-muted-foreground block mb-1">Username</span>
-                    <span className="font-medium text-slate-800 dark:text-slate-200">{nettvDetails.subscriber?.username || "N/A"}</span>
-                  </div>
-                  <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700">
-                    <span className="text-xs text-muted-foreground block mb-1">Full Name</span>
-                    <span className="font-medium text-slate-800 dark:text-slate-200">
-                      {nettvDetails.subscriber?.fname || ""} {nettvDetails.subscriber?.mname || ""} {nettvDetails.subscriber?.lname || ""}
-                    </span>
-                  </div>
-                  <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700">
-                    <span className="text-xs text-muted-foreground block mb-1">Status</span>
-                    <Badge variant={nettvDetails.subscriber?.status === 1 ? "default" : "destructive"}>
-                      {nettvDetails.subscriber?.status === 1 ? "Active" : "Inactive"}
-                    </Badge>
-                  </div>
-                  <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700">
-                    <span className="text-xs text-muted-foreground block mb-1">Email</span>
-                    <span className="font-medium text-slate-800 dark:text-slate-200">{nettvDetails.subscriber?.email || "N/A"}</span>
-                  </div>
-                  <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700">
-                    <span className="text-xs text-muted-foreground block mb-1">Phone Number</span>
-                    <span className="font-medium text-slate-800 dark:text-slate-200">{nettvDetails.subscriber?.phone_no || "N/A"}</span>
-                  </div>
-                  <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700">
-                    <span className="text-xs text-muted-foreground block mb-1">Address</span>
-                    <span className="font-medium text-slate-800 dark:text-slate-200">{nettvDetails.subscriber?.address || "N/A"}</span>
-                  </div>
-                </div>
-              </CardContainer>
+            (() => {
+              const sub = nettvDetails.subscriber || {};
+              const details = sub.details || {};
+              
+              // Construct full name
+              const fullName = details.fname 
+                ? `${details.fname || ""} ${details.mname || ""} ${details.lname || ""}`.trim()
+                : sub.fname 
+                  ? `${sub.fname} ${sub.lname || ""}`.trim()
+                  : "N/A";
+              
+              // Construct phone/mobile
+              const phone = details.phone_no || details.mobile_no || sub.phone_no || sub.mobile_no || "N/A";
+              
+              // Construct address
+              const address = details.address || sub.address || "N/A";
+              const city = details.city || "N/A";
+              const district = details.district || "N/A";
+              const province = details.province_info?.name || details.province || "N/A";
+              const country = details.country_info?.name || "Nepal";
 
-              {/* Set Top Box List card */}
-              <CardContainer title="Provisioned Set Top Boxes (STBs)" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
-                {(!nettvDetails.subscriber?.user_stbs || nettvDetails.subscriber.user_stbs.length === 0) ? (
-                  <p className="text-slate-500 dark:text-slate-400 p-4 text-center">No STBs provisioned for this subscriber.</p>
-                ) : (
-                  <div className="space-y-6">
-                    {nettvDetails.subscriber.user_stbs.map((stb: any, index: number) => (
-                      <div key={index} className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm space-y-4">
-                        <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-700 pb-2">
-                          <div className="flex items-center space-x-2">
-                            <Tv className="h-5 w-5 text-purple-600" />
-                            <span className="font-semibold text-slate-800 dark:text-slate-200">STB #{index + 1} ({stb.stb_model || "Generic"})</span>
-                          </div>
-                          <Badge variant={stb.status === 1 ? "default" : "destructive"}>
-                            {stb.status === 1 ? "Active" : "Inactive"}
+              // Reseller info
+              const reseller = sub.reseller || {};
+              
+              // User STBs list
+              const userStbs = sub.user_stbs || nettvDetails.stbs || [];
+
+              return (
+                <div className="space-y-6">
+                  {/* Grid of basic info */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    
+                    {/* Subscriber Account Details */}
+                    <CardContainer title="Subscriber Account Details" className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-1">
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                          <span className="text-xs text-muted-foreground block mb-1">Username</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">{sub.username || "N/A"}</span>
+                        </div>
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                          <span className="text-xs text-muted-foreground block mb-1">ERP ID</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">{sub.erp_id || "N/A"}</span>
+                        </div>
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                          <span className="text-xs text-muted-foreground block mb-1">Registration Type</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200 capitalize">{sub.registration_type || "N/A"}</span>
+                        </div>
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                          <span className="text-xs text-muted-foreground block mb-1">Status</span>
+                          <Badge variant={sub.status === 1 ? "default" : "destructive"}>
+                            {sub.status === 1 ? "Active" : "Inactive"}
                           </Badge>
                         </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <span className="text-xs text-muted-foreground block mb-1">Serial Number</span>
-                            <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{stb.serial_no || "N/A"}</span>
-                          </div>
-                          <div>
-                            <span className="text-xs text-muted-foreground block mb-1">MAC Address</span>
-                            <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{stb.mac_addr || "N/A"}</span>
-                          </div>
-                          <div>
-                            <span className="text-xs text-muted-foreground block mb-1">Chip ID</span>
-                            <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{stb.chip_id || "N/A"}</span>
-                          </div>
-                          <div>
-                            <span className="text-xs text-muted-foreground block mb-1">Expiry Date</span>
-                            <span className="font-medium text-slate-800 dark:text-slate-200">
-                              {stb.expiry_date ? new Date(stb.expiry_date).toLocaleDateString() : "N/A"}
-                            </span>
-                          </div>
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                          <span className="text-xs text-muted-foreground block mb-1">Wallet Enabled</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">{sub.is_wallet_enable ? "Yes" : "No"}</span>
                         </div>
-
-                        {/* STB Packages list */}
-                        <div className="space-y-2">
-                          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Active STB Packages</h4>
-                          {!stb.stb_packages || stb.stb_packages.length === 0 ? (
-                            <p className="text-xs text-slate-500 dark:text-slate-400">No active packages on this STB.</p>
-                          ) : (
-                            <div className="overflow-x-auto rounded-lg border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
-                              <table className="w-full text-left text-xs border-collapse">
-                                <thead>
-                                  <tr className="border-b border-slate-100 dark:border-slate-700 text-slate-500 dark:text-slate-400">
-                                    <th className="py-2 px-3 font-semibold">Package Name</th>
-                                    <th className="py-2 px-3 font-semibold">Price</th>
-                                    <th className="py-2 px-3 font-semibold">Expiry Date</th>
-                                    <th className="py-2 px-3 font-semibold">Status</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {stb.stb_packages.map((pkg: any, pkgIdx: number) => (
-                                    <tr key={pkgIdx} className="border-b border-slate-100 dark:border-slate-700 last:border-0 hover:bg-slate-100/50 dark:hover:bg-slate-800/50">
-                                      <td className="py-2 px-3 font-medium text-slate-800 dark:text-slate-200">{pkg.name || `Pkg ID: ${pkg.package_id}`}</td>
-                                      <td className="py-2 px-3 text-slate-600 dark:text-slate-400">Rs. {pkg.price || 0}</td>
-                                      <td className="py-2 px-3 text-slate-600 dark:text-slate-400">
-                                        {pkg.expiry_date ? new Date(pkg.expiry_date).toLocaleDateString() : "N/A"}
-                                      </td>
-                                      <td className="py-2 px-3">
-                                        <Badge variant={pkg.status === 1 ? "default" : "secondary"} className="text-[10px]">
-                                          {pkg.status === 1 ? "Active" : "Inactive"}
-                                        </Badge>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                          <span className="text-xs text-muted-foreground block mb-1">Remote Enabled</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">{sub.is_remote_enable ? "Yes" : "No"}</span>
+                        </div>
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                          <span className="text-xs text-muted-foreground block mb-1">Balance</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">NPR {sub.balance ?? 0}</span>
+                        </div>
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                          <span className="text-xs text-muted-foreground block mb-1">Due Amount</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">NPR {sub.due_amount ?? 0}</span>
+                        </div>
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg col-span-1 md:col-span-2">
+                          <span className="text-xs text-muted-foreground block mb-1">Created / Updated</span>
+                          <span className="font-medium text-slate-600 dark:text-slate-400 text-xs">
+                            Created: {sub.created_at || "N/A"} | Updated: {sub.updated_at || "N/A"}
+                          </span>
                         </div>
                       </div>
-                    ))}
+                    </CardContainer>
+
+                    {/* Subscriber Contact Details */}
+                    <CardContainer title="Subscriber Contact & Address" className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-1">
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg col-span-1 md:col-span-2">
+                          <span className="text-xs text-muted-foreground block mb-1">Full Name</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">{fullName}</span>
+                        </div>
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                          <span className="text-xs text-muted-foreground block mb-1">Email</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">{sub.email || "N/A"}</span>
+                        </div>
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                          <span className="text-xs text-muted-foreground block mb-1">Phone Number</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">{phone}</span>
+                        </div>
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg col-span-1 md:col-span-2">
+                          <span className="text-xs text-muted-foreground block mb-1">Address</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">{address}</span>
+                        </div>
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                          <span className="text-xs text-muted-foreground block mb-1">City / District</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">{city} / {district}</span>
+                        </div>
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                          <span className="text-xs text-muted-foreground block mb-1">Province / Country</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">{province} / {country}</span>
+                        </div>
+                      </div>
+                    </CardContainer>
+
                   </div>
-                )}
-              </CardContainer>
-            </div>
+
+                  {/* Reseller Details */}
+                  {reseller.id && (
+                    <CardContainer title="Reseller Details" className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-1">
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                          <span className="text-xs text-muted-foreground block mb-1">Reseller ID & Name</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">{reseller.name} (#{reseller.id})</span>
+                        </div>
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                          <span className="text-xs text-muted-foreground block mb-1">Username / Profile</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">{reseller.username} ({reseller.profile || "N/A"})</span>
+                        </div>
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                          <span className="text-xs text-muted-foreground block mb-1">Contact Info</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs">{reseller.mobile_no || "N/A"} | {reseller.email || "N/A"}</span>
+                        </div>
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                          <span className="text-xs text-muted-foreground block mb-1">Reseller Balance</span>
+                          <Badge variant="secondary" className="font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+                            NPR {reseller.credit_balance ?? 0}
+                          </Badge>
+                        </div>
+                      </div>
+                    </CardContainer>
+                  )}
+
+                  {/* Set Top Box List card */}
+                  <CardContainer title="Provisioned Set Top Boxes (STBs)" className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm">
+                    {(!userStbs || userStbs.length === 0) ? (
+                      <p className="text-slate-500 dark:text-slate-400 p-4 text-center">No STBs provisioned for this subscriber.</p>
+                    ) : (
+                      <div className="space-y-6">
+                        {userStbs.map((stbItem: any, index: number) => {
+                          const mainStb = stbItem.stb || stbItem || {};
+                          const stbStatus = stbItem.status || mainStb.status || "N/A";
+                          const isActive = String(stbStatus) === "1" || String(stbStatus).toLowerCase() === "active";
+                          const pkgs = stbItem.stb_packages || mainStb.subscribed_packages || stbItem.subscribed_packages || stbItem.active_package || [];
+                          
+                          let maxExpiry = "N/A";
+                          pkgs.forEach((pkg: any) => {
+                            const exp = pkg.expiry_date || pkg.package_subscription_details?.[0]?.expiry_date;
+                            if (exp) {
+                              if (maxExpiry === "N/A" || new Date(exp) > new Date(maxExpiry)) {
+                                maxExpiry = exp;
+                              }
+                            }
+                          });
+
+                          return (
+                            <div key={index} className="p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
+                              <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-2">
+                                <div className="flex items-center space-x-2">
+                                  <Tv className="h-5 w-5 text-purple-600" />
+                                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                    STB #{index + 1} ({stbItem.stb_label || stbItem.type || mainStb.model?.name || "OTT"})
+                                  </span>
+                                </div>
+                                <Badge variant={isActive ? "default" : "destructive"}>
+                                  {isActive ? "Active" : "Inactive"}
+                                </Badge>
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                                <div>
+                                  <span className="text-xs text-muted-foreground block mb-1">Serial Number</span>
+                                  <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{mainStb.serial || "N/A"}</span>
+                                </div>
+                                <div>
+                                  <span className="text-xs text-muted-foreground block mb-1">MAC Address</span>
+                                  <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{mainStb.mac || "N/A"}</span>
+                                </div>
+                                <div>
+                                  <span className="text-xs text-muted-foreground block mb-1">Chip ID</span>
+                                  <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{mainStb.chip_id || "N/A"}</span>
+                                </div>
+                                <div>
+                                  <span className="text-xs text-muted-foreground block mb-1">Expiry Date</span>
+                                  <span className="font-medium text-slate-800 dark:text-slate-200">
+                                    {maxExpiry !== "N/A" ? new Date(maxExpiry).toLocaleDateString() : "N/A"}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* STB Packages list */}
+                              <div className="space-y-2 pt-2">
+                                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">STB Packages</h4>
+                                {pkgs.length === 0 ? (
+                                  <p className="text-xs text-slate-500 dark:text-slate-400">No active packages on this STB.</p>
+                                ) : (
+                                  <div className="overflow-x-auto rounded-lg border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
+                                    <table className="w-full text-left text-xs border-collapse">
+                                      <thead>
+                                        <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/40">
+                                          <th className="py-2.5 px-3 font-semibold">Package Name</th>
+                                          <th className="py-2.5 px-3 font-semibold">Price</th>
+                                          <th className="py-2.5 px-3 font-semibold">Expiry Date</th>
+                                          <th className="py-2.5 px-3 font-semibold">Status</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {pkgs.map((pkg: any, pkgIdx: number) => {
+                                          const expStr = pkg.expiry_date || pkg.package_subscription_details?.[0]?.expiry_date;
+                                          const isPkgActive = expStr ? new Date(expStr) > new Date() : (pkg.status === "Active" || pkg.status === 1);
+                                          return (
+                                            <tr key={pkgIdx} className="border-b border-slate-100 dark:border-slate-800 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/20">
+                                              <td className="py-2.5 px-3 font-medium text-slate-800 dark:text-slate-200">
+                                                {pkg.package_config_name || pkg.name || `Pkg ID: ${pkg.package_id || pkg.id}`}
+                                              </td>
+                                              <td className="py-2.5 px-3 text-slate-600 dark:text-slate-400">
+                                                Rs. {pkg.price || pkg.package_price || 0}
+                                              </td>
+                                              <td className="py-2.5 px-3 text-slate-600 dark:text-slate-400">
+                                                {expStr ? new Date(expStr).toLocaleDateString() : "N/A"}
+                                              </td>
+                                              <td className="py-2.5 px-3">
+                                                <Badge variant={isPkgActive ? "default" : "secondary"} className="text-[10px]">
+                                                  {isPkgActive ? "Active" : "Expired"}
+                                                </Badge>
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </CardContainer>
+                </div>
+              );
+            })()
           ) : (
             <div className="p-8 text-center bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-100 dark:border-slate-800">
               <p className="text-slate-500 dark:text-slate-400">No NetTV details available. Click sync to retrieve.</p>

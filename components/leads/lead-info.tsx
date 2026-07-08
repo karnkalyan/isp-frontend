@@ -1977,18 +1977,36 @@ export default function LeadDetailsPage() {
                   </p>
                 </div>
                 {lead.convertedToCustomer && (
-                  <div className="p-3 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                    <Label className="text-xs font-medium text-green-700 dark:text-green-300 uppercase tracking-wider">
-                      Converted to Customer
-                    </Label>
-                    <p className="font-medium text-green-800 dark:text-green-400 text-sm mt-1">
-                      {formatDate(lead.convertedAt || "")}
-                    </p>
-                    {lead.convertedBy && (
-                      <p className="text-xs text-green-600 dark:text-green-300 mt-1">
-                        By: {lead.convertedBy.name}
+                  <div className="p-3 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-800 rounded-lg space-y-2">
+                    <div>
+                      <Label className="text-xs font-medium text-green-700 dark:text-green-300 uppercase tracking-wider">
+                        Converted to Customer
+                      </Label>
+                      <p className="font-medium text-green-800 dark:text-green-400 text-sm mt-1">
+                        {formatDate(lead.convertedAt || "")}
                       </p>
-                    )}
+                      {lead.convertedBy && (
+                        <p className="text-xs text-green-600 dark:text-green-300 mt-1">
+                          By: {lead.convertedBy.name}
+                        </p>
+                      )}
+                    </div>
+                    {lead.customers && lead.customers.length > 0 ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full border-green-300 hover:bg-green-100/50 dark:border-green-700 dark:hover:bg-green-900/50 text-green-700 dark:text-green-300 flex items-center justify-center gap-1.5"
+                        onClick={() => {
+                          const customerId = lead.customers?.[0]?.id;
+                          if (customerId) {
+                            router.push(`/customers/${customerId}`);
+                          }
+                        }}
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        Open Customer Profile
+                      </Button>
+                    ) : null}
                   </div>
                 )}
               </CardContent>

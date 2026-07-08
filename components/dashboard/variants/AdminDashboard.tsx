@@ -62,7 +62,7 @@ export function AdminDashboard() {
             <StatsCards />
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-10">
-                <Card className="lg:col-span-5 shadow-sm border-muted/60 bg-card/50 backdrop-blur-sm">
+                <Card className="lg:col-span-6 shadow-sm border-muted/60 bg-card/50 backdrop-blur-sm">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <div className="space-y-1">
                             <CardTitle className="text-xl font-bold">Performance Analytics</CardTitle>
@@ -73,17 +73,19 @@ export function AdminDashboard() {
                         <RevenueChart />
                     </CardContent>
                 </Card>
-                <Card className="lg:col-span-3 shadow-sm border-muted/60 bg-card/50 backdrop-blur-sm">
-                    <CardHeader>
-                        <CardTitle className="text-xl font-bold">Quick Actions</CardTitle>
-                        <CardDescription>Essential tasks and shortcuts</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <QuickActions />
-                    </CardContent>
-                </Card>
-                <div className="lg:col-span-2 flex flex-col h-full">
-                    <NepaliCalendarWidget />
+                <div className="lg:col-span-4 flex flex-col gap-6">
+                    <Card className="shadow-sm border-muted/60 bg-card/50 backdrop-blur-sm h-fit">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-xl font-bold">Quick Actions</CardTitle>
+                            <CardDescription>Essential tasks and shortcuts</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <QuickActions />
+                        </CardContent>
+                    </Card>
+                    <div className="flex-grow flex flex-col">
+                        <NepaliCalendarWidget />
+                    </div>
                 </div>
             </div>
 

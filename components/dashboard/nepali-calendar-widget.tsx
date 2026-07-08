@@ -70,8 +70,10 @@ export function NepaliCalendarWidget() {
   return (
     <CardContainer
       title="Nepali Calendar (BS)"
+      className="h-full flex flex-col shadow-sm border-muted/60 bg-card/50 backdrop-blur-sm"
+      contentClassName="flex-grow flex flex-col justify-between"
     >
-      <div className="p-1">
+      <div className="p-1 flex-grow flex flex-col justify-between">
         {/* Calendar Header Controls */}
         <div className="flex items-center justify-between pb-3 mb-3 border-b">
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handlePrevMonth}>
@@ -112,18 +114,18 @@ export function NepaliCalendarWidget() {
         </div>
 
         {/* Weekday headers */}
-        <div className="grid grid-cols-7 gap-1 text-center text-xs font-semibold text-muted-foreground mb-2">
+        <div className="grid grid-cols-7 gap-1 text-center text-sm font-semibold text-muted-foreground mb-2">
           {weekDaysShort.map((day, idx) => (
-            <div key={idx} className="h-8 flex items-center justify-center">
+            <div key={idx} className="h-10 flex items-center justify-center">
               {day}
             </div>
           ))}
         </div>
 
         {/* Grid of days */}
-        <div className="grid grid-cols-7 gap-1 text-center text-sm">
+        <div className="grid grid-cols-7 gap-1 text-center text-base flex-grow">
           {blanksArray.map((_, idx) => (
-            <div key={`blank-${idx}`} className="h-8 flex items-center justify-center text-muted-foreground/30">
+            <div key={`blank-${idx}`} className="h-10 flex items-center justify-center text-muted-foreground/30">
               -
             </div>
           ))}
@@ -137,9 +139,9 @@ export function NepaliCalendarWidget() {
               <div
                 key={day}
                 className={cn(
-                  "h-8 flex items-center justify-center rounded-md font-medium transition-all select-none",
+                  "h-10 flex items-center justify-center rounded-md font-medium transition-all select-none",
                   isToday 
-                    ? "bg-primary text-primary-foreground font-bold shadow" 
+                    ? "bg-primary text-primary-foreground font-bold shadow-md" 
                     : "hover:bg-accent/40 text-foreground"
                 )}
               >

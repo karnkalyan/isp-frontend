@@ -3416,12 +3416,15 @@ export function LeadManagement() {
                               <div className="space-y-1">
                                 {lead.customers.map(customer => (
                                   <div key={customer.id} className="flex items-center gap-2">
-                                    <User className="h-4 w-4 text-muted-foreground" />
-                                    <span className="font-medium">
-                                      {customer.firstName} {customer.lastName}
+                                    <User className="h-4 w-4 text-indigo-600" />
+                                    <span
+                                      className="font-medium hover:underline text-indigo-600 dark:text-indigo-400 cursor-pointer"
+                                      onClick={() => router.push(`/customers/${customer.id}`)}
+                                    >
+                                      {lead.firstName} {lead.lastName}
                                     </span>
                                     <Badge variant="outline" className="text-xs">
-                                      Customer #{customer.id}
+                                      {customer.customerUniqueId || `Customer #${customer.id}`}
                                     </Badge>
                                   </div>
                                 ))}
@@ -3602,12 +3605,31 @@ export function LeadManagement() {
                         <p className="font-medium">{formatDate(viewLead.createdAt)}</p>
                       </div>
                       {viewLead.convertedToCustomer && (
-                        <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                          <Label className="text-sm text-muted-foreground mb-1 block">Converted At</Label>
-                          <p className="font-medium text-green-700 dark:text-green-400">{formatDate(viewLead.convertedAt || "")}</p>
-                          {viewLead.convertedBy && (
-                            <p className="text-sm text-green-600 dark:text-green-300">By: {viewLead.convertedBy.name}</p>
-                          )}
+                        <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg space-y-2">
+                          <div>
+                            <Label className="text-sm text-muted-foreground mb-1 block">Converted At</Label>
+                            <p className="font-medium text-green-700 dark:text-green-400">{formatDate(viewLead.convertedAt || "")}</p>
+                            {viewLead.convertedBy && (
+                              <p className="text-sm text-green-600 dark:text-green-300">By: {viewLead.convertedBy.name}</p>
+                            )}
+                          </div>
+                          {viewLead.customers && viewLead.customers.length > 0 ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full border-green-300 hover:bg-green-100/50 dark:border-green-700 dark:hover:bg-green-900/50 text-green-700 dark:text-green-300 flex items-center justify-center gap-1.5"
+                              onClick={() => {
+                                const customerId = viewLead.customers?.[0]?.id;
+                                if (customerId) {
+                                  setShowViewDialog(false);
+                                  router.push(`/customers/${customerId}`);
+                                }
+                              }}
+                            >
+                              <Link className="h-4 w-4" />
+                              Open Customer Profile
+                            </Button>
+                          ) : null}
                         </div>
                       )}
                     </div>

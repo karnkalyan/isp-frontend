@@ -63,6 +63,9 @@ type Device = {
     lastName: string
     phoneNumber: string
     status: string
+    customers?: Array<{
+      id: number
+    }>
   }
 }
 
@@ -530,8 +533,12 @@ export function TR069DeviceList() {
                                 </div>
                                 <div className="space-y-0.5">
                                   <Link 
-                                    href={`/leads/${device.leadId}`}
-                                    className="text-sm font-medium text-slate-900 hover:underline"
+                                    href={
+                                      (device.lead.status === 'converted' && device.lead.customers?.[0]?.id)
+                                        ? `/customers/${device.lead.customers[0].id}`
+                                        : `/leads/${device.leadId}`
+                                    }
+                                    className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
                                   >
                                     {device.lead.firstName} {device.lead.lastName}
                                   </Link>
