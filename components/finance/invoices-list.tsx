@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { apiRequest } from "@/lib/api"
 import { toast } from "react-hot-toast"
+import { formatDateToNepali } from "@/lib/nepaliFunctions"
 
 const numberToWords = (amount: number) => {
   const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"]
@@ -208,7 +209,7 @@ function PrintableInvoice({
 
         {invoice?.packageStart && invoice?.packageEnd && (
           <div className="mt-4 text-sm font-semibold">
-            Effective from {new Date(invoice.packageStart).toLocaleDateString()} to {new Date(invoice.packageEnd).toLocaleDateString()} - {invoice.planName || invoice.packageName || "Internet"}
+            Effective from {formatDateToNepali(invoice.packageStart)} to {formatDateToNepali(invoice.packageEnd)} - {invoice.planName || invoice.packageName || "Internet"}
           </div>
         )}
 
@@ -225,7 +226,7 @@ function PrintableInvoice({
               const price = item.preTaxPrice
               const isInternet = !item.referenceId || item.itemName?.toUpperCase().includes('INTERNET');
               const itemDesc = isInternet && invoice?.packageStart && invoice?.packageEnd
-                ? `INTERNET CHARGE FOR ${invoice.planName || invoice.packageName || "Internet"} EFFECTIVE FROM ${new Date(invoice.packageStart).toLocaleDateString()} TO ${new Date(invoice.packageEnd).toLocaleDateString()}`
+                ? `INTERNET CHARGE FOR ${invoice.planName || invoice.packageName || "Internet"} EFFECTIVE FROM ${formatDateToNepali(invoice.packageStart)} TO ${formatDateToNepali(invoice.packageEnd)}`
                 : (item.description || item.itemName || "Internet service package");
 
               return (
