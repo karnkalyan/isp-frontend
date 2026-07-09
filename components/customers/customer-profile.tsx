@@ -3119,6 +3119,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     return status === "active" || status === "success" || status === "provisioned" || app.serviceData?.success === true
   }
 
+  const isNettvProvisioned = isAppProvisioned(getSubscribedApp(["NETTV", "NET TV"]));
+
   const provisionedServices = [
     {
       label: "Radius / PPPoE",
@@ -3709,7 +3711,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           {serviceActionLoading === "radius" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Key className="mr-2 h-4 w-4" />}
           Reprovision Radius
         </Button>
-        <Button size="sm" className="h-9 bg-gradient-to-r from-pink-500 to-purple-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={() => setNettvProvisionOpen(true)} disabled={serviceActionLoading === "nettv"}>
+        <Button size="sm" className="h-9 bg-gradient-to-r from-pink-500 to-purple-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={() => setNettvProvisionOpen(true)} disabled={serviceActionLoading === "nettv" || !isNettvProvisioned}>
           {serviceActionLoading === "nettv" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Tv className="mr-2 h-4 w-4" />}
           Reprovision NetTV
         </Button>
@@ -3718,7 +3720,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           variant="outline"
           className="h-9"
           onClick={() => customer?.customerUniqueId && router.push(`/nettv?subscriber=${encodeURIComponent(customer.customerUniqueId)}`)}
-          disabled={!customer?.customerUniqueId}
+          disabled={!customer?.customerUniqueId || !isNettvProvisioned}
         >
           <ExternalLink className="mr-2 h-4 w-4" /> Open NetTV Details
         </Button>
