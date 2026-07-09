@@ -65,7 +65,8 @@ import {
   Download,
   Upload,
   ExternalLink,
-  ImageIcon
+  ImageIcon,
+  History
 } from "lucide-react"
 import { apiRequest, buildApiAssetUrl, getDynamicBaseUrl } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
@@ -1355,6 +1356,30 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const [activeTab, setActiveTab] = useState("overview")
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [billingTscPercentage, setBillingTscPercentage] = useState(10)
+  
+  const [auditLogs, setAuditLogs] = useState<any[]>([])
+  const [loadingAudit, setLoadingAudit] = useState(false)
+
+  const fetchAuditLogs = useCallback(async () => {
+    if (!customer?.id) return;
+    setLoadingAudit(true)
+    try {
+      const res = await apiRequest<any>(`/audit-logs/customer/${customer.id}`)
+      if (res && res.success) {
+        setAuditLogs(res.data || [])
+      }
+    } catch (e) {
+      console.error("Error fetching customer audit logs:", e)
+    } finally {
+      setLoadingAudit(false)
+    }
+  }, [customer?.id])
+
+  useEffect(() => {
+    if (activeTab === "audit") {
+      fetchAuditLogs()
+    }
+  }, [activeTab, fetchAuditLogs])
 
   useEffect(() => {
     apiRequest<Record<string, string>>("/settings")
@@ -3732,6 +3757,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           <TabsTrigger value="radius" className="flex-1 flex-shrink-0"><Key className="mr-2 h-4 w-4" />Radius Login</TabsTrigger>
           <TabsTrigger value="nettv" className="flex-1 flex-shrink-0"><Tv className="mr-2 h-4 w-4" />NetTV</TabsTrigger>
           <TabsTrigger value="support" className="flex-1 flex-shrink-0"><LifeBuoy className="mr-2 h-4 w-4" />Support</TabsTrigger>
+          <TabsTrigger value="audit" className="flex-1 flex-shrink-0"><History className="mr-2 h-4 w-4" />Audit Logs</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -5730,6 +5756,83 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
 
         <TabsContent value="support" className="space-y-4">
           <CustomerTickets customerId={customer.id} />
+        </TabsContent>
+
+        <TabsContent value="audit" className="space-y-4">
+          <CardContainer title="Customer & Lead Activity History" className="border border-slate-200/80 shadow-md">
+            <div className="p-4">
+              <div className="flex justify-between items-center mb-6">
+                <span className="text-xs text-slate-500">
+                  Complete audit trail of actions taken for this account by users and automated systems
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={fetchAuditLogs}
+                  disabled={loadingAudit}
+                  className="bg-white border-slate-200"
+                >
+                  <RotateCcw className={`h-3.5 w-3.5 mr-1.5 ${loadingAudit ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+              </div>
+
+              {loadingAudit ? (
+                <div className="space-y-3 py-6">
+                  <div className="h-4 bg-slate-100 rounded w-1/4 animate-pulse"></div>
+                  <div className="h-4 bg-slate-100 rounded w-3/4 animate-pulse"></div>
+                  <div className="h-4 bg-slate-100 rounded w-1/2 animate-pulse"></div>
+                </div>
+              ) : auditLogs.length === 0 ? (
+                <div className="text-center py-12 text-slate-500 border border-dashed rounded-lg">
+                  No activity log history recorded for this customer.
+                </div>
+              ) : (
+                <div className="relative border-l border-slate-200 ml-3 pl-6 space-y-6">
+                  {auditLogs.map((log: any) => {
+                    let logDetails = {};
+                    try {
+                      logDetails = typeof log.details === 'string' ? JSON.parse(log.details) : log.details || {};
+                    } catch (e) {
+                      logDetails = { message: log.details };
+                    }
+                    return (
+                      <div key={log.id} className="relative group">
+                        <div className="absolute -left-[31px] top-1.5 w-3 h-3 rounded-full bg-indigo-500 border-2 border-white ring-4 ring-indigo-50 dark:ring-indigo-950/20 group-hover:bg-indigo-600 transition-colors" />
+                        
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                          <div>
+                            <span className="font-semibold text-sm text-slate-800 dark:text-slate-200 uppercase">
+                              {String(log.action).replace(/_/g, ' ')}
+                            </span>
+                            <span className="text-xs text-slate-400 ml-2">
+                              by {log.user?.name || 'System'} ({log.user?.email || 'automated'})
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-slate-400 dark:text-slate-500 font-mono">
+                            {new Date(log.timestamp).toLocaleString()}
+                          </span>
+                        </div>
+
+                        <div className="mt-1.5 text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/50 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800 font-mono overflow-x-auto max-w-full">
+                          <div className="font-bold text-slate-500 mb-1">Details:</div>
+                          <pre className="text-[11px] font-sans leading-relaxed whitespace-pre-wrap">
+                            {JSON.stringify(logDetails, null, 2)}
+                          </pre>
+                          {(log.ip || log.browser) && (
+                            <div className="mt-2 pt-1 border-t border-slate-200/50 text-[10px] text-slate-400 dark:text-slate-500 flex flex-wrap gap-x-4">
+                              {log.ip && <span>IP: {log.ip}</span>}
+                              {log.browser && <span className="truncate max-w-xs">Browser: {log.browser}</span>}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </CardContainer>
         </TabsContent>
       </Tabs>
     </div>

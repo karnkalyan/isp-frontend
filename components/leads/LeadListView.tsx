@@ -467,6 +467,8 @@ export function ActiveLeads({
     const [showViewDialog, setShowViewDialog] = useState(false)
     const [viewLead, setViewLead] = useState<Lead | null>(null)
     const [leadFollowUps, setLeadFollowUps] = useState<FollowUp[]>([])
+    const [leadAuditLogs, setLeadAuditLogs] = useState<any[]>([])
+    const [loadingLeadAudit, setLoadingLeadAudit] = useState(false)
 
     const [showStatusChangeDialog, setShowStatusChangeDialog] = useState(false)
     const [statusChangeLead, setStatusChangeLead] = useState<Lead | null>(null)
@@ -752,6 +754,25 @@ export function ActiveLeads({
         }
     }
 
+    const fetchLeadAuditLogs = async (leadId: string | number) => {
+        setLoadingLeadAudit(true)
+        try {
+            const data = await apiRequest(`/audit-logs/lead/${leadId}`)
+            if (data && data.data) {
+                setLeadAuditLogs(Array.isArray(data.data) ? data.data : [])
+            } else if (Array.isArray(data)) {
+                setLeadAuditLogs(data)
+            } else {
+                setLeadAuditLogs([])
+            }
+        } catch (error: any) {
+            console.error("Failed to fetch lead audit logs:", error)
+            setLeadAuditLogs([])
+        } finally {
+            setLoadingLeadAudit(false)
+        }
+    }
+
     // Helper functions
     const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
         const R = 6371
@@ -909,6 +930,7 @@ export function ActiveLeads({
         setViewLead(lead)
         setShowViewDialog(true)
         fetchLeadFollowUps(lead.id)
+        fetchLeadAuditLogs(lead.id)
     }
 
     // Follow-up handlers
@@ -1981,6 +2003,61 @@ export function ActiveLeads({
                                                         )}
                                                     </div>
                                                 ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Activity History Card */}
+                                    <div className="bg-card rounded-lg border p-5 shadow-sm mt-6">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <div className="flex items-center gap-2">
+                                                <History className="h-5 w-5 text-primary" />
+                                                <h3 className="text-lg font-semibold">Activity & Audit History</h3>
+                                            </div>
+                                            <Badge variant="outline" className="ml-auto">{leadAuditLogs.length} total</Badge>
+                                        </div>
+                                        {loadingLeadAudit ? (
+                                            <div className="space-y-3 py-6">
+                                                <div className="h-4 bg-muted rounded w-1/4 animate-pulse"></div>
+                                                <div className="h-4 bg-muted rounded w-3/4 animate-pulse"></div>
+                                            </div>
+                                        ) : leadAuditLogs.length === 0 ? (
+                                            <div className="text-center py-8">
+                                                <History className="h-12 w-12 mx-auto text-gray-300 mb-3" />
+                                                <p className="text-gray-500">No activity logs recorded yet</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                                                {leadAuditLogs.map((log: any) => {
+                                                    let detailsObj = {};
+                                                    try {
+                                                        detailsObj = typeof log.details === 'string' ? JSON.parse(log.details) : log.details || {};
+                                                    } catch (e) {
+                                                        detailsObj = { message: log.details };
+                                                    }
+                                                    return (
+                                                        <div key={log.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
+                                                            <div className="flex justify-between items-start mb-2">
+                                                                <div className="space-y-1">
+                                                                    <span className="font-semibold text-sm uppercase text-slate-800 dark:text-slate-200">
+                                                                        {String(log.action).replace(/_/g, ' ')}
+                                                                    </span>
+                                                                    <div className="text-xs text-muted-foreground">
+                                                                        by {log.user?.name || 'System'} ({log.user?.email || 'automated'})
+                                                                    </div>
+                                                                </div>
+                                                                <span className="text-[10px] text-muted-foreground font-mono">
+                                                                    {new Date(log.timestamp).toLocaleString()}
+                                                                </span>
+                                                            </div>
+                                                            <div className="mt-2 text-xs font-mono bg-muted/30 p-2.5 rounded overflow-x-auto">
+                                                                <pre className="text-[11px] font-sans leading-relaxed whitespace-pre-wrap">
+                                                                    {JSON.stringify(detailsObj, null, 2)}
+                                                                </pre>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                     </div>
