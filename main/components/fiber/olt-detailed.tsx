@@ -4104,10 +4104,21 @@ export function OLTDetailed() {
                   return true;
                 });
 
+                // Exclude child slaves if their parent is also present in the list (to avoid double listing when parent is expanded)
+                const displayAllSplitters = filteredAllSplitters.filter(splitter => {
+                  if (splitterTypeFilter === 'all' && !splitter.isMaster && splitter.masterSplitterId) {
+                    const hasParentInList = filteredAllSplitters.some(
+                      s => s.isMaster && s.splitterId === splitter.masterSplitterId
+                    );
+                    if (hasParentInList) return false;
+                  }
+                  return true;
+                });
+
                 const itemsPerPage = 10;
-                const totalPages = Math.ceil(filteredAllSplitters.length / itemsPerPage);
+                const totalPages = Math.ceil(displayAllSplitters.length / itemsPerPage);
                 const startIndex = (splitterPage - 1) * itemsPerPage;
-                const paginatedAllSplitters = filteredAllSplitters.slice(startIndex, startIndex + itemsPerPage);
+                const paginatedAllSplitters = displayAllSplitters.slice(startIndex, startIndex + itemsPerPage);
 
                 if (allSplitters.length === 0) {
                   return (
@@ -4126,7 +4137,7 @@ export function OLTDetailed() {
                   );
                 }
 
-                if (filteredAllSplitters.length === 0) {
+                if (displayAllSplitters.length === 0) {
                   return (
                     <div className="text-center py-8 border-2 border-dashed rounded-lg">
                       <Split className="h-12 w-12 mx-auto text-gray-300" />
@@ -4159,426 +4170,426 @@ export function OLTDetailed() {
                             const connectionPath = getConnectionPath(splitter, allSplitters);
                             const ultimateOlt = getConnectedOltName(splitter, allSplitters);
 
-                          return (
-                            <Fragment key={splitter.id}>
-                            <TableRow className="hover:bg-muted/50">
-                              <TableCell>
-                                <div className="flex items-center gap-2">
-                                  {splitter.isMaster && (splitter.slaveCount ?? 0) > 0 && (
-                                    <button
-                                      onClick={() => {
-                                        setExpandedMasters(prev => {
-                                          const next = new Set(prev);
-                                          if (next.has(splitter.id)) {
-                                            next.delete(splitter.id);
-                                          } else {
-                                            next.add(splitter.id);
-                                          }
-                                          return next;
-                                        });
-                                      }}
-                                      className="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                                      title={expandedMasters.has(splitter.id) ? "Collapse slaves" : `Show ${splitter.slaveCount ?? 0} slave(s)`}
-                                    >
-                                      <ChevronDown className={`h-4 w-4 text-purple-500 transition-transform ${expandedMasters.has(splitter.id) ? 'rotate-180' : ''}`} />
-                                    </button>
-                                  )}
-                                  <div className="font-medium">{splitter.name}</div>
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <div className="font-mono text-sm">{splitter.splitterId}</div>
-                              </TableCell>
-                              <TableCell>
-                                <div className="space-y-1">
-                                  <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
-                                    {splitter.splitterType}
-                                  </Badge>
-                                  <div className="text-xs text-gray-500">
-                                    Ratio: {splitter.splitRatio}
-                                  </div>
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                {splitter.isMaster ? (
-                                  <div className="space-y-1">
-                                    <Badge className="bg-purple-500/10 text-purple-500 border-purple-500/20">
-                                      Master
-                                    </Badge>
-                                    {splitter.slaveCount > 0 && (
-                                      <div className="text-xs text-gray-500">
-                                        {splitter.slaveCount} slave{splitter.slaveCount !== 1 ? 's' : ''}
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <div className="space-y-1">
-                                    <Badge className="bg-gray-500/10 text-gray-500 border-gray-500/20">
-                                      Slave
-                                    </Badge>
-                                    {splitter.masterSplitterId && (
-                                      <div className="text-xs text-gray-500">
-                                        Parent: {splitter.masterSplitterId}
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                <div className="space-y-1">
-                                  <div className="flex items-center justify-between text-sm">
-                                    <span>Used: {splitter.usedPorts}</span>
-                                    <span>Total: {splitter.portCount}</span>
-                                  </div>
-                                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                                    <div
-                                      className="bg-green-500 h-1.5 rounded-full"
-                                      style={{ width: `${(splitter.usedPorts / splitter.portCount) * 100}%` }}
-                                    />
-                                  </div>
-                                  <div className="text-xs text-gray-500">
-                                    Available: {splitter.availablePorts}
-                                  </div>
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <div className="space-y-1">
-                                  <div className="flex items-center gap-2">
-                                    {splitter.connectedServiceBoard ? (
-                                      <Server className="h-3 w-3 text-green-500" />
-                                    ) : splitter.masterSplitterId ? (
-                                      <Split className="h-3 w-3 text-blue-500" />
-                                    ) : (
-                                      <XCircle className="h-3 w-3 text-gray-400" />
-                                    )}
-                                    <span className="text-sm font-medium">{connectionDetails.type}</span>
-                                  </div>
-                                  <div className="text-xs text-gray-500 truncate" title={connectionDetails.details}>
-                                    {connectionDetails.details}
-                                  </div>
-                                  {/* Show connection path */}
-                                  {connectionPath.length > 2 && (
-                                    <div className="text-xs text-gray-400 mt-1 truncate" title={connectionPath.join(' → ')}>
-                                      Path: {connectionPath.slice(0, 3).join(' → ')}
-                                      {connectionPath.length > 3 && '...'}
-                                    </div>
-                                  )}
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <div className="space-y-1">
-                                  <div className="text-sm font-medium">
-                                    {ultimateOlt !== "Not connected" ? (
-                                      <div className="flex items-center gap-2">
-                                        <Server className="h-3 w-3 text-green-500" />
-                                        <span>{ultimateOlt}</span>
-                                      </div>
-                                    ) : (
-                                      <span className="text-gray-400">{ultimateOlt}</span>
-                                    )}
-                                  </div>
-                                  {/* Show OLT IP if available */}
-                                  {ultimateOlt !== "Not connected" && (
-                                    (() => {
-                                      const rootOltId = findRootOltForSplitter(splitter, splitters);
-                                      const olt = olts.find(o => o.id === rootOltId);
-                                      return olt?.ipAddress ? (
-                                        <div className="text-xs text-gray-500 font-mono">
-                                          {olt.ipAddress}
-                                        </div>
-                                      ) : null;
-                                    })()
-                                  )}
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <div className="text-sm">
-                                  {splitter.location.site || "No site"}
-                                </div>
-                                {(splitter.location.latitude || splitter.location.longitude) && (
-                                  <div className="flex items-center gap-1 text-xs text-gray-500">
-                                    <MapPin className="h-3 w-3" />
-                                    <span>
-                                      {splitter.location.latitude?.toFixed(4)}, {splitter.location.longitude?.toFixed(4)}
-                                    </span>
-                                  </div>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                <Badge className={getSplitterStatusColor(splitter.status)}>
-                                  {splitter.status}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex justify-end gap-1">
-                                  {/* View Button */}
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => {
-                                      setSelectedSplitter(splitter);
-                                      setShowSplitterDetails(true);
-                                    }}
-                                    className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600"
-                                    title="View Details"
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-
-                                  {/* Edit Button */}
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={async () => {
-                                      setSelectedSplitter(splitter);
-                                      const ratioValue = parseInt(splitter.splitRatio.split(':')[1]) || 8;
-
-                                      let parentSplitterId = "";
-                                      if (splitter.masterSplitterId) {
-                                        const parent = allSplitters.find(s => s.splitterId === splitter.masterSplitterId);
-                                        if (parent) {
-                                          parentSplitterId = parent.id;
-                                        }
-                                      }
-
-                                      setSplitterForm({
-                                        name: splitter.name,
-                                        splitterId: splitter.splitterId,
-                                        splitRatio: splitter.splitRatio as any,
-                                        splitterType: splitter.splitterType as "PLC" | "FBT",
-                                        portCount: splitter.portCount,
-                                        usedPorts: splitter.usedPorts,
-                                        availablePorts: splitter.availablePorts,
-                                        location: splitter.location,
-                                        upstreamFiber: splitter.upstreamFiber,
-                                        isMaster: splitter.isMaster,
-                                        masterSplitterId: parentSplitterId,
-                                        connectedServiceBoard: splitter.connectedServiceBoard,
-                                        status: splitter.status,
-                                        notes: splitter.notes || "",
-                                        ratio: ratioValue
-                                      });
-
-                                      await fetchAllSplittersForHierarchy();
-
-                                      if (splitter.isMaster && splitter.connectedServiceBoard?.oltId) {
-                                        await fetchAvailablePorts(splitter.connectedServiceBoard.oltId);
-                                      } else {
-                                        setAvailablePorts([]);
-                                      }
-
-                                      setShowAddSplitterDialog(true);
-                                    }}
-                                    className="h-8 w-8 hover:bg-green-50 hover:text-green-600"
-                                    title="Edit Splitter"
-                                  >
-                                    <Edit2 className="h-4 w-4" />
-                                  </Button>
-
-                                  {/* Add Slave Button (Only for Master splitters) */}
-                                  {splitter.isMaster && (
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={async () => {
-                                        setSelectedSplitter(null);
-                                        await fetchAllSplittersForHierarchy();
-                                        setSplitterForm({
-                                          name: "",
-                                          splitterId: "",
-                                          splitRatio: "1:8",
-                                          ratio: 8,
-                                          splitterType: "PLC",
-                                          portCount: 8,
-                                          usedPorts: 0,
-                                          availablePorts: 8,
-                                          isMaster: false,
-                                          masterSplitterId: splitter.id,
-                                          location: {
-                                            site: splitter.location.site || "",
-                                            latitude: splitter.location.latitude ?? 0,
-                                            longitude: splitter.location.longitude ?? 0,
-                                            description: ""
-                                          },
-                                          upstreamFiber: {
-                                            coreColor: "Blue",
-                                            connectedTo: "splitter",
-                                            connectionId: splitter.id,
-                                            port: ""
-                                          },
-                                          connectedServiceBoard: undefined,
-                                          status: "active",
-                                          notes: ""
-                                        });
-                                        setAvailablePorts([]);
-                                        setShowAddSplitterDialog(true);
-                                      }}
-                                      className="h-8 w-8 hover:bg-purple-50 hover:text-purple-600"
-                                      title="Add Slave Splitter"
-                                    >
-                                      <PlusCircle className="h-4 w-4" />
-                                    </Button>
-                                  )}
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => {
-                                      if (splitter.location.latitude && splitter.location.longitude) {
-                                        setMapLocation({
-                                          latitude: splitter.location.latitude,
-                                          longitude: splitter.location.longitude,
-                                          name: splitter.name,
-                                          site: splitter.location.site || 'Splitter Location'
-                                        })
-                                        setShowMapDialog(true)
-                                      } else {
-                                        toast.error('No location coordinates available for this splitter')
-                                      }
-                                    }}
-                                    className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600"
-                                    title="View on Map"
-                                    disabled={!splitter.location.latitude || !splitter.location.longitude}  // Make sure this uses splitter, not selectedSplitter
-                                  >
-                                    <MapPin className="h-4 w-4" />
-                                  </Button>
-
-                                  {/* Delete Button */}
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={async () => {
-                                      const isConfirmed = await confirm({
-                                        title: "Delete Splitter",
-                                        message: `Are you sure you want to delete splitter "${splitter.name}" (${splitter.splitterId})? This action cannot be undone.`,
-                                        type: "danger",
-                                        confirmText: "Delete",
-                                        cancelText: "Cancel"
-                                      })
-
-                                      if (isConfirmed) {
-                                        try {
-                                          await apiRequest(`/splitters/${splitter.id}`, {
-                                            method: 'DELETE'
-                                          })
-                                          toast.success("Splitter deleted successfully")
-                                          await fetchSplitters(splitterPagination.page, "", oltFilter)
-                                        } catch (error: any) {
-                                          toast.error(error.message || "Failed to delete splitter")
-                                        }
-                                      }
-                                    }}
-                                    className="h-8 w-8 hover:bg-red-50 hover:text-red-600"
-                                    title="Delete Splitter"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-
-                            {/* Expanded slave rows under this master */}
-                            {splitter.isMaster && expandedMasters.has(splitter.id) && (() => {
-                              const slaves = allSplitters.filter(s => s.masterSplitterId === splitter.splitterId);
-                              if (slaves.length === 0) return null;
-                              return slaves.map(slave => (
-                                <TableRow key={`slave-${slave.id}`} className="bg-purple-50/50 dark:bg-purple-950/20 hover:bg-purple-100/50 dark:hover:bg-purple-900/30">
+                            return (
+                              <Fragment key={splitter.id}>
+                                <TableRow className="hover:bg-muted/50">
                                   <TableCell>
-                                    <div className="flex items-center gap-2 pl-6">
-                                      <div className="w-4 h-4 border-l-2 border-b-2 border-purple-300 dark:border-purple-600 rounded-bl-sm" />
-                                      <div className="font-medium text-sm">{slave.name}</div>
+                                    <div className="flex items-center gap-2">
+                                      {splitter.isMaster && (splitter.slaveCount ?? 0) > 0 && (
+                                        <button
+                                          onClick={() => {
+                                            setExpandedMasters(prev => {
+                                              const next = new Set(prev);
+                                              if (next.has(splitter.id)) {
+                                                next.delete(splitter.id);
+                                              } else {
+                                                next.add(splitter.id);
+                                              }
+                                              return next;
+                                            });
+                                          }}
+                                          className="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                                          title={expandedMasters.has(splitter.id) ? "Collapse slaves" : `Show ${splitter.slaveCount ?? 0} slave(s)`}
+                                        >
+                                          <ChevronDown className={`h-4 w-4 text-purple-500 transition-transform ${expandedMasters.has(splitter.id) ? 'rotate-180' : ''}`} />
+                                        </button>
+                                      )}
+                                      <div className="font-medium">{splitter.name}</div>
                                     </div>
                                   </TableCell>
                                   <TableCell>
-                                    <div className="font-mono text-sm">{slave.splitterId}</div>
+                                    <div className="font-mono text-sm">{splitter.splitterId}</div>
                                   </TableCell>
                                   <TableCell>
                                     <div className="space-y-1">
-                                      <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20 text-xs">
-                                        {slave.splitterType}
+                                      <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
+                                        {splitter.splitterType}
                                       </Badge>
-                                      <div className="text-xs text-gray-500">Ratio: {slave.splitRatio}</div>
+                                      <div className="text-xs text-gray-500">
+                                        Ratio: {splitter.splitRatio}
+                                      </div>
                                     </div>
                                   </TableCell>
                                   <TableCell>
-                                    <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
-                                      Slave
-                                    </Badge>
+                                    {splitter.isMaster ? (
+                                      <div className="space-y-1">
+                                        <Badge className="bg-purple-500/10 text-purple-500 border-purple-500/20">
+                                          Master
+                                        </Badge>
+                                        {splitter.slaveCount > 0 && (
+                                          <div className="text-xs text-gray-500">
+                                            {splitter.slaveCount} slave{splitter.slaveCount !== 1 ? 's' : ''}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <div className="space-y-1">
+                                        <Badge className="bg-gray-500/10 text-gray-500 border-gray-500/20">
+                                          Slave
+                                        </Badge>
+                                        {splitter.masterSplitterId && (
+                                          <div className="text-xs text-gray-500">
+                                            Parent: {splitter.masterSplitterId}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
                                   </TableCell>
                                   <TableCell>
-                                    <div className="text-sm">{slave.usedPorts}/{slave.portCount}</div>
-                                  </TableCell>
-                                  <TableCell>
-                                    <div className="text-xs text-purple-600 dark:text-purple-400">
-                                      ↑ {splitter.name}
+                                    <div className="space-y-1">
+                                      <div className="flex items-center justify-between text-sm">
+                                        <span>Used: {splitter.usedPorts}</span>
+                                        <span>Total: {splitter.portCount}</span>
+                                      </div>
+                                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                                        <div
+                                          className="bg-green-500 h-1.5 rounded-full"
+                                          style={{ width: `${(splitter.usedPorts / splitter.portCount) * 100}%` }}
+                                        />
+                                      </div>
+                                      <div className="text-xs text-gray-500">
+                                        Available: {splitter.availablePorts}
+                                      </div>
                                     </div>
                                   </TableCell>
                                   <TableCell>
-                                    <div className="text-sm">{getConnectedOltName(slave, allSplitters) || '—'}</div>
+                                    <div className="space-y-1">
+                                      <div className="flex items-center gap-2">
+                                        {splitter.connectedServiceBoard ? (
+                                          <Server className="h-3 w-3 text-green-500" />
+                                        ) : splitter.masterSplitterId ? (
+                                          <Split className="h-3 w-3 text-blue-500" />
+                                        ) : (
+                                          <XCircle className="h-3 w-3 text-gray-400" />
+                                        )}
+                                        <span className="text-sm font-medium">{connectionDetails.type}</span>
+                                      </div>
+                                      <div className="text-xs text-gray-500 truncate" title={connectionDetails.details}>
+                                        {connectionDetails.details}
+                                      </div>
+                                      {/* Show connection path */}
+                                      {connectionPath.length > 2 && (
+                                        <div className="text-xs text-gray-400 mt-1 truncate" title={connectionPath.join(' → ')}>
+                                          Path: {connectionPath.slice(0, 3).join(' → ')}
+                                          {connectionPath.length > 3 && '...'}
+                                        </div>
+                                      )}
+                                    </div>
                                   </TableCell>
                                   <TableCell>
-                                    <div className="text-sm">{slave.location?.site || '—'}</div>
+                                    <div className="space-y-1">
+                                      <div className="text-sm font-medium">
+                                        {ultimateOlt !== "Not connected" ? (
+                                          <div className="flex items-center gap-2">
+                                            <Server className="h-3 w-3 text-green-500" />
+                                            <span>{ultimateOlt}</span>
+                                          </div>
+                                        ) : (
+                                          <span className="text-gray-400">{ultimateOlt}</span>
+                                        )}
+                                      </div>
+                                      {/* Show OLT IP if available */}
+                                      {ultimateOlt !== "Not connected" && (
+                                        (() => {
+                                          const rootOltId = findRootOltForSplitter(splitter, splitters);
+                                          const olt = olts.find(o => o.id === rootOltId);
+                                          return olt?.ipAddress ? (
+                                            <div className="text-xs text-gray-500 font-mono">
+                                              {olt.ipAddress}
+                                            </div>
+                                          ) : null;
+                                        })()
+                                      )}
+                                    </div>
                                   </TableCell>
                                   <TableCell>
-                                    <Badge variant={slave.status === 'active' ? 'default' : 'secondary'}
-                                      className={slave.status === 'active' ? 'bg-green-500/10 text-green-600 border-green-500/20' : ''}>
-                                      {slave.status}
+                                    <div className="text-sm">
+                                      {splitter.location.site || "No site"}
+                                    </div>
+                                    {(splitter.location.latitude || splitter.location.longitude) && (
+                                      <div className="flex items-center gap-1 text-xs text-gray-500">
+                                        <MapPin className="h-3 w-3" />
+                                        <span>
+                                          {splitter.location.latitude?.toFixed(4)}, {splitter.location.longitude?.toFixed(4)}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge className={getSplitterStatusColor(splitter.status)}>
+                                      {splitter.status}
                                     </Badge>
                                   </TableCell>
                                   <TableCell className="text-right">
-                                    <div className="flex items-center justify-end gap-1">
+                                    <div className="flex justify-end gap-1">
+                                      {/* View Button */}
                                       <Button
                                         variant="ghost"
                                         size="icon"
                                         onClick={() => {
-                                          setSelectedSplitter(slave);
-                                          setActiveTab("splitter-details");
+                                          setSelectedSplitter(splitter);
+                                          setShowSplitterDetails(true);
                                         }}
-                                        className="h-7 w-7 hover:bg-blue-50 hover:text-blue-600"
+                                        className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600"
                                         title="View Details"
                                       >
-                                        <Eye className="h-3.5 w-3.5" />
+                                        <Eye className="h-4 w-4" />
+                                      </Button>
+
+                                      {/* Edit Button */}
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={async () => {
+                                          setSelectedSplitter(splitter);
+                                          const ratioValue = parseInt(splitter.splitRatio.split(':')[1]) || 8;
+
+                                          let parentSplitterId = "";
+                                          if (splitter.masterSplitterId) {
+                                            const parent = allSplitters.find(s => s.splitterId === splitter.masterSplitterId);
+                                            if (parent) {
+                                              parentSplitterId = parent.id;
+                                            }
+                                          }
+
+                                          setSplitterForm({
+                                            name: splitter.name,
+                                            splitterId: splitter.splitterId,
+                                            splitRatio: splitter.splitRatio as any,
+                                            splitterType: splitter.splitterType as "PLC" | "FBT",
+                                            portCount: splitter.portCount,
+                                            usedPorts: splitter.usedPorts,
+                                            availablePorts: splitter.availablePorts,
+                                            location: splitter.location,
+                                            upstreamFiber: splitter.upstreamFiber,
+                                            isMaster: splitter.isMaster,
+                                            masterSplitterId: parentSplitterId,
+                                            connectedServiceBoard: splitter.connectedServiceBoard,
+                                            status: splitter.status,
+                                            notes: splitter.notes || "",
+                                            ratio: ratioValue
+                                          });
+
+                                          await fetchAllSplittersForHierarchy();
+
+                                          if (splitter.isMaster && splitter.connectedServiceBoard?.oltId) {
+                                            await fetchAvailablePorts(splitter.connectedServiceBoard.oltId);
+                                          } else {
+                                            setAvailablePorts([]);
+                                          }
+
+                                          setShowAddSplitterDialog(true);
+                                        }}
+                                        className="h-8 w-8 hover:bg-green-50 hover:text-green-600"
+                                        title="Edit Splitter"
+                                      >
+                                        <Edit2 className="h-4 w-4" />
+                                      </Button>
+
+                                      {/* Add Slave Button (Only for Master splitters) */}
+                                      {splitter.isMaster && (
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={async () => {
+                                            setSelectedSplitter(null);
+                                            await fetchAllSplittersForHierarchy();
+                                            setSplitterForm({
+                                              name: "",
+                                              splitterId: "",
+                                              splitRatio: "1:8",
+                                              ratio: 8,
+                                              splitterType: "PLC",
+                                              portCount: 8,
+                                              usedPorts: 0,
+                                              availablePorts: 8,
+                                              isMaster: false,
+                                              masterSplitterId: splitter.id,
+                                              location: {
+                                                site: splitter.location.site || "",
+                                                latitude: splitter.location.latitude ?? 0,
+                                                longitude: splitter.location.longitude ?? 0,
+                                                description: ""
+                                              },
+                                              upstreamFiber: {
+                                                coreColor: "Blue",
+                                                connectedTo: "splitter",
+                                                connectionId: splitter.id,
+                                                port: ""
+                                              },
+                                              connectedServiceBoard: undefined,
+                                              status: "active",
+                                              notes: ""
+                                            });
+                                            setAvailablePorts([]);
+                                            setShowAddSplitterDialog(true);
+                                          }}
+                                          className="h-8 w-8 hover:bg-purple-50 hover:text-purple-600"
+                                          title="Add Slave Splitter"
+                                        >
+                                          <PlusCircle className="h-4 w-4" />
+                                        </Button>
+                                      )}
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => {
+                                          if (splitter.location.latitude && splitter.location.longitude) {
+                                            setMapLocation({
+                                              latitude: splitter.location.latitude,
+                                              longitude: splitter.location.longitude,
+                                              name: splitter.name,
+                                              site: splitter.location.site || 'Splitter Location'
+                                            })
+                                            setShowMapDialog(true)
+                                          } else {
+                                            toast.error('No location coordinates available for this splitter')
+                                          }
+                                        }}
+                                        className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600"
+                                        title="View on Map"
+                                        disabled={!splitter.location.latitude || !splitter.location.longitude}  // Make sure this uses splitter, not selectedSplitter
+                                      >
+                                        <MapPin className="h-4 w-4" />
+                                      </Button>
+
+                                      {/* Delete Button */}
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={async () => {
+                                          const isConfirmed = await confirm({
+                                            title: "Delete Splitter",
+                                            message: `Are you sure you want to delete splitter "${splitter.name}" (${splitter.splitterId})? This action cannot be undone.`,
+                                            type: "danger",
+                                            confirmText: "Delete",
+                                            cancelText: "Cancel"
+                                          })
+
+                                          if (isConfirmed) {
+                                            try {
+                                              await apiRequest(`/splitters/${splitter.id}`, {
+                                                method: 'DELETE'
+                                              })
+                                              toast.success("Splitter deleted successfully")
+                                              await fetchSplitters(splitterPagination.page, "", oltFilter)
+                                            } catch (error: any) {
+                                              toast.error(error.message || "Failed to delete splitter")
+                                            }
+                                          }
+                                        }}
+                                        className="h-8 w-8 hover:bg-red-50 hover:text-red-600"
+                                        title="Delete Splitter"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
                                       </Button>
                                     </div>
                                   </TableCell>
                                 </TableRow>
-                              ));
-                            })()}
-                            </Fragment>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
 
-                  {/* Pagination */}
-                  {filteredAllSplitters.length > 10 && (
-                    <div className="flex items-center justify-between mt-6">
-                      <div className="text-sm text-gray-500">
-                        Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredAllSplitters.length)} of {filteredAllSplitters.length} splitters
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setSplitterPage((prev) => Math.max(prev - 1, 1))}
-                          disabled={splitterPage === 1}
-                        >
-                          <ChevronLeft className="h-4 w-4" />
-                        </Button>
-                        <span className="text-sm">
-                          Page {splitterPage} of {totalPages}
-                        </span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setSplitterPage((prev) => Math.min(prev + 1, totalPages))}
-                          disabled={splitterPage === totalPages}
-                        >
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
-                      </div>
+                                {/* Expanded slave rows under this master */}
+                                {splitter.isMaster && expandedMasters.has(splitter.id) && (() => {
+                                  const slaves = allSplitters.filter(s => s.masterSplitterId === splitter.splitterId);
+                                  if (slaves.length === 0) return null;
+                                  return slaves.map(slave => (
+                                    <TableRow key={`slave-${slave.id}`} className="bg-purple-50/50 dark:bg-purple-950/20 hover:bg-purple-100/50 dark:hover:bg-purple-900/30">
+                                      <TableCell>
+                                        <div className="flex items-center gap-2 pl-6">
+                                          <div className="w-4 h-4 border-l-2 border-b-2 border-purple-300 dark:border-purple-600 rounded-bl-sm" />
+                                          <div className="font-medium text-sm">{slave.name}</div>
+                                        </div>
+                                      </TableCell>
+                                      <TableCell>
+                                        <div className="font-mono text-sm">{slave.splitterId}</div>
+                                      </TableCell>
+                                      <TableCell>
+                                        <div className="space-y-1">
+                                          <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20 text-xs">
+                                            {slave.splitterType}
+                                          </Badge>
+                                          <div className="text-xs text-gray-500">Ratio: {slave.splitRatio}</div>
+                                        </div>
+                                      </TableCell>
+                                      <TableCell>
+                                        <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
+                                          Slave
+                                        </Badge>
+                                      </TableCell>
+                                      <TableCell>
+                                        <div className="text-sm">{slave.usedPorts}/{slave.portCount}</div>
+                                      </TableCell>
+                                      <TableCell>
+                                        <div className="text-xs text-purple-600 dark:text-purple-400">
+                                          ↑ {splitter.name}
+                                        </div>
+                                      </TableCell>
+                                      <TableCell>
+                                        <div className="text-sm">{getConnectedOltName(slave, allSplitters) || '—'}</div>
+                                      </TableCell>
+                                      <TableCell>
+                                        <div className="text-sm">{slave.location?.site || '—'}</div>
+                                      </TableCell>
+                                      <TableCell>
+                                        <Badge variant={slave.status === 'active' ? 'default' : 'secondary'}
+                                          className={slave.status === 'active' ? 'bg-green-500/10 text-green-600 border-green-500/20' : ''}>
+                                          {slave.status}
+                                        </Badge>
+                                      </TableCell>
+                                      <TableCell className="text-right">
+                                        <div className="flex items-center justify-end gap-1">
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => {
+                                              setSelectedSplitter(slave);
+                                              setActiveTab("splitter-details");
+                                            }}
+                                            className="h-7 w-7 hover:bg-blue-50 hover:text-blue-600"
+                                            title="View Details"
+                                          >
+                                            <Eye className="h-3.5 w-3.5" />
+                                          </Button>
+                                        </div>
+                                      </TableCell>
+                                    </TableRow>
+                                  ));
+                                })()}
+                              </Fragment>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
                     </div>
-                  )}
+
+                    {/* Pagination */}
+                    {displayAllSplitters.length > 10 && (
+                      <div className="flex items-center justify-between mt-6">
+                        <div className="text-sm text-gray-500">
+                          Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, displayAllSplitters.length)} of {displayAllSplitters.length} splitters
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSplitterPage((prev) => Math.max(prev - 1, 1))}
+                            disabled={splitterPage === 1}
+                          >
+                            <ChevronLeft className="h-4 w-4" />
+                          </Button>
+                          <span className="text-sm">
+                            Page {splitterPage} of {totalPages}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSplitterPage((prev) => Math.min(prev + 1, totalPages))}
+                            disabled={splitterPage === totalPages}
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </>
                 );
               })()}
@@ -5334,12 +5345,23 @@ export function OLTDetailed() {
                             return true;
                           });
 
-                          const itemsPerPage = 10;
-                          const totalPages = Math.ceil(filteredSplitters.length / itemsPerPage);
-                          const startIndex = (connectedSplittersPage - 1) * itemsPerPage;
-                          const paginatedSplitters = filteredSplitters.slice(startIndex, startIndex + itemsPerPage);
+                          // Exclude child slaves if their parent is also present in the list (to avoid double listing when parent is expanded)
+                          const displaySplitters = filteredSplitters.filter(splitter => {
+                            if (splitterTypeFilter === 'all' && !splitter.isMaster && splitter.masterSplitterId) {
+                              const hasParentInList = filteredSplitters.some(
+                                s => s.isMaster && s.splitterId === splitter.masterSplitterId
+                              );
+                              if (hasParentInList) return false;
+                            }
+                            return true;
+                          });
 
-                          if (filteredSplitters.length === 0) {
+                          const itemsPerPage = 10;
+                          const totalPages = Math.ceil(displaySplitters.length / itemsPerPage);
+                          const startIndex = (connectedSplittersPage - 1) * itemsPerPage;
+                          const paginatedSplitters = displaySplitters.slice(startIndex, startIndex + itemsPerPage);
+
+                          if (displaySplitters.length === 0) {
                             return (
                               <div className="text-center py-8 border-2 border-dashed rounded-lg">
                                 <Split className="h-12 w-12 mx-auto text-gray-300" />
@@ -5402,362 +5424,362 @@ export function OLTDetailed() {
 
                                       return (
                                         <Fragment key={splitter.id}>
-                                        <TableRow className="hover:bg-muted/50">
-                                          <TableCell>
-                                            <div className="flex items-center gap-2">
-                                              {splitter.isMaster && (splitter.slaveCount ?? 0) > 0 && (
-                                                <button
-                                                  onClick={() => {
-                                                    setExpandedMasters(prev => {
-                                                      const next = new Set(prev);
-                                                      if (next.has(splitter.id)) {
-                                                        next.delete(splitter.id);
-                                                      } else {
-                                                        next.add(splitter.id);
-                                                      }
-                                                      return next;
-                                                    });
-                                                  }}
-                                                  className="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                                                  title={expandedMasters.has(splitter.id) ? "Collapse slaves" : `Show ${splitter.slaveCount ?? 0} slave(s)`}
-                                                >
-                                                  <ChevronDown className={`h-4 w-4 text-purple-500 transition-transform ${expandedMasters.has(splitter.id) ? 'rotate-180' : ''}`} />
-                                                </button>
-                                              )}
-                                              <div className="font-medium">{splitter.name}</div>
-                                            </div>
-                                          </TableCell>
-                                          <TableCell>
-                                            <div className="font-mono text-sm">{splitter.splitterId}</div>
-                                          </TableCell>
-                                          <TableCell>
-                                            <div className="space-y-1">
-                                              <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
-                                                {splitter.splitterType}
-                                              </Badge>
-                                              <div className="text-xs text-gray-500">
-                                                Ratio: {splitter.splitRatio}
-                                              </div>
-                                            </div>
-                                          </TableCell>
-                                          <TableCell>
-                                            {splitter.isMaster ? (
-                                              <div className="space-y-1">
-                                                <Badge className="bg-purple-500/10 text-purple-500 border-purple-500/20">
-                                                  Master
-                                                </Badge>
-                                                {splitter.slaveCount > 0 && (
-                                                  <div className="text-xs text-gray-500">
-                                                    {splitter.slaveCount} slave{splitter.slaveCount !== 1 ? 's' : ''}
-                                                  </div>
-                                                )}
-                                              </div>
-                                            ) : (
-                                              <div className="space-y-1">
-                                                <Badge className="bg-gray-500/10 text-gray-500 border-gray-500/20">
-                                                  Slave
-                                                </Badge>
-                                                {splitter.masterSplitterId && (
-                                                  <div className="text-xs text-gray-500">
-                                                    Parent: {splitter.masterSplitterId}
-                                                  </div>
-                                                )}
-                                              </div>
-                                            )}
-                                          </TableCell>
-                                          <TableCell>
-                                            <div className="space-y-1">
-                                              <div className="flex items-center justify-between text-sm">
-                                                <span>Used: {splitter.usedPorts}</span>
-                                                <span>Total: {splitter.portCount}</span>
-                                              </div>
-                                              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                                                <div
-                                                  className="bg-green-500 h-1.5 rounded-full"
-                                                  style={{ width: `${(splitter.usedPorts / splitter.portCount) * 100}%` }}
-                                                />
-                                              </div>
-                                              <div className="text-xs text-gray-500">
-                                                Available: {splitter.availablePorts}
-                                              </div>
-                                            </div>
-                                          </TableCell>
-                                          <TableCell>
-                                            <div className="space-y-1">
+                                          <TableRow className="hover:bg-muted/50">
+                                            <TableCell>
                                               <div className="flex items-center gap-2">
-                                                {splitter.connectedServiceBoard ? (
-                                                  <Server className="h-3 w-3 text-green-500" />
-                                                ) : splitter.masterSplitterId ? (
-                                                  <Split className="h-3 w-3 text-blue-500" />
-                                                ) : (
-                                                  <XCircle className="h-3 w-3 text-gray-400" />
+                                                {splitter.isMaster && (splitter.slaveCount ?? 0) > 0 && (
+                                                  <button
+                                                    onClick={() => {
+                                                      setExpandedMasters(prev => {
+                                                        const next = new Set(prev);
+                                                        if (next.has(splitter.id)) {
+                                                          next.delete(splitter.id);
+                                                        } else {
+                                                          next.add(splitter.id);
+                                                        }
+                                                        return next;
+                                                      });
+                                                    }}
+                                                    className="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                                                    title={expandedMasters.has(splitter.id) ? "Collapse slaves" : `Show ${splitter.slaveCount ?? 0} slave(s)`}
+                                                  >
+                                                    <ChevronDown className={`h-4 w-4 text-purple-500 transition-transform ${expandedMasters.has(splitter.id) ? 'rotate-180' : ''}`} />
+                                                  </button>
                                                 )}
-                                                <span className="text-sm font-medium">{connectionDetails.type}</span>
+                                                <div className="font-medium">{splitter.name}</div>
                                               </div>
-                                              <div className="text-xs text-gray-500 truncate" title={connectionDetails.details}>
-                                                {connectionDetails.details}
+                                            </TableCell>
+                                            <TableCell>
+                                              <div className="font-mono text-sm">{splitter.splitterId}</div>
+                                            </TableCell>
+                                            <TableCell>
+                                              <div className="space-y-1">
+                                                <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
+                                                  {splitter.splitterType}
+                                                </Badge>
+                                                <div className="text-xs text-gray-500">
+                                                  Ratio: {splitter.splitRatio}
+                                                </div>
                                               </div>
-                                              {/* Show connection path */}
-                                              {connectionPath.length > 2 && (
-                                                <div className="text-xs text-gray-400 mt-1 truncate" title={connectionPath.join(' → ')}>
-                                                  Path: {connectionPath.slice(0, 3).join(' → ')}
-                                                  {connectionPath.length > 3 && '...'}
+                                            </TableCell>
+                                            <TableCell>
+                                              {splitter.isMaster ? (
+                                                <div className="space-y-1">
+                                                  <Badge className="bg-purple-500/10 text-purple-500 border-purple-500/20">
+                                                    Master
+                                                  </Badge>
+                                                  {splitter.slaveCount > 0 && (
+                                                    <div className="text-xs text-gray-500">
+                                                      {splitter.slaveCount} slave{splitter.slaveCount !== 1 ? 's' : ''}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              ) : (
+                                                <div className="space-y-1">
+                                                  <Badge className="bg-gray-500/10 text-gray-500 border-gray-500/20">
+                                                    Slave
+                                                  </Badge>
+                                                  {splitter.masterSplitterId && (
+                                                    <div className="text-xs text-gray-500">
+                                                      Parent: {splitter.masterSplitterId}
+                                                    </div>
+                                                  )}
                                                 </div>
                                               )}
-                                            </div>
-                                          </TableCell>
-                                          <TableCell>
-                                            <div className="text-sm">
-                                              {splitter.location.site || "No site"}
-                                            </div>
-                                            {(splitter.location.latitude || splitter.location.longitude) && (
-                                              <div className="flex items-center gap-1 text-xs text-gray-500">
-                                                <MapPin className="h-3 w-3" />
-                                                <span>
-                                                  {splitter.location.latitude?.toFixed(4)}, {splitter.location.longitude?.toFixed(4)}
-                                                </span>
+                                            </TableCell>
+                                            <TableCell>
+                                              <div className="space-y-1">
+                                                <div className="flex items-center justify-between text-sm">
+                                                  <span>Used: {splitter.usedPorts}</span>
+                                                  <span>Total: {splitter.portCount}</span>
+                                                </div>
+                                                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                                                  <div
+                                                    className="bg-green-500 h-1.5 rounded-full"
+                                                    style={{ width: `${(splitter.usedPorts / splitter.portCount) * 100}%` }}
+                                                  />
+                                                </div>
+                                                <div className="text-xs text-gray-500">
+                                                  Available: {splitter.availablePorts}
+                                                </div>
                                               </div>
-                                            )}
-                                          </TableCell>
-                                          <TableCell>
-                                            <Badge className={getSplitterStatusColor(splitter.status)}>
-                                              {splitter.status}
-                                            </Badge>
-                                          </TableCell>
-                                          <TableCell className="text-right">
-                                            <div className="flex justify-end gap-1">
-                                              {/* View Button */}
-                                              <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => {
-                                                  setSelectedSplitter(splitter);
-                                                  setShowSplitterDetails(true);
-                                                }}
-                                                className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600"
-                                                title="View Details"
-                                              >
-                                                <Eye className="h-4 w-4" />
-                                              </Button>
+                                            </TableCell>
+                                            <TableCell>
+                                              <div className="space-y-1">
+                                                <div className="flex items-center gap-2">
+                                                  {splitter.connectedServiceBoard ? (
+                                                    <Server className="h-3 w-3 text-green-500" />
+                                                  ) : splitter.masterSplitterId ? (
+                                                    <Split className="h-3 w-3 text-blue-500" />
+                                                  ) : (
+                                                    <XCircle className="h-3 w-3 text-gray-400" />
+                                                  )}
+                                                  <span className="text-sm font-medium">{connectionDetails.type}</span>
+                                                </div>
+                                                <div className="text-xs text-gray-500 truncate" title={connectionDetails.details}>
+                                                  {connectionDetails.details}
+                                                </div>
+                                                {/* Show connection path */}
+                                                {connectionPath.length > 2 && (
+                                                  <div className="text-xs text-gray-400 mt-1 truncate" title={connectionPath.join(' → ')}>
+                                                    Path: {connectionPath.slice(0, 3).join(' → ')}
+                                                    {connectionPath.length > 3 && '...'}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            </TableCell>
+                                            <TableCell>
+                                              <div className="text-sm">
+                                                {splitter.location.site || "No site"}
+                                              </div>
+                                              {(splitter.location.latitude || splitter.location.longitude) && (
+                                                <div className="flex items-center gap-1 text-xs text-gray-500">
+                                                  <MapPin className="h-3 w-3" />
+                                                  <span>
+                                                    {splitter.location.latitude?.toFixed(4)}, {splitter.location.longitude?.toFixed(4)}
+                                                  </span>
+                                                </div>
+                                              )}
+                                            </TableCell>
+                                            <TableCell>
+                                              <Badge className={getSplitterStatusColor(splitter.status)}>
+                                                {splitter.status}
+                                              </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                              <div className="flex justify-end gap-1">
+                                                {/* View Button */}
+                                                <Button
+                                                  variant="ghost"
+                                                  size="icon"
+                                                  onClick={() => {
+                                                    setSelectedSplitter(splitter);
+                                                    setShowSplitterDetails(true);
+                                                  }}
+                                                  className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600"
+                                                  title="View Details"
+                                                >
+                                                  <Eye className="h-4 w-4" />
+                                                </Button>
 
-                                              {/* Edit Button */}
-                                              <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={async () => {
-                                                  setSelectedSplitter(splitter);
-                                                  const ratioValue = parseInt(splitter.splitRatio.split(':')[1]) || 8;
-
-                                                  let parentSplitterId = "";
-                                                  if (splitter.masterSplitterId) {
-                                                    const parent = allSplitters.find(s => s.splitterId === splitter.masterSplitterId);
-                                                    if (parent) {
-                                                      parentSplitterId = parent.id;
-                                                    }
-                                                  }
-
-                                                  setSplitterForm({
-                                                    name: splitter.name,
-                                                    splitterId: splitter.splitterId,
-                                                    splitRatio: splitter.splitRatio as any,
-                                                    splitterType: splitter.splitterType as "PLC" | "FBT",
-                                                    portCount: splitter.portCount,
-                                                    usedPorts: splitter.usedPorts,
-                                                    availablePorts: splitter.availablePorts,
-                                                    location: splitter.location,
-                                                    upstreamFiber: splitter.upstreamFiber,
-                                                    isMaster: splitter.isMaster,
-                                                    masterSplitterId: parentSplitterId,
-                                                    connectedServiceBoard: splitter.connectedServiceBoard,
-                                                    status: splitter.status,
-                                                    notes: splitter.notes || "",
-                                                    ratio: ratioValue
-                                                  });
-
-                                                  await fetchAllSplittersForHierarchy();
-
-                                                  if (splitter.isMaster && splitter.connectedServiceBoard?.oltId) {
-                                                    await fetchAvailablePorts(splitter.connectedServiceBoard.oltId);
-                                                  } else {
-                                                    setAvailablePorts([]);
-                                                  }
-
-                                                  setShowAddSplitterDialog(true);
-                                                }}
-                                                className="h-8 w-8 hover:bg-green-50 hover:text-green-600"
-                                                title="Edit Splitter"
-                                              >
-                                                <Edit2 className="h-4 w-4" />
-                                              </Button>
-
-                                              {/* Add Slave Button (Only for Master splitters) */}
-                                              {splitter.isMaster && (
+                                                {/* Edit Button */}
                                                 <Button
                                                   variant="ghost"
                                                   size="icon"
                                                   onClick={async () => {
-                                                    setSelectedSplitter(null);
-                                                    await fetchAllSplittersForHierarchy();
+                                                    setSelectedSplitter(splitter);
+                                                    const ratioValue = parseInt(splitter.splitRatio.split(':')[1]) || 8;
+
+                                                    let parentSplitterId = "";
+                                                    if (splitter.masterSplitterId) {
+                                                      const parent = allSplitters.find(s => s.splitterId === splitter.masterSplitterId);
+                                                      if (parent) {
+                                                        parentSplitterId = parent.id;
+                                                      }
+                                                    }
+
                                                     setSplitterForm({
-                                                      name: "",
-                                                      splitterId: "",
-                                                      splitRatio: "1:8",
-                                                      ratio: 8,
-                                                      splitterType: "PLC",
-                                                      portCount: 8,
-                                                      usedPorts: 0,
-                                                      availablePorts: 8,
-                                                      isMaster: false,
-                                                      masterSplitterId: splitter.id,
-                                                      location: {
-                                                        site: splitter.location.site || "",
-                                                        latitude: splitter.location.latitude ?? 0,
-                                                        longitude: splitter.location.longitude ?? 0,
-                                                        description: ""
-                                                      },
-                                                      upstreamFiber: {
-                                                        coreColor: "Blue",
-                                                        connectedTo: "splitter",
-                                                        connectionId: splitter.id,
-                                                        port: ""
-                                                      },
-                                                      connectedServiceBoard: undefined,
-                                                      status: "active",
-                                                      notes: ""
+                                                      name: splitter.name,
+                                                      splitterId: splitter.splitterId,
+                                                      splitRatio: splitter.splitRatio as any,
+                                                      splitterType: splitter.splitterType as "PLC" | "FBT",
+                                                      portCount: splitter.portCount,
+                                                      usedPorts: splitter.usedPorts,
+                                                      availablePorts: splitter.availablePorts,
+                                                      location: splitter.location,
+                                                      upstreamFiber: splitter.upstreamFiber,
+                                                      isMaster: splitter.isMaster,
+                                                      masterSplitterId: parentSplitterId,
+                                                      connectedServiceBoard: splitter.connectedServiceBoard,
+                                                      status: splitter.status,
+                                                      notes: splitter.notes || "",
+                                                      ratio: ratioValue
                                                     });
-                                                    setAvailablePorts([]);
+
+                                                    await fetchAllSplittersForHierarchy();
+
+                                                    if (splitter.isMaster && splitter.connectedServiceBoard?.oltId) {
+                                                      await fetchAvailablePorts(splitter.connectedServiceBoard.oltId);
+                                                    } else {
+                                                      setAvailablePorts([]);
+                                                    }
+
                                                     setShowAddSplitterDialog(true);
                                                   }}
-                                                  className="h-8 w-8 hover:bg-purple-50 hover:text-purple-600"
-                                                  title="Add Slave Splitter"
+                                                  className="h-8 w-8 hover:bg-green-50 hover:text-green-600"
+                                                  title="Edit Splitter"
                                                 >
-                                                  <PlusCircle className="h-4 w-4" />
+                                                  <Edit2 className="h-4 w-4" />
                                                 </Button>
-                                              )}
 
-                                              <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => {
-                                                  if (splitter.location.latitude && splitter.location.longitude) {
-                                                    setMapLocation({
-                                                      latitude: splitter.location.latitude,
-                                                      longitude: splitter.location.longitude,
-                                                      name: splitter.name,
-                                                      site: splitter.location.site || 'Splitter Location'
-                                                    })
-                                                    setShowMapDialog(true)
-                                                  } else {
-                                                    toast.error('No location coordinates available for this splitter')
-                                                  }
-                                                }}
-                                                className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600"
-                                                title="View on Map"
-                                                disabled={!splitter.location.latitude || !splitter.location.longitude}  // Make sure this uses splitter, not selectedSplitter
-                                              >
-                                                <MapPin className="h-4 w-4" />
-                                              </Button>
-
-                                              {/* Delete Button */}
-                                              <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={async () => {
-                                                  const isConfirmed = await confirm({
-                                                    title: "Delete Splitter",
-                                                    message: `Are you sure you want to delete splitter "${splitter.name}" (${splitter.splitterId})? This action cannot be undone.`,
-                                                    type: "danger",
-                                                    confirmText: "Delete",
-                                                    cancelText: "Cancel"
-                                                  })
-
-                                                  if (isConfirmed) {
-                                                    try {
-                                                      await apiRequest(`/splitters/${splitter.id}`, {
-                                                        method: 'DELETE'
-                                                      })
-                                                      toast.success("Splitter deleted successfully")
-                                                      await fetchSplitters(splitterPagination.page, "", oltFilter)
-                                                    } catch (error: any) {
-                                                      toast.error(error.message || "Failed to delete splitter")
-                                                    }
-                                                  }
-                                                }}
-                                                className="h-8 w-8 hover:bg-red-50 hover:text-red-600"
-                                                title="Delete Splitter"
-                                              >
-                                                <Trash2 className="h-4 w-4" />
-                                              </Button>
-
-
-                                            </div>
-                                          </TableCell>
-                                        </TableRow>
-
-                                        {/* Expanded slave rows under this master */}
-                                        {splitter.isMaster && expandedMasters.has(splitter.id) && (() => {
-                                          const slaves = allSplitters.filter(s => s.masterSplitterId === splitter.splitterId);
-                                          if (slaves.length === 0) return null;
-                                          return slaves.map(slave => (
-                                            <TableRow key={`slave-${slave.id}`} className="bg-purple-50/50 dark:bg-purple-950/20 hover:bg-purple-100/50 dark:hover:bg-purple-900/30">
-                                              <TableCell>
-                                                <div className="flex items-center gap-2 pl-6">
-                                                  <div className="w-4 h-4 border-l-2 border-b-2 border-purple-300 dark:border-purple-600 rounded-bl-sm" />
-                                                  <div className="font-medium text-sm">{slave.name}</div>
-                                                </div>
-                                              </TableCell>
-                                              <TableCell>
-                                                <div className="font-mono text-sm">{slave.splitterId}</div>
-                                              </TableCell>
-                                              <TableCell>
-                                                <div className="space-y-1">
-                                                  <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20 text-xs">
-                                                    {slave.splitterType}
-                                                  </Badge>
-                                                  <div className="text-xs text-gray-500">Ratio: {slave.splitRatio}</div>
-                                                </div>
-                                              </TableCell>
-                                              <TableCell>
-                                                <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
-                                                  Slave
-                                                </Badge>
-                                              </TableCell>
-                                              <TableCell>
-                                                <div className="text-sm">{slave.usedPorts}/{slave.portCount}</div>
-                                              </TableCell>
-                                              <TableCell>
-                                                <div className="text-xs text-purple-600 dark:text-purple-400">
-                                                  ↑ {splitter.name}
-                                                </div>
-                                              </TableCell>
-                                              <TableCell>
-                                                <div className="text-sm">{slave.location?.site || '—'}</div>
-                                              </TableCell>
-                                              <TableCell>
-                                                <Badge variant={slave.status === 'active' ? 'default' : 'secondary'}
-                                                  className={slave.status === 'active' ? 'bg-green-500/10 text-green-600 border-green-500/20' : ''}>
-                                                  {slave.status}
-                                                </Badge>
-                                              </TableCell>
-                                              <TableCell className="text-right">
-                                                <div className="flex items-center justify-end gap-1">
+                                                {/* Add Slave Button (Only for Master splitters) */}
+                                                {splitter.isMaster && (
                                                   <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    onClick={() => {
-                                                      setSelectedSplitter(slave);
-                                                      setShowSplitterDetails(true);
+                                                    onClick={async () => {
+                                                      setSelectedSplitter(null);
+                                                      await fetchAllSplittersForHierarchy();
+                                                      setSplitterForm({
+                                                        name: "",
+                                                        splitterId: "",
+                                                        splitRatio: "1:8",
+                                                        ratio: 8,
+                                                        splitterType: "PLC",
+                                                        portCount: 8,
+                                                        usedPorts: 0,
+                                                        availablePorts: 8,
+                                                        isMaster: false,
+                                                        masterSplitterId: splitter.id,
+                                                        location: {
+                                                          site: splitter.location.site || "",
+                                                          latitude: splitter.location.latitude ?? 0,
+                                                          longitude: splitter.location.longitude ?? 0,
+                                                          description: ""
+                                                        },
+                                                        upstreamFiber: {
+                                                          coreColor: "Blue",
+                                                          connectedTo: "splitter",
+                                                          connectionId: splitter.id,
+                                                          port: ""
+                                                        },
+                                                        connectedServiceBoard: undefined,
+                                                        status: "active",
+                                                        notes: ""
+                                                      });
+                                                      setAvailablePorts([]);
+                                                      setShowAddSplitterDialog(true);
                                                     }}
-                                                    className="h-7 w-7 hover:bg-blue-50 hover:text-blue-600"
-                                                    title="View Details"
+                                                    className="h-8 w-8 hover:bg-purple-50 hover:text-purple-600"
+                                                    title="Add Slave Splitter"
                                                   >
-                                                    <Eye className="h-3.5 w-3.5" />
+                                                    <PlusCircle className="h-4 w-4" />
                                                   </Button>
-                                                </div>
-                                              </TableCell>
-                                            </TableRow>
-                                          ));
-                                        })()}
+                                                )}
+
+                                                <Button
+                                                  variant="ghost"
+                                                  size="icon"
+                                                  onClick={() => {
+                                                    if (splitter.location.latitude && splitter.location.longitude) {
+                                                      setMapLocation({
+                                                        latitude: splitter.location.latitude,
+                                                        longitude: splitter.location.longitude,
+                                                        name: splitter.name,
+                                                        site: splitter.location.site || 'Splitter Location'
+                                                      })
+                                                      setShowMapDialog(true)
+                                                    } else {
+                                                      toast.error('No location coordinates available for this splitter')
+                                                    }
+                                                  }}
+                                                  className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600"
+                                                  title="View on Map"
+                                                  disabled={!splitter.location.latitude || !splitter.location.longitude}  // Make sure this uses splitter, not selectedSplitter
+                                                >
+                                                  <MapPin className="h-4 w-4" />
+                                                </Button>
+
+                                                {/* Delete Button */}
+                                                <Button
+                                                  variant="ghost"
+                                                  size="icon"
+                                                  onClick={async () => {
+                                                    const isConfirmed = await confirm({
+                                                      title: "Delete Splitter",
+                                                      message: `Are you sure you want to delete splitter "${splitter.name}" (${splitter.splitterId})? This action cannot be undone.`,
+                                                      type: "danger",
+                                                      confirmText: "Delete",
+                                                      cancelText: "Cancel"
+                                                    })
+
+                                                    if (isConfirmed) {
+                                                      try {
+                                                        await apiRequest(`/splitters/${splitter.id}`, {
+                                                          method: 'DELETE'
+                                                        })
+                                                        toast.success("Splitter deleted successfully")
+                                                        await fetchSplitters(splitterPagination.page, "", oltFilter)
+                                                      } catch (error: any) {
+                                                        toast.error(error.message || "Failed to delete splitter")
+                                                      }
+                                                    }
+                                                  }}
+                                                  className="h-8 w-8 hover:bg-red-50 hover:text-red-600"
+                                                  title="Delete Splitter"
+                                                >
+                                                  <Trash2 className="h-4 w-4" />
+                                                </Button>
+
+
+                                              </div>
+                                            </TableCell>
+                                          </TableRow>
+
+                                          {/* Expanded slave rows under this master */}
+                                          {splitter.isMaster && expandedMasters.has(splitter.id) && (() => {
+                                            const slaves = allSplitters.filter(s => s.masterSplitterId === splitter.splitterId);
+                                            if (slaves.length === 0) return null;
+                                            return slaves.map(slave => (
+                                              <TableRow key={`slave-${slave.id}`} className="bg-purple-50/50 dark:bg-purple-950/20 hover:bg-purple-100/50 dark:hover:bg-purple-900/30">
+                                                <TableCell>
+                                                  <div className="flex items-center gap-2 pl-6">
+                                                    <div className="w-4 h-4 border-l-2 border-b-2 border-purple-300 dark:border-purple-600 rounded-bl-sm" />
+                                                    <div className="font-medium text-sm">{slave.name}</div>
+                                                  </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                  <div className="font-mono text-sm">{slave.splitterId}</div>
+                                                </TableCell>
+                                                <TableCell>
+                                                  <div className="space-y-1">
+                                                    <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20 text-xs">
+                                                      {slave.splitterType}
+                                                    </Badge>
+                                                    <div className="text-xs text-gray-500">Ratio: {slave.splitRatio}</div>
+                                                  </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                  <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
+                                                    Slave
+                                                  </Badge>
+                                                </TableCell>
+                                                <TableCell>
+                                                  <div className="text-sm">{slave.usedPorts}/{slave.portCount}</div>
+                                                </TableCell>
+                                                <TableCell>
+                                                  <div className="text-xs text-purple-600 dark:text-purple-400">
+                                                    ↑ {splitter.name}
+                                                  </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                  <div className="text-sm">{slave.location?.site || '—'}</div>
+                                                </TableCell>
+                                                <TableCell>
+                                                  <Badge variant={slave.status === 'active' ? 'default' : 'secondary'}
+                                                    className={slave.status === 'active' ? 'bg-green-500/10 text-green-600 border-green-500/20' : ''}>
+                                                    {slave.status}
+                                                  </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                  <div className="flex items-center justify-end gap-1">
+                                                    <Button
+                                                      variant="ghost"
+                                                      size="icon"
+                                                      onClick={() => {
+                                                        setSelectedSplitter(slave);
+                                                        setShowSplitterDetails(true);
+                                                      }}
+                                                      className="h-7 w-7 hover:bg-blue-50 hover:text-blue-600"
+                                                      title="View Details"
+                                                    >
+                                                      <Eye className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                  </div>
+                                                </TableCell>
+                                              </TableRow>
+                                            ));
+                                          })()}
                                         </Fragment>
                                       );
                                     })}
@@ -5766,10 +5788,10 @@ export function OLTDetailed() {
                               </div>
 
                               {/* Pagination */}
-                              {filteredSplitters.length > 10 && (
+                              {displaySplitters.length > 10 && (
                                 <div className="flex items-center justify-between mt-6">
                                   <div className="text-sm text-gray-500">
-                                    Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredSplitters.length)} of {filteredSplitters.length} splitters
+                                    Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, displaySplitters.length)} of {displaySplitters.length} splitters
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <Button
@@ -7944,9 +7966,9 @@ export function OLTDetailed() {
                     </h4>
 
                     {(() => {
-                      const connectionPath = getConnectionPath(selectedSplitter, splitters);
-                      const rootOltId = findRootOltForSplitter(selectedSplitter, splitters);
-                      const rootOlt = olts.find(o => o.id === rootOltId);
+                      const connectionPath = getConnectionPath(selectedSplitter, allSplitters);
+                      const rootOltId = findRootOltForSplitter(selectedSplitter, allSplitters);
+                      const rootOlt = olts.find(o => String(o.id) === String(rootOltId));
 
                       // Function to get full hierarchical path with all intermediate splitters
                       const getFullHierarchyPath = (splitter: Splitter): any[] => {
@@ -7964,7 +7986,7 @@ export function OLTDetailed() {
                         while (currentSplitter) {
                           if (currentSplitter.connectedServiceBoard) {
                             // Found OLT connection
-                            const olt = olts.find(o => o.id === currentSplitter.connectedServiceBoard?.oltId);
+                            const olt = olts.find(o => String(o.id) === String(currentSplitter.connectedServiceBoard?.oltId));
                             path.push({
                               type: 'olt',
                               data: olt || {
@@ -7980,7 +8002,7 @@ export function OLTDetailed() {
                             break;
                           } else if (currentSplitter.masterSplitterId) {
                             // Find parent splitter
-                            const parentSplitter = splitters.find(s => s.splitterId === currentSplitter.masterSplitterId);
+                            const parentSplitter = allSplitters.find(s => s.splitterId === currentSplitter.masterSplitterId);
                             if (parentSplitter) {
                               path.push({
                                 type: 'splitter',
@@ -8417,7 +8439,7 @@ export function OLTDetailed() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    const connectionPath = getConnectionPath(selectedSplitter, splitters);
+                    const connectionPath = getConnectionPath(selectedSplitter, allSplitters);
                     const text = `
 Splitter Details - ${selectedSplitter.name} (${selectedSplitter.splitterId})
 

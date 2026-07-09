@@ -15,9 +15,11 @@ import {
     BarChart3,
     Settings,
     PlayCircle,
-    Plus
+    Plus,
+    FileText
 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { IntegrationLogsViewer } from "@/components/services/integration-logs-viewer";
 
 export default function ServicesPage() {
     const router = useRouter();
@@ -55,7 +57,7 @@ export default function ServicesPage() {
                 />
 
                 <Tabs value={activeTab} onValueChange={setActiveTab}>
-                    <TabsList className="grid grid-cols-4 md:w-auto">
+                    <TabsList className="grid grid-cols-5 md:w-auto">
                         <TabsTrigger value="status" className="flex items-center gap-2">
                             <BarChart3 className="h-4 w-4" />
                             <span className="hidden md:inline">Status</span>
@@ -71,6 +73,10 @@ export default function ServicesPage() {
                         <TabsTrigger value="operations" className="flex items-center gap-2">
                             <PlayCircle className="h-4 w-4" />
                             <span className="hidden md:inline">Operations</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="logs" className="flex items-center gap-2">
+                            <FileText className="h-4 w-4" />
+                            <span className="hidden md:inline">Logs</span>
                         </TabsTrigger>
                     </TabsList>
 
@@ -115,6 +121,10 @@ export default function ServicesPage() {
 
                     <TabsContent value="operations">
                         <ServiceOperations />
+                    </TabsContent>
+
+                    <TabsContent value="logs">
+                        <IntegrationLogsViewer />
                     </TabsContent>
                 </Tabs>
             </div>

@@ -4189,10 +4189,21 @@ export function OLTDetailed() {
                   return true;
                 });
 
+                // Exclude child slaves if their parent is also present in the list (to avoid double listing when parent is expanded)
+                const displayAllSplitters = filteredAllSplitters.filter(splitter => {
+                  if (splitterTypeFilter === 'all' && !splitter.isMaster && splitter.masterSplitterId) {
+                    const hasParentInList = filteredAllSplitters.some(
+                      s => s.isMaster && s.splitterId === splitter.masterSplitterId
+                    );
+                    if (hasParentInList) return false;
+                  }
+                  return true;
+                });
+
                 const itemsPerPage = 10;
-                const totalPages = Math.ceil(filteredAllSplitters.length / itemsPerPage);
+                const totalPages = Math.ceil(displayAllSplitters.length / itemsPerPage);
                 const startIndex = (splitterPage - 1) * itemsPerPage;
-                const paginatedAllSplitters = filteredAllSplitters.slice(startIndex, startIndex + itemsPerPage);
+                const paginatedAllSplitters = displayAllSplitters.slice(startIndex, startIndex + itemsPerPage);
 
                 if (allSplitters.length === 0) {
                   return (
@@ -4211,7 +4222,7 @@ export function OLTDetailed() {
                   );
                 }
 
-                if (filteredAllSplitters.length === 0) {
+                if (displayAllSplitters.length === 0) {
                   return (
                     <div className="text-center py-8 border-2 border-dashed rounded-lg">
                       <Split className="h-12 w-12 mx-auto text-gray-300" />
@@ -4646,10 +4657,10 @@ export function OLTDetailed() {
                   </div>
 
                   {/* Pagination */}
-                  {filteredAllSplitters.length > 10 && (
+                  {displayAllSplitters.length > 10 && (
                     <div className="flex items-center justify-between mt-6">
                       <div className="text-sm text-gray-500">
-                        Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredAllSplitters.length)} of {filteredAllSplitters.length} splitters
+                        Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, displayAllSplitters.length)} of {displayAllSplitters.length} splitters
                       </div>
                       <div className="flex items-center gap-2">
                         <Button
@@ -5448,12 +5459,23 @@ export function OLTDetailed() {
                             return true;
                           });
 
-                          const itemsPerPage = 10;
-                          const totalPages = Math.ceil(filteredSplitters.length / itemsPerPage);
-                          const startIndex = (connectedSplittersPage - 1) * itemsPerPage;
-                          const paginatedSplitters = filteredSplitters.slice(startIndex, startIndex + itemsPerPage);
+                          // Exclude child slaves if their parent is also present in the list (to avoid double listing when parent is expanded)
+                          const displaySplitters = filteredSplitters.filter(splitter => {
+                            if (splitterTypeFilter === 'all' && !splitter.isMaster && splitter.masterSplitterId) {
+                              const hasParentInList = filteredSplitters.some(
+                                s => s.isMaster && s.splitterId === splitter.masterSplitterId
+                              );
+                              if (hasParentInList) return false;
+                            }
+                            return true;
+                          });
 
-                          if (filteredSplitters.length === 0) {
+                          const itemsPerPage = 10;
+                          const totalPages = Math.ceil(displaySplitters.length / itemsPerPage);
+                          const startIndex = (connectedSplittersPage - 1) * itemsPerPage;
+                          const paginatedSplitters = displaySplitters.slice(startIndex, startIndex + itemsPerPage);
+
+                          if (displaySplitters.length === 0) {
                             return (
                               <div className="text-center py-8 border-2 border-dashed rounded-lg">
                                 <Split className="h-12 w-12 mx-auto text-gray-300" />
@@ -5891,10 +5913,10 @@ export function OLTDetailed() {
                               </div>
 
                               {/* Pagination */}
-                              {filteredSplitters.length > 10 && (
+                              {displaySplitters.length > 10 && (
                                 <div className="flex items-center justify-between mt-6">
                                   <div className="text-sm text-gray-500">
-                                    Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredSplitters.length)} of {filteredSplitters.length} splitters
+                                    Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, displaySplitters.length)} of {displaySplitters.length} splitters
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <Button
@@ -8070,8 +8092,8 @@ export function OLTDetailed() {
                     </h4>
 
                     {(() => {
-                      const connectionPath = getConnectionPath(selectedSplitter, splitters);
-                      const rootOltId = findRootOltForSplitter(selectedSplitter, splitters);
+                      const connectionPath = getConnectionPath(selectedSplitter, allSplitters);
+                      const rootOltId = findRootOltForSplitter(selectedSplitter, allSplitters);
                       const rootOlt = olts.find(o => String(o.id) === String(rootOltId));
 
                       // Function to get full hierarchical path with all intermediate splitters
@@ -8114,7 +8136,7 @@ export function OLTDetailed() {
                             break;
                           } else if (currentSplitter.masterSplitterId) {
                             // Find parent splitter
-                            const parentSplitter = splitters.find(s => s.splitterId === currentSplitter.masterSplitterId);
+                            const parentSplitter = allSplitters.find(s => s.splitterId === currentSplitter.masterSplitterId);
                             if (parentSplitter) {
                               path.push({
                                 type: 'splitter',
@@ -8561,7 +8583,7 @@ export function OLTDetailed() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    const connectionPath = getConnectionPath(selectedSplitter, splitters);
+                    const connectionPath = getConnectionPath(selectedSplitter, allSplitters);
                     const text = `
 Splitter Details - ${selectedSplitter.name} (${selectedSplitter.splitterId})
 

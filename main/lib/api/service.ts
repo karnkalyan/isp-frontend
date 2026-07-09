@@ -363,6 +363,19 @@ export const ServicesAPI = {
         );
     },
 
+    async getServiceLogs(serviceCode = 'all', status = 'all', page = 1, limit = 50) {
+        return apiRequest<{
+            success: boolean;
+            data: any[];
+            pagination: {
+                page: number;
+                limit: number;
+                total: number;
+                totalPages: number;
+            };
+        }>(`/services/logs?serviceCode=${serviceCode}&status=${status}&page=${page}&limit=${limit}`);
+    },
+
     // Health Check
     async getServicesHealth() {
         return apiRequest<{
