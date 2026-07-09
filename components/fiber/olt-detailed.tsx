@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, Fragment } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -876,6 +876,8 @@ export function OLTDetailed() {
     site: string
   } | null>(null)
 
+  // Track which master splitters are expanded to show slaves
+  const [expandedMasters, setExpandedMasters] = useState<Set<string>>(new Set())
 
 
   useEffect(() => {
@@ -3987,7 +3989,7 @@ export function OLTDetailed() {
                 </div>
                 <Button
                   size="sm"
-                  onClick={() => {
+                  onClick={async () => {
                     setSelectedSplitter(null);
                     setSplitterForm({
                       name: "",
@@ -4017,6 +4019,7 @@ export function OLTDetailed() {
                       notes: ""
                     });
                     setAvailablePorts([]);
+                    await fetchAllSplittersForHierarchy();
                     setShowAddSplitterDialog(true);
                   }}
                   className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
@@ -4241,9 +4244,31 @@ export function OLTDetailed() {
                             const ultimateOlt = getConnectedOltName(splitter, allSplitters);
 
                           return (
-                            <TableRow key={splitter.id} className="hover:bg-muted/50">
+                            <Fragment key={splitter.id}>
+                            <TableRow className="hover:bg-muted/50">
                               <TableCell>
-                                <div className="font-medium">{splitter.name}</div>
+                                <div className="flex items-center gap-2">
+                                  {splitter.isMaster && (splitter.slaveCount ?? 0) > 0 && (
+                                    <button
+                                      onClick={() => {
+                                        setExpandedMasters(prev => {
+                                          const next = new Set(prev);
+                                          if (next.has(splitter.id)) {
+                                            next.delete(splitter.id);
+                                          } else {
+                                            next.add(splitter.id);
+                                          }
+                                          return next;
+                                        });
+                                      }}
+                                      className="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                                      title={expandedMasters.has(splitter.id) ? "Collapse slaves" : `Show ${splitter.slaveCount ?? 0} slave(s)`}
+                                    >
+                                      <ChevronDown className={`h-4 w-4 text-purple-500 transition-transform ${expandedMasters.has(splitter.id) ? 'rotate-180' : ''}`} />
+                                    </button>
+                                  )}
+                                  <div className="font-medium">{splitter.name}</div>
+                                </div>
                               </TableCell>
                               <TableCell>
                                 <div className="font-mono text-sm">{splitter.splitterId}</div>
@@ -4449,8 +4474,9 @@ export function OLTDetailed() {
                                     <Button
                                       variant="ghost"
                                       size="icon"
-                                      onClick={() => {
+                                      onClick={async () => {
                                         setSelectedSplitter(null);
+                                        await fetchAllSplittersForHierarchy();
                                         setSplitterForm({
                                           name: "",
                                           splitterId: "",
@@ -4461,7 +4487,7 @@ export function OLTDetailed() {
                                           usedPorts: 0,
                                           availablePorts: 8,
                                           isMaster: false,
-                                          masterSplitterId: splitter.splitterId,
+                                          masterSplitterId: splitter.id,
                                           location: {
                                             site: splitter.location.site || "",
                                             latitude: splitter.location.latitude ?? 0,
@@ -4543,6 +4569,75 @@ export function OLTDetailed() {
                                 </div>
                               </TableCell>
                             </TableRow>
+
+                            {/* Expanded slave rows under this master */}
+                            {splitter.isMaster && expandedMasters.has(splitter.id) && (() => {
+                              const slaves = allSplitters.filter(s => s.masterSplitterId === splitter.splitterId);
+                              if (slaves.length === 0) return null;
+                              return slaves.map(slave => (
+                                <TableRow key={`slave-${slave.id}`} className="bg-purple-50/50 dark:bg-purple-950/20 hover:bg-purple-100/50 dark:hover:bg-purple-900/30">
+                                  <TableCell>
+                                    <div className="flex items-center gap-2 pl-6">
+                                      <div className="w-4 h-4 border-l-2 border-b-2 border-purple-300 dark:border-purple-600 rounded-bl-sm" />
+                                      <div className="font-medium text-sm">{slave.name}</div>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="font-mono text-sm">{slave.splitterId}</div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="space-y-1">
+                                      <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20 text-xs">
+                                        {slave.splitterType}
+                                      </Badge>
+                                      <div className="text-xs text-gray-500">Ratio: {slave.splitRatio}</div>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
+                                      Slave
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="text-sm">{slave.usedPorts}/{slave.portCount}</div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="text-xs text-purple-600 dark:text-purple-400">
+                                      ↑ {splitter.name}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="text-sm">{getConnectedOltName(slave, allSplitters) || '—'}</div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="text-sm">{slave.location?.site || '—'}</div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant={slave.status === 'active' ? 'default' : 'secondary'}
+                                      className={slave.status === 'active' ? 'bg-green-500/10 text-green-600 border-green-500/20' : ''}>
+                                      {slave.status}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    <div className="flex items-center justify-end gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => {
+                                          setSelectedSplitter(slave);
+                                          setActiveTab("splitter-details");
+                                        }}
+                                        className="h-7 w-7 hover:bg-blue-50 hover:text-blue-600"
+                                        title="View Details"
+                                      >
+                                        <Eye className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              ));
+                            })()}
+                            </Fragment>
                           );
                         })}
                       </TableBody>
