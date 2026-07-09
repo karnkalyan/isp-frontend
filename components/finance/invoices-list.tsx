@@ -298,7 +298,7 @@ function PrintableInvoice({
         <div className="mt-8 flex items-end justify-between text-sm">
           <div>In Words : {numberToWords(total)}</div>
           <div className="w-72 text-center">
-            <div className="border-b border-slate-400 pb-1">{invoice?.paymentMethod ? String(invoice.paymentMethod).replaceAll("_", " ") : "Payment"}</div>
+            <div className="border-b border-slate-400 pb-1">{invoice?.paymentMethod ? getDisplayPaymentMethod(invoice.paymentMethod) : "Payment"}</div>
             <div className="mt-1">For {isp?.companyName || isp?.name || "ISP"}</div>
           </div>
         </div>
@@ -755,7 +755,7 @@ export function InvoicesList() {
                   <td className="p-4">
                     <StatusBadge status={invoice.status as any} />
                   </td>
-                  <td className="p-4 text-sm font-medium text-foreground">{invoice.paymentMethod ? String(invoice.paymentMethod).replaceAll("_", " ") : "—"}</td>
+                  <td className="p-4 text-sm font-medium text-foreground">{invoice.paymentMethod ? getDisplayPaymentMethod(invoice.paymentMethod) : "—"}</td>
                   <td className="p-4 text-sm">
                     {invoice.accountingInvoiceId ? (
                       <div className="space-y-1">
