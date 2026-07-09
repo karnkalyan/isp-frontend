@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import {
-  Plus, Edit2, Trash2, Copy, Zap, Wifi,
+  Plus, PlusCircle, Edit2, Trash2, Copy, Zap, Wifi,
   AlertCircle, Server, Eye, EyeOff,
   RefreshCw, Terminal, Network, HardDrive,
   Cpu, Shield, Download, Upload,
@@ -714,6 +714,13 @@ export function OLTDetailed() {
     hasPreviousPage: false
   })
 
+  // Connected splitters client-side page
+  const [connectedSplittersPage, setConnectedSplittersPage] = useState(1)
+
+  // Main splitters tab client-side states
+  const [splitterSearchQuery, setSplitterSearchQuery] = useState("")
+  const [splitterPage, setSplitterPage] = useState(1)
+
   // OLT Pagination - Default 10 per page
   const [oltPagination, setOltPagination] = useState<PaginationInfo>({
     page: 1,
@@ -883,6 +890,16 @@ export function OLTDetailed() {
     observer.observe(document.documentElement, { attributes: true })
     return () => observer.disconnect()
   }, [])
+
+  // Reset connected splitters page on Selected OLT or Type Filter change
+  useEffect(() => {
+    setConnectedSplittersPage(1);
+  }, [selectedOLT, splitterTypeFilter]);
+
+  // Reset main splitters page on search query, OLT filter, or type filter change
+  useEffect(() => {
+    setSplitterPage(1);
+  }, [splitterSearchQuery, oltFilter, splitterTypeFilter]);
 
   // Fetch data on component mount
   useEffect(() => {
@@ -1824,7 +1841,7 @@ export function OLTDetailed() {
       const response = await apiRequest<{
         success: boolean;
         data: Splitter[];
-      }>('/splitters');
+      }>('/splitters?limit=1000');
 
       if (response.success) {
         setAllSplitters(response.data || []);
@@ -1853,7 +1870,7 @@ export function OLTDetailed() {
       const response = await apiRequest<{
         success: boolean;
         data: Splitter[];
-      }>('/splitters');
+      }>('/splitters?limit=1000');
 
       if (response.success) {
         const allSplittersData = response.data || [];
@@ -3970,7 +3987,38 @@ export function OLTDetailed() {
                 </div>
                 <Button
                   size="sm"
-                  onClick={() => setShowAddSplitterDialog(true)}
+                  onClick={() => {
+                    setSelectedSplitter(null);
+                    setSplitterForm({
+                      name: "",
+                      splitterId: "",
+                      splitRatio: "1:8",
+                      ratio: 8,
+                      splitterType: "PLC",
+                      portCount: 8,
+                      usedPorts: 0,
+                      availablePorts: 8,
+                      isMaster: false,
+                      masterSplitterId: "",
+                      location: {
+                        site: "",
+                        latitude: 0,
+                        longitude: 0,
+                        description: ""
+                      },
+                      upstreamFiber: {
+                        coreColor: "Blue",
+                        connectedTo: "service-board",
+                        connectionId: "",
+                        port: ""
+                      },
+                      connectedServiceBoard: undefined,
+                      status: "active",
+                      notes: ""
+                    });
+                    setAvailablePorts([]);
+                    setShowAddSplitterDialog(true);
+                  }}
                   className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
                 >
                   <Plus className="h-4 w-4 mr-2" />
@@ -3987,16 +4035,8 @@ export function OLTDetailed() {
                     <Input
                       placeholder="Search splitters by name, splitterId, site, or OLT..."
                       className="pl-10"
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter') {
-                          fetchSplitters(1, e.currentTarget.value, oltFilter)
-                        }
-                      }}
-                      onChange={(e) => {
-                        if (e.target.value === '') {
-                          fetchSplitters(1, '', oltFilter)
-                        }
-                      }}
+                      value={splitterSearchQuery}
+                      onChange={(e) => setSplitterSearchQuery(e.target.value)}
                     />
                   </div>
                 </div>
@@ -4023,8 +4063,8 @@ export function OLTDetailed() {
                           });
 
                           // Count splitters connected to each OLT
-                          splitters.forEach(splitter => {
-                            const rootOltId = findRootOltForSplitter(splitter, splitters);
+                          allSplitters.forEach(splitter => {
+                            const rootOltId = findRootOltForSplitter(splitter, allSplitters);
                             if (rootOltId) {
                               const oltInfo = oltMap.get(rootOltId);
                               if (oltInfo) {
@@ -4049,7 +4089,6 @@ export function OLTDetailed() {
                       value={oltFilter}
                       onValueChange={(value) => {
                         setOltFilter(value)
-                        fetchSplitters(1, "", value)
                       }}
                       placeholder="🔍 Filter by OLT"
                       emptyMessage="No OLTs available"
@@ -4067,7 +4106,6 @@ export function OLTDetailed() {
                       value={splitterTypeFilter}
                       onValueChange={(value) => {
                         setSplitterTypeFilter(value)
-                        fetchSplitters(1, "", oltFilter)
                       }}
                       placeholder="Filter by type"
                     />
@@ -4076,13 +4114,10 @@ export function OLTDetailed() {
                   <Button
                     variant="outline"
                     onClick={() => {
-                      // Clear search input
-                      const searchInput = document.querySelector('input[placeholder*="Search splitters"]') as HTMLInputElement;
-                      if (searchInput) searchInput.value = '';
-
+                      setSplitterSearchQuery("")
                       setOltFilter("all")
                       setSplitterTypeFilter("all")
-                      fetchSplitters(1, "", "all")
+                      setSplitterPage(1)
                     }}
                     className="flex items-center gap-2"
                   >
@@ -4104,64 +4139,106 @@ export function OLTDetailed() {
               <div className="grid grid-cols-4 gap-3 mb-4">
                 <div className="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
                   <p className="text-sm text-gray-500">Total Splitters</p>
-                  <p className="text-xl font-bold">{splitters.length}</p>
+                  <p className="text-xl font-bold">{allSplitters.length}</p>
                 </div>
                 <div className="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
                   <p className="text-sm text-gray-500">Master Splitters</p>
                   <p className="text-xl font-bold text-purple-600">
-                    {splitters.filter(s => s.isMaster).length}
+                    {allSplitters.filter(s => s.isMaster).length}
                   </p>
                 </div>
                 <div className="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
                   <p className="text-sm text-gray-500">Slave Splitters</p>
                   <p className="text-xl font-bold text-blue-600">
-                    {splitters.filter(s => !s.isMaster).length}
+                    {allSplitters.filter(s => !s.isMaster).length}
                   </p>
                 </div>
                 <div className="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
                   <p className="text-sm text-gray-500">Connected to OLT</p>
                   <p className="text-xl font-bold text-green-600">
-                    {splitters.filter(s => findRootOltForSplitter(s, splitters)).length}
+                    {allSplitters.filter(s => findRootOltForSplitter(s, allSplitters)).length}
                   </p>
                 </div>
               </div>
 
-              {splitters.length === 0 ? (
-                <div className="text-center py-8">
-                  <Split className="h-12 w-12 mx-auto text-gray-400" />
-                  <p className="text-gray-500 mt-2">No splitters configured</p>
-                  <Button
-                    variant="outline"
-                    className="mt-4"
-                    onClick={() => setShowAddSplitterDialog(true)}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add First Splitter
-                  </Button>
-                </div>
-              ) : (
-                <>
-                  <div className="rounded-md border border-gray-200 dark:border-gray-800 overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Splitter Name</TableHead>
-                          <TableHead>Splitter ID</TableHead>
-                          <TableHead>Type/Ratio</TableHead>
-                          <TableHead>Role</TableHead>
-                          <TableHead>Port Usage</TableHead>
-                          <TableHead>Connected To</TableHead>
-                          <TableHead>Ultimate OLT</TableHead>
-                          <TableHead>Location</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {splitters.map((splitter) => {
-                          const connectionDetails = getConnectionDetails(splitter);
-                          const connectionPath = getConnectionPath(splitter, splitters);
-                          const ultimateOlt = getConnectedOltName(splitter, splitters);
+              {(() => {
+                const filteredAllSplitters = allSplitters.filter(splitter => {
+                  // 1. Search filter
+                  if (splitterSearchQuery) {
+                    const q = splitterSearchQuery.toLowerCase();
+                    const nameMatch = splitter.name?.toLowerCase().includes(q);
+                    const idMatch = splitter.splitterId?.toLowerCase().includes(q);
+                    const siteMatch = splitter.location?.site?.toLowerCase().includes(q);
+                    const notesMatch = splitter.notes?.toLowerCase().includes(q);
+                    if (!nameMatch && !idMatch && !siteMatch && !notesMatch) return false;
+                  }
+                  // 2. OLT filter
+                  if (oltFilter && oltFilter !== 'all') {
+                    const rootOltId = findRootOltForSplitter(splitter, allSplitters);
+                    if (String(rootOltId) !== String(oltFilter)) return false;
+                  }
+                  // 3. Type filter
+                  if (splitterTypeFilter && splitterTypeFilter !== 'all') {
+                    if (splitterTypeFilter === 'master' && !splitter.isMaster) return false;
+                    if (splitterTypeFilter === 'slave' && splitter.isMaster) return false;
+                  }
+                  return true;
+                });
+
+                const itemsPerPage = 10;
+                const totalPages = Math.ceil(filteredAllSplitters.length / itemsPerPage);
+                const startIndex = (splitterPage - 1) * itemsPerPage;
+                const paginatedAllSplitters = filteredAllSplitters.slice(startIndex, startIndex + itemsPerPage);
+
+                if (allSplitters.length === 0) {
+                  return (
+                    <div className="text-center py-8">
+                      <Split className="h-12 w-12 mx-auto text-gray-400" />
+                      <p className="text-gray-500 mt-2">No splitters configured</p>
+                      <Button
+                        variant="outline"
+                        className="mt-4"
+                        onClick={() => setShowAddSplitterDialog(true)}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add First Splitter
+                      </Button>
+                    </div>
+                  );
+                }
+
+                if (filteredAllSplitters.length === 0) {
+                  return (
+                    <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                      <Split className="h-12 w-12 mx-auto text-gray-300" />
+                      <p className="text-gray-500 mt-2">No splitters match the filters</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <>
+                    <div className="rounded-md border border-gray-200 dark:border-gray-800 overflow-hidden">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Splitter Name</TableHead>
+                            <TableHead>Splitter ID</TableHead>
+                            <TableHead>Type/Ratio</TableHead>
+                            <TableHead>Role</TableHead>
+                            <TableHead>Port Usage</TableHead>
+                            <TableHead>Connected To</TableHead>
+                            <TableHead>Ultimate OLT</TableHead>
+                            <TableHead>Location</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {paginatedAllSplitters.map((splitter) => {
+                            const connectionDetails = getConnectionDetails(splitter);
+                            const connectionPath = getConnectionPath(splitter, allSplitters);
+                            const ultimateOlt = getConnectedOltName(splitter, allSplitters);
 
                           return (
                             <TableRow key={splitter.id} className="hover:bg-muted/50">
@@ -4317,7 +4394,7 @@ export function OLTDetailed() {
 
                                       let parentSplitterId = "";
                                       if (splitter.masterSplitterId) {
-                                        const parent = splitters.find(s => s.splitterId === splitter.masterSplitterId);
+                                        const parent = allSplitters.find(s => s.splitterId === splitter.masterSplitterId);
                                         if (parent) {
                                           parentSplitterId = parent.id;
                                         }
@@ -4366,6 +4443,50 @@ export function OLTDetailed() {
                                   >
                                     <Edit2 className="h-4 w-4" />
                                   </Button>
+
+                                  {/* Add Slave Button (Only for Master splitters) */}
+                                  {splitter.isMaster && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => {
+                                        setSelectedSplitter(null);
+                                        setSplitterForm({
+                                          name: "",
+                                          splitterId: "",
+                                          splitRatio: "1:8",
+                                          ratio: 8,
+                                          splitterType: "PLC",
+                                          portCount: 8,
+                                          usedPorts: 0,
+                                          availablePorts: 8,
+                                          isMaster: false,
+                                          masterSplitterId: splitter.splitterId,
+                                          location: {
+                                            site: splitter.location.site || "",
+                                            latitude: splitter.location.latitude ?? 0,
+                                            longitude: splitter.location.longitude ?? 0,
+                                            description: ""
+                                          },
+                                          upstreamFiber: {
+                                            coreColor: "Blue",
+                                            connectedTo: "splitter",
+                                            connectionId: splitter.id,
+                                            port: ""
+                                          },
+                                          connectedServiceBoard: undefined,
+                                          status: "active",
+                                          notes: ""
+                                        });
+                                        setAvailablePorts([]);
+                                        setShowAddSplitterDialog(true);
+                                      }}
+                                      className="h-8 w-8 hover:bg-purple-50 hover:text-purple-600"
+                                      title="Add Slave Splitter"
+                                    >
+                                      <PlusCircle className="h-4 w-4" />
+                                    </Button>
+                                  )}
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -4429,36 +4550,37 @@ export function OLTDetailed() {
                   </div>
 
                   {/* Pagination */}
-                  {splitterPagination.totalPages > 1 && (
+                  {filteredAllSplitters.length > 10 && (
                     <div className="flex items-center justify-between mt-6">
                       <div className="text-sm text-gray-500">
-                        Showing {(splitterPagination.page - 1) * splitterPagination.limit + 1} to {Math.min(splitterPagination.page * splitterPagination.limit, splitterPagination.total)} of {splitterPagination.total} splitters
+                        Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredAllSplitters.length)} of {filteredAllSplitters.length} splitters
                       </div>
                       <div className="flex items-center gap-2">
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => fetchSplitters(splitterPagination.page - 1, "", oltFilter)}
-                          disabled={!splitterPagination.hasPreviousPage}
+                          onClick={() => setSplitterPage((prev) => Math.max(prev - 1, 1))}
+                          disabled={splitterPage === 1}
                         >
                           <ChevronLeft className="h-4 w-4" />
                         </Button>
                         <span className="text-sm">
-                          Page {splitterPagination.page} of {splitterPagination.totalPages}
+                          Page {splitterPage} of {totalPages}
                         </span>
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => fetchSplitters(splitterPagination.page + 1, "", oltFilter)}
-                          disabled={!splitterPagination.hasNextPage}
+                          onClick={() => setSplitterPage((prev) => Math.min(prev + 1, totalPages))}
+                          disabled={splitterPage === totalPages}
                         >
                           <ChevronRight className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
                   )}
-                </>
-              )}
+                  </>
+                );
+              })()}
             </CardContent>
           </Card>
         </TabsContent>
@@ -5217,8 +5339,8 @@ export function OLTDetailed() {
                         {/* Filter splitters connected to this OLT */}
                         {(() => {
                           // Get all splitters connected to this OLT (directly or through hierarchy)
-                          const connectedSplitters = splitters.filter(splitter => {
-                            const rootOltId = findRootOltForSplitter(splitter, splitters);
+                          const connectedSplitters = allSplitters.filter(splitter => {
+                            const rootOltId = findRootOltForSplitter(splitter, allSplitters);
                             return String(rootOltId) === String(selectedOLT?.id);
                           });
 
@@ -5229,6 +5351,11 @@ export function OLTDetailed() {
                             if (splitterTypeFilter === 'slave') return !splitter.isMaster;
                             return true;
                           });
+
+                          const itemsPerPage = 10;
+                          const totalPages = Math.ceil(filteredSplitters.length / itemsPerPage);
+                          const startIndex = (connectedSplittersPage - 1) * itemsPerPage;
+                          const paginatedSplitters = filteredSplitters.slice(startIndex, startIndex + itemsPerPage);
 
                           if (filteredSplitters.length === 0) {
                             return (
@@ -5295,9 +5422,9 @@ export function OLTDetailed() {
                                     </TableRow>
                                   </TableHeader>
                                   <TableBody>
-                                    {filteredSplitters.map((splitter) => {
+                                    {paginatedSplitters.map((splitter) => {
                                       const connectionDetails = getConnectionDetails(splitter);
-                                      const connectionPath = getConnectionPath(splitter, splitters);
+                                      const connectionPath = getConnectionPath(splitter, allSplitters);
 
                                       return (
                                         <TableRow key={splitter.id} className="hover:bg-muted/50">
@@ -5427,7 +5554,7 @@ export function OLTDetailed() {
 
                                                   let parentSplitterId = "";
                                                   if (splitter.masterSplitterId) {
-                                                    const parent = splitters.find(s => s.splitterId === splitter.masterSplitterId);
+                                                    const parent = allSplitters.find(s => s.splitterId === splitter.masterSplitterId);
                                                     if (parent) {
                                                       parentSplitterId = parent.id;
                                                     }
@@ -5544,27 +5671,25 @@ export function OLTDetailed() {
                               {filteredSplitters.length > 10 && (
                                 <div className="flex items-center justify-between mt-6">
                                   <div className="text-sm text-gray-500">
-                                    Showing 1 to {Math.min(10, filteredSplitters.length)} of {filteredSplitters.length} splitters
+                                    Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredSplitters.length)} of {filteredSplitters.length} splitters
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      disabled={true}
+                                      onClick={() => setConnectedSplittersPage((prev) => Math.max(prev - 1, 1))}
+                                      disabled={connectedSplittersPage === 1}
                                     >
                                       <ChevronLeft className="h-4 w-4" />
                                     </Button>
                                     <span className="text-sm">
-                                      Page 1 of {Math.ceil(filteredSplitters.length / 10)}
+                                      Page {connectedSplittersPage} of {totalPages}
                                     </span>
                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      disabled={filteredSplitters.length <= 10}
-                                      onClick={() => {
-                                        // For now, just refresh the current view
-                                        fetchSplitters(1, "", selectedOLT?.id, splitterTypeFilter);
-                                      }}
+                                      onClick={() => setConnectedSplittersPage((prev) => Math.min(prev + 1, totalPages))}
+                                      disabled={connectedSplittersPage === totalPages}
                                     >
                                       <ChevronRight className="h-4 w-4" />
                                     </Button>

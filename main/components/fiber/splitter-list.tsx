@@ -3,7 +3,7 @@
 
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { Search, MapPin, Link, Wifi } from "lucide-react"
+import { Search, MapPin, Link, Wifi, ChevronLeft, ChevronRight } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -22,6 +22,8 @@ interface SplitterListProps {
 
 export function SplitterList({ splitters, loading, onEdit, onDelete, onRefresh }: SplitterListProps) {
   const [searchQuery, setSearchQuery] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
   const { confirm, ConfirmDialog } = useConfirmToast()
 
   const filteredSplitters = splitters.filter(
@@ -31,6 +33,10 @@ export function SplitterList({ splitters, loading, onEdit, onDelete, onRefresh }
       splitter.type.includes(searchQuery) ||
       splitter.connectedOltName.toLowerCase().includes(searchQuery.toLowerCase())
   )
+
+  const totalPages = Math.ceil(filteredSplitters.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const paginatedSplitters = filteredSplitters.slice(startIndex, startIndex + itemsPerPage)
 
   const getStatusColor = (status: Splitter['status']) => {
     switch (status) {
@@ -77,7 +83,10 @@ export function SplitterList({ splitters, loading, onEdit, onDelete, onRefresh }
               placeholder="Search splitters by name, location, type or OLT..."
               className="pl-10 border-0 focus:ring-0 focus:ring-offset-0"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+                setCurrentPage(1)
+              }}
               disabled={loading}
             />
           </div>
@@ -115,7 +124,7 @@ export function SplitterList({ splitters, loading, onEdit, onDelete, onRefresh }
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredSplitters.map((splitter, index) => (
+              {paginatedSplitters.map((splitter, index) => (
                 <motion.tr
                   key={splitter.id}
                   initial={{ opacity: 0, y: 10 }}
@@ -197,6 +206,36 @@ export function SplitterList({ splitters, loading, onEdit, onDelete, onRefresh }
               )}
             </TableBody>
           </Table>
+          
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-6 px-6 pb-6">
+              <div className="text-sm text-gray-500">
+                Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredSplitters.length)} of {filteredSplitters.length} splitters
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-sm">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </Card>
       )}
     </div>

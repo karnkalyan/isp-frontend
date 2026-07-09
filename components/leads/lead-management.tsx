@@ -1217,8 +1217,8 @@ export function LeadManagement() {
 
     // If lat/lon fields are updated, update the map
     if (field === 'lat' || field === 'lon') {
-      const lat = field === 'lat' ? parseFloat(value) : parseFloat(prev.lat || '')
-      const lon = field === 'lon' ? parseFloat(value) : parseFloat(prev.lon || '')
+      const lat = field === 'lat' ? parseFloat(value) : parseFloat(conversionForm.lat || '')
+      const lon = field === 'lon' ? parseFloat(value) : parseFloat(conversionForm.lon || '')
       if (!isNaN(lat) && !isNaN(lon)) {
         setConvertMapPosition([lat, lon])
         const radius = convertServiceRadius || 5
