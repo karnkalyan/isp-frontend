@@ -4644,6 +4644,109 @@ export function OLTDetailed() {
                                       >
                                         <Eye className="h-3.5 w-3.5" />
                                       </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={async () => {
+                                          setSelectedSplitter(slave);
+                                          const ratioValue = parseInt(slave.splitRatio.split(':')[1]) || 8;
+
+                                          let parentSplitterId = "";
+                                          if (slave.masterSplitterId) {
+                                            const parent = allSplitters.find(s => s.splitterId === slave.masterSplitterId);
+                                            if (parent) {
+                                              parentSplitterId = parent.id;
+                                            }
+                                          }
+
+                                          setSplitterForm({
+                                            name: slave.name,
+                                            splitterId: slave.splitterId,
+                                            splitRatio: slave.splitRatio as any,
+                                            splitterType: slave.splitterType as "PLC" | "FBT",
+                                            portCount: slave.portCount,
+                                            usedPorts: slave.usedPorts,
+                                            availablePorts: slave.availablePorts,
+                                            location: {
+                                              site: slave.location?.site || "",
+                                              latitude: slave.location?.latitude ?? 0,
+                                              longitude: slave.location?.longitude ?? 0,
+                                              description: slave.location?.description || ""
+                                            },
+                                            upstreamFiber: {
+                                              coreColor: slave.upstreamFiber?.coreColor || "Blue",
+                                              connectedTo: slave.upstreamFiber?.connectedTo || "splitter",
+                                              connectionId: slave.upstreamFiber?.connectionId || "",
+                                              port: slave.upstreamFiber?.port || ""
+                                            },
+                                            isMaster: slave.isMaster,
+                                            masterSplitterId: parentSplitterId,
+                                            connectedServiceBoard: slave.connectedServiceBoard,
+                                            status: slave.status,
+                                            notes: slave.notes || "",
+                                            ratio: ratioValue
+                                          });
+
+                                          await fetchAllSplittersForHierarchy();
+                                          setAvailablePorts([]);
+                                          setShowAddSplitterDialog(true);
+                                        }}
+                                        className="h-7 w-7 hover:bg-green-50 hover:text-green-600"
+                                        title="Edit Splitter"
+                                      >
+                                        <Edit2 className="h-3.5 w-3.5" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => {
+                                          if (slave.location?.latitude && slave.location?.longitude) {
+                                            setMapLocation({
+                                              latitude: slave.location.latitude,
+                                              longitude: slave.location.longitude,
+                                              name: slave.name,
+                                              site: slave.location.site || 'Splitter Location'
+                                            })
+                                            setShowMapDialog(true)
+                                          } else {
+                                            toast.error('No location coordinates available for this splitter')
+                                          }
+                                        }}
+                                        className="h-7 w-7 hover:bg-blue-50 hover:text-blue-600"
+                                        title="View on Map"
+                                        disabled={!slave.location?.latitude || !slave.location?.longitude}
+                                      >
+                                        <MapPin className="h-3.5 w-3.5" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={async () => {
+                                          const isConfirmed = await confirm({
+                                            title: "Delete Splitter",
+                                            message: `Are you sure you want to delete splitter "${slave.name}" (${slave.splitterId})? This action cannot be undone.`,
+                                            type: "danger",
+                                            confirmText: "Delete",
+                                            cancelText: "Cancel"
+                                          })
+
+                                          if (isConfirmed) {
+                                            try {
+                                              await apiRequest(`/splitters/${slave.id}`, {
+                                                method: 'DELETE'
+                                              })
+                                              toast.success("Splitter deleted successfully")
+                                              await fetchSplitters(splitterPagination.page, "", oltFilter)
+                                            } catch (error: any) {
+                                              toast.error(error.message || "Failed to delete splitter")
+                                            }
+                                          }
+                                        }}
+                                        className="h-7 w-7 hover:bg-red-50 hover:text-red-600"
+                                        title="Delete Splitter"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
                                     </div>
                                   </TableCell>
                                 </TableRow>
@@ -5899,6 +6002,109 @@ export function OLTDetailed() {
                                                     title="View Details"
                                                   >
                                                     <Eye className="h-3.5 w-3.5" />
+                                                  </Button>
+                                                  <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={async () => {
+                                                      setSelectedSplitter(slave);
+                                                      const ratioValue = parseInt(slave.splitRatio.split(':')[1]) || 8;
+
+                                                      let parentSplitterId = "";
+                                                      if (slave.masterSplitterId) {
+                                                        const parent = allSplitters.find(s => s.splitterId === slave.masterSplitterId);
+                                                        if (parent) {
+                                                          parentSplitterId = parent.id;
+                                                        }
+                                                      }
+
+                                                      setSplitterForm({
+                                                        name: slave.name,
+                                                        splitterId: slave.splitterId,
+                                                        splitRatio: slave.splitRatio as any,
+                                                        splitterType: slave.splitterType as "PLC" | "FBT",
+                                                        portCount: slave.portCount,
+                                                        usedPorts: slave.usedPorts,
+                                                        availablePorts: slave.availablePorts,
+                                                        location: {
+                                                          site: slave.location?.site || "",
+                                                          latitude: slave.location?.latitude ?? 0,
+                                                          longitude: slave.location?.longitude ?? 0,
+                                                          description: slave.location?.description || ""
+                                                        },
+                                                        upstreamFiber: {
+                                                          coreColor: slave.upstreamFiber?.coreColor || "Blue",
+                                                          connectedTo: slave.upstreamFiber?.connectedTo || "splitter",
+                                                          connectionId: slave.upstreamFiber?.connectionId || "",
+                                                          port: slave.upstreamFiber?.port || ""
+                                                        },
+                                                        isMaster: slave.isMaster,
+                                                        masterSplitterId: parentSplitterId,
+                                                        connectedServiceBoard: slave.connectedServiceBoard,
+                                                        status: slave.status,
+                                                        notes: slave.notes || "",
+                                                        ratio: ratioValue
+                                                      });
+
+                                                      await fetchAllSplittersForHierarchy();
+                                                      setAvailablePorts([]);
+                                                      setShowAddSplitterDialog(true);
+                                                    }}
+                                                    className="h-7 w-7 hover:bg-green-50 hover:text-green-600"
+                                                    title="Edit Splitter"
+                                                  >
+                                                    <Edit2 className="h-3.5 w-3.5" />
+                                                  </Button>
+                                                  <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => {
+                                                      if (slave.location?.latitude && slave.location?.longitude) {
+                                                        setMapLocation({
+                                                          latitude: slave.location.latitude,
+                                                          longitude: slave.location.longitude,
+                                                          name: slave.name,
+                                                          site: slave.location.site || 'Splitter Location'
+                                                        })
+                                                        setShowMapDialog(true)
+                                                      } else {
+                                                        toast.error('No location coordinates available for this splitter')
+                                                      }
+                                                    }}
+                                                    className="h-7 w-7 hover:bg-blue-50 hover:text-blue-600"
+                                                    title="View on Map"
+                                                    disabled={!slave.location?.latitude || !slave.location?.longitude}
+                                                  >
+                                                    <MapPin className="h-3.5 w-3.5" />
+                                                  </Button>
+                                                  <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={async () => {
+                                                      const isConfirmed = await confirm({
+                                                        title: "Delete Splitter",
+                                                        message: `Are you sure you want to delete splitter "${slave.name}" (${slave.splitterId})? This action cannot be undone.`,
+                                                        type: "danger",
+                                                        confirmText: "Delete",
+                                                        cancelText: "Cancel"
+                                                      })
+
+                                                      if (isConfirmed) {
+                                                        try {
+                                                          await apiRequest(`/splitters/${slave.id}`, {
+                                                            method: 'DELETE'
+                                                          })
+                                                          toast.success("Splitter deleted successfully")
+                                                          await fetchSplitters(splitterPagination.page, "", oltFilter)
+                                                        } catch (error: any) {
+                                                          toast.error(error.message || "Failed to delete splitter")
+                                                        }
+                                                      }
+                                                    }}
+                                                    className="h-7 w-7 hover:bg-red-50 hover:text-red-600"
+                                                    title="Delete Splitter"
+                                                  >
+                                                    <Trash2 className="h-3.5 w-3.5" />
                                                   </Button>
                                                 </div>
                                               </TableCell>
