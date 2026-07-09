@@ -60,60 +60,25 @@ function PrintableInvoice({
   const items = invoice?.isTrialInvoice
     ? [{ itemName: invoice?.packageName || "Trial Package", description: "Trial subscription", referenceId: null, itemPrice: 0, isTaxable: false, isTscApplicable: false }]
     : hasConfiguredPackageItems
-    ? invoice.packageItems.map((item: any) => {
-        let isTax = item.isTaxable !== false
-        let isTsc = item.isTscApplicable === true
-        const nameUpper = String(item.name || '').toUpperCase()
-        if (nameUpper.includes('INTERNET')) {
-          isTax = true
-          isTsc = true
-        } else if (nameUpper.includes('SUPPORT') || nameUpper.includes('MAINTENANCE') || nameUpper.includes('NETTV') || nameUpper.includes('NET TV')) {
-          isTax = true
-          isTsc = false
-        }
-        return {
-          id: `package-${item.id}`,
-          itemName: item.name || "Package item",
-          description: item.description || item.name || "Package item",
-          referenceId: item.referenceId,
-          itemPrice: Number(item.amount || 0),
-          isTaxable: isTax,
-          isTscApplicable: isTsc,
-        }
-      })
+    ? invoice.packageItems.map((item: any) => ({
+        id: `package-${item.id}`,
+        itemName: item.name || "Package item",
+        description: item.description || item.name || "Package item",
+        referenceId: item.referenceId,
+        itemPrice: Number(item.amount || 0),
+        isTaxable: item.isTaxable !== false,
+        isTscApplicable: item.isTscApplicable === true,
+      }))
     : hasActualOrderItems
     ? invoice.items.map((item: any) => {
         const configured: any = item.referenceId ? configuredByReference.get(item.referenceId) : null
-        let isTax = configured ? (configured.isTaxable !== false && configured.IsTaxable !== false) : true
-        let isTsc = configured ? (configured.isTscApplicable === true || configured.IsExcisable === true) : false
-        
-        const nameUpper = String(item.itemName || '').toUpperCase()
-        if (nameUpper.includes('INTERNET')) {
-          isTax = true
-          isTsc = true
-        } else if (nameUpper.includes('SUPPORT') || nameUpper.includes('MAINTENANCE') || nameUpper.includes('NETTV') || nameUpper.includes('NET TV')) {
-          isTax = true
-          isTsc = false
-        }
         return {
           ...item,
-          isTaxable: isTax,
-          isTscApplicable: isTsc,
+          isTaxable: configured ? (configured.isTaxable !== false && configured.IsTaxable !== false) : (item.isTaxable !== false),
+          isTscApplicable: configured ? (configured.isTscApplicable === true || configured.IsExcisable === true) : (item.isTscApplicable === true),
         }
       })
-    : (() => {
-        let isTax = true
-        let isTsc = false
-        const nameUpper = String(invoice?.packageName || '').toUpperCase()
-        if (nameUpper.includes('INTERNET')) {
-          isTax = true
-          isTsc = true
-        } else if (nameUpper.includes('SUPPORT') || nameUpper.includes('MAINTENANCE') || nameUpper.includes('NETTV') || nameUpper.includes('NET TV')) {
-          isTax = true
-          isTsc = false
-        }
-        return [{ itemName: invoice?.packageName || "Internet Package", referenceId: null, itemPrice: Number(invoice?.amount || 0), isTaxable: isTax, isTscApplicable: isTsc }]
-      })()
+    : [{ itemName: invoice?.packageName || "Internet Package", referenceId: null, itemPrice: Number(invoice?.amount || 0), isTaxable: true, isTscApplicable: invoice?.isTscApplicable || false }]
   
   const itemsSum = items.reduce((sum: number, item: any) => sum + Number(item.itemPrice || 0), 0)
   const invoiceTotalAmount = Number(invoice?.amount || 0)
@@ -143,7 +108,7 @@ function PrintableInvoice({
 
   if (isLegacy) {
     total = invoiceTotalAmount
-    const tscFactor = (invoice?.isTscApplicable || /internet/i.test(invoice?.packageName || invoice?.planName || '')) ? (tscPct / 100) : 0
+    const tscFactor = invoice?.isTscApplicable ? (tscPct / 100) : 0
     const baseAmount = total / ((1 + tscFactor) * 1.13)
     totalTsc = Math.round(baseAmount * tscFactor * 100) / 100
     taxableAmount = Math.round(baseAmount * (1 + tscFactor) * 100) / 100
@@ -155,7 +120,7 @@ function PrintableInvoice({
       const addon = item.referenceId ? findAddonConfig(item.referenceId) : null
       const itemIsTsc = addon
         ? (addon.isTscApplicable === true || addon.IsExcisable === true)
-        : (invoice?.isTscApplicable || /internet/i.test(invoice?.packageName || invoice?.planName || ''))
+        : (invoice?.isTscApplicable || false)
       const itemTscFactor = itemIsTsc ? (tscPct / 100) : 0
       const itemPreTax = itemPrice / ((1 + itemTscFactor) * 1.13)
       return {
@@ -186,15 +151,7 @@ function PrintableInvoice({
         isTscApplicable = false
       }
 
-      // Final standard name-based fallback as override safety
-      const nameUpper = String(item.itemName || item.name || '').toUpperCase()
-      if (nameUpper.includes('INTERNET')) {
-        isTaxable = true
-        isTscApplicable = true
-      } else if (nameUpper.includes('SUPPORT') || nameUpper.includes('MAINTENANCE') || nameUpper.includes('NETTV') || nameUpper.includes('NET TV')) {
-        isTaxable = true
-        isTscApplicable = false
-      }
+
 
       const itemTsc = isTscApplicable ? (price * tscPct) / 100 : 0
 
