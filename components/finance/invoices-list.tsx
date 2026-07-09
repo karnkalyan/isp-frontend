@@ -355,8 +355,8 @@ function PrintableReceipt({
             <span className="receipt-line ml-2 inline-block min-w-56 border-b border-black px-2 font-semibold">{invoice?.packageName || ""}</span>.
           </p>
           <p>
-            Paid in cash / by cheque no. <span className="receipt-line inline-block min-w-48 border-b border-black">&nbsp;</span>
-            <span className="ml-2">against</span> <span className="receipt-line inline-block min-w-48 border-b border-black px-2">&nbsp;</span>.
+            Paid in cash / by cheque no. <span className="receipt-line inline-block min-w-48 border-b border-black px-2 font-semibold">{paymentMethod}</span>
+            <span className="ml-2">against</span> <span className="receipt-line inline-block min-w-48 border-b border-black px-2 font-semibold">subscription charge</span>.
           </p>
 
           <div className="flex items-center gap-3 pt-1 text-base font-bold">
