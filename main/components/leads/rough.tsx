@@ -904,7 +904,7 @@ export function LeadManagement() {
 
     const fetchSplitters = async () => {
         try {
-            const response = await apiRequest("/splitters")
+            const response = await apiRequest("/splitters?limit=1000")
 
             let dataArray = []
             if (response && typeof response === 'object') {

@@ -4611,7 +4611,21 @@ export function OLTDetailed() {
                                     </Badge>
                                   </TableCell>
                                   <TableCell>
-                                    <div className="text-sm">{slave.usedPorts}/{slave.portCount}</div>
+                                    <div className="space-y-1 max-w-[150px]">
+                                      <div className="flex items-center justify-between text-xs font-medium text-gray-700 dark:text-gray-300">
+                                        <span>Used: {slave.usedPorts}</span>
+                                        <span>Total: {slave.portCount}</span>
+                                      </div>
+                                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                                        <div
+                                          className="bg-green-500 h-1.5 rounded-full"
+                                          style={{ width: `${(slave.usedPorts / slave.portCount) * 100}%` }}
+                                        />
+                                      </div>
+                                      <div className="text-xs text-gray-500 font-medium">
+                                        Available: {slave.availablePorts}
+                                      </div>
+                                    </div>
                                   </TableCell>
                                   <TableCell>
                                     <div className="text-xs text-purple-600 dark:text-purple-400">
@@ -4619,7 +4633,7 @@ export function OLTDetailed() {
                                     </div>
                                   </TableCell>
                                   <TableCell>
-                                    <div className="text-sm">{getConnectedOltName(slave, allSplitters) || '—'}</div>
+                                    <div className="text-sm">—</div>
                                   </TableCell>
                                   <TableCell>
                                     <div className="text-sm">{slave.location?.site || '—'}</div>
@@ -4637,7 +4651,7 @@ export function OLTDetailed() {
                                         size="icon"
                                         onClick={() => {
                                           setSelectedSplitter(slave);
-                                          setActiveTab("splitter-details");
+                                          setShowSplitterDetails(true);
                                         }}
                                         className="h-7 w-7 hover:bg-blue-50 hover:text-blue-600"
                                         title="View Details"
@@ -4944,7 +4958,7 @@ export function OLTDetailed() {
                 </CardHeader>
                 <CardContent className="p-6 relative z-10">
                   <Tabs defaultValue="basic">
-                    <TabsList className="grid grid-cols-10">
+                    <TabsList className="flex flex-wrap md:grid md:grid-cols-10 h-auto w-full gap-1 p-1 bg-muted">
                       <TabsTrigger value="basic">Basic</TabsTrigger>
                       <TabsTrigger value="networking">Networking</TabsTrigger>
                       <TabsTrigger value="management">Management</TabsTrigger>
@@ -5970,7 +5984,21 @@ export function OLTDetailed() {
                                                 </Badge>
                                               </TableCell>
                                               <TableCell>
-                                                <div className="text-sm">{slave.usedPorts}/{slave.portCount}</div>
+                                                <div className="space-y-1 max-w-[150px]">
+                                                  <div className="flex items-center justify-between text-xs font-medium text-gray-700 dark:text-gray-300">
+                                                    <span>Used: {slave.usedPorts}</span>
+                                                    <span>Total: {slave.portCount}</span>
+                                                  </div>
+                                                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                                                    <div
+                                                      className="bg-green-500 h-1.5 rounded-full"
+                                                      style={{ width: `${(slave.usedPorts / slave.portCount) * 100}%` }}
+                                                    />
+                                                  </div>
+                                                  <div className="text-xs text-gray-500 font-medium">
+                                                    Available: {slave.availablePorts}
+                                                  </div>
+                                                </div>
                                               </TableCell>
                                               <TableCell>
                                                 <div className="text-xs text-purple-600 dark:text-purple-400">
@@ -5978,7 +6006,7 @@ export function OLTDetailed() {
                                                 </div>
                                               </TableCell>
                                               <TableCell>
-                                                <div className="text-sm">{getConnectedOltName(slave, allSplitters) || '—'}</div>
+                                                <div className="text-sm">—</div>
                                               </TableCell>
                                               <TableCell>
                                                 <div className="text-sm">{slave.location?.site || '—'}</div>

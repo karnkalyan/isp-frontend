@@ -539,6 +539,10 @@ export function LeadManagement() {
   const [showStatusChangeDialog, setShowStatusChangeDialog] = useState(false)
   const [statusChangeLead, setStatusChangeLead] = useState<Lead | null>(null)
   const [newStatus, setNewStatus] = useState<LeadStatus>('new')
+  const [showLeadLogsDialog, setShowLeadLogsDialog] = useState(false)
+  const [logsDialogLead, setLogsDialogLead] = useState<Lead | null>(null)
+  const [leadLogs, setLeadLogs] = useState<any[]>([])
+  const [loadingLogs, setLoadingLogs] = useState(false)
 
   // Pagination and filter states
   const [searchQuery, setSearchQuery] = useState("")
@@ -1377,6 +1381,24 @@ export function LeadManagement() {
       toast.error(error.message || "Failed to delete lead")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const openLeadLogs = async (lead: Lead) => {
+    setLogsDialogLead(lead)
+    setLeadLogs([])
+    setShowLeadLogsDialog(true)
+    setLoadingLogs(true)
+    try {
+      const res = await apiRequest<any>(`/audit-logs/lead/${lead.id}`)
+      if (res && res.success) {
+        setLeadLogs(res.data || [])
+      }
+    } catch (e) {
+      console.error("Error fetching lead audit logs:", e)
+      toast.error("Failed to load activity logs")
+    } finally {
+      setLoadingLogs(false)
     }
   }
 
@@ -2990,6 +3012,15 @@ export function LeadManagement() {
                                 <Button
                                   variant="ghost"
                                   size="icon"
+                                  onClick={() => openLeadLogs(lead)}
+                                  className="h-8 w-8 hover:bg-slate-100"
+                                  title="View Activity Logs"
+                                >
+                                  <History className="h-4 w-4 text-slate-600" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
                                   onClick={() => deleteLead(lead.id)}
                                   className="h-8 w-8 text-destructive hover:text-destructive/90 hover:bg-red-100"
                                   title="Delete"
@@ -3168,6 +3199,15 @@ export function LeadManagement() {
                               <Button
                                 variant="ghost"
                                 size="icon"
+                                onClick={() => openLeadLogs(lead)}
+                                className="h-8 w-8 hover:bg-slate-100"
+                                title="View Activity Logs"
+                              >
+                                <History className="h-4 w-4 text-slate-600" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
                                 onClick={() => openStatusChangeDialog(lead)}
                                 className="h-8 w-8 hover:bg-yellow-100"
                                 title="Change Status"
@@ -3333,6 +3373,15 @@ export function LeadManagement() {
                               <Button
                                 variant="ghost"
                                 size="icon"
+                                onClick={() => openLeadLogs(lead)}
+                                className="h-8 w-8 hover:bg-slate-100"
+                                title="View Activity Logs"
+                              >
+                                <History className="h-4 w-4 text-slate-600" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
                                 onClick={() => deleteLead(lead.id)}
                                 className="h-8 w-8 text-destructive hover:text-destructive/90 hover:bg-red-100"
                                 title="Delete"
@@ -3464,6 +3513,15 @@ export function LeadManagement() {
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openLeadLogs(lead)}
+                              className="h-8 w-8 hover:bg-slate-100"
+                              title="View Activity Logs"
+                            >
+                              <History className="h-4 w-4 text-slate-600" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -3481,6 +3539,88 @@ export function LeadManagement() {
           </CardContainer>
         </TabsContent>
       </Tabs>
+
+      {/* View Lead Activity Logs Dialog */}
+      <Dialog open={showLeadLogsDialog} onOpenChange={setShowLeadLogsDialog}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <History className="h-5 w-5 text-indigo-600" />
+              <span>Activity Logs: {logsDialogLead?.firstName} {logsDialogLead?.lastName}</span>
+            </DialogTitle>
+            <DialogDescription>
+              A chronological history of all updates and interactions with this lead profile.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4">
+            {loadingLogs ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground">
+                <RefreshCw className="h-8 w-8 animate-spin text-indigo-600" />
+                <span className="text-sm font-medium">Fetching activity logs...</span>
+              </div>
+            ) : leadLogs.length === 0 ? (
+              <div className="text-center py-12 border-2 border-dashed rounded-lg bg-slate-50/50">
+                <History className="h-10 w-10 text-muted-foreground mx-auto mb-3 opacity-60" />
+                <p className="text-base font-semibold text-slate-700">No logs found</p>
+                <p className="text-sm text-slate-500 max-w-xs mx-auto mt-1">
+                  There are no registered activity logs for this lead profile.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-6 relative before:absolute before:left-4 before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-200">
+                {leadLogs.map((log: any, index: number) => {
+                  let parsedDetails = null
+                  try {
+                    parsedDetails = typeof log.details === 'string' ? JSON.parse(log.details) : log.details
+                  } catch (e) {}
+
+                  return (
+                    <div key={log.id || index} className="flex gap-4 relative pl-8">
+                      {/* Timeline icon dot */}
+                      <div className="absolute left-2.5 top-1.5 w-3.5 h-3.5 rounded-full border-2 border-white bg-indigo-600 ring-4 ring-indigo-50" />
+                      
+                      <div className="flex-1 bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100 capitalize">
+                            {log.action.replace(/_/g, ' ')}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {log.createdAt ? new Date(log.createdAt).toLocaleString() : '-'}
+                          </span>
+                        </div>
+                        
+                        <p className="text-sm text-slate-700 font-medium">
+                          {log.description || `${log.action} performed`}
+                        </p>
+
+                        {log.user && (
+                          <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
+                            <span className="font-semibold text-slate-600">{log.user.name}</span>
+                            <span>({log.user.email})</span>
+                          </div>
+                        )}
+
+                        {parsedDetails && (
+                          <div className="mt-3 bg-slate-50 p-2.5 rounded-lg border border-slate-100 overflow-x-auto max-h-32 text-xs font-mono text-slate-600">
+                            <pre className="whitespace-pre-wrap">{JSON.stringify(parsedDetails, null, 2)}</pre>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="border-t pt-4">
+            <Button variant="outline" onClick={() => setShowLeadLogsDialog(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* View Lead Details Dialog - UPDATED WITH COMPLETE FOLLOW-UP INFORMATION */}
       <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
