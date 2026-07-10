@@ -4633,8 +4633,35 @@ export function OLTDetailed() {
                                     </div>
                                   </TableCell>
                                   <TableCell>
-                                    <div className="text-sm">—</div>
-                                  </TableCell>
+                                     <div className="space-y-1">
+                                       <div className="text-sm font-medium">
+                                         {(() => {
+                                           const ultimateOlt = getConnectedOltName(slave, allSplitters);
+                                           return ultimateOlt !== "Not connected" ? (
+                                             <div className="flex items-center gap-2">
+                                               <Server className="h-3 w-3 text-green-500" />
+                                               <span>{ultimateOlt}</span>
+                                             </div>
+                                           ) : (
+                                             <span className="text-gray-400">{ultimateOlt}</span>
+                                           );
+                                         })()}
+                                       </div>
+                                       {(() => {
+                                         const ultimateOlt = getConnectedOltName(slave, allSplitters);
+                                         if (ultimateOlt !== "Not connected") {
+                                           const rootOltId = findRootOltForSplitter(slave, allSplitters);
+                                           const olt = olts.find(o => String(o.id) === String(rootOltId));
+                                           return olt?.ipAddress ? (
+                                             <div className="text-xs text-gray-500 font-mono">
+                                               {olt.ipAddress}
+                                             </div>
+                                           ) : null;
+                                         }
+                                         return null;
+                                       })()}
+                                     </div>
+                                   </TableCell>
                                   <TableCell>
                                     <div className="text-sm">{slave.location?.site || '—'}</div>
                                   </TableCell>
@@ -5642,7 +5669,8 @@ export function OLTDetailed() {
                                       <TableHead>Type/Ratio</TableHead>
                                       <TableHead>Role</TableHead>
                                       <TableHead>Port Usage</TableHead>
-                                      <TableHead>Connection</TableHead>
+                                      <TableHead>Connected To</TableHead>
+                                      <TableHead>Ultimate OLT</TableHead>
                                       <TableHead>Location</TableHead>
                                       <TableHead>Status</TableHead>
                                       <TableHead className="text-right">Actions</TableHead>
@@ -5652,6 +5680,7 @@ export function OLTDetailed() {
                                     {paginatedSplitters.map((splitter) => {
                                       const connectionDetails = getConnectionDetails(splitter);
                                       const connectionPath = getConnectionPath(splitter, allSplitters);
+                                      const ultimateOlt = getConnectedOltName(splitter, allSplitters);
 
                                       return (
                                         <Fragment key={splitter.id}>
@@ -5750,12 +5779,37 @@ export function OLTDetailed() {
                                               <div className="text-xs text-gray-500 truncate" title={connectionDetails.details}>
                                                 {connectionDetails.details}
                                               </div>
-                                              {/* Show connection path */}
                                               {connectionPath.length > 2 && (
                                                 <div className="text-xs text-gray-400 mt-1 truncate" title={connectionPath.join(' → ')}>
                                                   Path: {connectionPath.slice(0, 3).join(' → ')}
                                                   {connectionPath.length > 3 && '...'}
                                                 </div>
+                                              )}
+                                            </div>
+                                          </TableCell>
+                                          <TableCell>
+                                            <div className="space-y-1">
+                                              <div className="text-sm font-medium">
+                                                {ultimateOlt !== "Not connected" ? (
+                                                  <div className="flex items-center gap-2">
+                                                    <Server className="h-3 w-3 text-green-500" />
+                                                    <span>{ultimateOlt}</span>
+                                                  </div>
+                                                ) : (
+                                                  <span className="text-gray-400">{ultimateOlt}</span>
+                                                )}
+                                              </div>
+                                              {/* Show OLT IP if available */}
+                                              {ultimateOlt !== "Not connected" && (
+                                                (() => {
+                                                  const rootOltId = findRootOltForSplitter(splitter, allSplitters);
+                                                  const olt = olts.find(o => String(o.id) === String(rootOltId));
+                                                  return olt?.ipAddress ? (
+                                                    <div className="text-xs text-gray-500 font-mono">
+                                                      {olt.ipAddress}
+                                                    </div>
+                                                  ) : null;
+                                                })()
                                               )}
                                             </div>
                                           </TableCell>
@@ -6006,7 +6060,34 @@ export function OLTDetailed() {
                                                 </div>
                                               </TableCell>
                                               <TableCell>
-                                                <div className="text-sm">—</div>
+                                                <div className="space-y-1">
+                                                  <div className="text-sm font-medium">
+                                                    {(() => {
+                                                      const ultimateOlt = getConnectedOltName(slave, allSplitters);
+                                                      return ultimateOlt !== "Not connected" ? (
+                                                        <div className="flex items-center gap-2">
+                                                          <Server className="h-3 w-3 text-green-500" />
+                                                          <span>{ultimateOlt}</span>
+                                                        </div>
+                                                      ) : (
+                                                        <span className="text-gray-400">{ultimateOlt}</span>
+                                                      );
+                                                    })()}
+                                                  </div>
+                                                  {(() => {
+                                                    const ultimateOlt = getConnectedOltName(slave, allSplitters);
+                                                    if (ultimateOlt !== "Not connected") {
+                                                      const rootOltId = findRootOltForSplitter(slave, allSplitters);
+                                                      const olt = olts.find(o => String(o.id) === String(rootOltId));
+                                                      return olt?.ipAddress ? (
+                                                        <div className="text-xs text-gray-500 font-mono">
+                                                          {olt.ipAddress}
+                                                        </div>
+                                                      ) : null;
+                                                    }
+                                                    return null;
+                                                  })()}
+                                                </div>
                                               </TableCell>
                                               <TableCell>
                                                 <div className="text-sm">{slave.location?.site || '—'}</div>

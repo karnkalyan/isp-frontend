@@ -694,6 +694,8 @@ export default function LeadDetailsPage() {
 
   const [lead, setLead] = useState<Lead | null>(null);
   const [loading, setLoading] = useState(true);
+  const [leadLogs, setLeadLogs] = useState<any[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [converting, setConverting] = useState(false);
   const [leadFollowUps, setLeadFollowUps] = useState<FollowUp[]>([]);
@@ -901,6 +903,11 @@ export default function LeadDetailsPage() {
       if (data.id) {
         const followUpsData = await apiRequest(`/followup/leads/${data.id}/follow-ups`);
         setLeadFollowUps(Array.isArray(followUpsData) ? followUpsData : []);
+        
+        // Fetch audit logs if not converted
+        if (!data.convertedToCustomer && data.status !== 'converted') {
+          fetchLeadLogs(data.id);
+        }
       }
     } catch (error: any) {
       console.error("Failed to fetch lead details:", error);
@@ -908,6 +915,20 @@ export default function LeadDetailsPage() {
       router.push("/leads");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchLeadLogs = async (id: string) => {
+    setLoadingLogs(true);
+    try {
+      const res = await apiRequest<any>(`/audit-logs/lead/${id}`);
+      if (res && res.success) {
+        setLeadLogs(res.data || []);
+      }
+    } catch (e) {
+      console.error("Error fetching lead audit logs:", e);
+    } finally {
+      setLoadingLogs(false);
     }
   };
 
@@ -2117,6 +2138,15 @@ export default function LeadDetailsPage() {
                   <MessageSquare className="h-4 w-4 mr-1 sm:mr-2 text-indigo-500" />
                   SMS Logs ({lead.smsLogs?.length || 0})
                 </TabsTrigger>
+                {(!lead.convertedToCustomer && lead.status !== 'converted') && (
+                  <TabsTrigger
+                    value="audit"
+                    className="flex-1 flex-shrink-0 data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-gray-900 rounded-md text-xs sm:text-sm"
+                  >
+                    <History className="h-4 w-4 mr-1 sm:mr-2 text-slate-600" />
+                    Audit Logs ({leadLogs.length})
+                  </TabsTrigger>
+                )}
               </TabsList>
 
               {/* Location Tab */}
@@ -2661,6 +2691,83 @@ export default function LeadDetailsPage() {
                   </CardContent>
                 </Card>
               </TabsContent>
+
+              {/* Audit Logs Tab */}
+              {(!lead.convertedToCustomer && lead.status !== 'converted') && (
+                <TabsContent value="audit" className="mt-4">
+                  <Card className="rounded-xl border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-950 shadow-sm overflow-hidden">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-gray-100">
+                        <History className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                        Lead Activity Logs
+                      </CardTitle>
+                      <CardDescription className="text-gray-600 dark:text-gray-400">
+                        A chronological history of all updates and interactions with this lead profile
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {loadingLogs ? (
+                        <div className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground">
+                          <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+                          <span className="text-sm font-medium">Fetching activity logs...</span>
+                        </div>
+                      ) : leadLogs.length === 0 ? (
+                        <div className="text-center py-12 border border-dashed rounded-lg bg-slate-50/50 dark:bg-slate-900/50">
+                          <History className="h-10 w-10 text-muted-foreground mx-auto mb-3 opacity-60" />
+                          <p className="text-base font-semibold text-slate-700 dark:text-slate-300">No logs found</p>
+                          <p className="text-sm text-slate-500 max-w-xs mx-auto mt-1">
+                            There are no registered activity logs for this lead profile.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-6 relative before:absolute before:left-4 before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-200 dark:before:bg-slate-800">
+                          {leadLogs.map((log: any, index: number) => {
+                            let parsedDetails = null
+                            try {
+                              parsedDetails = typeof log.details === 'string' ? JSON.parse(log.details) : log.details
+                            } catch (e) {}
+
+                            return (
+                              <div key={log.id || index} className="flex gap-4 relative pl-8">
+                                {/* Timeline icon dot */}
+                                <div className="absolute left-2.5 top-1.5 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-gray-900 bg-indigo-600 ring-4 ring-indigo-50 dark:ring-indigo-950/50" />
+                                
+                                <div className="flex-1 bg-white dark:bg-gray-900 p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
+                                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-900/50 capitalize">
+                                      {log.action.replace(/_/g, ' ')}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">
+                                      {log.createdAt ? new Date(log.createdAt).toLocaleString() : '-'}
+                                    </span>
+                                  </div>
+                                  
+                                  <p className="text-sm text-slate-700 dark:text-slate-300 font-medium">
+                                    {log.description || `${log.action} performed`}
+                                  </p>
+
+                                  {log.user && (
+                                    <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
+                                      <span className="font-semibold text-slate-600 dark:text-slate-400">{log.user.name}</span>
+                                      <span>({log.user.email})</span>
+                                    </div>
+                                  )}
+
+                                  {parsedDetails && (
+                                    <div className="mt-3 bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800 overflow-x-auto max-h-32 text-xs font-mono text-slate-600 dark:text-slate-400">
+                                      <pre className="whitespace-pre-wrap">{JSON.stringify(parsedDetails, null, 2)}</pre>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              )}
             </Tabs>
 
             {/* Quick Actions Card */}
