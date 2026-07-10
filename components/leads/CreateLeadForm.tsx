@@ -1297,7 +1297,7 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                 title: followUp.title,
                 description: followUp.description || "",
                 scheduledAt: formatForDateTimeLocal(followUp.scheduledAt),
-                assignedUserId: followUp.assignedUserId,
+                assignedUserId: followUp.assignedUserId ? String(followUp.assignedUserId) : "",
                 notes: followUp.notes || "",
                 status: followUp.status,
                 outcome: followUp.outcome || ""
