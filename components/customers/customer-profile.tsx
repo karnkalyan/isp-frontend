@@ -3711,7 +3711,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           {serviceActionLoading === "radius" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Key className="mr-2 h-4 w-4" />}
           Reprovision Radius
         </Button>
-        <Button size="sm" className="h-9 bg-gradient-to-r from-pink-500 to-purple-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={() => setNettvProvisionOpen(true)} disabled={serviceActionLoading === "nettv" || !isNettvProvisioned}>
+        <Button size="sm" className="h-9 bg-gradient-to-r from-pink-500 to-purple-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={() => setNettvProvisionOpen(true)} disabled={serviceActionLoading === "nettv"}>
           {serviceActionLoading === "nettv" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Tv className="mr-2 h-4 w-4" />}
           Reprovision NetTV
         </Button>
