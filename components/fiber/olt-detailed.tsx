@@ -1001,6 +1001,28 @@ export function OLTDetailed() {
     return null;
   };
 
+  const getNextSlaveIdentity = (master: Splitter) => {
+    const sequencedSlaves = allSplitters
+      .filter(splitter => splitter.masterSplitterId === master.splitterId)
+      .map(splitter => {
+        const idMatch = splitter.splitterId?.match(/^(.*-)(\d+)$/);
+        if (!idMatch) return null;
+        return { splitter, prefix: idMatch[1], sequence: Number(idMatch[2]), width: idMatch[2].length };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null && Number.isFinite(item.sequence))
+      .sort((a, b) => b.sequence - a.sequence);
+
+    const latest = sequencedSlaves[0];
+    if (!latest) return { name: "", splitterId: "" };
+
+    const nextSuffix = String(latest.sequence + 1).padStart(latest.width, "0");
+    const nameMatch = latest.splitter.name?.match(/^(.*-)(\d+)$/);
+    return {
+      splitterId: `${latest.prefix}${nextSuffix}`,
+      name: nameMatch ? `${nameMatch[1]}${nextSuffix}` : `${latest.prefix}${nextSuffix}`
+    };
+  };
+
   // Helper function to get the full connection path for a splitter
   const getConnectionPath = (
     splitter: Splitter,
@@ -4501,9 +4523,10 @@ export function OLTDetailed() {
                                       onClick={async () => {
                                         setSelectedSplitter(null);
                                         await fetchAllSplittersForHierarchy();
+                                        const nextSlave = getNextSlaveIdentity(splitter);
                                         setSplitterForm({
-                                          name: "",
-                                          splitterId: "",
+                                          name: nextSlave.name,
+                                          splitterId: nextSlave.splitterId,
                                           splitRatio: "1:8",
                                           ratio: 8,
                                           splitterType: "PLC",
@@ -4676,6 +4699,14 @@ export function OLTDetailed() {
                                    </TableCell>
                                   <TableCell>
                                     <div className="text-sm">{slave.location?.site || '—'}</div>
+                                    {(slave.location?.latitude || slave.location?.longitude) && (
+                                      <div className="flex items-center gap-1 text-xs text-gray-500">
+                                        <MapPin className="h-3 w-3" />
+                                        <span>
+                                          {slave.location?.latitude?.toFixed(4)}, {slave.location?.longitude?.toFixed(4)}
+                                        </span>
+                                      </div>
+                                    )}
                                   </TableCell>
                                   <TableCell>
                                     <Badge variant={slave.status === 'active' ? 'default' : 'secondary'}
@@ -5927,9 +5958,10 @@ export function OLTDetailed() {
                                                   onClick={async () => {
                                                     setSelectedSplitter(null);
                                                     await fetchAllSplittersForHierarchy();
+                                                    const nextSlave = getNextSlaveIdentity(splitter);
                                                     setSplitterForm({
-                                                      name: "",
-                                                      splitterId: "",
+                                                      name: nextSlave.name,
+                                                      splitterId: nextSlave.splitterId,
                                                       splitRatio: "1:8",
                                                       ratio: 8,
                                                       splitterType: "PLC",
@@ -6103,6 +6135,14 @@ export function OLTDetailed() {
                                               </TableCell>
                                               <TableCell>
                                                 <div className="text-sm">{slave.location?.site || '—'}</div>
+                                                {(slave.location?.latitude || slave.location?.longitude) && (
+                                                  <div className="flex items-center gap-1 text-xs text-gray-500">
+                                                    <MapPin className="h-3 w-3" />
+                                                    <span>
+                                                      {slave.location?.latitude?.toFixed(4)}, {slave.location?.longitude?.toFixed(4)}
+                                                    </span>
+                                                  </div>
+                                                )}
                                               </TableCell>
                                               <TableCell>
                                                 <Badge variant={slave.status === 'active' ? 'default' : 'secondary'}

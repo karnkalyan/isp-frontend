@@ -114,6 +114,7 @@ function MapController({ focusPosition }: { focusPosition: [number, number] | nu
 
 export default function UltimateGISMap() {
     const [isFullScreen, setIsFullScreen] = useState(false)
+    const mapContainerRef = useRef<HTMLDivElement>(null)
     const [showPanel, setShowPanel] = useState(true)
     const [autoReplace, setAutoReplace] = useState(false)
     const [search, setSearch] = useState("")
@@ -129,6 +130,24 @@ export default function UltimateGISMap() {
     const [selectedCat, setSelectedCat] = useState<string | null>(null)
     const [newFolderName, setNewFolderName] = useState("")
     const fileInputRef = useRef<HTMLInputElement>(null)
+
+    useEffect(() => {
+        const syncFullScreen = () => setIsFullScreen(document.fullscreenElement === mapContainerRef.current)
+        document.addEventListener("fullscreenchange", syncFullScreen)
+        return () => document.removeEventListener("fullscreenchange", syncFullScreen)
+    }, [])
+
+    const toggleFullScreen = async () => {
+        try {
+            if (document.fullscreenElement === mapContainerRef.current) {
+                await document.exitFullscreen()
+            } else {
+                await mapContainerRef.current?.requestFullscreen()
+            }
+        } catch {
+            toast.error("Unable to open the map in full screen")
+        }
+    }
 
     // Master Layer Visibility
     const [layers, setLayers] = useState({
@@ -346,7 +365,7 @@ export default function UltimateGISMap() {
     ]
 
     return (
-        <div className={cn(
+        <div ref={mapContainerRef} className={cn(
             "relative h-screen w-full",
             "bg-background",
             isFullScreen && "fixed inset-0 z-[9999]"
@@ -719,7 +738,7 @@ export default function UltimateGISMap() {
                     variant="outline"
                     size="icon"
                     className="bg-background/90 backdrop-blur-md shadow-lg border hover:bg-background"
-                    onClick={() => setIsFullScreen(!isFullScreen)}
+                    onClick={toggleFullScreen}
                 >
                     {isFullScreen ?
                         <Minimize2 className="h-4 w-4" /> :
