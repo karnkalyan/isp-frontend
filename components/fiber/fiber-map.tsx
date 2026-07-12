@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic'
 import "leaflet/dist/leaflet.css"
 import {
     Upload, Maximize2, Minimize2, Trash2, Search, Eye, EyeOff,
-    X, ChevronDown, Plus, Folder, FolderOpen, Map as MapIcon,
+    X, Plus, Folder, FolderOpen,
     Target, Settings2, Box, Activity, MapPin, Share2, Layers,
     Server, Cable, Wifi, Network, Landmark
 } from "lucide-react"
@@ -453,6 +453,18 @@ export default function UltimateGISMap() {
                     description="Manage fiber network infrastructure"
                     gradientColor="#6366f1"
                     className="w-96 max-h-[90vh] overflow-hidden shadow-xl bg-background/95 backdrop-blur"
+                    action={
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowPanel(false)}
+                            className="h-8 gap-1.5 px-3"
+                            aria-label="Hide Network GIS"
+                        >
+                            <EyeOff className="h-4 w-4" />
+                            Hide
+                        </Button>
+                    }
                 >
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                         <TabsList className="grid grid-cols-2 mb-4">
@@ -690,8 +702,8 @@ export default function UltimateGISMap() {
                         onClick={() => setShowPanel(true)}
                         className="bg-background/90 backdrop-blur-md shadow-lg border hover:bg-background text-muted-foreground"
                     >
-                        <MapIcon className="h-4 w-4 mr-2" />
-                        Show Panel
+                        <Eye className="h-4 w-4 mr-2" />
+                        Show Network GIS
                     </Button>
                 )}
                 <div className="relative">
@@ -713,17 +725,6 @@ export default function UltimateGISMap() {
                         <Minimize2 className="h-4 w-4" /> :
                         <Maximize2 className="h-4 w-4" />
                     }
-                </Button>
-                <Button
-                    variant="outline"
-                    size="icon"
-                    className="bg-background/90 backdrop-blur-md shadow-lg border hover:bg-background"
-                    onClick={() => setShowPanel(!showPanel)}
-                >
-                    <ChevronDown className={cn(
-                        "h-4 w-4 transition-transform duration-200",
-                        showPanel ? "rotate-180" : "rotate-0"
-                    )} />
                 </Button>
             </div>
 
