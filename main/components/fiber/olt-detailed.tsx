@@ -4055,30 +4055,42 @@ export function OLTDetailed() {
               </div>
 
               {/* Stats Summary */}
+              {(() => {
+                // Keep summary cards in sync with the selected OLT. Slave splitters
+                // are included when their hierarchy ultimately connects to that OLT.
+                const statsSplitters = oltFilter && oltFilter !== "all"
+                  ? allSplitters.filter(splitter =>
+                      String(findRootOltForSplitter(splitter, allSplitters)) === String(oltFilter)
+                    )
+                  : allSplitters;
+
+                return (
               <div className="grid grid-cols-4 gap-3 mb-4">
                 <div className="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
                   <p className="text-sm text-gray-500">Total Splitters</p>
-                  <p className="text-xl font-bold">{allSplitters.length}</p>
+                  <p className="text-xl font-bold">{statsSplitters.length}</p>
                 </div>
                 <div className="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
                   <p className="text-sm text-gray-500">Master Splitters</p>
                   <p className="text-xl font-bold text-purple-600">
-                    {allSplitters.filter(s => s.isMaster).length}
+                    {statsSplitters.filter(s => s.isMaster).length}
                   </p>
                 </div>
                 <div className="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
                   <p className="text-sm text-gray-500">Slave Splitters</p>
                   <p className="text-xl font-bold text-blue-600">
-                    {allSplitters.filter(s => !s.isMaster).length}
+                    {statsSplitters.filter(s => !s.isMaster).length}
                   </p>
                 </div>
                 <div className="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
                   <p className="text-sm text-gray-500">Connected to OLT</p>
                   <p className="text-xl font-bold text-green-600">
-                    {allSplitters.filter(s => findRootOltForSplitter(s, allSplitters)).length}
+                    {statsSplitters.filter(s => findRootOltForSplitter(s, allSplitters)).length}
                   </p>
                 </div>
               </div>
+                );
+              })()}
 
               {(() => {
                 const filteredAllSplitters = allSplitters.filter(splitter => {
