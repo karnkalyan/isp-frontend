@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, Suspense, useState, useEffect, useCallback, useMemo } from "react"
+import { Suspense, useState, useEffect, useCallback, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { CardContainer } from "@/components/ui/card-container"
@@ -66,10 +66,7 @@ import {
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
-  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
@@ -193,6 +190,7 @@ function TicketsContent() {
   const [loadingSubjects, setLoadingSubjects] = useState(false)
   const [ticketTypes, setTicketTypes] = useState<any[]>([])
   const [ticketTypeId, setTicketTypeId] = useState("")
+  const [complaintCategory, setComplaintCategory] = useState("")
   const [departments, setDepartments] = useState<any[]>([])
   const [departmentId, setDepartmentId] = useState("")
   const [contactName, setContactName] = useState("")
@@ -202,6 +200,34 @@ function TicketsContent() {
     category,
     types: ticketTypes.filter(type => ticketTypeCategory(type) === category)
   })).filter(group => group.types.length > 0), [ticketTypes])
+  const complaintCategoryOptions = useMemo(() => groupedTicketTypes.map(group => ({ value: group.category, label: group.category })), [groupedTicketTypes])
+  const complaintSubtypeOptions = useMemo(() => {
+    const group = groupedTicketTypes.find(item => item.category === complaintCategory)
+    return (group?.types || []).map(type => ({ value: String(type.id), label: ticketTypeSubtype(type) }))
+  }, [groupedTicketTypes, complaintCategory])
+
+  const handleComplaintCategoryChange = (value: string | string[]) => {
+    const next = Array.isArray(value) ? value[0] || "" : value
+    setComplaintCategory(next)
+    setTicketTypeId("")
+    setNewCategory(next)
+  }
+
+  const handleComplaintSubtypeChange = (value: string | string[]) => {
+    const next = Array.isArray(value) ? value[0] || "" : value
+    setTicketTypeId(next)
+    const type = ticketTypes.find(item => String(item.id) === next)
+    setNewCategory(String(type?.code || complaintCategory).toLowerCase())
+  }
+
+  const handleAssigneeSelection = (value: string | string[]) => {
+    const next = Array.isArray(value) ? value[0] || "none" : value
+    setAssignedToId(next)
+    if (next === "none") return
+    const assignee = assignableUsers.find(item => String(item.id) === next)
+    const assigneeDepartmentId = assignee?.departmentId || assignee?.department?.id
+    if (assigneeDepartmentId) setDepartmentId(String(assigneeDepartmentId))
+  }
 
   const selectedSubject = useMemo(() => {
     if (subjectId === "none") return null
@@ -251,9 +277,14 @@ function TicketsContent() {
 
   useEffect(() => {
     if (searchParams.get("create") === "true") {
-      setShowCreate(true)
+      if (isFieldStaff) {
+        setShowCreate(false)
+        router.replace("/tickets")
+      } else {
+        setShowCreate(true)
+      }
     }
-  }, [searchParams])
+  }, [searchParams, isFieldStaff, router])
 
   useEffect(() => {
     if (showCreate || showEdit) {
@@ -401,6 +432,7 @@ function TicketsContent() {
       setSubjectType("NONE")
       setSubjectId("none")
       setTicketTypeId("")
+      setComplaintCategory("")
       setDepartmentId("")
       setContactName("")
       setContactPhone("")
@@ -478,6 +510,8 @@ function TicketsContent() {
     setNewBranchId(ticket.branch?.id ? String(ticket.branch.id) : "none")
     setAssignedToId(ticket.assignedTo?.id ? String(ticket.assignedTo.id) : "none")
     setTicketTypeId(ticket.ticketTypeId ? String(ticket.ticketTypeId) : "")
+    const editingType = ticketTypes.find(type => type.id === ticket.ticketTypeId)
+    setComplaintCategory(editingType ? ticketTypeCategory(editingType) : "")
     setDepartmentId(ticket.departmentId ? String(ticket.departmentId) : "")
     setShowEdit(true)
   }
@@ -738,7 +772,7 @@ function TicketsContent() {
                         <Textarea value={newDescription} onChange={e => setNewDescription(e.target.value)} placeholder="Details..." rows={4} className="rounded-lg shadow-sm" />
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                         <div className="space-y-1">
                           <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Priority</Label>
                           <Select value={newPriority} onValueChange={setNewPriority}>
@@ -753,20 +787,11 @@ function TicketsContent() {
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Complaint Type *</Label>
-                          <Select value={ticketTypeId} onValueChange={(value) => { setTicketTypeId(value); const type = ticketTypes.find(t => String(t.id) === value); setNewCategory(String(type?.code || '').toLowerCase()); if (type?.departmentId) setDepartmentId(String(type.departmentId)) }}>
-                            <SelectTrigger className="rounded-lg shadow-sm"><SelectValue placeholder="Choose category and complaint" /></SelectTrigger>
-                            <SelectContent>
-                              {groupedTicketTypes.map((group, index) => (
-                                <Fragment key={group.category}>
-                                  {index > 0 && <SelectSeparator />}
-                                  <SelectGroup>
-                                    <SelectLabel>{group.category}</SelectLabel>
-                                    {group.types.map(type => <SelectItem key={type.id} value={String(type.id)}>{ticketTypeSubtype(type)}</SelectItem>)}
-                                  </SelectGroup>
-                                </Fragment>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <SearchableSelect options={complaintCategoryOptions} value={complaintCategory} onValueChange={handleComplaintCategoryChange} placeholder="Search complaint type..." className="w-full" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Complaint Sub-Type *</Label>
+                          <SearchableSelect options={complaintSubtypeOptions} value={ticketTypeId} onValueChange={handleComplaintSubtypeChange} placeholder={complaintCategory ? "Search sub-type..." : "Choose type first"} disabled={!complaintCategory} className="w-full" />
                         </div>
                       </div>
 
@@ -816,7 +841,7 @@ function TicketsContent() {
                             }))
                           ]}
                           value={assignedToId}
-                          onValueChange={setAssignedToId as (val: string | string[]) => void}
+                          onValueChange={handleAssigneeSelection}
                           placeholder="Search staff member..."
                           className="w-full"
                         />
@@ -913,7 +938,7 @@ function TicketsContent() {
                   <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Details / Description</Label>
                   <Textarea value={newDescription} onChange={e => setNewDescription(e.target.value)} rows={4} />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div className="space-y-1">
                     <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Priority</Label>
                     <Select value={newPriority} onValueChange={setNewPriority}>
@@ -928,20 +953,11 @@ function TicketsContent() {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Complaint Type</Label>
-                    <Select value={ticketTypeId} onValueChange={(value) => { setTicketTypeId(value); const type = ticketTypes.find(t => String(t.id) === value); setNewCategory(String(type?.code || '').toLowerCase()); if (type?.departmentId) setDepartmentId(String(type.departmentId)) }}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {groupedTicketTypes.map((group, index) => (
-                          <Fragment key={group.category}>
-                            {index > 0 && <SelectSeparator />}
-                            <SelectGroup>
-                              <SelectLabel>{group.category}</SelectLabel>
-                              {group.types.map(type => <SelectItem key={type.id} value={String(type.id)}>{ticketTypeSubtype(type)}</SelectItem>)}
-                            </SelectGroup>
-                          </Fragment>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect options={complaintCategoryOptions} value={complaintCategory} onValueChange={handleComplaintCategoryChange} placeholder="Search complaint type..." className="w-full" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Complaint Sub-Type</Label>
+                    <SearchableSelect options={complaintSubtypeOptions} value={ticketTypeId} onValueChange={handleComplaintSubtypeChange} placeholder={complaintCategory ? "Search sub-type..." : "Choose type first"} disabled={!complaintCategory} className="w-full" />
                   </div>
                 </div>
               </div>
@@ -958,7 +974,7 @@ function TicketsContent() {
                       }))
                     ]}
                     value={assignedToId}
-                    onValueChange={setAssignedToId as (val: string | string[]) => void}
+                    onValueChange={handleAssigneeSelection}
                     placeholder="Search staff member..."
                     className="w-full"
                   />

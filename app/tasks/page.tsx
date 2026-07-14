@@ -748,10 +748,10 @@ export default function TasksPage() {
 
   const renderTimelineGrid = () => (
     <div className="h-[calc(100dvh-23rem)] min-h-[480px] overflow-auto border border-slate-100 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-950/20 mt-4">
-      <table className="w-full border-collapse min-w-[800px] text-left">
+      <table className={`w-full border-collapse text-left ${isFieldStaff ? "min-w-[640px]" : "min-w-[800px]"}`}>
         <thead>
           <tr className="bg-slate-100/50 dark:bg-slate-900 text-xs font-semibold text-muted-foreground border-b border-slate-200 dark:border-slate-800">
-            <th className="p-3 w-48 border-r border-slate-200 dark:border-slate-800 sticky left-0 bg-slate-100 dark:bg-slate-900 z-10">Technician</th>
+            {!isFieldStaff && <th className="p-3 w-48 border-r border-slate-200 dark:border-slate-800 sticky left-0 bg-slate-100 dark:bg-slate-900 z-10">Technician</th>}
             {timelineMode === "daily" ? (
               hoursColumns.map(hour => <th key={hour} className="p-3 text-center border-r border-slate-100 dark:border-slate-850 font-mono text-[10px]">{hour}</th>)
             ) : (
@@ -771,12 +771,12 @@ export default function TasksPage() {
         <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
           {timelineData.map(({ staff, tasks }) => (
             <tr key={staff.id} className="hover:bg-white dark:hover:bg-slate-900 transition-colors">
-              <td className="p-3 font-semibold border-r border-slate-200 dark:border-slate-850 sticky left-0 bg-slate-50 dark:bg-slate-900 z-10 flex items-center gap-2">
+              {!isFieldStaff && <td className="p-3 font-semibold border-r border-slate-200 dark:border-slate-850 sticky left-0 bg-slate-50 dark:bg-slate-900 z-10 flex items-center gap-2">
                 <Avatar className="h-7 w-7">
                   <AvatarFallback className="text-[10px] font-bold bg-slate-200 text-slate-700">{staff.name?.charAt(0) || 'U'}</AvatarFallback>
                 </Avatar>
-                <span>{isFieldStaff ? "—" : staff.name}</span>
-              </td>
+                <span>{staff.name}</span>
+              </td>}
 
               {timelineMode === "daily" ? (() => {
                 let skipCount = 0;
@@ -1423,7 +1423,7 @@ export default function TasksPage() {
         )}
 
         {viewMode === "timeline" && (
-          <CardContainer title="Operations Scheduler" description="Timeline of jobs scheduled per technician">
+          <CardContainer title={isFieldStaff ? "My Schedule" : "Operations Scheduler"} description={isFieldStaff ? "Timeline of your assigned jobs" : "Timeline of jobs scheduled per technician"}>
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4 border-b pb-4">
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" onClick={() => navigateTimeline(-1)}><ChevronLeft className="h-4 w-4" /></Button>
@@ -1501,7 +1501,7 @@ export default function TasksPage() {
             </div>
 
             {activeTab === "timeline" ? (
-              <CardContainer title="Operations Scheduler" description="Timeline of jobs scheduled per technician">
+              <CardContainer title={isFieldStaff ? "My Schedule" : "Operations Scheduler"} description={isFieldStaff ? "Timeline of your assigned jobs" : "Timeline of jobs scheduled per technician"}>
                 <div className="flex flex-col sm:flex-row justify-between items-center gap-4 border-b pb-4">
                   <div className="flex items-center gap-2">
                     <Button variant="outline" size="sm" onClick={() => navigateTimeline(-1)}><ChevronLeft className="h-4 w-4" /></Button>

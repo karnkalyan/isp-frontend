@@ -484,6 +484,8 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
               )
               .map(item => category.category === "Access Networks" && item.title === "Inventory Management"
                 ? { ...item, permission: "inventory_assigned", submenu: [{ title: "My Assigned Items", href: "/inventory/assigned", permission: "inventory_assigned" }] }
+                : category.category === "Support" && item.title === "Support Tickets"
+                  ? { ...item, permission: ["tickets_manage", "tickets_create"], submenu: [{ title: "Tickets", href: "/tickets", permission: ["tickets_manage", "tickets_create"] }] }
                 : item)
           }))
       : menuCategories;

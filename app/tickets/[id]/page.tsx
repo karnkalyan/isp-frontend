@@ -75,6 +75,9 @@ interface TicketDetail {
     email: string
     phoneNumber?: string
     address?: string
+    status?: string
+    convertedToCustomer?: boolean
+    convertedAt?: string
   }
   assignedTo?: { id: number; name: string; email: string }
   createdBy?: { id: number; name: string; email: string }
@@ -307,7 +310,10 @@ export default function TicketDetailPage() {
     if (!ticket?.departmentId) return "General"
     return departments.find(d => d.id === ticket.departmentId)?.name || "General"
   }, [ticket, departments])
-  const canConvertLead = ticket?.subject?.type === "LEAD"
+  const canConvertLead = ticket?.subject?.type === "LEAD" &&
+    typeName.toLowerCase().includes("new connection") &&
+    !ticket.subject.convertedToCustomer &&
+    String(ticket.subject.status || "").toLowerCase() !== "converted"
 
   if (loading) {
     return (

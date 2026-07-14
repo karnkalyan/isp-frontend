@@ -39,6 +39,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useAuth } from "@/contexts/AuthContext"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 
 interface CustomerTicketsProps {
   customerId: number
@@ -83,6 +84,12 @@ export function CustomerTickets({ customerId }: CustomerTicketsProps) {
   const [newCategory, setNewCategory] = useState("")
   const [ticketTypes, setTicketTypes] = useState<any[]>([])
   const [ticketTypeId, setTicketTypeId] = useState("")
+  const [complaintCategory, setComplaintCategory] = useState("")
+  const complaintCategoryOptions = Array.from(new Set(ticketTypes.map(type => String(type.description || type.name?.split(" / ")[0] || "Other"))))
+    .map(category => ({ value: category, label: category }))
+  const complaintSubtypeOptions = ticketTypes
+    .filter(type => String(type.description || type.name?.split(" / ")[0] || "Other") === complaintCategory)
+    .map(type => ({ value: String(type.id), label: String(type.name || "Other").split(" / ").pop() || "Other" }))
 
   // Fetch the global setting for ticket comment visibility
   const fetchCommentSetting = async () => {
@@ -143,6 +150,7 @@ export function CustomerTickets({ customerId }: CustomerTicketsProps) {
       setNewPriority("MEDIUM")
       setNewCategory("")
       setTicketTypeId("")
+      setComplaintCategory("")
       fetchTickets()
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" })
@@ -253,7 +261,7 @@ export function CustomerTickets({ customerId }: CustomerTicketsProps) {
                   <Label>Description</Label>
                   <Textarea value={newDescription} onChange={(e) => setNewDescription(e.target.value)} placeholder="Detailed description..." rows={3} />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div className="space-y-2">
                     <Label>Priority</Label>
                     <Select value={newPriority} onValueChange={setNewPriority}>
@@ -268,16 +276,19 @@ export function CustomerTickets({ customerId }: CustomerTicketsProps) {
                   </div>
                   <div className="space-y-2">
                     <Label>Complaint Type *</Label>
-                    <Select value={ticketTypeId} onValueChange={(value) => {
-                      setTicketTypeId(value)
-                      const selected = ticketTypes.find(type => String(type.id) === value)
-                      setNewCategory(String(selected?.description || selected?.code || "other"))
-                    }}>
-                      <SelectTrigger><SelectValue placeholder="Select complaint type" /></SelectTrigger>
-                      <SelectContent>
-                        {ticketTypes.map(type => <SelectItem key={type.id} value={String(type.id)}>{type.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect options={complaintCategoryOptions} value={complaintCategory} onValueChange={(value) => {
+                      const next = Array.isArray(value) ? value[0] || "" : value
+                      setComplaintCategory(next)
+                      setTicketTypeId("")
+                      setNewCategory(next)
+                    }} placeholder="Search type..." className="w-full" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Complaint Sub-Type *</Label>
+                    <SearchableSelect options={complaintSubtypeOptions} value={ticketTypeId} onValueChange={(value) => {
+                      const next = Array.isArray(value) ? value[0] || "" : value
+                      setTicketTypeId(next)
+                    }} placeholder={complaintCategory ? "Search sub-type..." : "Choose type first"} disabled={!complaintCategory} className="w-full" />
                   </div>
                 </div>
               </div>

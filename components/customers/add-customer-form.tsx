@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useCallback, useMemo } from "react"
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import dynamic from "next/dynamic"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -1413,6 +1413,7 @@ export function AddCustomerForm() {
   const [isSearchingLead, setIsSearchingLead] = useState(false)
   const [selectedLead, setSelectedLead] = useState<any>(null) // full lead detail
   const [loadingLeadDetails, setLoadingLeadDetails] = useState(false)
+  const processedLeadIdRef = useRef<number | null>(null)
 
   // ========== Form State ==========
   const [formValues, setFormValues] = useState({
@@ -1831,6 +1832,8 @@ export function AddCustomerForm() {
 
     const numericLeadId = Number(leadId)
     if (!Number.isFinite(numericLeadId)) return
+    if (processedLeadIdRef.current === numericLeadId) return
+    processedLeadIdRef.current = numericLeadId
 
     setShowProvisionSection(false)
     setCreatedCustomer(null)
