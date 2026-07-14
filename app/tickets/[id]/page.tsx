@@ -307,7 +307,7 @@ export default function TicketDetailPage() {
     if (!ticket?.departmentId) return "General"
     return departments.find(d => d.id === ticket.departmentId)?.name || "General"
   }, [ticket, departments])
-  const canConvertLead = ticket?.subject?.type === "LEAD" && typeName.toLowerCase().includes("new installation")
+  const canConvertLead = ticket?.subject?.type === "LEAD"
 
   if (loading) {
     return (

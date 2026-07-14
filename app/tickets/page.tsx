@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useState, useEffect, useCallback, useMemo } from "react"
+import { Fragment, Suspense, useState, useEffect, useCallback, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { CardContainer } from "@/components/ui/card-container"
@@ -66,7 +66,10 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
@@ -76,6 +79,25 @@ import { useBranch } from "@/contexts/BranchContext"
 import { useAuth } from "@/contexts/AuthContext"
 import { useWebSocket } from "@/contexts/WebSocketContext"
 import { openDirectionsFromCurrentLocation } from "@/lib/directions"
+
+const TICKET_CATEGORY_ORDER = [
+  "New Connection", "Internet Connectivity", "Wi-Fi Issue", "Fiber/Line Issue", "Router/Device Issue",
+  "Billing and Payment", "Renewal", "Package Change", "Account Management", "Relocation",
+  "Suspension/Termination", "Network Services", "IPTV/Value-Added Services", "Outage",
+  "Complaint/Escalation", "Other"
+]
+
+const ticketTypeCategory = (type: any) => {
+  const described = String(type?.description || "").trim()
+  if (TICKET_CATEGORY_ORDER.includes(described)) return described
+  const fromName = String(type?.name || "").split(" / ")[0].trim()
+  return TICKET_CATEGORY_ORDER.includes(fromName) ? fromName : "Other"
+}
+
+const ticketTypeSubtype = (type: any) => {
+  const name = String(type?.name || "Other")
+  return name.includes(" / ") ? name.slice(name.indexOf(" / ") + 3) : name
+}
 
 interface Ticket {
   id: number
@@ -176,6 +198,10 @@ function TicketsContent() {
   const [contactName, setContactName] = useState("")
   const [contactPhone, setContactPhone] = useState("")
   const [contactEmail, setContactEmail] = useState("")
+  const groupedTicketTypes = useMemo(() => TICKET_CATEGORY_ORDER.map(category => ({
+    category,
+    types: ticketTypes.filter(type => ticketTypeCategory(type) === category)
+  })).filter(group => group.types.length > 0), [ticketTypes])
 
   const selectedSubject = useMemo(() => {
     if (subjectId === "none") return null
@@ -339,6 +365,10 @@ function TicketsContent() {
 
   const handleCreate = async () => {
     if (!newTitle.trim()) return
+    if (!ticketTypeId) {
+      toast({ title: "Complaint type required", description: "Choose a complaint category and type before creating the ticket.", variant: "destructive" })
+      return
+    }
     setSubmitting(true)
     try {
       await apiRequest("/tickets", {
@@ -722,11 +752,19 @@ function TicketsContent() {
                           </Select>
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Ticket Type</Label>
+                          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Complaint Type *</Label>
                           <Select value={ticketTypeId} onValueChange={(value) => { setTicketTypeId(value); const type = ticketTypes.find(t => String(t.id) === value); setNewCategory(String(type?.code || '').toLowerCase()); if (type?.departmentId) setDepartmentId(String(type.departmentId)) }}>
-                            <SelectTrigger className="rounded-lg shadow-sm"><SelectValue placeholder="Select" /></SelectTrigger>
+                            <SelectTrigger className="rounded-lg shadow-sm"><SelectValue placeholder="Choose category and complaint" /></SelectTrigger>
                             <SelectContent>
-                              {ticketTypes.map(type => <SelectItem key={type.id} value={String(type.id)}>{type.name}</SelectItem>)}
+                              {groupedTicketTypes.map((group, index) => (
+                                <Fragment key={group.category}>
+                                  {index > 0 && <SelectSeparator />}
+                                  <SelectGroup>
+                                    <SelectLabel>{group.category}</SelectLabel>
+                                    {group.types.map(type => <SelectItem key={type.id} value={String(type.id)}>{ticketTypeSubtype(type)}</SelectItem>)}
+                                  </SelectGroup>
+                                </Fragment>
+                              ))}
                             </SelectContent>
                           </Select>
                         </div>
@@ -889,11 +927,19 @@ function TicketsContent() {
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Ticket Type</Label>
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Complaint Type</Label>
                     <Select value={ticketTypeId} onValueChange={(value) => { setTicketTypeId(value); const type = ticketTypes.find(t => String(t.id) === value); setNewCategory(String(type?.code || '').toLowerCase()); if (type?.departmentId) setDepartmentId(String(type.departmentId)) }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {ticketTypes.map(type => <SelectItem key={type.id} value={String(type.id)}>{type.name}</SelectItem>)}
+                        {groupedTicketTypes.map((group, index) => (
+                          <Fragment key={group.category}>
+                            {index > 0 && <SelectSeparator />}
+                            <SelectGroup>
+                              <SelectLabel>{group.category}</SelectLabel>
+                              {group.types.map(type => <SelectItem key={type.id} value={String(type.id)}>{ticketTypeSubtype(type)}</SelectItem>)}
+                            </SelectGroup>
+                          </Fragment>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>

@@ -81,6 +81,8 @@ export function CustomerTickets({ customerId }: CustomerTicketsProps) {
   const [newDescription, setNewDescription] = useState("")
   const [newPriority, setNewPriority] = useState("MEDIUM")
   const [newCategory, setNewCategory] = useState("")
+  const [ticketTypes, setTicketTypes] = useState<any[]>([])
+  const [ticketTypeId, setTicketTypeId] = useState("")
 
   // Fetch the global setting for ticket comment visibility
   const fetchCommentSetting = async () => {
@@ -109,11 +111,16 @@ export function CustomerTickets({ customerId }: CustomerTicketsProps) {
   useEffect(() => {
     fetchCommentSetting()
     if (customerId) fetchTickets()
+    apiRequest<any[]>("/tickets/types?active=true").then(data => setTicketTypes(Array.isArray(data) ? data : [])).catch(() => setTicketTypes([]))
   }, [customerId])
 
   const handleCreateTicket = async () => {
     if (!newTitle.trim()) {
       toast({ title: "Error", description: "Title is required", variant: "destructive" })
+      return
+    }
+    if (!ticketTypeId) {
+      toast({ title: "Error", description: "Complaint type is required", variant: "destructive" })
       return
     }
     setSubmitting(true)
@@ -125,6 +132,7 @@ export function CustomerTickets({ customerId }: CustomerTicketsProps) {
           description: newDescription,
           priority: newPriority,
           category: newCategory,
+          ticketTypeId: Number(ticketTypeId),
           customerId,
         }),
       })
@@ -134,6 +142,7 @@ export function CustomerTickets({ customerId }: CustomerTicketsProps) {
       setNewDescription("")
       setNewPriority("MEDIUM")
       setNewCategory("")
+      setTicketTypeId("")
       fetchTickets()
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" })
@@ -258,15 +267,15 @@ export function CustomerTickets({ customerId }: CustomerTicketsProps) {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Category</Label>
-                    <Select value={newCategory} onValueChange={setNewCategory}>
-                      <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                    <Label>Complaint Type *</Label>
+                    <Select value={ticketTypeId} onValueChange={(value) => {
+                      setTicketTypeId(value)
+                      const selected = ticketTypes.find(type => String(type.id) === value)
+                      setNewCategory(String(selected?.description || selected?.code || "other"))
+                    }}>
+                      <SelectTrigger><SelectValue placeholder="Select complaint type" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="billing">Billing</SelectItem>
-                        <SelectItem value="technical">Technical</SelectItem>
-                        <SelectItem value="connectivity">Connectivity</SelectItem>
-                        <SelectItem value="account">Account</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
+                        {ticketTypes.map(type => <SelectItem key={type.id} value={String(type.id)}>{type.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
