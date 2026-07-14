@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 
 type ApiRequestInit = RequestInit & {
   suppressToast?: boolean;
+  timeoutMs?: number;
 };
 
 /**
@@ -114,7 +115,12 @@ export async function apiRequest<T = any>(
   options: ApiRequestInit = {}
 ): Promise<T> {
   const suppressToast = options.suppressToast === true;
+  const timeoutMs = options.timeoutMs;
   delete options.suppressToast;
+  delete options.timeoutMs;
+  if (timeoutMs && !options.signal && typeof AbortSignal !== "undefined" && "timeout" in AbortSignal) {
+    options.signal = AbortSignal.timeout(timeoutMs);
+  }
   // Get the URL dynamically for every request
   const BASE_URL = getDynamicBaseUrl().replace(/\/+$/, "");
   const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
@@ -155,7 +161,7 @@ export async function apiRequest<T = any>(
   try {
     response = await fetch(url, options);
   } catch (err: any) {
-    const msg = err?.message || "Network error";
+    const msg = err?.name === "TimeoutError" ? "The server took too long to respond. Please check the customer before retrying." : (err?.message || "Network error");
     if (isClient() && !suppressToast) toast.error(msg);
     throw new Error(msg);
   }

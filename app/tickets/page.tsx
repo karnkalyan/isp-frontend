@@ -1,7 +1,7 @@
 "use client"
 
 import { Suspense, useState, useEffect, useCallback, useMemo } from "react"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { CardContainer } from "@/components/ui/card-container"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
@@ -113,12 +113,19 @@ interface Ticket {
 
 function TicketsContent() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const { branches, selectedBranchId } = useBranch()
   const { user, hasPermission } = useAuth()
   const { on } = useWebSocket()
+  const roleName = String(typeof user?.role === "string" ? user.role : user?.role?.name || "").toLowerCase()
+  const isFieldStaff = roleName.includes("field staff") || roleName.includes("field_staff")
 
   // Layout View Switch
   const [viewMode, setViewMode] = useState<"dashboard" | "list">("dashboard")
+
+  useEffect(() => {
+    if (isFieldStaff) setViewMode("list")
+  }, [isFieldStaff])
 
   // Dashboard Filters
   const [dashboardDateRange, setDashboardDateRange] = useState("7days") // today, 7days, 30days, all
@@ -169,6 +176,19 @@ function TicketsContent() {
   const [contactName, setContactName] = useState("")
   const [contactPhone, setContactPhone] = useState("")
   const [contactEmail, setContactEmail] = useState("")
+
+  const selectedSubject = useMemo(() => {
+    if (subjectId === "none") return null
+    const source = subjectType === "CUSTOMER" ? customers : subjectType === "LEAD" ? leads : []
+    return source.find((item: any) => String(item.id) === subjectId) || null
+  }, [subjectId, subjectType, customers, leads])
+  const subjectBranchId = selectedSubject?.subBranchId || selectedSubject?.branchId || selectedSubject?.subBranch?.id || selectedSubject?.branch?.id || null
+
+  useEffect(() => {
+    if (!showCreate || !selectedSubject) return
+    setNewBranchId(subjectBranchId ? String(subjectBranchId) : "none")
+    setAssignedToId("none")
+  }, [showCreate, selectedSubject, subjectBranchId])
 
   // Open dropdown trackers
   const [openDropdownId, setOpenDropdownId] = useState<number | null>(null)
@@ -365,13 +385,8 @@ function TicketsContent() {
     }
   }
 
-  const selectTicket = async (ticket: Ticket) => {
-    try {
-      const detail = await apiRequest<Ticket>(`/tickets/${ticket.id}`)
-      setSelectedTicket(detail)
-    } catch (e) {
-      setSelectedTicket(ticket)
-    }
+  const selectTicket = (ticket: Ticket) => {
+    router.push(`/tickets/${ticket.id}`)
   }
 
   const handleStatusChange = async (ticketId: number, status: string) => {
@@ -727,7 +742,7 @@ function TicketsContent() {
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="space-y-1">
+                        {(!selectedSubject || !subjectBranchId) ? <div className="space-y-1">
                           <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
                             <Building className="w-3.5 h-3.5"/> Target Branch
                           </Label>
@@ -740,13 +755,19 @@ function TicketsContent() {
                               ))}
                             </SelectContent>
                           </Select>
-                        </div>
+                        </div> : (
+                          <div className="space-y-1 rounded-lg border bg-muted/40 p-3">
+                            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Branch Assignment</Label>
+                            <p className="text-sm font-medium">{branches.find(branch => branch.id === Number(subjectBranchId))?.name || "Subject branch"}</p>
+                            <p className="text-xs text-muted-foreground">Routed automatically from the linked record.</p>
+                          </div>
+                        )}
                       </div>
                     </div>
 
                     {/* Linking & Assigning section */}
                     <div className="space-y-4 border-l pl-5 border-slate-100 dark:border-slate-800">
-                      <div className="space-y-1">
+                      {(!selectedSubject || !subjectBranchId) && <div className="space-y-1">
                         <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Assignee Staff</Label>
                         <SearchableSelect
                           options={[
@@ -761,7 +782,7 @@ function TicketsContent() {
                           placeholder="Search staff member..."
                           className="w-full"
                         />
-                      </div>
+                      </div>}
 
                       <div className="space-y-1">
                         <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Link Subject Type</Label>

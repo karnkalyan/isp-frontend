@@ -366,7 +366,7 @@ export default function UltimateGISMap() {
 
     return (
         <div ref={mapContainerRef} className={cn(
-            "relative h-screen w-full",
+            "relative h-full min-h-[32rem] w-full",
             "bg-background",
             isFullScreen && "fixed inset-0 z-[9999]"
         )}>
@@ -464,14 +464,14 @@ export default function UltimateGISMap() {
 
             {/* --- MAIN GIS PANEL --- */}
             <div className={cn(
-                "absolute top-5 left-5 z-[1001] transition-all duration-300",
+                "absolute left-2 top-2 z-[1001] max-w-[calc(100%-1rem)] transition-all duration-300 sm:left-5 sm:top-5",
                 !showPanel && "-translate-x-[420px]"
             )}>
                 <CardContainer
                     title="Network GIS"
                     description="Manage fiber network infrastructure"
                     gradientColor="#6366f1"
-                    className="w-96 max-h-[90vh] overflow-hidden shadow-xl bg-background/95 backdrop-blur"
+                    className="w-[calc(100vw-2rem)] max-w-96 max-h-[calc(100dvh-9rem)] overflow-hidden shadow-xl bg-background/95 backdrop-blur sm:max-h-[90vh]"
                     action={
                         <Button
                             variant="ghost"
@@ -715,7 +715,7 @@ export default function UltimateGISMap() {
             </div>
 
             {/* --- TOP CONTROLS --- */}
-            <div className="absolute top-5 right-5 z-[1001] flex gap-3">
+            <div className="absolute right-2 top-2 z-[1001] flex max-w-[calc(100%-1rem)] flex-wrap justify-end gap-2 sm:right-5 sm:top-5 sm:gap-3">
                 {!showPanel && (
                     <Button
                         onClick={() => setShowPanel(true)}
@@ -728,7 +728,7 @@ export default function UltimateGISMap() {
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
                     <Input
-                        className="w-64 pl-10 bg-background/90 backdrop-blur-md shadow-lg border-border"
+                        className="w-44 pl-10 bg-background/90 backdrop-blur-md shadow-lg border-border sm:w-64"
                         placeholder="Search OLT, Fiber ID, Pole..."
                         value={search}
                         onChange={e => setSearch(e.target.value)}

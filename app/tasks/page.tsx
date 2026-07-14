@@ -138,6 +138,10 @@ export default function TasksPage() {
   // View state: dashboard, list, timeline
   const [viewMode, setViewMode] = useState<"dashboard" | "list" | "timeline">("dashboard")
 
+  useEffect(() => {
+    if (isFieldStaff) setViewMode("timeline")
+  }, [isFieldStaff])
+
   // Dashboard Filters
   const [dashboardDateRange, setDashboardDateRange] = useState("7days") // today, 7days, 30days, all
   const [dashboardPriority, setDashboardPriority] = useState("all")
@@ -906,12 +910,12 @@ export default function TasksPage() {
           <div className="flex items-center gap-3">
             <div className="bg-muted p-1 rounded-lg flex items-center gap-1 shadow-inner">
               <Button 
-                variant={viewMode === "dashboard" ? "default" : "ghost"} 
+                variant={viewMode === "timeline" ? "default" : "ghost"}
                 size="sm" 
-                onClick={() => setViewMode("dashboard")}
+                onClick={() => setViewMode("timeline")}
                 className="gap-1.5 h-8 text-xs font-semibold"
               >
-                <BarChart2 className="h-4 w-4" /> Dashboard
+                <Clock className="h-4 w-4" /> Scheduler
               </Button>
               <Button 
                 variant={viewMode === "list" ? "default" : "ghost"} 
@@ -922,12 +926,12 @@ export default function TasksPage() {
                 <ListIcon className="h-4 w-4" /> Task List
               </Button>
               <Button 
-                variant={viewMode === "timeline" ? "default" : "ghost"} 
+                variant={viewMode === "dashboard" ? "default" : "ghost"}
                 size="sm" 
-                onClick={() => setViewMode("timeline")}
+                onClick={() => setViewMode("dashboard")}
                 className="gap-1.5 h-8 text-xs font-semibold"
               >
-                <Clock className="h-4 w-4" /> Scheduler
+                <BarChart2 className="h-4 w-4" /> Dashboard
               </Button>
             </div>
 

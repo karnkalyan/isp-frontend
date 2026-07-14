@@ -1,6 +1,6 @@
 "use client"
 
-import { LayoutDashboard, Router, Settings, Users, UserPlus, HelpCircle, Receipt, MessageCircle, ListChecks, Cable } from "lucide-react"
+import { LayoutDashboard, Router, Settings, Users, UserPlus, HelpCircle, Receipt, MessageCircle, ListChecks, Cable, LogOut } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { usePathname } from "next/navigation"
 import { motion } from "framer-motion"
@@ -41,10 +41,11 @@ const navItems = [
 
 export function BottomNav() {
   const pathname = usePathname()
-  const { user, hasPermission } = useAuth()
+  const { user, hasPermission, logout } = useAuth()
   const roleName = typeof user?.role === "string" ? user.role : user?.role?.name
   const isCustomer = String(roleName || "").toLowerCase() === "customer"
-  const isFieldStaff = String(roleName || "").toLowerCase().includes("field staff")
+  const normalizedRole = String(roleName || "").toLowerCase()
+  const isFieldStaff = normalizedRole.includes("field staff") || normalizedRole.includes("field_staff")
 
   const customerItems = [
     { title: "Home", icon: LayoutDashboard, href: "/customer/dashboard" },
@@ -102,6 +103,12 @@ export function BottomNav() {
             </Link>
           )
         })}
+        {(isCustomer || isFieldStaff) && (
+          <button type="button" onClick={() => logout()} className="flex flex-1 flex-col items-center justify-center gap-1" aria-label="Log out">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full text-destructive"><LogOut className="h-5 w-5" /></div>
+            <span className="text-[10px] font-medium text-destructive">Logout</span>
+          </button>
+        )}
       </nav>
     </div>
   )

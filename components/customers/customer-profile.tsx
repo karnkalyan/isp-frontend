@@ -487,6 +487,7 @@ interface Customer {
     customerId: number
     serviceId: number
     status: string
+    externalUsername?: string | null
     validUntil: string | null
     serviceData: any
     createdAt: string
@@ -520,6 +521,20 @@ interface Customer {
     framedIp: string
     onlineDuration: number
   } | null
+}
+
+function getLinkedNettvUsername(customer?: Customer | null) {
+  const subscription = customer?.subscribedApps?.find(app => {
+    const code = String(app.service?.code || "").toUpperCase()
+    const name = String(app.service?.name || "").toUpperCase()
+    return code === "NETTV" || name.includes("NETTV")
+  })
+  return String(
+    subscription?.externalUsername ||
+    subscription?.serviceData?.username ||
+    subscription?.serviceData?.subscriber?.username ||
+    ""
+  ).trim()
 }
 
 interface PackageOption {
@@ -1353,6 +1368,8 @@ interface CustomerProfileProps {
 
 export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileProps = {}) {
   const { user } = useAuth()
+  const roleName = String(typeof user?.role === "string" ? user.role : user?.role?.name || "").toLowerCase()
+  const isFieldStaff = roleName.includes("field staff") || roleName.includes("field_staff")
   const [activeTab, setActiveTab] = useState("overview")
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [billingTscPercentage, setBillingTscPercentage] = useState(10)
@@ -2373,7 +2390,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   }
 
   const handleForceNettvPassword = async () => {
-    const username = nettvDetails?.subscriber?.username || customer?.customerUniqueId;
+    const username = nettvDetails?.subscriber?.username || getLinkedNettvUsername(customer);
     if (!username) {
       toast.error("Subscriber username not found.");
       return;
@@ -2454,7 +2471,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   }, [customer?.customerUniqueId])
 
   useEffect(() => {
-    if (customer?.customerUniqueId) {
+    if (customer) {
+      const linkedUsername = getLinkedNettvUsername(customer)
       const nettvIsProvisioned = Boolean(customer.subscribedApps?.some((app) => {
         const serviceCode = String(app.service?.code || "").toUpperCase()
         const serviceName = String(app.service?.name || "").toUpperCase()
@@ -2468,11 +2486,17 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         setLoadingNettv(false)
         return
       }
+      if (!linkedUsername) {
+        setNettvDetails(null)
+        setNettvMessage("NetTV is marked provisioned but no subscriber username is linked. Reprovision NetTV to link it.")
+        setLoadingNettv(false)
+        return
+      }
 
       const fetchNettv = async () => {
         setLoadingNettv(true)
         try {
-          const res = await apiRequest(`/services/nettv/subscribers/${customer.customerUniqueId}`)
+          const res = await apiRequest(`/services/nettv/subscribers/${encodeURIComponent(linkedUsername)}`)
           if (res.configured === false) {
             setNettvDetails(null)
             setNettvMessage(res.message || "NetTV service is not configured.")
@@ -2489,7 +2513,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       }
       fetchNettv()
     }
-  }, [customer?.customerUniqueId, customer?.subscribedApps])
+  }, [customer])
 
     const toggleSetting = (setting: keyof typeof networkSettings) => {
     setNetworkSettings((prev) => ({ ...prev, [setting]: !prev[setting] }))
@@ -2503,8 +2527,9 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       const res = await apiRequest(`/customer/${customer.id}/sync/nettv`, { method: "POST" })
       if (res.success) {
         toast.success("NetTV subscriber details synchronized successfully!")
-        if (customer.customerUniqueId) {
-          const fetchRes = await apiRequest(`/services/nettv/subscribers/${customer.customerUniqueId}`)
+        const linkedUsername = String(res.data?.username || getLinkedNettvUsername(customer)).trim()
+        if (linkedUsername) {
+          const fetchRes = await apiRequest(`/services/nettv/subscribers/${encodeURIComponent(linkedUsername)}`)
           if (fetchRes.success) {
             setNettvDetails(fetchRes.data)
             setNettvMessage("")
@@ -3170,6 +3195,23 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     )
   }
 
+  if (isFieldStaff) {
+    const ontDevices = (customer.devices || []).filter(device => device.deviceType === "ONT" && device.serialNumber)
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div><h1 className="text-xl font-bold">Customer WAN Configuration</h1><p className="text-sm text-muted-foreground">{customer.customerUniqueId}</p></div>
+          <Button type="button" variant="outline" onClick={() => router.back()}>Back</Button>
+        </div>
+        {ontDevices.length === 0 ? (
+          <div className="rounded-xl border border-dashed p-10 text-center text-muted-foreground">No ACS-linked ONT is available for this customer.</div>
+        ) : ontDevices.map(device => (
+          <TR069DeviceWanConnections key={device.id || device.serialNumber} deviceId={device.serialNumber} />
+        ))}
+      </div>
+    )
+  }
+
   const invoiceAmount = customer.orders.reduce((sum, order) => sum + order.totalAmount, 0)
   const totalPaid = customer.orders.filter(order => order.isPaid).reduce((sum, order) => sum + order.totalAmount, 0)
   const dueAmount = invoiceAmount - totalPaid
@@ -3219,7 +3261,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         defaultFname={customer.firstName || ""}
         defaultLname={customer.lastName || ""}
         defaultEmail={customer.email || ""}
-        defaultUsername={buildNettvCredential(customer.connectionUsers?.[0]?.username || customer.customerUniqueId)}
+        defaultUsername={getLinkedNettvUsername(customer) || buildNettvCredential(customer.connectionUsers?.[0]?.username || customer.customerUniqueId)}
         defaultPassword={buildNettvCredential(customer.connectionUsers?.[0]?.password)}
         defaultAddress={customer.street || customerProfileData.address || ""}
         defaultCity={customerProfileData.city || customer.district || ""}
@@ -3719,8 +3761,11 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           size="sm"
           variant="outline"
           className="h-9"
-          onClick={() => customer?.customerUniqueId && router.push(`/nettv?subscriber=${encodeURIComponent(customer.customerUniqueId)}`)}
-          disabled={!customer?.customerUniqueId || !isNettvProvisioned}
+          onClick={() => {
+            const username = getLinkedNettvUsername(customer)
+            if (username) router.push(`/nettv?subscriber=${encodeURIComponent(username)}`)
+          }}
+          disabled={!getLinkedNettvUsername(customer) || !isNettvProvisioned}
         >
           <ExternalLink className="mr-2 h-4 w-4" /> Open NetTV Details
         </Button>
@@ -5464,7 +5509,10 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
 
         <TabsContent value="nettv" className="space-y-4">
           <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold dark:text-white">NetTV Service Details</h3>
+            <div>
+              <h3 className="text-lg font-semibold dark:text-white">NetTV Service Details</h3>
+              <p className="text-sm text-muted-foreground">Linked username: <span className="font-mono font-medium text-foreground">{getLinkedNettvUsername(customer) || "Not linked"}</span></p>
+            </div>
             <div className="flex items-center space-x-2">
               {nettvDetails && (
                 <Button
@@ -5480,7 +5528,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
               )}
               <Button
                 onClick={handleSyncNettv}
-                disabled={syncingNettv || loadingNettv || !customer?.customerUniqueId}
+                disabled={syncingNettv || loadingNettv || !getLinkedNettvUsername(customer)}
                 className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white shadow-sm border-0"
               >
                 {syncingNettv ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}

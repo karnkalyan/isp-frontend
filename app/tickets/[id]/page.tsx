@@ -307,6 +307,7 @@ export default function TicketDetailPage() {
     if (!ticket?.departmentId) return "General"
     return departments.find(d => d.id === ticket.departmentId)?.name || "General"
   }, [ticket, departments])
+  const canConvertLead = ticket?.subject?.type === "LEAD" && typeName.toLowerCase().includes("new installation")
 
   if (loading) {
     return (
@@ -360,6 +361,13 @@ export default function TicketDetailPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            {canConvertLead && (
+              <Button className="gap-1.5 text-xs" asChild>
+                <Link href={`/customers/new?leadId=${ticket.subject!.id}`}>
+                  <User className="h-3.5 w-3.5" /> Convert to Customer
+                </Link>
+              </Button>
+            )}
             {hasPermission("tasks_create") && (
               <Button variant="outline" className="gap-1.5 text-xs" asChild>
                 <Link href={`/tasks?ticketId=${ticket.id}&create=true`}>

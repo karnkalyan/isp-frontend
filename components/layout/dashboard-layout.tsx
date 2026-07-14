@@ -63,7 +63,10 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [isAuthorized, setIsAuthorized] = useState(true);
   const roleName = typeof user?.role === "string" ? user.role : user?.role?.name;
-  const isCustomer = String(roleName || "").toLowerCase() === "customer";
+  const normalizedRole = String(roleName || "").toLowerCase();
+  const isCustomer = normalizedRole === "customer";
+  const isFieldStaff = normalizedRole.includes("field staff") || normalizedRole.includes("field_staff");
+  const useMobilePortalLayout = isMobile && (isCustomer || isFieldStaff);
 
   useEffect(() => {
     // Read the real theme only after hydration — this is the correct moment.
@@ -117,7 +120,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
     if (matchedKey) {
       const permission = /^\/customers\/\d+(?:\/|$)/.test(pathname)
-        ? "customers_list"
+        ? "customer_read"
         : pathPermissionMap[matchedKey];
       const isAllowed = Array.isArray(permission)
         ? permission.length === 0 || permission.some(item => hasPermission(item))
@@ -180,10 +183,10 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       data-theme={mounted ? (isDarkMode ? "dark" : "light") : undefined}
       suppressHydrationWarning
     >
-      {!(isCustomer && isMobile) && <Sidebar open={sidebarOpen} setOpen={setSidebarOpen} />}
+      {!useMobilePortalLayout && <Sidebar open={sidebarOpen} setOpen={setSidebarOpen} />}
       <div className="flex flex-1 flex-col overflow-hidden">
-        <Navbar onMenuClick={() => setSidebarOpen((o) => !o)} />
-        <main className="flex-1 overflow-auto p-4 pb-20 md:p-6 md:pb-6">
+        {!useMobilePortalLayout && <Navbar onMenuClick={() => setSidebarOpen((o) => !o)} />}
+        <main className="flex-1 overflow-auto p-3 pb-24 sm:p-4 md:p-6 md:pb-6">
           {isAuthorized ? children : <div className="flex items-center justify-center h-full">Redirecting...</div>}
         </main>
         {isMobile && <BottomNav />}

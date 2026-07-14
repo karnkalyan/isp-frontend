@@ -4,10 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ClipboardList, CheckCircle2, LifeBuoy, MapPin, Navigation, Loader2, Package } from "lucide-react"
+import { ClipboardList, CheckCircle2, LifeBuoy, MapPin, Navigation, Loader2, Package, Search, UserPlus, Cable } from "lucide-react"
 import { StatsCard } from "@/components/dashboard/stats-card"
 import { apiRequest } from "@/lib/api"
 import toast from "react-hot-toast"
+import { Input } from "@/components/ui/input"
 
 type Task = { id: number; title: string; description?: string; status: string; priority: string; startTime?: string; customer?: { customerUniqueId?: string; lead?: { firstName?: string; lastName?: string; phoneNumber?: string; address?: string; street?: string } }; ticket?: { ticketNumber?: string } }
 type TicketResponse = { data?: unknown[]; pagination?: { total?: number } }
@@ -21,6 +22,9 @@ export function FieldDashboard() {
   const [consumables, setConsumables] = useState<BulkAssignment[]>([])
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
+  const [customerQuery, setCustomerQuery] = useState("")
+  const [customerResults, setCustomerResults] = useState<any[]>([])
+  const [searchingCustomers, setSearchingCustomers] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -45,6 +49,18 @@ export function FieldDashboard() {
 
   useEffect(() => { load() }, [load])
 
+  useEffect(() => {
+    if (customerQuery.trim().length < 2) { setCustomerResults([]); return }
+    const timer = setTimeout(async () => {
+      setSearchingCustomers(true)
+      try {
+        const response = await apiRequest<any>(`/customer?search=${encodeURIComponent(customerQuery.trim())}&limit=6`)
+        setCustomerResults(response?.data || [])
+      } catch { setCustomerResults([]) } finally { setSearchingCustomers(false) }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [customerQuery])
+
   const pendingTasks = useMemo(() => tasks.filter(task => ["PENDING", "IN_PROGRESS"].includes(task.status)), [tasks])
   const completedTasks = useMemo(() => tasks.filter(task => task.status === "COMPLETED"), [tasks])
   const activeTask = pendingTasks.find(task => task.status === "IN_PROGRESS") || pendingTasks[0]
@@ -68,6 +84,22 @@ export function FieldDashboard() {
   return (
     <div className="space-y-6">
       <div><h1 className="text-3xl font-bold tracking-tight">Field Operations</h1><p className="text-muted-foreground">Your live assigned workload, tickets, and inventory.</p></div>
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          <Button variant="outline" asChild><Link href="/inventory/assigned"><Package className="mr-2 h-4 w-4" />My Items</Link></Button>
+          <Button variant="outline" asChild><Link href="/customers/new"><UserPlus className="mr-2 h-4 w-4" />Add Customer</Link></Button>
+          <Button variant="outline" asChild><Link href="/fiber/splitters/nearby"><Cable className="mr-2 h-4 w-4" />Splitters</Link></Button>
+          <Button variant="outline" asChild><Link href="/tasks"><ClipboardList className="mr-2 h-4 w-4" />Tasks</Link></Button>
+          <Button variant="outline" asChild><Link href="/tickets"><LifeBuoy className="mr-2 h-4 w-4" />Tickets</Link></Button>
+        </div>
+        <div className="relative">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+          <Input value={customerQuery} onChange={event => setCustomerQuery(event.target.value)} className="pl-9" placeholder="Search customer by name, ID, phone, or email" />
+          {(searchingCustomers || customerResults.length > 0) && <div className="absolute z-20 mt-1 w-full rounded-lg border bg-background p-1 shadow-xl">
+            {searchingCustomers ? <p className="p-3 text-sm text-muted-foreground">Searching…</p> : customerResults.map(customer => <Link key={customer.id} href={`/customers/${customer.id}`} className="block rounded-md p-3 hover:bg-muted"><p className="font-medium">{customer.firstName} {customer.lastName}</p><p className="text-xs text-muted-foreground">{customer.customerUniqueId} · {customer.phoneNumber}</p></Link>)}
+          </div>}
+        </div>
+      </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatsCard title="Open Tasks" value={loading ? "..." : String(pendingTasks.length)} icon={<ClipboardList className="h-4 w-4" />} description="Assigned to you" />
         <StatsCard title="Completed Tasks" value={loading ? "..." : String(completedTasks.length)} icon={<CheckCircle2 className="h-4 w-4 text-green-500" />} description="Your completed assignments" />

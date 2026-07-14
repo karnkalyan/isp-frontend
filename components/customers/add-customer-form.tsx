@@ -947,6 +947,9 @@ export function NetTVDialog({
                 setSelectedProvinceId(foundProvince.id)
                 setSelectedCountryId(foundProvince.country_id)
               }
+            } else if (nepal) {
+              const defaultProvince = nepal.provinces?.find((province: Province) => province.id === 3891) || nepal.provinces?.[0]
+              if (defaultProvince) setSelectedProvinceId(defaultProvince.id)
             }
           } else {
             toast.error("Failed to load countries")
@@ -972,10 +975,13 @@ export function NetTVDialog({
     }
   }, [selectedCountryId, countries])
 
-  // Reset province when country changes
+  // Keep a valid lead/default province; only clear a selection that belongs to
+  // a different country.
   useEffect(() => {
-    setSelectedProvinceId(null)
-  }, [selectedCountryId])
+    if (selectedProvinceId && !provinces.some(province => province.id === selectedProvinceId)) {
+      setSelectedProvinceId(null)
+    }
+  }, [selectedCountryId, selectedProvinceId, provinces])
 
   // Validate name fields (only alphabets)
   const validateName = (value: string): boolean => {
@@ -1388,7 +1394,7 @@ export function AddCustomerForm() {
   const [customerTypes, setCustomerTypes] = useState<CustomerType[]>([])
   const [olts, setOlts] = useState<OLT[]>([])
   const [splitters, setSplitters] = useState<Splitter[]>([])
-  const [servicesCatalog, setServicesCatalog] = useState<ServiceCatalogItem[]>([])
+  const [accountingService, setAccountingService] = useState({ code: "TSHUL", name: "Account Billing", requiresPan: true })
 
   const [loading, setLoading] = useState({
     packages: true,
@@ -1615,7 +1621,7 @@ export function AddCustomerForm() {
             apiRequest("/customer-types").catch(() => []),
             apiRequest("/olt?limit=1000").catch(() => []),
             apiRequest("/splitters?limit=1000").catch(() => []),
-            apiRequest("/services/catalog").catch(() => []),
+            apiRequest("/services/isp").catch(() => ({ data: [] })),
           ])
 
         setPackages(Array.isArray(packagesData) ? packagesData : [])
@@ -1624,10 +1630,27 @@ export function AddCustomerForm() {
           : [])
         setMemberships(Array.isArray(membershipsData) ? membershipsData : [])
         setExistingISPs(Array.isArray(existingISPsData) ? existingISPsData : [])
-        setCustomerTypes(Array.isArray(customerTypesData) ? customerTypesData : (Array.isArray(customerTypesData?.data) ? customerTypesData.data : []))
+        const loadedCustomerTypes = Array.isArray(customerTypesData) ? customerTypesData : (Array.isArray(customerTypesData?.data) ? customerTypesData.data : [])
+        setCustomerTypes(loadedCustomerTypes)
+        if (loadedCustomerTypes.length > 0) {
+          setReferenceDetails(current => current.customerTypeId ? current : { ...current, customerTypeId: String(loadedCustomerTypes[0].id) })
+        }
         setOlts(Array.isArray(oltsData?.data) ? oltsData.data : [])
         setSplitters(Array.isArray(splittersData?.data) ? splittersData.data : [])
-        setServicesCatalog(Array.isArray(servicesData?.data) ? servicesData.data : [])
+        const activeServices = Array.isArray(servicesData?.data) ? servicesData.data : []
+        const accountingOptions = activeServices.filter((item: any) => ["TSHUL", "NEPURIX"].includes(item.service?.code))
+        const selectedAccounting = accountingOptions.find((item: any) => item.config?.isDefault === true) || accountingOptions[0]
+        if (selectedAccounting) {
+          const code = selectedAccounting.service.code
+          setAccountingService({
+            code,
+            name: selectedAccounting.service.name || code,
+            requiresPan: selectedAccounting.config?.requiresPan ?? selectedAccounting.config?.panRequired ?? code === "TSHUL",
+          })
+          setSelectedAddonServices(new Set([code, "RADIUS"]))
+        } else {
+          setSelectedAddonServices(new Set(["RADIUS"]))
+        }
       } catch (error) {
         console.error("Error fetching data:", error)
       } finally {
@@ -1751,7 +1774,7 @@ export function AddCustomerForm() {
         phoneNumber: lead.phoneNumber || "",
         secondaryPhone: lead.secondaryContactNumber || "",
         gender: genderMap[lead.gender || ""] || "male",
-        streetAddress: lead.street || "",
+        streetAddress: lead.street || lead.address || lead.metadata?.fullAddress || "",
         city: lead.city || "",
         district: lead.district || "",
         state: lead.province || "",
@@ -2380,18 +2403,18 @@ export function AddCustomerForm() {
       toast.error("ID number is required for account billing.")
       return false
     }
-    if (!formValues.panNumber || !/^\d{9}$/.test(formValues.panNumber)) {
+    if (accountingService.requiresPan && (!formValues.panNumber || !/^\d{9}$/.test(formValues.panNumber))) {
       toast.error("A valid 9-digit PAN number is required for account billing.")
       return false
     }
     setSelectedAddonServices((current) => {
       const next = new Set(current)
-      next.add("TSHUL")
+      next.add(accountingService.code)
       return next
     })
     setAccountBillingDialogOpen(false)
     return true
-  }, [formValues.idNumber, formValues.panNumber])
+  }, [formValues.idNumber, formValues.panNumber, accountingService])
 
   // Validation
   const validateForm = useCallback(() => {
@@ -2542,12 +2565,14 @@ export function AddCustomerForm() {
       const response = await apiRequest("/customer", {
         method: "POST",
         body: formData,
+        timeoutMs: 90000,
       })
 
       if (response.success) {
         setCreatedCustomer(response.customer)
         setProvisionResult({ ...response, customer: response.customer, subscription: response.subscription, order: response.order })
         setShowProvisionSection(true)
+        setNettvDialogOpen(true)
         if (response.customerLogin) {
           toast.success(`Customer login: ${response.customerLogin.username} / ${response.customerLogin.password}`)
         }
@@ -2583,16 +2608,16 @@ export function AddCustomerForm() {
       // Step 2: Build services payload
       const servicesPayload: any[] = []
 
-      if (selectedAddonServices.has("TSHUL")) {
+      if (selectedAddonServices.has(accountingService.code)) {
         // Validate PAN
-        if (!formValues.panNumber || !/^\d{9}$/.test(formValues.panNumber)) {
+        if (accountingService.requiresPan && (!formValues.panNumber || !/^\d{9}$/.test(formValues.panNumber))) {
           setAccountBillingDialogOpen(true)
           toast.error("Account billing requires a valid 9-digit PAN number.")
           setIsProvisioning(false)
           return
         }
         servicesPayload.push({
-          service: "TSHUL",
+          service: accountingService.code,
           data: {
             Name: `${formValues.firstName} ${formValues.lastName}`,
             ReferenceId: createdCustomer.customerUniqueId,
@@ -2676,6 +2701,7 @@ export function AddCustomerForm() {
         method: "POST",
         body: JSON.stringify({ services: servicesPayload }),
         headers: { "Content-Type": "application/json" },
+        timeoutMs: 120000,
       })
 
       setProvisionResult(prev => ({ ...prev, ...response }))
@@ -2715,7 +2741,7 @@ export function AddCustomerForm() {
     } finally {
       setIsProvisioning(false)
     }
-  }, [createdCustomer, isFiber, serviceDetails.connectionType, registerOntOnOlt, selectedAddonServices, formValues, wirelessCredentials, provisionResult, getRadiusGroupByPackageId, nettvData, nasOptions, selectedNasId])
+  }, [createdCustomer, isFiber, serviceDetails.connectionType, registerOntOnOlt, selectedAddonServices, formValues, wirelessCredentials, provisionResult, getRadiusGroupByPackageId, nettvData, nasOptions, selectedNasId, accountingService])
 
   // Retry failed services
   const handleRetryService = useCallback(async (service: string) => {
@@ -3015,7 +3041,7 @@ export function AddCustomerForm() {
                 placeholder="Citizenship, passport, or customer ID"
               />
             </div>
-            <div className="space-y-2">
+            {accountingService.requiresPan && <div className="space-y-2">
               <Label htmlFor="billingPanNumber">PAN Number *</Label>
               <Input
                 id="billingPanNumber"
@@ -3026,7 +3052,7 @@ export function AddCustomerForm() {
                 placeholder="9-digit PAN number"
               />
               <p className="text-xs text-muted-foreground">A valid 9-digit PAN number is required for account billing.</p>
-            </div>
+            </div>}
           </div>
           <DialogFooter className="gap-2 sm:justify-end">
             <Button type="button" variant="outline" onClick={() => setAccountBillingDialogOpen(false)}>Cancel</Button>
@@ -3040,7 +3066,10 @@ export function AddCustomerForm() {
         <NetTVDialog
           open={nettvDialogOpen}
           onOpenChange={setNettvDialogOpen}
-          onConfirm={setNettvData}
+          onConfirm={(data) => {
+            setNettvData(data)
+            setSelectedAddonServices(current => new Set(current).add("NETTV"))
+          }}
           defaultFname={formValues.firstName}
           defaultLname={formValues.lastName}
           defaultEmail={formValues.email}
@@ -3053,7 +3082,7 @@ export function AddCustomerForm() {
             return buildNettvCredential(cred?.password)
           })()}
           defaultAddress={formValues.streetAddress}
-          defaultCity={formValues.district}
+          defaultCity={formValues.city}
           defaultDistrict={formValues.district}
           defaultProvince={formValues.state}
           defaultZip={formValues.zipCode}
@@ -3180,25 +3209,25 @@ export function AddCustomerForm() {
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="tshul"
-                    checked={selectedAddonServices.has("TSHUL")}
+                    checked={selectedAddonServices.has(accountingService.code)}
                     onCheckedChange={(checked) => {
                       if (checked && !formValues.idNumber.trim()) {
                         setAccountBillingDialogOpen(true)
                         toast.error("ID number is required for account billing.")
                         return
                       }
-                      if (checked && (!formValues.panNumber || !/^\d{9}$/.test(formValues.panNumber))) {
+                      if (checked && accountingService.requiresPan && (!formValues.panNumber || !/^\d{9}$/.test(formValues.panNumber))) {
                         setAccountBillingDialogOpen(true)
                         toast.error("A valid 9-digit PAN number is required for account billing.")
                         return
                       }
                       const newSet = new Set(selectedAddonServices)
-                      if (checked) newSet.add("TSHUL")
-                      else newSet.delete("TSHUL")
+                      if (checked) newSet.add(accountingService.code)
+                      else newSet.delete(accountingService.code)
                       setSelectedAddonServices(newSet)
                     }}
                   />
-                  <Label htmlFor="tshul" className="cursor-pointer">Account Billing</Label>
+                  <Label htmlFor="tshul" className="cursor-pointer">{accountingService.name} Billing{accountingService.requiresPan ? " (PAN required)" : ""}</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Checkbox

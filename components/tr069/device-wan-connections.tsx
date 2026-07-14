@@ -218,6 +218,7 @@ const defaultFormData: WanFormData = {
 
 export function TR069DeviceWanConnections({ deviceId }: TR069DeviceWanConnectionsProps) {
     const [wanConnections, setWanConnections] = useState<WanConnection[]>([]);
+    const [deviceSummary, setDeviceSummary] = useState<any>(null);
     const [stats, setStats] = useState<Record<string, EthernetStats>>({});
     const [selectedConnection, setSelectedConnection] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -315,7 +316,7 @@ export function TR069DeviceWanConnections({ deviceId }: TR069DeviceWanConnection
 
         try {
             setIsSubmittingEdit(true);
-            const response = await apiRequest<any>(`/service/genieacs/devices/${deviceId}/update-wan-connection`, {
+            const response = await apiRequest<any>(`/services/genieacs/devices/${deviceId}/update-wan-connection`, {
                 method: "POST",
                 body: JSON.stringify({
                     wanId,
@@ -362,6 +363,7 @@ export function TR069DeviceWanConnections({ deviceId }: TR069DeviceWanConnection
                 `/services/genieacs/devices/${deviceId}/waninfo`
             );
             if (data.success) {
+                setDeviceSummary(data.data);
                 setWanConnections(data.data.wanConnections || []);
                 processStats(data.data.wanConnections || []);
             } else {
@@ -737,22 +739,6 @@ export function TR069DeviceWanConnections({ deviceId }: TR069DeviceWanConnection
         );
     }
 
-    if (wanConnections.length === 0) {
-        return (
-            <CardContainer title="WAN Connections" gradientColor="#6366f1">
-                <div className="text-center py-12 text-muted-foreground">
-                    No WAN connections found.
-                </div>
-                <div className="flex justify-center mt-4">
-                    <Button onClick={() => setIsAddModalOpen(true)}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add WAN Connection
-                    </Button>
-                </div>
-            </CardContainer>
-        );
-    }
-
     return (
         <div className="space-y-6">
             {/* Header with Summary Stats and Add button */}
@@ -764,11 +750,12 @@ export function TR069DeviceWanConnections({ deviceId }: TR069DeviceWanConnection
                         Packets: {formatNumber(totalTraffic.packetsReceived + totalTraffic.packetsSent)} •
                         Connections: {wanConnections.length}
                     </p>
+                    {deviceSummary && <p className="mt-1 text-xs text-muted-foreground">Device: {deviceSummary.manufacturer || "Unknown"} {deviceSummary.productClass || ""} · <span className={deviceSummary.status === "Online" ? "text-emerald-600" : "text-amber-600"}>{deviceSummary.status}</span> · Last contact: {deviceSummary.lastContact ? new Date(deviceSummary.lastContact).toLocaleString() : "N/A"}</p>}
                 </div>
                 <div className="flex gap-2">
                     <Button variant="outline" onClick={handleRefresh} disabled={isRefreshing}>
                         <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-                        Refresh Stats
+                        Sync ACS
                     </Button>
                     <Button onClick={() => setIsAddModalOpen(true)}>
                         <Plus className="h-4 w-4 mr-2" />
@@ -778,6 +765,11 @@ export function TR069DeviceWanConnections({ deviceId }: TR069DeviceWanConnection
             </div>
 
             {/* Connection Grid */}
+            {wanConnections.length === 0 && (
+                <div className="rounded-xl border border-dashed p-10 text-center text-muted-foreground">
+                    No WAN connections found. Sync ACS after the device comes online, or add a WAN connection now.
+                </div>
+            )}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {wanConnections.map((conn) => {
                     const key = `${conn.wanDeviceIndex}-${conn.wanConnectionDeviceIndex}`;

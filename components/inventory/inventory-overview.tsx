@@ -316,7 +316,12 @@ export function InventoryOverview() {
             item.user?.name?.toLowerCase().includes(search) ||
             item.branch?.name?.toLowerCase().includes(search)
         )
-        const matchesStatus = statusFilter === "all" || group.records.some(item => item.status === statusFilter)
+        const matchesStatus = statusFilter === "all" || group.records.some(item => {
+            if (statusFilter === "customer_assigned") return Boolean(item.customerId) || ["ASSIGNED_TO_CUSTOMER", "INSTALLED_AT_CUSTOMER"].includes(item.status)
+            if (statusFilter === "user_assigned") return Boolean(item.userId) || item.status === "ASSIGNED_TO_USER"
+            if (statusFilter === "unassigned") return !item.customerId && !item.userId && !item.assignedRoleId && ["IN_STOCK", "RETURNED"].includes(item.status)
+            return item.status === statusFilter
+        })
         return matchesSearch && matchesStatus
     })
 
@@ -334,6 +339,9 @@ export function InventoryOverview() {
     const availableGroupedStock = groupedItems.filter(group => group.records.some(item => item.status === 'IN_STOCK')).length
     const installedGroupedStock = groupedItems.filter(group => group.records.some(item => item.status === 'INSTALLED_AT_CUSTOMER' || item.status === 'ASSIGNED_TO_CUSTOMER')).length
     const faultyGroupedStock = groupedItems.filter(group => group.records.some(item => item.status === 'FAULTY')).length
+    const customerAssignedStock = groupedItems.filter(group => group.records.some(item => item.customerId || ['ASSIGNED_TO_CUSTOMER', 'INSTALLED_AT_CUSTOMER'].includes(item.status))).length
+    const userAssignedStock = groupedItems.filter(group => group.records.some(item => item.userId || item.status === 'ASSIGNED_TO_USER')).length
+    const unassignedStock = groupedItems.filter(group => group.records.some(item => !item.customerId && !item.userId && !item.assignedRoleId && ['IN_STOCK', 'RETURNED'].includes(item.status))).length
 
     const getStatusBadge = (status: string) => {
         switch (status) {
@@ -381,7 +389,7 @@ export function InventoryOverview() {
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex max-w-full items-center gap-2 overflow-x-auto pb-1">
                         {selectedIds.size > 0 && (
                             <Button variant="secondary" onClick={handleBulkTransferClick} className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900 dark:text-indigo-300">
                                 <Users className="h-4 w-4 mr-2" />
@@ -396,18 +404,28 @@ export function InventoryOverview() {
                             All
                         </Button>
                         <Button 
-                            variant={statusFilter === 'IN_STOCK' ? 'default' : 'outline'} 
-                            onClick={() => setStatusFilter('IN_STOCK')}
+                            variant={statusFilter === 'customer_assigned' ? 'default' : 'outline'}
+                            onClick={() => setStatusFilter('customer_assigned')}
                             size="sm"
+                            className="whitespace-nowrap"
                         >
-                            Available
+                            Customer Assigned ({customerAssignedStock})
                         </Button>
                         <Button 
-                            variant={statusFilter === 'INSTALLED_AT_CUSTOMER' ? 'default' : 'outline'} 
-                            onClick={() => setStatusFilter('INSTALLED_AT_CUSTOMER')}
+                            variant={statusFilter === 'user_assigned' ? 'default' : 'outline'}
+                            onClick={() => setStatusFilter('user_assigned')}
                             size="sm"
+                            className="whitespace-nowrap"
                         >
-                            Installed
+                            User Assigned ({userAssignedStock})
+                        </Button>
+                        <Button
+                            variant={statusFilter === 'unassigned' ? 'default' : 'outline'}
+                            onClick={() => setStatusFilter('unassigned')}
+                            size="sm"
+                            className="whitespace-nowrap"
+                        >
+                            Unassigned ({unassignedStock})
                         </Button>
                     </div>
                 </div>
