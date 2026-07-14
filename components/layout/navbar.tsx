@@ -140,7 +140,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
       <header
         className="sticky top-0 z-40 w-full glass-navbar"
       >
-        <div className="flex h-14 items-center px-3 md:px-4">
+        <div className="flex h-[58px] items-center px-3 md:px-5">
           <div className="flex items-center gap-2 md:gap-4">
             <Button variant="ghost" size="icon" onClick={onMenuClick} aria-label="Toggle menu" className={isCustomer ? "hidden md:inline-flex" : ""}>
               <Menu className="h-5 w-5" />
@@ -154,7 +154,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
               <Input
                 type="search"
                 placeholder="Search customers, invoices, devices..."
-                className="h-8 w-full rounded-lg bg-muted/40 pl-9 pr-12 text-xs"
+                className="h-9 w-full bg-muted/60 pl-9 pr-12 text-xs"
                 onClick={() => setSearchModalOpen(true)}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}

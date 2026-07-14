@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600;700&family=Roboto:wght@400;500;700&family=Space+Grotesk:wght@500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
 @import "leaflet/dist/leaflet.css";
 @tailwind base;
 @tailwind components;
@@ -188,3 +188,128 @@
 @keyframes kashtrix-in { from { opacity: 0; transform: translateY(10px); } }
 @media (max-width: 640px) { input, select, textarea { font-size: 16px !important; } .page-container,.dashboard-container { padding: 1rem; } .app-page-frame > * { padding: 1rem !important; } }
 @media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+
+/* Kashtrix OSS/BSS technical console ---------------------------------------
+   The final layer intentionally remaps every legacy screen onto one compact,
+   dark-first operational system while retaining the existing page markup. */
+@layer base {
+  :root {
+    --background: 195 18% 96%; --foreground: 200 21% 16%;
+    --card: 0 0% 100%; --card-foreground: 200 21% 16%;
+    --popover: 0 0% 100%; --popover-foreground: 200 21% 16%;
+    --primary: 190 46% 43%; --primary-foreground: 0 0% 100%;
+    --secondary: 191 49% 91%; --secondary-foreground: 191 52% 19%;
+    --muted: 198 21% 91%; --muted-foreground: 207 12% 43%;
+    --accent: 191 49% 91%; --accent-foreground: 191 52% 19%;
+    --destructive: 0 72% 59%; --destructive-foreground: 0 0% 100%;
+    --border: 203 16% 82%; --border-strong: 207 14% 61%; --input: 203 16% 76%; --ring: 190 59% 64%;
+    --sidebar-background: 212 19% 20%; --sidebar-foreground: 204 26% 96%;
+    --sidebar-primary: 190 59% 64%; --sidebar-primary-foreground: 191 52% 19%;
+    --sidebar-accent: 212 19% 25%; --sidebar-accent-foreground: 204 26% 96%;
+    --sidebar-border: 211 15% 27%; --sidebar-ring: 190 59% 64%;
+    --chart-1: 190 59% 64%; --chart-2: 140 48% 59%; --chart-3: 40 75% 64%;
+    --chart-4: 217 100% 72%; --chart-5: 0 72% 68%;
+    --font-heading: "Inter", sans-serif; --font-body: "Inter", sans-serif;
+    --font-data: "JetBrains Mono", monospace;
+    --status-success: #2f8f58; --status-success-bg: rgb(100 201 138 / .14);
+    --status-warning: #9b6b12; --status-warning-bg: rgb(232 184 92 / .17);
+    --status-danger: #c84f4f; --status-danger-bg: rgb(232 116 116 / .15);
+    --status-info: #477ed0; --status-info-bg: rgb(111 168 255 / .15);
+    --radius: 7px; --radius-sm: 6px; --radius-md: 7px; --radius-lg: 10px; --radius-xl: 10px;
+    --shadow-sm: none; --shadow-md: none; --shadow-lg: 0 16px 40px rgb(8 12 16 / .22);
+  }
+
+  .dark {
+    --background: 214 18% 13%; --foreground: 204 26% 96%;
+    --card: 213 20% 16%; --card-foreground: 204 26% 96%;
+    --popover: 213 20% 16%; --popover-foreground: 204 26% 96%;
+    --primary: 190 59% 64%; --primary-foreground: 191 52% 19%;
+    --secondary: 191 52% 19%; --secondary-foreground: 191 49% 91%;
+    --muted: 212 19% 20%; --muted-foreground: 211 10% 57%;
+    --accent: 212 19% 20%; --accent-foreground: 191 49% 91%;
+    --destructive: 0 72% 68%; --destructive-foreground: 214 18% 13%;
+    --border: 211 15% 27%; --border-strong: 211 15% 35%; --input: 211 15% 35%; --ring: 190 59% 64%;
+    --sidebar-background: 213 18% 18%; --sidebar-foreground: 204 26% 96%;
+    --sidebar-primary: 190 59% 64%; --sidebar-primary-foreground: 191 52% 19%;
+    --sidebar-accent: 212 19% 20%; --sidebar-accent-foreground: 204 26% 96%;
+    --sidebar-border: 211 15% 27%; --sidebar-ring: 190 59% 64%;
+    --theme-bg: #1b2027; --theme-text: #f3f6f8; --theme-card: #212831;
+    --theme-card-foreground: #f3f6f8; --theme-border: #3a444f;
+    --theme-muted: #2a333e; --theme-muted-foreground: #87929d;
+    --status-success: #64c98a; --status-success-bg: rgb(100 201 138 / .13);
+    --status-warning: #e8b85c; --status-warning-bg: rgb(232 184 92 / .14);
+    --status-danger: #e87474; --status-danger-bg: rgb(232 116 116 / .14);
+    --status-info: #6fa8ff; --status-info-bg: rgb(111 168 255 / .14);
+  }
+
+  html { color-scheme: dark; }
+  html:not(.dark) { color-scheme: light; }
+  body { font-size: 14px; line-height: 1.45; letter-spacing: -.005em; }
+  h1, h2, h3, h4, h5, h6 { font-family: var(--font-heading); font-weight: 600; }
+  :focus-visible { outline-color: #6cc7d9; outline-width: 2px; }
+  ::selection { background: #173f49; color: #dceff3; }
+  ::placeholder { color: hsl(var(--muted-foreground)) !important; }
+}
+
+@layer components {
+  .glass-navbar {
+    height: 58px;
+    border-bottom: 1px solid hsl(var(--border));
+    background: hsl(215 18% 11% / .97) !important;
+    box-shadow: none !important;
+    backdrop-filter: blur(10px);
+  }
+  html:not(.dark) .glass-navbar { background: rgb(255 255 255 / .96) !important; }
+  .kashtrix-sidebar { box-shadow: none !important; }
+  .card, .card-container, .glass-card, .glass {
+    border-radius: 10px !important;
+    border-color: hsl(var(--border)) !important;
+    background: hsl(var(--card)) !important;
+    box-shadow: none !important;
+  }
+  .card:hover, .card-container:hover, .glass-card:hover {
+    border-color: hsl(var(--border-strong)) !important;
+    box-shadow: none !important;
+  }
+  .page-container, .dashboard-container { padding: 24px !important; }
+  .app-page-frame { background: hsl(var(--background)) !important; }
+  .app-page-frame > * { padding: 24px !important; }
+  .page-background { background: hsl(var(--background)) !important; }
+  .sidebar-icon { color: hsl(var(--muted-foreground)) !important; }
+  .sidebar-icon-active { color: hsl(var(--primary)) !important; }
+  .submenu-bullet { background: hsl(var(--border-strong)) !important; }
+  .submenu-item[aria-current="page"] .submenu-bullet { background: hsl(var(--primary)) !important; }
+  .data-value, [data-kpi], code, pre, kbd, samp { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+}
+
+/* Page-wide compatibility for legacy Tailwind colors and decorative cards. */
+#main-content :where(.bg-white, [class*="bg-slate-"], [class*="bg-gray-"], [class*="dark:bg-slate-"], [class*="dark:bg-gray-"]) {
+  background-color: hsl(var(--card)) !important;
+}
+#main-content :where([class*="text-slate-9"], [class*="text-gray-9"], [class*="text-slate-8"], [class*="text-gray-8"]) {
+  color: hsl(var(--foreground)) !important;
+}
+#main-content :where([class*="text-slate-7"], [class*="text-gray-7"], [class*="text-slate-6"], [class*="text-gray-6"], [class*="text-slate-5"], [class*="text-gray-5"]) {
+  color: hsl(var(--muted-foreground)) !important;
+}
+#main-content :where([class*="border-slate-"], [class*="border-gray-"]) { border-color: hsl(var(--border)) !important; }
+#main-content :where(.rounded-xl, .rounded-2xl, .rounded-3xl) { border-radius: 10px; }
+#main-content :where(.shadow, .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl) { box-shadow: none !important; }
+#main-content :where(.bg-blue-500,.bg-blue-600,.bg-green-500,.bg-green-600,.bg-emerald-500,.bg-indigo-500,.bg-violet-500,.bg-purple-500) { background-color: hsl(var(--primary)) !important; }
+#main-content :where(.text-blue-500,.text-blue-600,.text-indigo-500,.text-violet-500,.text-purple-500,.text-purple-600) { color: hsl(var(--primary)) !important; }
+#main-content :where(.text-green-500,.text-green-600,.text-emerald-500) { color: var(--status-success) !important; }
+#main-content :where(.text-red-500,.text-red-600) { color: var(--status-danger) !important; }
+#main-content table { border-collapse: separate; border-spacing: 0; }
+#main-content thead { background: hsl(var(--muted)); }
+#main-content th { height: 42px; color: hsl(var(--muted-foreground)); font-family: var(--font-data); font-size: 10px; letter-spacing: .08em; }
+#main-content tbody tr { min-height: 54px; background: hsl(var(--card)); transition: background-color 120ms ease; }
+#main-content tbody tr:hover { background: hsl(var(--muted)); transform: none; box-shadow: none; }
+#main-content td { border-bottom-color: hsl(var(--border)); }
+[role="dialog"], [role="menu"], [data-radix-popper-content-wrapper] > div { border-radius: 10px !important; box-shadow: var(--shadow-lg) !important; }
+::-webkit-scrollbar-track { background: hsl(var(--background)); }
+::-webkit-scrollbar-thumb { background: hsl(var(--border-strong)); border-color: hsl(var(--background)); }
+
+@media (max-width: 767px) {
+  .page-container, .dashboard-container, .app-page-frame > * { padding: 16px !important; }
+  #main-content table { min-width: 720px; }
+}

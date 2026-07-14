@@ -21,17 +21,18 @@ const config = {
     extend: {
       fontFamily: {
         sans: ["Inter", "sans-serif"],
-        heading: ["Sora", "sans-serif"],
-        data: ["Space Grotesk", "sans-serif"],
+        heading: ["Inter", "sans-serif"],
+        data: ["JetBrains Mono", "monospace"],
       },
       colors: {
         kashtrix: {
-          plum: "#2B0D3A",
-          purple: "#4A1B7A",
-          soft: "#F4EEFF",
-          magenta: "#E11D72",
+          plum: "#173F49",
+          purple: "#6CC7D9",
+          soft: "#DCEFF3",
+          magenta: "#6FA8FF",
         },
         border: "hsl(var(--border))",
+        "border-strong": "hsl(var(--border-strong))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
         background: {

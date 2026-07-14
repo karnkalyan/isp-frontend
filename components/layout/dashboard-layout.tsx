@@ -182,7 +182,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       {!useMobilePortalChrome && <Sidebar open={sidebarOpen} setOpen={setSidebarOpen} />}
       <div className="flex flex-1 flex-col overflow-hidden">
         {!useMobilePortalChrome && <Navbar onMenuClick={() => setSidebarOpen((o) => !o)} />}
-        <main id="main-content" className="flex-1 overflow-auto bg-white pb-20 dark:bg-background md:pb-0">
+        <main id="main-content" className="flex-1 overflow-auto bg-background pb-20 md:pb-0">
           <div className="app-page-frame">
             {isAuthorized ? children : <div className="flex h-full items-center justify-center">Redirecting...</div>}
           </div>

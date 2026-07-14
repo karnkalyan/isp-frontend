@@ -720,17 +720,17 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
       <div
         ref={sidebarRef}
         className={cn(
-          "kashtrix-sidebar fixed inset-y-0 left-0 z-50 flex w-[272px] flex-col border-r border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-background))] text-[hsl(var(--sidebar-foreground))] transition-[width,transform] duration-200 ease-out",
+          "kashtrix-sidebar fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col border-r border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-background))] text-[hsl(var(--sidebar-foreground))] transition-[width,transform] duration-200 ease-out",
           open ? "translate-x-0" : "-translate-x-full",
           "md:relative md:z-0 md:translate-x-0",
-          !open && window.innerWidth >= 768 ? "md:w-[60px]" : "md:w-[272px]",
+          !open && window.innerWidth >= 768 ? "md:w-[60px]" : "md:w-[260px]",
         )}
       >
         <div className={cn("h-full flex flex-col", !open && "md:items-center")}>
           {/* Sidebar header */}
           <div
             className={cn(
-              "flex h-14 items-center border-b border-[hsl(var(--sidebar-border))] px-3",
+              "flex h-[58px] items-center border-b border-[hsl(var(--sidebar-border))] px-3",
               open ? "justify-start" : "md:justify-center",
             )}
           >

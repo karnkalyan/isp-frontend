@@ -44,7 +44,7 @@ export function PageHeader({
   actions,
 }: PageHeaderProps) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-4 border-b border-border pb-5">
       {/* Breadcrumbs */}
       {breadcrumbs && breadcrumbs.length > 0 && (
         <nav aria-label="Breadcrumb" className="flex items-center text-xs text-muted-foreground">
@@ -73,7 +73,7 @@ export function PageHeader({
         <div className="flex items-start gap-3">
           {/* Icon */}
           {Icon && (
-            <div className="rounded-lg border bg-background p-2">
+            <div className="rounded-[8px] border bg-card p-2">
               <Icon className="h-6 w-6 text-primary" />
             </div>
           )}
@@ -81,7 +81,7 @@ export function PageHeader({
           {/* Title + Description */}
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="font-heading text-2xl font-semibold leading-tight tracking-tight">
+              <h1 className="font-heading text-[28px] font-semibold leading-tight tracking-[-0.02em] md:text-[32px]">
                 {title}
               </h1>
 

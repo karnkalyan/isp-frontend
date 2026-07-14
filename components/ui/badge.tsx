@@ -17,7 +17,7 @@ const badgeVariants = cva(
         warning:
           "border-transparent bg-[var(--status-warning-bg)] text-[var(--status-warning)]",
         info: "border-transparent bg-[var(--status-info-bg)] text-[var(--status-info)]",
-        ai: "border-transparent bg-[var(--kashtrix-magenta-soft)] text-[var(--kashtrix-ai-magenta)]",
+        ai: "border-transparent bg-[var(--status-info-bg)] text-[var(--status-info)]",
         outline: "text-foreground",
       },
     },
