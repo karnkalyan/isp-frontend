@@ -1,0 +1,4 @@
+import {Activity,Headphones,Receipt,WalletCards,ChartNoAxesCombined,TrendingUp,UserRoundCheck,Wrench,Package,Cable,Network,AudioLines,MessageSquare,BriefcaseBusiness,Bot} from "lucide-react";
+import {cn} from "@/lib/utils";
+const icons:any={Activity,Headphones,Receipt,WalletCards,ChartNoAxesCombined,TrendingUp,UserRoundCheck,Wrench,Package,Cable,Network,AudioLines,MessageSquare,BriefcaseBusiness};
+export function AgentAvatar({icon,className,active=false}:{icon?:string;className?:string;active?:boolean}){const Icon=icons[icon||""]||Bot;return <div className={cn("relative flex size-10 shrink-0 items-center justify-center rounded-[10px] border border-border bg-secondary text-primary",className)}><Icon className="size-5"/>{active&&<span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full border-2 border-card bg-[#E11D72]"/>}</div>}

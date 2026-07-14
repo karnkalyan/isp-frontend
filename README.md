@@ -1,0 +1,76 @@
+# Kisan ISP Frontend
+
+A comprehensive, premium-designed management portal for Internet Service Providers (ISPs), built with modern web technologies to handle customers, networking, billing, and system configurations.
+
+## 🚀 Built With
+
+- **Framework**: [Next.js 15 (App Router)](https://nextjs.org/)
+- **Language**: [TypeScript](https://www.typescriptlang.org/)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
+- **UI Components**: [shadcn/ui](https://ui.shadcn.com/) (Radix UI)
+- **Icons**: [Lucide React](https://lucide.dev/)
+- **Data Visualization**: [Recharts](https://recharts.org/) & [Chart.js](https://www.chartjs.org/)
+- **Maps**: [Leaflet](https://leafletjs.com/)
+- **State Management**: React Context & Hooks
+- **Forms**: React Hook Form & Zod
+- **Toasts**: React Hot Toast & Sonner
+
+## ✨ Key Features
+
+- **Dashboard**: Real-time analytics and system overview.
+- **Customer Management**: Detailed profiles, service status, and history.
+- **NAS Management**: Network Access Server configurations for Radius integration.
+- **Billing & Finance**: Billing cycle management, package pricing, and payment tracking.
+- **Lead Tracking**: Sales pipeline management and follow-up tracking.
+- **Networking**: Fiber management and network topology overview.
+- **TR-069**: Remote device management and provisioning.
+- **Service Areas**: Management of service physical areas and corresponding package plans.
+- **Multi-Branch Support**: Scalable architecture for multiple branch operations.
+
+## 🛠️ Getting Started
+
+### Prerequisites
+
+- Node.js (Latest LTS version recommended)
+- npm or pnpm
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/karnkalyan/isp-frontend.git
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   # or
+   pnpm install
+   ```
+
+3. Setup environment variables:
+   Create a `.env.local` file in the root directory and add your API credentials:
+   ```env
+   NEXT_PUBLIC_API_URL=your_api_url
+   ```
+
+4. Run the development server:
+   ```bash
+   npm run dev
+   ```
+
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the results.
+
+## 📁 Project Structure
+
+- `/app`: Next.js App Router pages and layouts.
+- `/components`: Reusable UI components (shadcn/ui and custom).
+- `/contexts`: React context providers for global state.
+- `/hooks`: Custom React hooks.
+- `/lib`: Utility functions and API clients.
+- `/public`: Static assets (images, fonts).
+- `/types`: TypeScript interfaces and types.
+
+## 📝 License
+
+Distributed under the MIT License. See `LICENSE` for more information.
