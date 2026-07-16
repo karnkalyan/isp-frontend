@@ -21,8 +21,8 @@ const config = {
     extend: {
       fontFamily: {
         sans: ["Inter", "sans-serif"],
-        heading: ["Inter", "sans-serif"],
-        data: ["JetBrains Mono", "monospace"],
+        heading: ["Sora", "sans-serif"],
+        data: ["Space Grotesk", "sans-serif"],
       },
       colors: {
         kashtrix: {

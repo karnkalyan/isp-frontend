@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from "react"
 import { CardContainer } from "@/components/ui/card-container"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { CalendarDateTimeInput } from "@/components/ui/calendar-datetime-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
@@ -47,11 +48,15 @@ import "leaflet/dist/leaflet.css"
 import { useMapEvents, useMap } from 'react-leaflet'
 
 // Dynamically import Leaflet components
-const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
+const MapContainer = dynamic(() => import('@/components/maps/safe-map-container').then(mod => mod.SafeMapContainer), { ssr: false })
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false })
 const Circle = dynamic(() => import('react-leaflet').then(mod => mod.Circle), { ssr: false })
+const LeadLocationMap = dynamic(() => import('@/components/leads/LeadLocationMap'), {
+    ssr: false,
+    loading: () => <div className="flex h-full items-center justify-center text-sm text-muted-foreground"><Loader2 className="mr-2 size-4 animate-spin" />Loading map…</div>,
+})
 
 // Interface for geocoding result
 interface GeocodingResult {
@@ -1592,11 +1597,10 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                                 <Label htmlFor="scheduledAt">
                                     Scheduled Date & Time <span className="text-red-500">*</span>
                                 </Label>
-                                <Input
+                                <CalendarDateTimeInput
                                     id="scheduledAt"
-                                    type="datetime-local"
                                     value={followUpForm.scheduledAt}
-                                    onChange={(e) => updateFollowUpField("scheduledAt", e.target.value)}
+                                    onChange={(value) => updateFollowUpField("scheduledAt", value)}
                                 />
                             </div>
 
@@ -2067,7 +2071,22 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                                 {/* Map Container - Only render on client */}
                                 {isMounted && (
                                     <div className="h-[350px] rounded-[10px] overflow-hidden border border-border bg-muted relative">
-                                        <MapContainer
+                                        <LeadLocationMap
+                                            key={leadId ? `lead-map-${leadId}` : "lead-map-new"}
+                                            center={leadMapPosition}
+                                            showLocation={Boolean(formData.latitude && formData.longitude)}
+                                            address={formData.fullAddress || formData.address}
+                                            serviceAvailable={leadServiceAvailable}
+                                            serviceRadius={leadServiceRadius}
+                                            nearestSplitter={leadNearestSplitters[0] ? {
+                                                distance: leadNearestSplitters[0].distance ?? 0,
+                                                name: leadNearestSplitters[0].name
+                                            } : null}
+                                            splitters={splitters}
+                                            onLocationSelect={handleLeadLocationSelect}
+                                            onMarkerDragEnd={handleLeadMarkerDragEnd}
+                                        />
+                                        {false && <MapContainer
                                             key={leadId ? `lead-map-${leadId}` : "lead-map-new"}
                                             center={leadMapPosition}
                                             zoom={15}
@@ -2117,7 +2136,7 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
                                                     }}
                                                 />
                                             )}
-                                        </MapContainer>
+                                        </MapContainer>}
 
                                         <style jsx>{`
                                             :global(.leaflet-control-attribution) {

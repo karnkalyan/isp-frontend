@@ -44,10 +44,13 @@ import {
   Edit,
   Trash2,
   Check,
-  Plus
+  Plus,
+  Bot,
+  Sparkles
 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { openDirectionsFromCurrentLocation } from "@/lib/directions"
+import { AiAgentsAPI } from "@/lib/api/ai-agent"
 
 interface TicketDetail {
   id: number
@@ -129,6 +132,10 @@ export default function TicketDetailPage() {
   const [assignableUsers, setAssignableUsers] = useState<any[]>([])
   const [ticketTypes, setTicketTypes] = useState<any[]>([])
   const [departments, setDepartments] = useState<any[]>([])
+  const [aiAgents, setAiAgents] = useState<any[]>([])
+  const [aiTicketTasks, setAiTicketTasks] = useState<any[]>([])
+  const [selectedAiAgent, setSelectedAiAgent] = useState("")
+  const [assigningAi, setAssigningAi] = useState(false)
 
   const fetchTicket = useCallback(async () => {
     try {
@@ -149,10 +156,12 @@ export default function TicketDetailPage() {
   useEffect(() => {
     const loadConfigs = async () => {
       try {
-        const [types, deps, users] = await Promise.all([
+        const [types, deps, users, agentsResponse, tasksResponse] = await Promise.all([
           apiRequest<any[]>("/tickets/types?active=true"),
           apiRequest<any>("/department"),
           apiRequest<any[]>("/users"),
+          AiAgentsAPI.list(),
+          AiAgentsAPI.tasks(),
         ])
         setTicketTypes(Array.isArray(types) ? types : [])
         setDepartments(Array.isArray(deps) ? deps : deps?.data || [])
@@ -162,6 +171,10 @@ export default function TicketDetailPage() {
             return roleName !== "customer"
           })
         )
+        const activeAgents = (agentsResponse.data || []).filter((agent: any) => agent.status === "ACTIVE" && agent.slug !== "manager")
+        setAiAgents(activeAgents)
+        setAiTicketTasks(((tasksResponse.data || []) as any[]).filter(task => Number(task.input?.ticketId) === Number(ticketId)))
+        if (activeAgents.length) setSelectedAiAgent(String(activeAgents.find((agent: any) => agent.slug === "noc")?.id || activeAgents[0].id))
       } catch (e) {
         console.error(e)
       }
@@ -216,6 +229,26 @@ export default function TicketDetailPage() {
       toast({ title: "Error", description: e.message, variant: "destructive" })
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const handleAssignAi = async () => {
+    if (!ticket || !selectedAiAgent) return
+    setAssigningAi(true)
+    try {
+      const result = await AiAgentsAPI.createTask(selectedAiAgent, {
+        ticketId: ticket.id,
+        title: ticket.title,
+        description: ticket.description || "",
+        priority: ticket.priority,
+      })
+      setAiTicketTasks(current => [result.data, ...current.filter(task => task.id !== result.data.id)])
+      toast({ title: "AI specialist assigned", description: result.message || "The ticket was assigned and its work details were detected automatically." })
+      await fetchTicket()
+    } catch (error: any) {
+      toast({ title: "Unable to assign AI specialist", description: error.message, variant: "destructive" })
+    } finally {
+      setAssigningAi(false)
     }
   }
 
@@ -484,6 +517,26 @@ export default function TicketDetailPage() {
                   </div>
                 )}
               </div>
+            </div>
+
+            <div className="rounded-2xl bg-card p-5 shadow-sm ring-1 ring-border/60">
+              <div className="flex flex-col gap-4 md:flex-row md:items-end">
+                <div className="flex min-w-0 flex-1 gap-3">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/12 text-violet-500"><Bot className="size-5" /></div>
+                  <div>
+                    <h3 className="font-semibold">Assign this ticket to virtual staff</h3>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">The agent reads the existing title and description, detects the work type, IP addresses and completion email, and requests approval before sensitive changes. No duplicate task form is needed.</p>
+                  </div>
+                </div>
+                <div className="flex w-full gap-2 md:w-auto">
+                  <Select value={selectedAiAgent} onValueChange={setSelectedAiAgent}>
+                    <SelectTrigger className="min-w-60"><SelectValue placeholder="Select virtual staff" /></SelectTrigger>
+                    <SelectContent>{aiAgents.map(agent => <SelectItem key={agent.id} value={String(agent.id)}>{agent.name} · {agent.department}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <Button onClick={handleAssignAi} disabled={!selectedAiAgent || assigningAi}>{assigningAi ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />} Assign</Button>
+                </div>
+              </div>
+              {aiTicketTasks.length > 0 && <div className="mt-4 grid gap-2 border-t pt-4 md:grid-cols-2">{aiTicketTasks.map(task => { const assignedAgent=aiAgents.find(agent=>agent.id===task.agentId); return <div key={task.id} className="rounded-xl bg-muted/60 p-3"><div className="flex items-center gap-2"><span className="text-sm font-semibold">{assignedAgent?.name||`Agent #${task.agentId}`}</span><Badge className="ml-auto" variant="outline">{task.status?.replaceAll("_"," ")}</Badge></div><p className="mt-1 text-xs text-muted-foreground">{task.taskType?.replaceAll("_"," ")} · {task.priority}</p>{task.input?.notifyEmail&&<p className="mt-1 text-[11px] text-muted-foreground">Completion email: {task.input.notifyEmail}</p>}</div>})}</div>}
             </div>
 
             {/* Assigned Tasks Section */}

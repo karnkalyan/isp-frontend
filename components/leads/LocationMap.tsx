@@ -1,7 +1,8 @@
 "use client"
 
 import React, { useEffect, useState } from "react"
-import { MapContainer, TileLayer, Circle, useMapEvents, useMap } from "react-leaflet"
+import { TileLayer, Circle, useMapEvents, useMap } from "react-leaflet"
+import { SafeMapContainer as MapContainer } from "@/components/maps/safe-map-container"
 import "leaflet/dist/leaflet.css"
 import L from "leaflet"
 import { Button } from "@/components/ui/button"

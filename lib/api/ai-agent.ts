@@ -19,6 +19,11 @@ export const AiAgentsAPI = {
   usage: () => apiRequest<ApiResponse<unknown[]>>('/ai-agents/usage'),
   tools: (id: number|string) => apiRequest<ApiResponse<unknown[]>>(`/ai-agents/${id}/tools`),
   permissions: (id: number|string) => apiRequest<ApiResponse<unknown[]>>(`/ai-agents/${id}/permissions`),
+  toolCatalog: () => apiRequest<ApiResponse<any[]>>('/ai-agents/tool-catalog'),
+  updateTools: (id: number|string, tools: Record<string, unknown>[]) => apiRequest<ApiResponse<any[]>>(`/ai-agents/${id}/tools`, { method: 'PATCH', body: JSON.stringify({ tools }) }),
+  updatePermissions: (id: number|string, permissions: Array<string|Record<string, unknown>>) => apiRequest<ApiResponse<any[]>>(`/ai-agents/${id}/permissions`, { method: 'PATCH', body: JSON.stringify({ permissions }) }),
+  createTask: (id: number|string, payload: Record<string, unknown>) => apiRequest<ApiResponse<any>>(`/ai-agents/${id}/tasks`, { method: 'POST', body: JSON.stringify(payload) }),
+  updateTask: (taskId: number|string, payload: Record<string, unknown>) => apiRequest<ApiResponse<any>>(`/ai-agents/tasks/${taskId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
 };
 
 export const AiAgentConversationsAPI = {
@@ -28,7 +33,8 @@ export const AiAgentConversationsAPI = {
   get: (id: number) => apiRequest<ApiResponse<AgentConversation>>(`/ai-agent-conversations/${id}`),
   update: (id: number, payload: Partial<AgentConversation>) => apiRequest<ApiResponse<AgentConversation>>(`/ai-agent-conversations/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
   messages: (id: number) => apiRequest<ApiResponse<AgentMessage[]>>(`/ai-agent-conversations/${id}/messages`),
-  send: (id: number, content: string, attachments: unknown[] = []) => apiRequest<ApiResponse<{userMessage:AgentMessage;assistant:AgentMessage}>>(`/ai-agent-conversations/${id}/messages`, { method: 'POST', body: JSON.stringify({ content, attachments }) }),
+  context: (id: number) => apiRequest<ApiResponse<Record<string, any>>>(`/ai-agent-conversations/${id}/context`),
+  send: (id: number, content: string, attachments: unknown[] = [], requestContext: Record<string, unknown> = {}, signal?: AbortSignal) => apiRequest<ApiResponse<{userMessage:AgentMessage;assistant:AgentMessage;conversationState?:Record<string,any>}>>(`/ai-agent-conversations/${id}/messages`, { method: 'POST', body: JSON.stringify({ content, attachments, ...requestContext }), signal }),
 };
 
 export const AiAgentApprovalsAPI = {

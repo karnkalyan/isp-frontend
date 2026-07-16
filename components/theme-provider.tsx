@@ -2,12 +2,38 @@
 
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import type { ThemeProviderProps } from "next-themes";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
+import { getDynamicBaseUrl } from "@/lib/api";
+import { applyThemeTokens, type ThemeTokens } from "@/lib/theme-runtime";
 
 // Separated into its own component so it can use useTheme()
 function ThemeSyncer() {
   const { resolvedTheme } = useTheme();
+  const [tenantTokens, setTenantTokens] = useState<ThemeTokens | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      if (["/login", "/forgot-password", "/reset-password"].some(path => window.location.pathname.startsWith(path))) return;
+      try {
+        const base = getDynamicBaseUrl().replace(/\/+$/, "");
+        const branch = localStorage.getItem("selected-branch-id");
+        const response = await fetch(base + "/themes/active", { credentials: "include", headers: branch ? { "x-selected-branch-id": branch } : undefined });
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (active && payload?.data?.tokens) setTenantTokens(payload.data.tokens);
+      } catch {}
+    };
+    load();
+    const changed = (event: Event) => {
+      const tokens = (event as CustomEvent).detail?.tokens;
+      if (tokens) setTenantTokens(tokens);
+      else load();
+    };
+    window.addEventListener("tenant-theme-changed", changed);
+    return () => { active = false; window.removeEventListener("tenant-theme-changed", changed); };
+  }, []);
 
   useEffect(() => {
     if (!resolvedTheme) return;
@@ -22,33 +48,35 @@ function ThemeSyncer() {
     if (isDark) {
       root.classList.add("dark");
       root.style.colorScheme = "dark";
-      root.style.setProperty("--theme-bg", "#0b1120");
-      root.style.setProperty("--theme-text", "#f9fafb");
-      root.style.setProperty("--theme-card", "#1e293b");
-      root.style.setProperty("--theme-card-foreground", "#f9fafb");
-      root.style.setProperty("--theme-border", "#334155");
-      root.style.setProperty("--theme-muted", "#334155");
-      root.style.setProperty("--theme-muted-foreground", "#94a3b8");
-      document.body.style.backgroundColor = "#0b1120";
-      document.body.style.color = "#f9fafb";
+      root.style.setProperty("--theme-bg", "#09050f");
+      root.style.setProperty("--theme-text", "#ffffff");
+      root.style.setProperty("--theme-card", "#1a0d24");
+      root.style.setProperty("--theme-card-foreground", "#ffffff");
+      root.style.setProperty("--theme-border", "#342044");
+      root.style.setProperty("--theme-muted", "#2b0d3a");
+      root.style.setProperty("--theme-muted-foreground", "#b8a8c2");
+      document.body.style.backgroundColor = "#09050f";
+      document.body.style.color = "#ffffff";
     } else {
       root.classList.remove("dark");
       root.style.colorScheme = "light";
-      root.style.setProperty("--theme-bg", "#f9fafb");
-      root.style.setProperty("--theme-text", "#111827");
+      root.style.setProperty("--theme-bg", "#f8f7fa");
+      root.style.setProperty("--theme-text", "#1b1024");
       root.style.setProperty("--theme-card", "#ffffff");
-      root.style.setProperty("--theme-card-foreground", "#111827");
-      root.style.setProperty("--theme-border", "#e2e8f0");
-      root.style.setProperty("--theme-muted", "#f1f5f9");
-      root.style.setProperty("--theme-muted-foreground", "#64748b");
-      document.body.style.backgroundColor = "#f9fafb";
-      document.body.style.color = "#111827";
+      root.style.setProperty("--theme-card-foreground", "#1b1024");
+      root.style.setProperty("--theme-border", "#e8dff0");
+      root.style.setProperty("--theme-muted", "#f4eeff");
+      root.style.setProperty("--theme-muted-foreground", "#6f6078");
+      document.body.style.backgroundColor = "#f8f7fa";
+      document.body.style.color = "#1b1024";
     }
     
+    if (tenantTokens) applyThemeTokens(tenantTokens, isDark ? "dark" : "light");
+    root.dataset.tenantTheme = tenantTokens ? "active" : "default";
     // Trigger a re-render of all components that depend on theme
     // by dispatching a custom event
     window.dispatchEvent(new CustomEvent('themechange', { detail: { theme: resolvedTheme } }));
-  }, [resolvedTheme]);
+  }, [resolvedTheme, tenantTokens]);
 
   return null;
 }

@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import dynamic from 'next/dynamic'
 import "leaflet/dist/leaflet.css"
+import { Marker, Polyline, Popup, TileLayer, useMap } from "react-leaflet"
+import { SafeMapContainer as MapContainer } from "@/components/maps/safe-map-container"
 import {
     Upload, Maximize2, Minimize2, Trash2, Search, Eye, EyeOff,
     X, ChevronDown, Plus, Folder, FolderOpen, Map as MapIcon,
@@ -18,13 +19,7 @@ import { cn } from "@/lib/utils"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CardContainer } from "@/components/ui/card-container"
 import { apiRequest } from "@/lib/api"
-
-// Dynamically import Leaflet components
-const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
-const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
-const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
-const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false })
-const Polyline = dynamic(() => import('react-leaflet').then(mod => mod.Polyline), { ssr: false })
+import { fetchFiberNetworkDataset } from "@/lib/fiber-network-data"
 
 // Fix for Leaflet default icons - moved inside client-side check
 const fixLeafletIcons = () => {
@@ -49,7 +44,7 @@ const createIcon = (label: string, color: string) => {
     const html = renderToString(
         <div className={cn(
             "flex items-center justify-center font-bold text-white shadow-lg border-2 border-white rounded-full w-8 h-8 text-sm",
-            color === "green" ? "bg-emerald-500" : color === "purple" ? "bg-purple-500" : "bg-blue-500"
+            color === "green" ? "bg-emerald-500" : color === "purple" ? "bg-purple-500" : color === "orange" ? "bg-orange-500" : "bg-blue-500"
         )}>
             {label}
         </div>
@@ -101,13 +96,13 @@ const parseFile = async (file: File): Promise<any[]> => {
 }
 
 function MapController({ focusPosition }: { focusPosition: [number, number] | null }) {
-    const { useMap } = require('react-leaflet')
     const map = useMap()
     useEffect(() => {
-        setTimeout(() => {
+        const timer = window.setTimeout(() => {
             map.invalidateSize()
             map.setView(focusPosition || [27.7172, 85.3240], 13)
         }, 100)
+        return () => window.clearTimeout(timer)
     }, [map, focusPosition])
     return null
 }
@@ -134,6 +129,7 @@ export default function UltimateGISMap() {
     const [layers, setLayers] = useState({
         olt: true,
         splitter: true,
+        ont: true,
         pole: true,
         fiber: true,
         misc: true
@@ -141,15 +137,33 @@ export default function UltimateGISMap() {
 
     const loadMapData = async () => {
         try {
-            const data = await apiRequest<any[]>("/fiber-map/folders")
-            if (data) {
-                const loadedCategories = data.map(f => ({ id: f.id.toString(), name: f.name, isExpanded: true }))
+            const [folderResult, topologyResult] = await Promise.allSettled([
+                apiRequest<any[]>("/fiber-map/folders"),
+                fetchFiberNetworkDataset(),
+            ])
+            const data = folderResult.status === "fulfilled" ? folderResult.value || [] : []
+            const topology = topologyResult.status === "fulfilled" ? topologyResult.value : null
+            if (data || topology) {
+                const loadedCategories = [
+                    ...(topology ? [{ id: "live-network", name: "Live Fiber Network", isExpanded: true }] : []),
+                    ...data.map(f => ({ id: f.id.toString(), name: f.name, isExpanded: true })),
+                ]
                 setCategories(loadedCategories)
                 setSelectedCat(current => {
                     if (current && loadedCategories.some(cat => cat.id === current)) return current
                     return loadedCategories[0]?.id || null
                 })
                 const allFiles: any[] = []
+                if (topology) {
+                    allFiles.push({
+                        id: "live-fiber-topology",
+                        catId: "live-network",
+                        name: "OLT · Splitter · ONT topology",
+                        data: topology.mapFeatures,
+                        isVisible: true,
+                        readOnly: true,
+                    })
+                }
                 data.forEach(f => {
                     if (f.files) {
                         f.files.forEach((file: any) => {
@@ -164,6 +178,8 @@ export default function UltimateGISMap() {
                     }
                 })
                 setFiles(allFiles)
+                const livePosition = getFirstPositionFromData(topology?.mapFeatures || [])
+                if (livePosition) setFocusPosition(livePosition)
             }
         } catch (e) {
             console.error("Failed to load map data")
@@ -192,19 +208,23 @@ export default function UltimateGISMap() {
         }
     }
 
-    // Initialize icons on client
+    // Defer Leaflet until after React's development remount cycle. Mounting the
+    // map during the first Strict Mode effect can reuse a DOM node that Leaflet
+    // still owns and results in "Map container is already initialized".
     useEffect(() => {
-        setIsClient(true)
-        fixLeafletIcons()
-        
-        // Create icons
-        setIcons({
-            OLT: createIcon("OLT", "green"),
-            SPLITTER: createIcon("FAT", "purple"),
-            POLE: createIcon("P", "blue")
+        const frame = window.requestAnimationFrame(() => {
+            fixLeafletIcons()
+            setIcons({
+                OLT: createIcon("OLT", "green"),
+                SPLITTER: createIcon("FAT", "purple"),
+                ONT: createIcon("ONT", "orange"),
+                POLE: createIcon("P", "blue")
+            })
+            setIsClient(true)
+            void loadMapData()
         })
 
-        loadMapData()
+        return () => window.cancelAnimationFrame(frame)
     }, [])
 
     // UTIL: find first geo position from parsed data
@@ -323,6 +343,13 @@ export default function UltimateGISMap() {
             description: 'Fiber Access Terminal'
         },
         {
+            id: 'ont',
+            label: 'ONT / ONU',
+            icon: <Wifi className="h-5 w-5" />,
+            color: 'bg-orange-500',
+            description: 'Connected customer terminals'
+        },
+        {
             id: 'pole',
             label: 'Pole',
             icon: <Landmark className="h-5 w-5" />,
@@ -386,13 +413,17 @@ export default function UltimateGISMap() {
                                 if (feat.type === 'Point') {
                                     let icon = icons.POLE;
                                     let show = layers.pole
-                                    if (tag.includes('olt')) {
+                                    if (feat.kind === 'olt' || tag.includes('olt')) {
                                         icon = icons.OLT;
                                         show = layers.olt
                                     }
-                                    else if (tag.includes('splitter') || tag.includes('fat')) {
+                                    else if (feat.kind === 'splitter' || tag.includes('splitter') || tag.includes('fat')) {
                                         icon = icons.SPLITTER;
                                         show = layers.splitter
+                                    }
+                                    else if (feat.kind === 'ont' || tag.includes('ont') || tag.includes('onu')) {
+                                        icon = icons.ONT
+                                        show = layers.ont
                                     }
                                     else if (!tag.includes('pole')) {
                                         show = layers.misc
@@ -409,6 +440,7 @@ export default function UltimateGISMap() {
                                                         {feat.name}
                                                     </p>
                                                     <div className="bg-muted dark:bg-gray-800 p-2 rounded-md text-sm">
+                                                        {feat.status && <p className="mb-2 text-xs font-medium uppercase">{feat.status}</p>}
                                                         <p className="text-xs flex justify-between">
                                                             <span className="text-muted-foreground">LAT:</span>
                                                             <span className="font-mono">{feat.coords[0].toFixed(7)}</span>
@@ -417,6 +449,9 @@ export default function UltimateGISMap() {
                                                             <span className="text-muted-foreground">LON:</span>
                                                             <span className="font-mono">{feat.coords[1].toFixed(7)}</span>
                                                         </p>
+                                                        {feat.meta && Object.entries(feat.meta).filter(([, value]) => value !== null && value !== undefined && value !== '').slice(0, 6).map(([key, value]) => (
+                                                            <p key={key} className="mt-1 flex justify-between gap-3 text-xs"><span className="text-muted-foreground">{key}</span><span className="max-w-[120px] truncate font-mono">{String(value)}</span></p>
+                                                        ))}
                                                     </div>
                                                 </div>
                                             </Popup>
@@ -431,7 +466,7 @@ export default function UltimateGISMap() {
                                         key={`${f.id}-ln-${i}`}
                                         positions={feat.path}
                                         pathOptions={{
-                                            color: '#6366f1',
+                                            color: feat.meta?.coreColor || '#6366f1',
                                             weight: 4,
                                             opacity: 0.8,
                                         }}
@@ -592,14 +627,14 @@ export default function UltimateGISMap() {
                                                                     </div>
                                                                 </div>
                                                                 <div className="flex items-center gap-1">
-                                                                    <Button
+                                                                    {!file.readOnly && <Button
                                                                         variant="ghost"
                                                                         size="icon"
                                                                         className="h-7 w-7 opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
                                                                         onClick={(e) => handleRemoveFile(e, file.id)}
                                                                     >
                                                                         <Trash2 className="h-3.5 w-3.5" />
-                                                                    </Button>
+                                                                    </Button>}
                                                                 </div>
                                                             </div>
                                                         ))}
@@ -698,7 +733,7 @@ export default function UltimateGISMap() {
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
                     <Input
                         className="w-64 pl-10 bg-background/90 backdrop-blur-md shadow-lg border-border"
-                        placeholder="Search OLT, Fiber ID, Pole..."
+                        placeholder="Search OLT, ONT, splitter, route..."
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                     />

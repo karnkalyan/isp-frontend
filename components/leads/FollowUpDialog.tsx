@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { CalendarDateTimeInput } from "@/components/ui/calendar-datetime-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -313,11 +314,10 @@ export function FollowUpDialog({
                             <Label htmlFor="scheduledAt">
                                 Scheduled Date & Time <span className="text-red-500">*</span>
                             </Label>
-                            <Input
+                            <CalendarDateTimeInput
                                 id="scheduledAt"
-                                type="datetime-local"
                                 value={formData.scheduledAt}
-                                onChange={(e) => handleChange("scheduledAt", e.target.value)}
+                                onChange={(value) => handleChange("scheduledAt", value)}
                             />
                         </div>
 

@@ -34,7 +34,10 @@ function lineFor(log: ConsoleLog, index: number) {
   const action = String(log.action || "EVENT").replace(/_/g, " ")
   const actor = log.user?.name || log.user?.email || "System"
   const details = parseDetails(log.details)
-  const detailText = details ? JSON.stringify(details, null, 2) : log.description || "No metadata"
+  const focusedDetails = details && Array.isArray((details as any).changes)
+    ? { entity: (details as any).entity, id: (details as any).entityId ?? (details as any).id, changes: (details as any).changes }
+    : details
+  const detailText = focusedDetails ? JSON.stringify(focusedDetails, null, 2) : log.description || "No metadata"
   return {
     action,
     actor,
@@ -48,32 +51,32 @@ export function OrchestrationConsole({ title = "Real-Time Orchestration Output C
   const visibleLogs = logs || []
 
   return (
-    <section className="overflow-hidden rounded-[24px] border border-fuchsia-500/20 bg-[#170a22] text-[#f7efff] shadow-[0_24px_70px_rgba(31,0,51,.22)]">
-      <div className="flex items-center justify-between border-b border-white/10 px-5 py-4 sm:px-7">
+    <section className="overflow-hidden rounded-[24px] border border-border/70 bg-card text-card-foreground shadow-[0_18px_55px_rgba(76,29,149,.08)] dark:border-fuchsia-500/20 dark:bg-[#170a22] dark:text-[#f7efff] dark:shadow-[0_24px_70px_rgba(31,0,51,.22)]">
+      <div className="flex items-center justify-between border-b border-border/70 bg-muted/35 px-5 py-4 dark:border-white/10 dark:bg-transparent sm:px-7">
         <div className="flex min-w-0 items-center gap-3">
           <Terminal className="size-5 shrink-0 text-fuchsia-500" />
-          <h3 className="truncate text-sm font-semibold text-violet-200 sm:text-base">{title}</h3>
+          <h3 className="truncate text-sm font-semibold text-foreground dark:text-violet-200 sm:text-base">{title}</h3>
         </div>
         <span className="shrink-0 text-[11px] font-bold tracking-[.18em] text-fuchsia-500">{status}</span>
       </div>
 
       <div className="max-h-[430px] space-y-4 overflow-y-auto px-5 py-5 font-mono text-[13px] leading-6 sm:px-7">
         {visibleLogs.length === 0 ? (
-          <p className="text-violet-200/70">{empty}</p>
+          <p className="text-muted-foreground dark:text-violet-200/70">{empty}</p>
         ) : (
           visibleLogs.map((log, index) => {
             const line = lineFor(log, index)
             const highlight = index === visibleLogs.length - 1
             return (
-              <article key={log.id || index} className={highlight ? "rounded-xl border border-fuchsia-500/30 bg-fuchsia-950/35 p-4" : ""}>
-                <p className={highlight ? "font-semibold text-fuchsia-400" : "text-violet-200"}>
-                  <span className="text-white">[{line.offset}]</span> {line.action} by {line.actor}
+              <article key={log.id || index} className={highlight ? "rounded-xl border border-primary/20 bg-primary/[.045] p-4 shadow-sm dark:border-fuchsia-500/30 dark:bg-fuchsia-950/35" : "rounded-xl border border-transparent px-1 py-2"}>
+                <p className={highlight ? "font-semibold text-primary dark:text-fuchsia-400" : "text-foreground dark:text-violet-200"}>
+                  <span className="text-foreground dark:text-white">[{line.offset}]</span> {line.action} by {line.actor}
                 </p>
-                <p className="mt-1 whitespace-pre-wrap break-words text-violet-200/75">{log.description || line.detailText}</p>
+                <p className="mt-1 whitespace-pre-wrap break-words text-muted-foreground dark:text-violet-200/75">{log.description || line.detailText}</p>
                 {line.detailText && log.description && (
-                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-white/10 bg-black/20 p-3 text-[11px] text-violet-100/80">{line.detailText}</pre>
+                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-border bg-muted/60 p-3 text-[11px] text-foreground/80 dark:border-white/10 dark:bg-black/20 dark:text-violet-100/80">{line.detailText}</pre>
                 )}
-                <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-violet-300/70">
+                <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-muted-foreground dark:text-violet-300/70">
                   <span>{line.time}</span>
                   {log.ip && <span>IP {log.ip}</span>}
                   {log.browser && <span className="truncate">Browser {log.browser}</span>}
@@ -84,9 +87,9 @@ export function OrchestrationConsole({ title = "Real-Time Orchestration Output C
         )}
       </div>
 
-      <div className="flex items-center justify-between border-t border-white/10 px-5 py-4 text-xs sm:px-7">
-        <span className="text-violet-300">State Rollback Safeguard: Armed & Ready</span>
-        <span className="flex items-center gap-2 font-semibold text-white"><CheckCircle2 className="size-4 text-fuchsia-500" />Audit record logged</span>
+      <div className="flex items-center justify-between border-t border-border/70 bg-muted/25 px-5 py-4 text-xs dark:border-white/10 dark:bg-transparent sm:px-7">
+        <span className="text-muted-foreground dark:text-violet-300">State Rollback Safeguard: Armed & Ready</span>
+        <span className="flex items-center gap-2 font-semibold text-foreground dark:text-white"><CheckCircle2 className="size-4 text-emerald-500 dark:text-fuchsia-500" />Audit record logged</span>
       </div>
     </section>
   )

@@ -1,8 +1,13 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { PageHeader } from "@/components/ui/page-header"
-import FiberMap from "@/components/fiber/fiber-map"
+
+const FiberMap = dynamic(() => import("@/components/fiber/fiber-map"), {
+    ssr: false,
+    loading: () => <div className="h-[70vh] animate-pulse rounded-lg border bg-muted/30" />
+})
 
 export default function FiberMapPage() {
     return (

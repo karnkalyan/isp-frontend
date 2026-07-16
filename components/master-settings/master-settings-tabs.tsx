@@ -15,6 +15,7 @@ import { TicketSettings } from "@/components/settings/ticket-settings"
 import { RadiusPoolsSettings } from "@/components/settings/radius-pools-settings"
 import { ServicesSyncSettings } from "@/components/settings/services-sync-settings"
 import { PaymentGatewaySettings } from "./payment-gateway-settings"
+import { ThemeEditor } from "./theme-editor"
 
 export function MasterSettingsTabs() {
   const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null)
@@ -75,6 +76,7 @@ export function MasterSettingsTabs() {
       <Tabs defaultValue="system" className="space-y-6">
         <TabsList className="bg-slate-100 dark:bg-slate-800 flex-wrap h-auto">
           <TabsTrigger value="system">System Overview</TabsTrigger>
+          <TabsTrigger value="appearance">Theme Studio</TabsTrigger>
           <TabsTrigger value="mail">Mail Setup</TabsTrigger>
           <TabsTrigger value="branch">Service & Branch Settings</TabsTrigger>
           <TabsTrigger value="enhancements">Enhancements & Customer Types</TabsTrigger>
@@ -89,6 +91,7 @@ export function MasterSettingsTabs() {
         <TabsContent value="system">
           <SystemSettings />
         </TabsContent>
+        <TabsContent value="appearance"><ThemeEditor /></TabsContent>
         <TabsContent value="mail">
           <MailSettings />
         </TabsContent>

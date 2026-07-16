@@ -87,6 +87,7 @@ const BRANDING_FIELDS: Array<{
 export function SystemSettings() {
   const [settings, setSettings] = useState({
     timezone: "Asia/Kathmandu",
+    defaultCalendarSystem: "AD" as "AD" | "BS",
     currency: "NPR",
     language: "en",
     maintenanceMode: false,
@@ -224,6 +225,7 @@ export function SystemSettings() {
           setSettings(prev => ({
             ...prev,
             timezone: data.timezone || prev.timezone,
+            defaultCalendarSystem: String(data.defaultCalendarSystem || prev.defaultCalendarSystem).toUpperCase() === "BS" ? "BS" : "AD",
             currency: data.currency || prev.currency,
             language: data.language || prev.language,
             maintenanceMode: data.maintenanceMode === 'true',
@@ -705,7 +707,7 @@ export function SystemSettings() {
         </CardContainer>
 
         <CardContainer title="Regional Settings" description="Timezone, currency and language settings">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             <div className="space-y-2">
               <Label htmlFor="timezone">Timezone</Label>
               <Select value={settings.timezone} onValueChange={(value) => updateSetting("timezone", value)}>
@@ -718,6 +720,15 @@ export function SystemSettings() {
                   <SelectItem value="Asia/Kolkata">Asia/Kolkata</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="defaultCalendarSystem">Default calendar</Label>
+              <Select value={settings.defaultCalendarSystem} onValueChange={(value: "AD" | "BS") => updateSetting("defaultCalendarSystem", value)}>
+                <SelectTrigger id="defaultCalendarSystem"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="AD">AD — Gregorian</SelectItem><SelectItem value="BS">BS — Bikram Sambat</SelectItem></SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">Date inputs and displays use this calendar by default; AD remains the canonical calculation date.</p>
             </div>
 
             <div className="space-y-2">

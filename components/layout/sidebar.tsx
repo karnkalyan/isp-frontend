@@ -252,6 +252,27 @@ const menuCategories: MenuCategory[] = [
         ],
       },
       {
+        title: "Device Management",
+        icon: Router,
+        permission: ["devices_view", "olt_read", "nas_read"],
+        submenu: [
+          { title: "MikroTik Management", href: "/device-management/mikrotik", permission: ["devices_view", "olt_read", "nas_read"] },
+          { title: "Cisco Management", href: "/device-management/cisco", permission: ["devices_view", "olt_read", "nas_read"] },
+          { title: "Huawei OLT Management", href: "/device-management/huawei-olt", permission: ["devices_view", "olt_read", "nas_read"] },
+          { title: "Nokia BNG", href: "/device-management/nokia-bng", permission: ["devices_view", "olt_read", "nas_read"] },
+          { title: "BD Com", href: "/device-management/bdcom", permission: ["devices_view", "olt_read", "nas_read"] },
+          { title: "CDATA", href: "/device-management/cdata", permission: ["devices_view", "olt_read", "nas_read"] },
+          { title: "VSOL", href: "/device-management/vsol", permission: ["devices_view", "olt_read", "nas_read"] },
+          { title: "NOKIA OLT", href: "/device-management/nokia-olt", permission: ["devices_view", "olt_read", "nas_read"] },
+          { title: "FortiGate Firewall", href: "/device-management/fortiget-firewall", permission: ["devices_view", "olt_read", "nas_read"] },
+          { title: "Alto Palo", href: "/device-management/alto-palo", permission: ["devices_view", "olt_read", "nas_read"] },
+          { title: "Sophos", href: "/device-management/sophos", permission: ["devices_view", "olt_read", "nas_read"] },
+          { title: "Linux Server", href: "/device-management/linux-server", permission: ["devices_view", "olt_read", "nas_read"] },
+          { title: "Juniper Switch", href: "/device-management/juniper-switch", permission: ["devices_view", "olt_read", "nas_read"] },
+          { title: "Juniper BRAS", href: "/device-management/juniper-bras", permission: ["devices_view", "olt_read", "nas_read"] },
+        ],
+      },
+      {
         title: "Disconnect Sessions",
         icon: Server,
         href: "/radius/disconnect",
@@ -263,6 +284,16 @@ const menuCategories: MenuCategory[] = [
     category: "Access Networks",
     items: [
       {
+        title: "Network Operations",
+        icon: Activity,
+        permission: ["dashboard_view", "devices_view", "olt_read"],
+        submenu: [
+          { title: "Monitoring Dashboard", href: "/monitoring/dashboard", permission: ["dashboard_view", "devices_view", "olt_read"] },
+          { title: "Technical NOC", href: "/noc/dashboard", permission: ["dashboard_view", "devices_view", "olt_read"] },
+          { title: "ONU / ONT Inventory", href: "/network/onts", permission: "olt_read" },
+        ],
+      },
+      {
         title: "Fiber Management",
         icon: Cable,
         permission: "olt_read",
@@ -270,6 +301,7 @@ const menuCategories: MenuCategory[] = [
           { title: "Fiber Networks", href: "/fiber/networks", permission: "olt_read" },
           { title: "Fiber Map", href: "/fiber/map", permission: "olt_read" },
           { title: "OLT Management", href: "/fiber/olt", permission: "olt_read" },
+          { title: "ONU / ONT Inventory", href: "/network/onts", permission: "olt_read" },
           { title: "Get Splitters", href: "/fiber/splitters/nearby", permission: "tasks_read_self" },
         ],
       },
@@ -394,7 +426,6 @@ const menuCategories: MenuCategory[] = [
         title: "AI Agents",
         icon: Bot,
         permission: "dashboard_view",
-        highlight: true,
         submenu: [
           { title: "Dashboard", href: "/ai-agents", permission: "dashboard_view" },
           { title: "Agent Directory", href: "/ai-agents/directory", permission: "dashboard_view" },
@@ -433,6 +464,7 @@ const menuCategories: MenuCategory[] = [
 const getIconColorClass = (title: string): string => {
   const t = title.toLowerCase()
   if (t.includes("dashboard")) return "sidebar-icon-dashboard" // Blue
+  if (t.includes("ai agent") || t.includes("automation")) return "sidebar-icon-ai" // Kashtrix AI magenta
   if (t.includes("customer") || t.includes("user") || t.includes("role") || t.includes("branch") || t.includes("membership") || t.includes("department")) return "sidebar-icon-management" // Purple
   if (t.includes("lead") || t.includes("crm") || t.includes("existing isp") || t.includes("sms campaign")) return "sidebar-icon-marketing" // Teal
   if (t.includes("service") || t.includes("tariff") || t.includes("3rd party")) return "sidebar-icon-services" // Green
@@ -632,7 +664,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
     if (filteredMenuCategories) {
       filteredMenuCategories.forEach((category) => {
         const item = category.items.find(
-          (item) => item.submenu?.some((subitem) => pathname === subitem.href) || pathname === item.href,
+          (item) => item.submenu?.some((subitem) => pathname === subitem.href || (subitem.href !== "/ai-agents" && pathname.startsWith(subitem.href + "/"))) || pathname === item.href || (item.title === "AI Agents" && pathname.startsWith("/ai-agents")),
         )
         if (item) foundMenuItem = item
       })
@@ -707,7 +739,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
 
     // For items with submenu, check if any submenu item matches the current path
     if (item.submenu) {
-      return item.submenu.some((subitem) => pathname === subitem.href)
+      return item.submenu.some((subitem) => pathname === subitem.href || (subitem.href !== "/ai-agents" && pathname.startsWith(subitem.href + "/"))) || (item.title === "AI Agents" && pathname.startsWith("/ai-agents"))
     }
 
     // For regular items, check if the path starts with the item's href
@@ -769,8 +801,8 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
                   <div key={category.category} className="mb-2">
                     {/* Category header - only show when sidebar is open */}
                     {open && (
-                      <div className="px-3 mb-1">
-                        <h3 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                      <div className="mb-1 px-3 pt-1">
+                        <h3 className="text-[11px] font-semibold tracking-wide text-foreground/80">
                           {category.category}
                         </h3>
                       </div>
@@ -856,7 +888,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
                               <div className="pl-10 pr-2">
                                 <div className="mt-1 space-y-1">
                                   {item.submenu?.map((subitem) => {
-                                    const isSubActive = pathname === subitem.href
+                                    const isSubActive = pathname === subitem.href || (subitem.href !== "/ai-agents" && pathname.startsWith(subitem.href + "/"))
                                     return (
                                       <Link
                                         key={subitem.title}
@@ -998,7 +1030,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
               .flatMap((category) => category.items)
               .find((item) => item && item.title === hoveredMenu)
               ?.submenu?.map((subitem) => {
-                const isSubActive = pathname === subitem.href
+                const isSubActive = pathname === subitem.href || (subitem.href !== "/ai-agents" && pathname.startsWith(subitem.href + "/"))
                 return (
                   <Link
                     key={subitem.title}

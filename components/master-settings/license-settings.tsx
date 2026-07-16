@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { CalendarDateInput } from "@/components/ui/calendar-date-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { CardContainer } from "@/components/ui/card-container"
@@ -195,7 +196,9 @@ function Field({ label, value, onChange, type = "text" }: { label: string; value
   return (
     <div className="space-y-2">
       <Label>{label}</Label>
-      <Input type={type} value={value} onChange={(event) => onChange(event.target.value)} />
+      {type === "date"
+        ? <CalendarDateInput value={value} onChange={onChange} />
+        : <Input type={type} value={value} onChange={(event) => onChange(event.target.value)} />}
     </div>
   )
 }

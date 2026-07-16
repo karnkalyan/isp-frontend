@@ -55,7 +55,7 @@ import "leaflet/dist/leaflet.css"
 import { useMapEvents, useMap } from 'react-leaflet'
 
 // Dynamically import Leaflet components
-const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
+const MapContainer = dynamic(() => import('@/components/maps/safe-map-container').then(mod => mod.SafeMapContainer), { ssr: false })
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false })

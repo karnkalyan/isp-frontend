@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from "react"
 import { CardContainer } from "@/components/ui/card-container"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { CalendarDateTimeInput } from "@/components/ui/calendar-datetime-input"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -77,7 +78,7 @@ import dynamic from 'next/dynamic'
 import "leaflet/dist/leaflet.css"
 
 // Dynamically import map components to avoid SSR issues
-const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
+const MapContainer = dynamic(() => import('@/components/maps/safe-map-container').then(mod => mod.SafeMapContainer), { ssr: false })
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false })
@@ -1404,8 +1405,8 @@ export function ActiveLeads({
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="scheduledAt">Scheduled Date & Time <span className="text-red-500">*</span></Label>
-                                <Input id="scheduledAt" type="datetime-local" value={followUpForm.scheduledAt}
-                                    onChange={(e) => updateFollowUpField("scheduledAt", e.target.value)} />
+                                <CalendarDateTimeInput id="scheduledAt" value={followUpForm.scheduledAt}
+                                    onChange={(value) => updateFollowUpField("scheduledAt", value)} />
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="assignedUserId">Assigned To</Label>

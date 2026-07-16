@@ -6,6 +6,7 @@ import { CardContainer } from "@/components/ui/card-container"
 import { PageHeader } from "@/components/ui/page-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { CalendarDateInput } from "@/components/ui/calendar-date-input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "react-hot-toast"
@@ -243,19 +244,17 @@ export default function ReportsPage() {
                     <>
                       <div className="space-y-1.5">
                         <Label className="text-xs">Start Date</Label>
-                        <Input
-                          type="date"
+                        <CalendarDateInput
                           value={filters.startDate}
-                          onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
+                          onChange={(value) => setFilters(prev => ({ ...prev, startDate: value }))}
                           className="h-9 border-slate-200 dark:border-slate-800 bg-background"
                         />
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs">End Date</Label>
-                        <Input
-                          type="date"
+                        <CalendarDateInput
                           value={filters.endDate}
-                          onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
+                          onChange={(value) => setFilters(prev => ({ ...prev, endDate: value }))}
                           className="h-9 border-slate-200 dark:border-slate-800 bg-background"
                         />
                       </div>

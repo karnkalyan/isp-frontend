@@ -1,30 +1,22 @@
 "use client"
 
-import { CardContainer } from "@/components/ui/card-container"
-import { CheckCircle2, Clock, XCircle, RefreshCw, MessageSquare, UserPlus, Ticket } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { useTheme } from "next-themes"
+import Link from "next/link"
 import { useEffect, useState } from "react"
-import { apiRequest } from "@/lib/api"
 import { formatDistanceToNow } from "date-fns"
+import { CheckCircle2, Clock, EllipsisVertical, MessageSquare, RefreshCw, Ticket, UserPlus, XCircle } from "lucide-react"
+import { apiRequest } from "@/lib/api"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 export function ActivityFeed() {
-  const [mounted, setMounted] = useState(false)
-  const { resolvedTheme } = useTheme()
   const [activities, setActivities] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
 
   const fetchActivities = async () => {
     try {
       setLoading(true)
       const response = await apiRequest<{ success: boolean; data: any[] }>("/dashboard/recent-activity")
-      if (response && response.success) {
-        setActivities(response.data)
-      }
+      if (response?.success) setActivities(response.data)
     } catch (error) {
       console.error("Failed to fetch recent activity:", error)
     } finally {
@@ -34,79 +26,53 @@ export function ActivityFeed() {
 
   useEffect(() => {
     fetchActivities()
-    const interval = setInterval(fetchActivities, 120000) // Update every 2 mins
+    const interval = setInterval(fetchActivities, 120000)
     return () => clearInterval(interval)
   }, [])
 
-  const isDarkMode = mounted ? resolvedTheme === "dark" : true
-
-  const getStatusIcon = (status: string, type: string) => {
-    if (type === 'lead') return <UserPlus className="h-5 w-5 text-blue-500" />
-    if (type === 'ticket') return <Ticket className="h-5 w-5 text-amber-500" />
-    
-    switch (status) {
-      case "success":
-        return <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-      case "error":
-        return <XCircle className="h-5 w-5 text-red-500" />
-      case "warning":
-      default:
-        return <Clock className="h-5 w-5 text-amber-500" />
-    }
+  const iconFor = (activity: any) => {
+    if (activity.type === "lead") return UserPlus
+    if (activity.type === "ticket") return Ticket
+    if (activity.status === "success") return CheckCircle2
+    if (activity.status === "error") return XCircle
+    return Clock
   }
 
   return (
-    <CardContainer title="Recent Activity" description="Latest events from your ISP operations" gradientColor="#F59E0B">
-      <div className="flex justify-end p-2 -mt-10 mr-2">
-        <Button variant="ghost" size="sm" onClick={fetchActivities} disabled={loading}>
-          <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
-        </Button>
-      </div>
-      
-      <div className="space-y-1 min-h-[300px]">
+    <Card>
+      <CardHeader className="flex-row items-start justify-between space-y-0 border-b px-4 py-3">
+        <div>
+          <CardTitle className="text-[16px]">Recent Activities</CardTitle>
+          <CardDescription className="text-xs">Latest system activities and updates</CardDescription>
+        </div>
+        <div className="flex items-center gap-1">
+          <Link href="/admin/audit-log" className="text-[10px] font-medium text-primary hover:underline">View All</Link>
+          <Button variant="ghost" size="icon-sm" onClick={fetchActivities} disabled={loading} aria-label="Refresh activities"><RefreshCw className={`size-3 ${loading ? "animate-spin" : ""}`} /></Button>
+        </div>
+      </CardHeader>
+      <CardContent className="px-4 py-1">
         {loading && activities.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 opacity-50">
-            <RefreshCw className="h-8 w-8 animate-spin mb-2" />
-            <p className="text-sm">Loading activity...</p>
+          <div className="flex h-24 items-center justify-center"><RefreshCw className="size-5 animate-spin text-muted-foreground" /></div>
+        ) : activities.length ? (
+          <div>
+            {activities.slice(0, 4).map((activity, index) => {
+              const Icon = iconFor(activity)
+              return (
+                <div key={activity.id || index} className="flex items-center gap-3 border-b border-border py-2.5 last:border-b-0">
+                  <span className={`flex size-8 shrink-0 items-center justify-center rounded-[6px] ${activity.status === "error" ? "bg-[var(--status-danger-bg)] text-[var(--status-danger)]" : index % 2 ? "bg-[var(--status-success-bg)] text-[var(--status-success)]" : "bg-[var(--status-info-bg)] text-[var(--status-info)]"}`}><Icon className="size-3.5" /></span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[11px] font-medium text-foreground">{activity.title}</p>
+                    <p className="mt-0.5 truncate text-[9px] text-muted-foreground">{activity.timestamp ? formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true }) : activity.description}</p>
+                  </div>
+                  <EllipsisVertical className="size-3.5 text-muted-foreground" />
+                </div>
+              )
+            })}
           </div>
-        ) : activities.length > 0 ? (
-          activities.map((activity) => (
-            <div
-              key={activity.id}
-              className={`flex items-start p-4 ${isDarkMode ? "hover:bg-slate-800/10" : "hover:bg-slate-100/80"}`}
-            >
-              <div className="mt-0.5">{getStatusIcon(activity.status, activity.type)}</div>
-              <div className="ml-3 flex-1">
-                <p className={`text-sm font-medium ${isDarkMode ? "text-white" : "text-slate-900"}`}>{activity.title}</p>
-                <p className={`text-xs ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>{activity.description}</p>
-              </div>
-              <div>
-                <span
-                  className={`text-[10px] rounded-full px-2 py-0.5 ${
-                    isDarkMode ? "bg-slate-800 text-slate-400" : "bg-slate-100 text-slate-500"
-                  }`}
-                >
-                  {activity.timestamp ? formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true }) : ''}
-                </span>
-              </div>
-            </div>
-          ))
         ) : (
-          <div className="flex flex-col items-center justify-center py-20 opacity-30">
-            <MessageSquare className="h-10 w-10 mb-2" />
-            <p className="text-sm font-medium">No recent activity</p>
-          </div>
+          <div className="flex h-24 flex-col items-center justify-center text-muted-foreground"><MessageSquare className="mb-2 size-5" /><p className="text-[10px]">No recent activity</p></div>
         )}
-      </div>
-      
-      <div className={`p-4 flex justify-center border-t ${isDarkMode ? "border-slate-800" : "border-slate-200"}`}>
-        <Button
-          variant="outline"
-          className="text-xs"
-        >
-          View All Activity
-        </Button>
-      </div>
-    </CardContainer>
+      </CardContent>
+    </Card>
   )
 }

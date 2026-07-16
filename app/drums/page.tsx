@@ -6,6 +6,7 @@ import { CardContainer } from "@/components/ui/card-container"
 import { PageHeader } from "@/components/ui/page-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { CalendarDateInput } from "@/components/ui/calendar-date-input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "react-hot-toast"
@@ -509,7 +510,7 @@ export default function DrumsPage() {
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="purchDate">Purchase Date</Label>
-                      <Input id="purchDate" type="date" value={purchaseDate} onChange={e => setPurchaseDate(e.target.value)} />
+                      <CalendarDateInput id="purchDate" value={purchaseDate} onChange={setPurchaseDate} />
                     </div>
                   </div>
 

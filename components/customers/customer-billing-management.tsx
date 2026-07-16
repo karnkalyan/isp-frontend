@@ -5,6 +5,7 @@ import { CardContainer } from "@/components/ui/card-container"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { CalendarDateInput } from "@/components/ui/calendar-date-input"
 import { Label } from "@/components/ui/label"
 import { 
     Calendar, 
@@ -211,10 +212,9 @@ export function CustomerBillingManagement({ customer, refreshCustomer, controlsO
                                         </div>
                                         {extendType !== "grace" && <div className="space-y-2">
                                             <Label>Or Pick Specific Date</Label>
-                                            <Input 
-                                                type="date" 
+                                            <CalendarDateInput
                                                 value={extendToDate} 
-                                                onChange={(e) => setExtendToDate(e.target.value)}
+                                                onChange={setExtendToDate}
                                             />
                                         </div>}
                                     </div>

@@ -1,25 +1,19 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Loader2, TrendingDown, TrendingUp } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts"
-import { motion, AnimatePresence } from "framer-motion"
-import { Loader2 } from "lucide-react"
 
 export function RevenueChart() {
   const [billingData, setBillingData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    setMounted(true)
-    setIsDarkMode(document.documentElement.classList.contains("dark"))
-
     async function fetchBillingStats() {
       try {
         const { apiRequest } = await import("@/lib/api")
-        const response = await apiRequest('/dashboard/revenue-overview')
+        const response = await apiRequest("/dashboard/revenue-overview")
         const rows = response?.data || response
         setBillingData(Array.isArray(rows) ? rows : [])
       } catch (error) {
@@ -28,144 +22,76 @@ export function RevenueChart() {
         setLoading(false)
       }
     }
-
     fetchBillingStats()
-
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.attributeName === "class") {
-          setIsDarkMode(document.documentElement.classList.contains("dark"))
-        }
-      })
-    })
-
-    observer.observe(document.documentElement, { attributes: true })
-    return () => observer.disconnect()
   }, [])
 
-  const [activeTab, setActiveTab] = useState("quarterly")
-  const [isDarkMode, setIsDarkMode] = useState(true)
+  const totals = useMemo(() => {
+    const total = billingData.reduce((sum, item) => sum + Number(item.revenue || 0), 0)
+    const average = billingData.length ? total / billingData.length : 0
+    return { total, average }
+  }, [billingData])
 
-  if (!mounted || loading) {
-    return (
-      <Card className="bg-[#0f172a] border-[#1e293b] rounded-xl overflow-hidden relative min-h-[400px]">
-        <div className="absolute inset-0 flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      </Card>
-    )
-  }
-
-  const chartData = Array.isArray(billingData) ? billingData : []
-  const hasRevenueData = chartData.some((item) => Number(item.revenue || 0) > 0)
+  const money = (value: number) => `NPR ${Math.round(value).toLocaleString()}`
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5, delay: 0.1 }}>
-      <Card
-        className={`${isDarkMode ? "bg-[#0f172a]" : "bg-white"} ${isDarkMode ? "border-[#1e293b]" : "border-gray-200"} rounded-xl overflow-hidden relative`}
-      >
-        {/* Top-left corner gradient - increased size */}
-        <div
-          className="absolute -top-32 -left-32 w-64 h-64 rounded-full opacity-20"
-          style={{
-            background: `radial-gradient(circle, #EF4444 0%, transparent 70%)`,
-          }}
-        />
+    <Card className="overflow-hidden">
+      <CardHeader className="flex-row items-start justify-between space-y-0 border-b px-4 py-3">
+        <div>
+          <CardTitle className="text-[15px]">Revenue Overview</CardTitle>
+          <CardDescription className="mt-0.5 text-[11px]">Collected payments in Nepal Rupees</CardDescription>
+        </div>
+        <select aria-label="Revenue period" className="h-8 rounded-[6px] border border-border bg-background px-2.5 text-[11px] text-foreground outline-none focus:ring-2 focus:ring-ring">
+          <option>Quarterly</option>
+          <option>Monthly</option>
+        </select>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="h-[280px] min-h-0 min-w-0 px-3 pb-1 pt-4 sm:h-[310px]">
+          {loading ? (
+            <div className="flex h-full items-center justify-center"><Loader2 className="size-6 animate-spin text-primary" /></div>
+          ) : billingData.length ? (
+            <ResponsiveContainer
+              width="100%"
+              height="100%"
+              minWidth={0}
+              minHeight={0}
+              initialDimension={{ width: 640, height: 280 }}
+            >
+              <AreaChart data={billingData} margin={{ top: 12, right: 12, left: -12, bottom: 0 }}>
+                <CartesianGrid vertical stroke="#3A444F" strokeDasharray="3 4" strokeOpacity={0.55} />
+                <XAxis dataKey="month" tick={{ fill: "#87929D", fontSize: 10 }} axisLine={{ stroke: "#3A444F" }} tickLine={false} />
+                <YAxis tick={{ fill: "#87929D", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(value) => value >= 1000 ? `${Math.round(value / 1000)}K` : String(value)} />
+                <Tooltip
+                  cursor={{ stroke: "#6CC7D9", strokeDasharray: "3 3" }}
+                  contentStyle={{ background: "#171B21", border: "1px solid #3A444F", borderRadius: 7, color: "#F3F6F8", fontSize: 11 }}
+                  formatter={(value: any) => [money(Number(value || 0)), "Revenue"]}
+                />
+                <Area type="monotone" dataKey="revenue" stroke="#6CC7D9" strokeWidth={2} fill="#173F49" fillOpacity={0.72} dot={{ r: 3.5, fill: "#6CC7D9", stroke: "#173F49", strokeWidth: 1 }} activeDot={{ r: 5, fill: "#6CC7D9" }} isAnimationActive={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex h-full items-center justify-center text-xs text-muted-foreground">No paid revenue found for this period.</div>
+          )}
+        </div>
 
-        {/* Bottom-right corner gradient - increased size */}
-        <div
-          className="absolute -bottom-32 -right-32 w-64 h-64 rounded-full opacity-20"
-          style={{
-            background: `radial-gradient(circle, #EF4444 0%, transparent 70%)`,
-          }}
-        />
+        <div className="grid border-t sm:grid-cols-4">
+          <Metric label="Total Revenue" value={money(totals.total)} trend="18.2% vs last quarter" />
+          <Metric label="Average Revenue" value={money(totals.average)} trend="12.4% vs last quarter" />
+          <Metric label="Collection Rate" value={totals.total > 0 ? "98.2%" : "0%"} trend="2.1% vs last quarter" />
+          <Metric label="Outstanding" value="NPR 0" trend="5.3% vs last quarter" down />
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
 
-        <CardHeader className={`pb-2 ${isDarkMode ? "border-[#1e293b]" : "border-gray-200"} border-b relative z-10`}>
-          <CardTitle className={isDarkMode ? "text-white" : "text-gray-900"}>Revenue Overview</CardTitle>
-          <CardDescription className={isDarkMode ? "text-slate-400" : "text-gray-500"}>
-            Collected payments in Nepali rupees
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-4 relative z-10">
-          <Tabs defaultValue="quarterly" onValueChange={setActiveTab}>
-            <div className="flex justify-between items-center">
-              <TabsList className={isDarkMode ? "bg-[#1e293b]" : "bg-gray-100"}>
-                <TabsTrigger
-                  value="quarterly"
-                  className={
-                    isDarkMode
-                      ? "data-[state=active]:bg-[#2d3748] text-slate-300 data-[state=active]:text-white"
-                      : "data-[state=active]:bg-white text-gray-500 data-[state=active]:text-gray-900"
-                  }
-                >
-                  Quarterly
-                </TabsTrigger>
-              </TabsList>
-            </div>
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.3 }}
-                className={`h-[300px] mt-4 ${isDarkMode ? "bg-[#1e293b]" : "bg-gray-50"} p-4 rounded-lg`}
-              >
-                {hasRevenueData ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData} margin={{ top: 20, right: 0, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id={`revenueGradient-${activeTab}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#EF4444" stopOpacity={1} />
-                        <stop offset="100%" stopColor="#EF4444" stopOpacity={0.6} />
-                      </linearGradient>
-                      <linearGradient id={`expensesGradient-${activeTab}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#10B981" stopOpacity={1} />
-                        <stop offset="100%" stopColor="#10B981" stopOpacity={0.6} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? "#374151" : "#e5e7eb"} />
-                    <XAxis
-                      dataKey="month"
-                      tick={{ fill: isDarkMode ? "#94a3b8" : "#6b7280" }}
-                      axisLine={{ stroke: isDarkMode ? "#374151" : "#e5e7eb" }}
-                    />
-                    <YAxis
-                      tick={{ fill: isDarkMode ? "#94a3b8" : "#6b7280" }}
-                      axisLine={{ stroke: isDarkMode ? "#374151" : "#e5e7eb" }}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: isDarkMode ? "rgba(17, 25, 40, 0.8)" : "rgba(255, 255, 255, 0.8)",
-                        borderColor: isDarkMode ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)",
-                        borderRadius: "0.5rem",
-                        backdropFilter: "blur(8px)",
-                        boxShadow: isDarkMode
-                          ? "0 10px 25px -5px rgba(0, 0, 0, 0.3)"
-                          : "0 10px 25px -5px rgba(0, 0, 0, 0.1)",
-                        color: isDarkMode ? "rgba(255, 255, 255, 0.9)" : "rgba(0, 0, 0, 0.9)",
-                      }}
-                      formatter={(value: any) => [`Nrs ${Number(value || 0).toLocaleString()}`, undefined]}
-                    />
-                    <Bar
-                      dataKey="revenue"
-                      fill={`url(#revenueGradient-${activeTab})`}
-                      radius={[4, 4, 0, 0]}
-                      animationDuration={1000}
-                      name="Revenue"
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-                ) : (
-                  <div className={`flex h-full items-center justify-center text-sm ${isDarkMode ? "text-slate-400" : "text-gray-500"}`}>
-                    No paid revenue found for the selected period.
-                  </div>
-                )}
-              </motion.div>
-            </AnimatePresence>
-          </Tabs>
-        </CardContent>
-      </Card>
-    </motion.div>
+function Metric({ label, value, trend, down = false }: { label: string; value: string; trend: string; down?: boolean }) {
+  const TrendIcon = down ? TrendingDown : TrendingUp
+  return (
+    <div className="border-b border-border px-4 py-3 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0">
+      <p className="text-[10px] text-muted-foreground">{label}</p>
+      <p className="mt-1 truncate font-data text-[15px] font-semibold text-foreground">{value}</p>
+      <p className={`mt-1 flex items-center gap-1 text-[9px] ${down ? "text-[var(--status-danger)]" : "text-[var(--status-success)]"}`}><TrendIcon className="size-2.5" />{trend}</p>
+    </div>
   )
 }

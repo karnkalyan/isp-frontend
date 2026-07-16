@@ -48,6 +48,12 @@ const ROUTE_PERMISSIONS: Record<string, string | string[]> = {
   "/fiber/networks": "olt_read",
   "/fiber/map": "olt_read",
   "/fiber/olt": "olt_read",
+  "/network/onts": "olt_read",
+  "/network/onus": "olt_read",
+  "/network/discovered-onus": "olt_read",
+  "/monitoring": "dashboard_view",
+  "/noc": "dashboard_view",
+  "/technical-dashboard": "dashboard_view",
   "/inventory": "inventory_manage",
   "/inventory/add": "inventory_manage",
   "/inventory/bulk": "bulk_inventory_read",
@@ -306,7 +312,7 @@ export function LoginForm() {
         title={undefined}
         gradientColor="#4A1B7A"
         forceDarkMode={isDarkMode}
-        className="relative z-10 rounded-2xl border border-border bg-card px-6 py-6 shadow-[0_18px_55px_rgba(43,13,58,.08)]"
+        className="relative z-10 rounded-2xl border border-[#351147]/15 bg-card px-6 py-6 shadow-[0_18px_55px_rgba(43,13,58,.14)] dark:border-[#4A1B7A]/45"
       >
         {error && (
           <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2 text-red-500">
@@ -319,7 +325,7 @@ export function LoginForm() {
           <div className="space-y-2">
             <Label htmlFor="email" className="font-normal">Email, username, or phone</Label>
             <div className="relative">
-              <Input id="email" name="email" type="text" autoCapitalize="none" placeholder="Email, username, or phone" required value={formData.email} onChange={handleChange} className="bg-card/60 border-border/50 pl-10 rounded-lg" disabled={isLoading} />
+              <Input id="email" name="email" type="text" autoCapitalize="none" placeholder="Email, username, or phone" required value={formData.email} onChange={handleChange} className="rounded-lg border-[#351147]/20 bg-card/60 pl-10 focus-visible:border-[#4A1B7A] focus-visible:ring-[#4A1B7A]/20" disabled={isLoading} />
               <UserRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             </div>
           </div>
@@ -327,10 +333,10 @@ export function LoginForm() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="password" className="font-normal">Password</Label>
-              <Button variant="link" type="button" className="p-0 h-auto text-xs text-primary" onClick={() => router.push("/forgot-password")}>Forgot password?</Button>
+              <Button variant="link" type="button" className="h-auto p-0 text-xs text-[#4A1B7A] hover:text-[#351147] dark:text-purple-200" onClick={() => router.push("/forgot-password")}>Forgot password?</Button>
             </div>
             <div className="relative">
-              <Input id="password" name="password" type={showPassword ? "text" : "password"} placeholder="••••••••" required value={formData.password} onChange={handleChange} className="bg-card/60 border-border/50 pl-4 pr-10 rounded-lg" disabled={isLoading} />
+              <Input id="password" name="password" type={showPassword ? "text" : "password"} placeholder="••••••••" required value={formData.password} onChange={handleChange} className="rounded-lg border-[#351147]/20 bg-card/60 pl-4 pr-10 focus-visible:border-[#4A1B7A] focus-visible:ring-[#4A1B7A]/20" disabled={isLoading} />
               <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3" onClick={() => setShowPassword(!showPassword)} disabled={isLoading}>
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </Button>
@@ -342,7 +348,7 @@ export function LoginForm() {
             <Label htmlFor="remember" className="text-sm font-medium cursor-pointer">Remember me for 30 days</Label>
           </div>
 
-          <Button type="submit" className="w-full" loading={isLoading} disabled={isLoading}>
+          <Button type="submit" className="w-full bg-[linear-gradient(90deg,#2B0D3A_0%,#351147_48%,#4A1B7A_100%)] text-white shadow-[0_10px_24px_rgba(74,27,122,.24)] hover:brightness-110" loading={isLoading} disabled={isLoading}>
             {isLoading ? "Signing in..." : "Sign in"}
           </Button>
 
@@ -370,7 +376,7 @@ export function LoginForm() {
               </div>
             </div>
             <div className="mt-6">
-              <div className="group relative h-9 overflow-hidden rounded-lg border border-border bg-background transition-colors hover:border-primary/40 dark:bg-white/[0.06]">
+              <div className="group relative h-9 overflow-hidden rounded-lg border border-[#351147]/15 bg-background transition-colors hover:border-[#4A1B7A]/55 dark:bg-white/[0.06]">
                 <div className="pointer-events-none flex h-full items-center justify-center gap-3 px-4">
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-black/5">
                     <GoogleIcon className="h-4 w-4" />

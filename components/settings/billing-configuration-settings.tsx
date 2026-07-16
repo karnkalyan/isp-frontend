@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { apiRequest } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { CalendarDateInput } from "@/components/ui/calendar-date-input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import toast from "react-hot-toast"
@@ -35,7 +36,7 @@ export function BillingConfigurationSettings() {
       <div><h3 className="font-semibold">Fiscal Years</h3><p className="text-sm text-muted-foreground">The current fiscal year activates automatically between its dates.</p></div>
       <div className="grid gap-3 rounded-lg border p-4">
         <div><Label>Name</Label><Input value={year.name} onChange={e => setYear({ ...year, name: e.target.value })} placeholder="2026/27" /></div>
-        <div className="grid grid-cols-2 gap-3"><div><Label>Start date</Label><Input type="date" value={year.startDate} onChange={e => setYear({ ...year, startDate: e.target.value })} /></div><div><Label>End date</Label><Input type="date" value={year.endDate} onChange={e => setYear({ ...year, endDate: e.target.value })} /></div></div>
+        <div className="grid grid-cols-2 gap-3"><div><Label>Start date</Label><CalendarDateInput value={year.startDate} onChange={value => setYear({ ...year, startDate: value })} /></div><div><Label>End date</Label><CalendarDateInput value={year.endDate} onChange={value => setYear({ ...year, endDate: value })} /></div></div>
         <Button onClick={() => addYear().catch((e:any) => toast.error(e.message))}>Add Fiscal Year</Button>
       </div>
       <div className="space-y-2">{years.map(y => <div key={y.id} className="flex justify-between rounded border p-3"><span>{y.name}</span><span className={y.isActive ? "text-emerald-500" : "text-muted-foreground"}>{y.isActive ? "Current" : y.isEnabled ? "Scheduled" : "Disabled"}</span></div>)}</div>

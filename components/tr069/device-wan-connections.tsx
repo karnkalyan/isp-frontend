@@ -898,7 +898,7 @@ export function TR069DeviceWanConnections({ deviceId }: TR069DeviceWanConnection
                                                 <span className="font-medium">{formatBytes(ethernetStats.bytesReceived + ethernetStats.bytesSent)}</span>
                                             </div>
                                             <div className="h-24">
-                                                <ResponsiveContainer width="100%" height="100%">
+                                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 240, height: 96 }}>
                                                     <RechartsPieChart>
                                                         <Pie
                                                             data={getTrafficData(ethernetStats)}
@@ -941,7 +941,7 @@ export function TR069DeviceWanConnections({ deviceId }: TR069DeviceWanConnection
                                                 <span className="font-medium">{formatNumber(ethernetStats.packetsReceived + ethernetStats.packetsSent)}</span>
                                             </div>
                                             <div className="h-24">
-                                                <ResponsiveContainer width="100%" height="100%">
+                                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 240, height: 96 }}>
                                                     <RechartsPieChart>
                                                         <Pie
                                                             data={getPacketData(ethernetStats)}

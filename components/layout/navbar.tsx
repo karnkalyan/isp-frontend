@@ -2,7 +2,8 @@
 
 import type React from "react";
 import { useState, useEffect } from "react";
-import { Menu, Search, X, Headset } from "lucide-react";
+import { Menu, Search, X, Headset, CircleHelp, Settings } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -148,7 +149,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
           </div>
 
           {/* Search */}
-          <div className={`${showSearch ? "flex" : "hidden md:flex"} ml-2 max-w-sm flex-1 items-center px-2`}>
+          <div className={`${showSearch ? "flex" : "hidden md:flex"} ml-2 max-w-[520px] flex-1 items-center px-2`}>
             <div className="relative w-full group">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors duration-200" />
               <Input
@@ -177,6 +178,12 @@ export function Navbar({ onMenuClick }: NavbarProps) {
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
+            <button className="hidden h-9 items-center gap-3 rounded-[7px] border border-border bg-card px-3 font-data text-[11px] text-foreground transition-colors hover:bg-accent xl:flex" aria-label="Application version">
+              v1.4.0 <span className="text-muted-foreground">⌄</span>
+            </button>
+            <span className="mx-1 hidden h-6 w-px bg-border xl:block" aria-hidden="true" />
+            <Button variant="ghost" size="icon-sm" className="hidden lg:inline-flex" aria-label="Help"><CircleHelp className="size-4" /></Button>
+            <Button asChild variant="ghost" size="icon-sm" className="hidden lg:inline-flex"><Link href="/master-settings" aria-label="Settings"><Settings className="size-4" /></Link></Button>
             {!isCustomer && !isGlobalRole && (
               <BranchSwitcher className="hidden lg:flex" />
             )}

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react"
 import { CardContainer } from "@/components/ui/card-container"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { CalendarDateTimeInput } from "@/components/ui/calendar-datetime-input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -875,11 +876,10 @@ export function FollowUpTracking() {
                             </div>
                             <div>
                                 <Label htmlFor="scheduledAt">Scheduled Date & Time *</Label>
-                                <Input
+                                <CalendarDateTimeInput
                                     id="scheduledAt"
-                                    type="datetime-local"
                                     value={editForm.scheduledAt}
-                                    onChange={(e) => setEditForm({ ...editForm, scheduledAt: e.target.value })}
+                                    onChange={(value) => setEditForm({ ...editForm, scheduledAt: value })}
                                     required
                                 />
                             </div>
@@ -1029,11 +1029,10 @@ export function FollowUpTracking() {
 
                         <div className="space-y-2">
                             <Label htmlFor="completedAt">Completion Time</Label>
-                            <Input
+                            <CalendarDateTimeInput
                                 id="completedAt"
-                                type="datetime-local"
                                 value={markCompleteForm.completedAt}
-                                onChange={(e) => setMarkCompleteForm(prev => ({ ...prev, completedAt: e.target.value }))}
+                                onChange={(value) => setMarkCompleteForm(prev => ({ ...prev, completedAt: value }))}
                             />
                         </div>
 

@@ -1,0 +1,38 @@
+"use client"
+
+import { useEffect, useMemo, useState } from "react"
+import { Activity, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Database, Search } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+
+type View={kind:"table"|"key-value"|"list";columns?:string[];items?:Record<string,unknown>[];fields?:Record<string,unknown>;summary?:Record<string,unknown>}
+type Payload={module?:string;view?:View;meta?:{protocol?:string;durationMs?:number;lastUpdatedAt?:string;partial?:boolean;warnings?:string[]}}
+const label=(value:string)=>value.replace(/^\./,"").replace(/[-_]+/g," ").replace(/\b\w/g,c=>c.toUpperCase())
+const display=(value:unknown)=>{if(value===null||value===undefined||value==="")return "—";if(typeof value==="boolean")return value?"Yes":"No";if(Array.isArray(value))return value.map(item=>typeof item==="object"&&item!==null?String((item as any).name??Object.values(item as object).join(" ")):String(item)).join(", ");if(typeof value==="object")return Object.entries(value as object).map(([key,item])=>`${key}: ${String(item)}`).join(", ");return String(value)}
+
+export function DeviceDataWidget({payload,title}:{payload:Payload;title:string}){
+  const view=payload?.view
+  const [query,setQuery]=useState("")
+  const [sort,setSort]=useState<{column:string;direction:"asc"|"desc"}|null>(null)
+  const [page,setPage]=useState(1)
+  const [pageSize,setPageSize]=useState(50)
+  const [expanded,setExpanded]=useState<string|null>(null)
+  const items=useMemo(()=>view?.items||[],[view?.items])
+  const columns=useMemo(()=>view?.columns?.length?view.columns:Object.keys(items[0]||{}),[view?.columns,items])
+  const filtered=useMemo(()=>{const needle=query.trim().toLowerCase(),rows=needle?items.filter(row=>Object.values(row).some(value=>display(value).toLowerCase().includes(needle))):items;if(!sort)return rows;return [...rows].sort((left,right)=>{const a=left[sort.column],b=right[sort.column],numeric=Number(a)-Number(b),result=Number.isNaN(numeric)?String(a??"").localeCompare(String(b??"")):numeric;return sort.direction==="asc"?result:-result})},[items,query,sort])
+  const pages=Math.max(1,Math.ceil(filtered.length/pageSize)),visible=filtered.slice((page-1)*pageSize,page*pageSize)
+  useEffect(()=>setPage(1),[query,pageSize])
+  useEffect(()=>setPage(current=>Math.min(current,pages)),[pages])
+  if(!view)return <Card className="p-4 text-xs text-muted-foreground">No normalized data is available for this capability.</Card>
+  const changeSort=(column:string)=>setSort(current=>current?.column===column?{column,direction:current.direction==="asc"?"desc":"asc"}:{column,direction:"asc"})
+  return <div className="space-y-2">
+    {!!payload.meta?.warnings?.length&&<Card className="border-amber-500/40 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-300">{payload.meta.warnings.join(" ")}</Card>}
+    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{Object.entries(view.summary||{}).slice(0,4).map(([key,value])=><Card key={key} className="p-3"><div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label(key)}</div><div className="mt-0.5 text-base font-semibold">{display(value)}</div></Card>)}</div>
+    <Card className="overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b p-3"><div><div className="flex items-center gap-2 text-sm font-semibold"><Database className="size-3.5 text-primary"/>{title}{payload.meta?.partial&&<Badge variant="destructive">Partial</Badge>}</div><div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground"><Badge variant="outline" className="text-[10px]">{payload.meta?.protocol||"Device protocol"}</Badge><span><Clock className="mr-1 inline size-3"/>{payload.meta?.durationMs||0} ms</span><span>{payload.meta?.lastUpdatedAt?new Date(payload.meta.lastUpdatedAt).toLocaleString():"Just updated"}</span></div></div>{view.kind!=="key-value"&&<div className="flex w-full gap-2 sm:w-auto"><div className="relative min-w-0 flex-1 sm:w-56"><Search className="absolute left-2.5 top-2 size-3.5 text-muted-foreground"/><Input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Search results" className="h-8 pl-8 text-xs"/></div><select aria-label="Rows per page" value={pageSize} onChange={event=>setPageSize(Number(event.target.value))} className="h-8 rounded-md border bg-background px-2 text-xs"><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option><option value={100000}>All</option></select></div>}</div>
+      {view.kind==="key-value"?<div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-4">{Object.entries(view.fields||{}).map(([key,value])=><div key={key} className="bg-card p-3"><div className="text-[10px] text-muted-foreground">{label(key)}</div><div className="mt-0.5 break-words text-xs font-medium">{display(value)}</div></div>)}</div>:visible.length?<><div className="max-h-[65dvh] overflow-auto"><table className="w-full min-w-[720px] text-left text-xs"><thead className="sticky top-0 z-10 bg-muted/95 text-[10px] uppercase text-muted-foreground"><tr>{columns.map(column=><th key={column} className="whitespace-nowrap px-3 py-2 font-medium"><button className="flex items-center gap-1 hover:text-foreground" onClick={()=>changeSort(column)}>{label(column)}{sort?.column===column&&(sort.direction==="asc"?<ChevronUp className="size-3"/>:<ChevronDown className="size-3"/>)}</button></th>)}</tr></thead><tbody>{visible.map((row,index)=>{const key=String(row.id??row[".id"]??row.portId??row.name??index),open=expanded===key;return <>{<tr key={key} onClick={()=>setExpanded(open?null:key)} className="cursor-pointer border-t hover:bg-muted/40">{columns.map(column=><td key={column} className="max-w-80 break-words px-3 py-2">{/state|status|running|disabled|dynamic|invalid/i.test(column)?<Badge variant="outline" className="text-[10px]">{display(row[column])}</Badge>:display(row[column])}</td>)}</tr>}{open&&<tr key={`${key}-details`} className="border-t bg-muted/20"><td colSpan={columns.length} className="p-3"><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{Object.entries(row).map(([field,value])=><div key={field}><div className="text-[9px] uppercase text-muted-foreground">{label(field)}</div><div className="break-all font-mono text-[11px]">{display(value)}</div></div>)}</div></td></tr>}</>})}</tbody></table></div><div className="flex items-center justify-between border-t px-3 py-2 text-[10px] text-muted-foreground"><span>Showing {(page-1)*pageSize+1}–{Math.min(page*pageSize,filtered.length)} of {filtered.length}</span><div className="flex items-center gap-1"><Button size="icon" variant="ghost" className="size-7" disabled={page===1} onClick={()=>setPage(current=>current-1)}><ChevronLeft className="size-3"/></Button><span>Page {page} / {pages}</span><Button size="icon" variant="ghost" className="size-7" disabled={page===pages} onClick={()=>setPage(current=>current+1)}><ChevronRight className="size-3"/></Button></div></div></>:<div className="grid min-h-40 place-items-center text-center text-xs text-muted-foreground"><div><Activity className="mx-auto mb-2 size-7"/><p>No matching device records.</p></div></div>}
+    </Card>
+  </div>
+}

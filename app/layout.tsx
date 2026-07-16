@@ -8,6 +8,7 @@ import { WebSocketProvider } from "@/contexts/WebSocketContext";
 import { BranchProvider } from "@/contexts/BranchContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { LicenseExpiredModal } from "@/components/license-expired-modal";
+import { CalendarSystemProvider } from "@/contexts/CalendarSystemContext";
 
 export const metadata: Metadata = {
   title: { default: "Kashtrix", template: "%s | Kashtrix" },
@@ -44,23 +45,23 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   if (theme === 'dark') {
                     root.classList.add('dark');
                     root.style.colorScheme = 'dark';
-                    root.style.setProperty('--theme-bg', '#1B2027');
-                    root.style.setProperty('--theme-text', '#F3F6F8');
-                    root.style.setProperty('--theme-card', '#212831');
-                    root.style.setProperty('--theme-card-foreground', '#F3F6F8');
-                    root.style.setProperty('--theme-border', '#3A444F');
-                    root.style.setProperty('--theme-muted', '#2A333E');
-                    root.style.setProperty('--theme-muted-foreground', '#87929D');
+                    root.style.setProperty('--theme-bg', '#09050F');
+                    root.style.setProperty('--theme-text', '#FFFFFF');
+                    root.style.setProperty('--theme-card', '#1A0D24');
+                    root.style.setProperty('--theme-card-foreground', '#FFFFFF');
+                    root.style.setProperty('--theme-border', '#342044');
+                    root.style.setProperty('--theme-muted', '#2B0D3A');
+                    root.style.setProperty('--theme-muted-foreground', '#B8A8C2');
                   } else {
                     root.classList.remove('dark');
                     root.style.colorScheme = 'light';
-                    root.style.setProperty('--theme-bg', '#FFFFFF');
-                    root.style.setProperty('--theme-text', '#202A31');
+                    root.style.setProperty('--theme-bg', '#F8F7FA');
+                    root.style.setProperty('--theme-text', '#1B1024');
                     root.style.setProperty('--theme-card', '#ffffff');
-                    root.style.setProperty('--theme-card-foreground', '#202A31');
-                    root.style.setProperty('--theme-border', '#CAD4DB');
-                    root.style.setProperty('--theme-muted', '#E8EFF2');
-                    root.style.setProperty('--theme-muted-foreground', '#64727D');
+                    root.style.setProperty('--theme-card-foreground', '#1B1024');
+                    root.style.setProperty('--theme-border', '#E8DFF0');
+                    root.style.setProperty('--theme-muted', '#F4EEFF');
+                    root.style.setProperty('--theme-muted-foreground', '#6F6078');
                   }
                 } catch (e) {
                   console.error('Theme detection failed:', e);
@@ -84,6 +85,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           disableTransitionOnChange
         >
           <AuthProvider>
+            <CalendarSystemProvider>
             <WebSocketProvider>
               <BranchProvider>
                 {children}
@@ -112,6 +114,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 }}
               />
             </WebSocketProvider>
+            </CalendarSystemProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

@@ -125,7 +125,7 @@ export function OLTStatistics() {
               </CardHeader>
               <CardContent className="relative z-10">
                 <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 640, height: 320 }}>
                     <LineChart data={trafficData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#444" />
                       <XAxis dataKey="time" stroke="#888" />
@@ -200,7 +200,7 @@ export function OLTStatistics() {
               </CardHeader>
               <CardContent className="relative z-10">
                 <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 640, height: 320 }}>
                     <BarChart data={ontStatusData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#444" />
                       <XAxis dataKey="status" stroke="#888" />
@@ -263,7 +263,7 @@ export function OLTStatistics() {
               </CardHeader>
               <CardContent className="relative z-10">
                 <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 640, height: 320 }}>
                     <BarChart data={portUtilizationData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#444" />
                       <XAxis dataKey="port" stroke="#888" />

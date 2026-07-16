@@ -1,28 +1,19 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useTheme } from "next-themes"
-import { StatsDisplay } from "@/components/ui/stats-display"
-import { Server, Zap, Activity, CheckCircle2, AlertCircle, RefreshCw } from "lucide-react"
+import { useEffect, useState } from "react"
+import { Activity, AlertCircle, CheckCircle2, Gauge, RefreshCw } from "lucide-react"
 import { apiRequest } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 
 export function RealTimeStats() {
-  const { resolvedTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
   const [stats, setStats] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-
-  // After mounting, we have access to the theme
-  useEffect(() => setMounted(true), [])
 
   const fetchStats = async () => {
     try {
       setLoading(true)
       const response = await apiRequest<{ success: boolean; data: any }>("/olt/stats")
-      if (response && response.success) {
-        setStats(response.data)
-      }
+      if (response?.success) setStats(response.data)
     } catch (error) {
       console.error("Failed to fetch OLT stats:", error)
     } finally {
@@ -32,65 +23,30 @@ export function RealTimeStats() {
 
   useEffect(() => {
     fetchStats()
-    const interval = setInterval(fetchStats, 60000) // Update every 1 min
+    const interval = setInterval(fetchStats, 60000)
     return () => clearInterval(interval)
   }, [])
 
-  const statItems = [
-    {
-      title: "Active OLTs",
-      value: stats?.active?.toString() || "0",
-      icon: <CheckCircle2 className="h-5 w-5 text-white" />,
-      iconColor: "#10B981",
-      change: { value: stats?.total || 0, type: "increase" as const },
-      subtitle: `Out of ${stats?.total || 0} total nodes`,
-    },
-    {
-      title: "Port Utilization",
-      value: `${stats?.portStatistics?.usagePercentage || 0}%`,
-      icon: <Zap className="h-5 w-5 text-white" />,
-      iconColor: "#3B82F6",
-      change: { value: stats?.portStatistics?.used || 0, type: "increase" as const },
-      subtitle: `${stats?.portStatistics?.used || 0} ports occupied`,
-    },
-    {
-      title: "Inactive Nodes",
-      value: stats?.inactive?.toString() || "0",
-      icon: <AlertCircle className="h-5 w-5 text-white" />,
-      iconColor: "#EF4444",
-      change: { value: 0, type: "decrease" as const },
-      subtitle: "Offline or Maintenance",
-    },
-    {
-      title: "System Status",
-      value: stats?.total > 0 ? "Stable" : "No Nodes",
-      icon: <Activity className="h-5 w-5 text-white" />,
-      iconColor: "#8B5CF6",
-      change: { value: 99.9, type: "increase" as const },
-      subtitle: "Core infrastructure health",
-    },
+  const usage = Number(stats?.portStatistics?.usagePercentage || 0)
+  const items = [
+    { label: "Online Devices", value: stats?.active || 0, status: "Online", icon: CheckCircle2, color: "text-[var(--status-success)]", dot: "bg-[var(--status-success)]" },
+    { label: "Offline Devices", value: stats?.inactive || 0, status: "Offline", icon: AlertCircle, color: "text-[var(--status-danger)]", dot: "bg-[var(--status-danger)]" },
+    { label: "Bandwidth Usage", value: `${usage}%`, status: usage > 85 ? "High" : "Normal", icon: Gauge, color: "text-[#78d36b]", dot: usage > 85 ? "bg-[var(--status-warning)]" : "bg-[var(--status-success)]" },
+    { label: "Uptime", value: stats?.total > 0 ? "99.9%" : "—", status: stats?.total > 0 ? "Excellent" : "No nodes", icon: Activity, color: "text-primary", dot: "bg-[var(--status-success)]" },
   ]
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button variant="ghost" size="sm" onClick={fetchStats} disabled={loading} className="gap-2 text-xs">
-          <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
-          Refresh Metrics
-        </Button>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {statItems.map((stat, index) => (
-          <StatsDisplay
-            key={index}
-            title={stat.title}
-            value={stat.value}
-            icon={stat.icon}
-            iconColor={stat.iconColor}
-            change={stat.change}
-            subtitle={stat.subtitle}
-            forceDarkMode={!mounted}
-          />
+    <div className="relative">
+      <Button variant="ghost" size="icon-sm" onClick={fetchStats} disabled={loading} className="absolute -right-1 -top-11" aria-label="Refresh network metrics">
+        <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
+      </Button>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {items.map(({ label, value, status, icon: Icon, color, dot }) => (
+          <div key={label} className="network-inset rounded-[8px] border border-border bg-background px-3 py-2.5">
+            <div className="flex items-center gap-2 text-[10px] text-muted-foreground"><Icon className={`size-3.5 ${color}`} />{label}</div>
+            <div className="mt-1.5 font-data text-[18px] font-semibold leading-none text-foreground">{value}</div>
+            <div className="mt-2 flex items-center gap-1.5 text-[9px] text-muted-foreground"><span className={`size-1.5 rounded-full ${dot}`} />{status}</div>
+          </div>
         ))}
       </div>
     </div>

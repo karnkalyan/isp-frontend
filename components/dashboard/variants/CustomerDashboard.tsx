@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { CustomerUsageChart } from "@/components/customers/customer-usage-chart"
 
 function formatBytes(val: any) {
   if (val === "N/A" || val === undefined || val === null) return "N/A";
@@ -260,6 +261,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
   const [rebootDialogOpen, setRebootDialogOpen] = useState(false)
   const [radiusUsage, setRadiusUsage] = useState<any[]>([])
   const [radiusUsageLoading, setRadiusUsageLoading] = useState(false)
+  const [dashboardTab, setDashboardTab] = useState(initialTab)
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null)
   const [esewaProcessing, setEsewaProcessing] = useState(false)
 
@@ -508,6 +510,10 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
       loadRadiusUsage()
     }
   }, [routerSubTab])
+
+  useEffect(() => {
+    if (dashboardTab === "graphs" && radiusUsage.length === 0 && !radiusUsageLoading) loadRadiusUsage()
+  }, [dashboardTab])
 
   const updateWifi = async () => {
     if (!serial || !selectedSsid) return
@@ -1738,10 +1744,11 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
         </CardContainer>
       </div>
 
-      <Tabs defaultValue={initialTab} className="space-y-4">
+      <Tabs value={dashboardTab} onValueChange={setDashboardTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="router">Router</TabsTrigger>
+          <TabsTrigger value="graphs">Graphs</TabsTrigger>
           <TabsTrigger value="contact">Contact</TabsTrigger>
           <TabsTrigger value="billing">Billing</TabsTrigger>
           <TabsTrigger value="support">Support</TabsTrigger>
@@ -1784,6 +1791,10 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
 
         <TabsContent value="router" className="space-y-4">
           {routerContent}
+        </TabsContent>
+
+        <TabsContent value="graphs" className="space-y-4">
+          <CustomerUsageChart data={radiusUsage} loading={radiusUsageLoading} />
         </TabsContent>
 
         <TabsContent value="contact" className="space-y-4">

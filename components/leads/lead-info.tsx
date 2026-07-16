@@ -69,6 +69,7 @@ import { useConfirmToast } from "@/hooks/use-confirm-toast"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import { CalendarDateTimeInput } from "@/components/ui/calendar-datetime-input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { SearchableSelect } from "@/components/ui/searchable-select"
@@ -94,7 +95,7 @@ if (typeof window !== 'undefined') {
   });
 }
 
-const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), {
+const MapContainer = dynamic(() => import('@/components/maps/safe-map-container').then(mod => mod.SafeMapContainer), {
   ssr: false,
   loading: () => <div className="h-full w-full bg-gray-100 dark:bg-gray-800 animate-pulse rounded-lg" />
 })
@@ -1428,11 +1429,10 @@ export default function LeadDetailsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="scheduledAt" className="text-gray-700 dark:text-gray-300">Scheduled Date & Time <span className="text-red-500">*</span></Label>
-                <Input
+                <CalendarDateTimeInput
                   id="scheduledAt"
-                  type="datetime-local"
                   value={followUpForm.scheduledAt}
-                  onChange={(e) => updateFollowUpField("scheduledAt", e.target.value)}
+                  onChange={(value) => updateFollowUpField("scheduledAt", value)}
                   className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700"
                 />
               </div>

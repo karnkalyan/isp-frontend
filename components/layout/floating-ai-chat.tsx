@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Bot, ExternalLink, MessageSquare, Send, Sparkles, X } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -10,6 +10,7 @@ import { apiRequest } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
 
 type MiniMessage = { role: "user" | "assistant"; content: string }
+const greeting: MiniMessage = { role: "assistant", content: "Hi - I'm Manager AI. Describe the outcome you need and I'll route it to the right specialist." }
 
 export function FloatingAiChat() {
   const { user } = useAuth()
@@ -19,9 +20,49 @@ export function FloatingAiChat() {
   const [conversationId, setConversationId] = useState<number | null>(null)
   const [sending, setSending] = useState(false)
   const [unread, setUnread] = useState(0)
-  const [messages, setMessages] = useState<MiniMessage[]>([
-    { role: "assistant", content: "Hi - I'm Manager AI. Describe the outcome you need and I'll route it to the right specialist." }
-  ])
+  const [messages, setMessages] = useState<MiniMessage[]>([greeting])
+  const [restored, setRestored] = useState(false)
+  const restoredKeyRef = useRef("")
+  const storageKey = `kashtrix-floating-ai-chat:${user?.id || "guest"}`
+
+  useEffect(() => {
+    if (!user?.id) return
+    setRestored(false)
+    let active = true
+    const restore = async () => {
+      try {
+        const raw = sessionStorage.getItem(storageKey)
+        if (!raw) return
+        const saved = JSON.parse(raw)
+        setOpen(Boolean(saved.open))
+        setAiMode(saved.aiMode !== false)
+        setText(typeof saved.text === "string" ? saved.text : "")
+        const savedMessages = Array.isArray(saved.messages) ? saved.messages.filter((item: any) => item?.role && typeof item.content === "string") : []
+        if (savedMessages.length) setMessages(savedMessages)
+        const id = Number(saved.conversationId || 0)
+        if (id) {
+          setConversationId(id)
+          try {
+            const response = await AiAgentConversationsAPI.messages(id)
+            if (active && response.data?.length) setMessages(response.data.map(item => ({ role: item.role, content: item.content })))
+          } catch {
+            if (active) setConversationId(null)
+          }
+        }
+      } catch {
+        sessionStorage.removeItem(storageKey)
+      } finally {
+        if (active) { restoredKeyRef.current = storageKey; setRestored(true) }
+      }
+    }
+    restore()
+    return () => { active = false }
+  }, [user?.id, storageKey])
+
+  useEffect(() => {
+    if (!user?.id || !restored || restoredKeyRef.current !== storageKey) return
+    sessionStorage.setItem(storageKey, JSON.stringify({ open, aiMode, text, conversationId, messages, updatedAt: Date.now() }))
+  }, [user?.id, storageKey, restored, open, aiMode, text, conversationId, messages])
 
   useEffect(() => {
     const refreshUnread = () => apiRequest<any[]>("/messages", { suppressToast: true }).then(items => {

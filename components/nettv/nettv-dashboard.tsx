@@ -8,6 +8,7 @@ import { NetTVDialog } from "@/components/customers/add-customer-form"
 import { CardContainer } from "@/components/ui/card-container"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { CalendarDateInput } from "@/components/ui/calendar-date-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
@@ -19,7 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "react-hot-toast"
 import "leaflet/dist/leaflet.css"
 
-const MapContainer = dynamic(() => import("react-leaflet").then(mod => mod.MapContainer), { ssr: false })
+const MapContainer = dynamic(() => import("@/components/maps/safe-map-container").then(mod => mod.SafeMapContainer), { ssr: false })
 const TileLayer = dynamic(() => import("react-leaflet").then(mod => mod.TileLayer), { ssr: false })
 const Marker = dynamic(() => import("react-leaflet").then(mod => mod.Marker), { ssr: false })
 const Popup = dynamic(() => import("react-leaflet").then(mod => mod.Popup), { ssr: false })
@@ -190,7 +191,9 @@ function FormField({ label, value, onChange, type = "text" }: { label: string; v
   return (
     <div className="space-y-1.5">
       <Label>{label}</Label>
-      <Input type={type} value={value} onChange={(event) => onChange(event.target.value)} />
+      {type === "date"
+        ? <CalendarDateInput value={value} onChange={onChange} />
+        : <Input type={type} value={value} onChange={(event) => onChange(event.target.value)} />}
     </div>
   )
 }

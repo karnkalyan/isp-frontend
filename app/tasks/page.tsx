@@ -7,6 +7,7 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { CalendarDateInput } from "@/components/ui/calendar-date-input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { apiRequest } from "@/lib/api"
@@ -966,7 +967,7 @@ export default function TasksPage() {
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Date</Label>
-                          <Input type="date" value={newStartTime} onChange={e => setNewStartTime(e.target.value)} />
+                          <CalendarDateInput value={newStartTime} onChange={setNewStartTime} />
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Start Time</Label>
@@ -1063,7 +1064,7 @@ export default function TasksPage() {
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Date</Label>
-                          <Input type="date" value={newStartTime} onChange={e => setNewStartTime(e.target.value)} />
+                          <CalendarDateInput value={newStartTime} onChange={setNewStartTime} />
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Start Time</Label>

@@ -5,10 +5,11 @@ import { CardContainer } from "@/components/ui/card-container"
 import { PageHeader } from "@/components/ui/page-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { CalendarDateInput } from "@/components/ui/calendar-date-input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "react-hot-toast"
-import { Loader2, Search, Calendar, RefreshCw, ChevronLeft, ChevronRight, Info, Eye } from "lucide-react"
+import { Loader2, Search, RefreshCw, ChevronLeft, ChevronRight, Eye, ArrowRight } from "lucide-react"
 import { apiRequest } from "@/lib/api"
 import { OrchestrationConsole } from "@/components/ui/orchestration-console"
 
@@ -25,6 +26,15 @@ type AuditLog = {
   ip: string | null
   browser: string | null
   timestamp: string
+  changeCount?: number
+  changes?: Array<{ field: string; previous: unknown; new: unknown }>
+}
+
+function displayAuditValue(value: unknown) {
+  if (value === null || value === undefined) return "—"
+  if (typeof value === "boolean") return value ? "Yes" : "No"
+  if (typeof value === "object") return JSON.stringify(value)
+  return String(value)
 }
 
 type Pagination = {
@@ -120,7 +130,7 @@ export default function AuditLogsPage() {
             <Label htmlFor="search">Search Keywords</Label>
             <div className="relative">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
+              <CalendarDateInput
                 id="search"
                 placeholder="Details, IP, Browser..."
                 value={search}
@@ -152,9 +162,8 @@ export default function AuditLogsPage() {
             <div className="relative">
               <Input
                 id="startDate"
-                type="date"
                 value={startDate}
-                onChange={(e) => { setStartDate(e.target.value); setPage(1); }}
+                onChange={(value) => { setStartDate(value); setPage(1); }}
                 className="border-slate-200 dark:border-slate-800"
               />
             </div>
@@ -163,11 +172,10 @@ export default function AuditLogsPage() {
           <div className="space-y-2">
             <Label htmlFor="endDate">End Date</Label>
             <div className="relative">
-              <Input
+              <CalendarDateInput
                 id="endDate"
-                type="date"
                 value={endDate}
-                onChange={(e) => { setEndDate(e.target.value); setPage(1); }}
+                onChange={(value) => { setEndDate(value); setPage(1); }}
                 className="border-slate-200 dark:border-slate-800"
               />
             </div>
@@ -233,6 +241,7 @@ export default function AuditLogsPage() {
                           <span className="bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 border border-blue-100/50 dark:border-blue-900/30 px-2 py-0.5 rounded text-xs font-mono font-medium">
                             {log.action}
                           </span>
+                          {!!log.changeCount && <div className="mt-1 text-[10px] text-muted-foreground">{log.changeCount} field{log.changeCount === 1 ? "" : "s"} changed</div>}
                         </td>
                         <td className="p-3 font-mono text-xs text-slate-700 dark:text-slate-300">
                           {log.ip || "N/A"}
@@ -255,8 +264,21 @@ export default function AuditLogsPage() {
 
                       {expandedLogId === log.id && (
                         <tr>
-                          <td colSpan={6} className="bg-slate-50/50 dark:bg-slate-900/30 p-4 border-t border-b border-slate-150 dark:border-slate-800">
-                            <OrchestrationConsole logs={[log]} title="Audit Execution Output Console" />
+                          <td colSpan={6} className="border-y border-border/70 bg-muted/25 p-4 dark:bg-slate-900/30">
+                            <div className="space-y-3">
+                              {log.changes?.length ? (
+                                <div className="overflow-hidden rounded-lg border bg-card">
+                                  <div className="border-b bg-muted/40 px-3 py-2 text-xs font-semibold">Changed values</div>
+                                  <div className="max-h-80 overflow-auto">
+                                    <table className="w-full text-xs">
+                                      <thead className="sticky top-0 bg-muted"><tr><th className="p-2 text-left">Field</th><th className="p-2 text-left">Previous value</th><th className="w-8 p-2" /><th className="p-2 text-left">New value</th></tr></thead>
+                                      <tbody className="divide-y">{log.changes.map((change, index) => <tr key={`${change.field}-${index}`}><td className="p-2 font-mono font-medium">{change.field}</td><td className="max-w-[360px] break-all p-2 text-rose-600 dark:text-rose-400">{displayAuditValue(change.previous)}</td><td className="p-2 text-muted-foreground"><ArrowRight className="size-3.5" /></td><td className="max-w-[360px] break-all p-2 text-emerald-600 dark:text-emerald-400">{displayAuditValue(change.new)}</td></tr>)}</tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              ) : <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">This event did not change stored fields, or it was recorded before previous/new value tracking was enabled.</div>}
+                              <OrchestrationConsole logs={[log]} title="Audit Execution Details" />
+                            </div>
                           </td>
                         </tr>
                       )}

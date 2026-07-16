@@ -522,7 +522,7 @@ export function TR069DeviceWifi({ deviceId }: TR069DeviceWifiProps) {
                   </div>
                 </div>
                 <div className="h-48">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 320, height: 192 }}>
                     <PieChart>
                       <Pie
                         data={getTrafficData()}
@@ -571,7 +571,7 @@ export function TR069DeviceWifi({ deviceId }: TR069DeviceWifiProps) {
                   </div>
                 </div>
                 <div className="h-48">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 320, height: 192 }}>
                     <PieChart>
                       <Pie
                         data={getPacketData()}

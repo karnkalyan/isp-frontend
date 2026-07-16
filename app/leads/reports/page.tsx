@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import { CalendarDateInput } from "@/components/ui/calendar-date-input"
 import { useState, useEffect } from "react"
 import { apiRequest } from "@/lib/api"
 import { toast } from "react-hot-toast"
@@ -138,19 +139,17 @@ export default function LeadReportsPage() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                         <div className="space-y-2">
                             <Label>Start Date</Label>
-                            <Input
-                                type="date"
+                            <CalendarDateInput
                                 value={dateRange.start}
-                                onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                                onChange={(value) => setDateRange(prev => ({ ...prev, start: value }))}
                             />
                         </div>
 
                         <div className="space-y-2">
                             <Label>End Date</Label>
-                            <Input
-                                type="date"
+                            <CalendarDateInput
                                 value={dateRange.end}
-                                onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                                onChange={(value) => setDateRange(prev => ({ ...prev, end: value }))}
                             />
                         </div>
 

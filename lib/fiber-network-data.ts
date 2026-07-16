@@ -32,12 +32,24 @@ export interface FiberNetworkDataset {
   customers: any[]
   rows: FiberNetworkRow[]
   tree: FiberTreeNode
+  mapFeatures: FiberMapFeature[]
   stats: {
     totalNetworks: number
     activeSubscribers: number
     signalQuality: string
     activeAlerts: number
   }
+}
+
+export interface FiberMapFeature {
+  type: "Point" | "Line"
+  kind: "olt" | "splitter" | "ont" | "fiber"
+  name: string
+  coords?: [number, number]
+  path?: [number, number][]
+  status?: string
+  relation?: string
+  meta?: Record<string, any>
 }
 
 const unwrapList = (response: any) => {
@@ -70,6 +82,62 @@ const getCustomerOnt = (customer: any) => {
 
 const getPrimaryService = (customer: any) => {
   return (customer.serviceDetails || []).find((detail: any) => detail.status === "active") || customer.serviceDetails?.[0] || null
+}
+
+const coordinatesOf = (source: any): [number, number] | null => {
+  if (!source) return null
+  const latitude = toNumber(source.latitude ?? source.lat ?? source.location?.latitude ?? source.location?.lat)
+  const longitude = toNumber(source.longitude ?? source.lng ?? source.lon ?? source.location?.longitude ?? source.location?.lng ?? source.location?.lon)
+  if (latitude === null || longitude === null || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return null
+  return [latitude, longitude]
+}
+
+const buildMapFeatures = (olts: any[], splitters: any[], customers: any[]): FiberMapFeature[] => {
+  const features: FiberMapFeature[] = []
+  const oltPositions = new Map<number, [number, number]>()
+  const splitterPositions = new Map<number, [number, number]>()
+
+  olts.forEach(olt => {
+    const coords = coordinatesOf(olt)
+    if (!coords) return
+    oltPositions.set(Number(olt.id), coords)
+    features.push({ type: "Point", kind: "olt", name: `OLT · ${olt.name || olt.ipAddress || olt.id}`, coords, status: normalizeStatus(olt.status), meta: { id: olt.id, ipAddress: olt.ipAddress, vendor: olt.vendor, model: olt.model } })
+  })
+
+  splitters.forEach(splitter => {
+    const coords = coordinatesOf(splitter)
+    if (!coords) return
+    splitterPositions.set(Number(splitter.id), coords)
+    features.push({ type: "Point", kind: "splitter", name: `Splitter · ${splitter.name || splitter.splitterId || splitter.id}`, coords, status: normalizeStatus(splitter.status), meta: { id: splitter.id, splitterId: splitter.splitterId, splitRatio: splitter.splitRatio, usedPorts: splitter.usedPorts, portCount: splitter.portCount } })
+  })
+
+  splitters.forEach(splitter => {
+    const target = splitterPositions.get(Number(splitter.id))
+    if (!target) return
+    const master = splitters.find(candidate => splitterKeyMatches(splitter, candidate))
+    const source = master ? splitterPositions.get(Number(master.id)) : oltPositions.get(Number(splitter.oltId || splitter.olt?.id))
+    if (!source) return
+    const relation = master ? `${master.name || master.splitterId} → ${splitter.name || splitter.splitterId}` : `OLT → ${splitter.name || splitter.splitterId}`
+    features.push({ type: "Line", kind: "fiber", name: `Fiber · ${relation}`, path: [source, target], relation, meta: { coreColor: splitter.upstreamFiber?.coreColor, cableId: splitter.upstreamFiber?.cableId } })
+  })
+
+  customers.forEach(customer => {
+    const ont = getCustomerOnt(customer)
+    const coords = coordinatesOf(customer)
+    if (!ont || !coords) return
+    const service = getPrimaryService(customer)
+    const splitterId = toNumber(service?.splitterId || service?.splitter?.id || customer.splitterId)
+    const oltId = toNumber(service?.oltId || service?.olt?.id || customer.oltId)
+    const source = splitterId !== null ? splitterPositions.get(splitterId) : oltId !== null ? oltPositions.get(oltId) : null
+    const ontName = `ONT · ${getCustomerName(customer)} (${ont.serialNumber || ont.ponSerial || customer.customerUniqueId || customer.id})`
+    features.push({ type: "Point", kind: "ont", name: ontName, coords, status: normalizeStatus(ont.status || customer.status), meta: { customerId: customer.customerUniqueId, serialNumber: ont.serialNumber || ont.ponSerial, macAddress: ont.macAddress, oltPort: service?.oltPort, splitterPort: service?.splitterPort } })
+    if (source) {
+      const relation = splitterId !== null ? `Splitter → ${getCustomerName(customer)}` : `OLT → ${getCustomerName(customer)}`
+      features.push({ type: "Line", kind: "fiber", name: `Drop fiber · ${relation}`, path: [source, coords], relation, meta: { customerId: customer.customerUniqueId } })
+    }
+  })
+
+  return features
 }
 
 const customerMatchesOlt = (customer: any, oltId: number) => {
@@ -257,6 +325,7 @@ export function buildFiberNetworkDataset(olts: any[], splitters: any[], customer
     customers,
     rows,
     tree,
+    mapFeatures: buildMapFeatures(olts, splitters, customers),
     stats: {
       totalNetworks: olts.length,
       activeSubscribers: customers.filter((customer) => normalizeStatus(customer.status) === "active").length,

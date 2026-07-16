@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState, useEffect } from "react"
 
-import { Users, Wifi, CreditCard, ShoppingCart, Headphones, Receipt } from "lucide-react"
+import { Users, Wifi, CreditCard, ShoppingCart, Headphones, Receipt, TrendingUp } from "lucide-react"
 import { apiRequest } from "@/lib/api"
 
 export function StatsCards() {
@@ -26,9 +26,9 @@ export function StatsCards() {
 
   if (loading) {
     return (
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 min-h-[120px]">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="animate-pulse bg-muted rounded-xl border border-border h-[120px]" />
+      <div className="grid min-h-[116px] gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <div key={i} className="h-[116px] animate-pulse rounded-[8px] border border-border bg-card" />
         ))}
       </div>
     )
@@ -41,9 +41,10 @@ export function StatsCards() {
     {
       title: "Active Customers",
       value: (statsData?.activeCustomers || 0).toLocaleString(),
-      change: `${totalCustomers.toLocaleString()} total customers`,
+      change: totalCustomers > 0 ? `${Math.round((activeCustomers / totalCustomers) * 100)}% of total base` : "Customer base online",
       icon: Users,
-      tone: "text-primary bg-secondary",
+      tone: "text-[#6fa8ff] bg-[rgba(111,168,255,.12)]",
+      changeTone: "text-[var(--status-success)]",
     },
     {
       title: "Expiring This Week",
@@ -51,20 +52,23 @@ export function StatsCards() {
       change: "Renewal needed soon",
       icon: ShoppingCart,
       tone: "text-[var(--status-warning)] bg-[var(--status-warning-bg)]",
+      changeTone: "text-[var(--status-warning)]",
     },
     {
       title: "Expiring This Month",
       value: (statsData?.expiringThisMonth || 0).toLocaleString(),
       change: "Upcoming renewals",
       icon: Wifi,
-      tone: "text-[var(--status-info)] bg-[var(--status-info-bg)]",
+      tone: "text-[#78d36b] bg-[rgba(120,211,107,.12)]",
+      changeTone: "text-[#78d36b]",
     },
     {
       title: "Open Tickets",
       value: (statsData?.openTickets || 0).toLocaleString(),
       change: "Support items needing action",
       icon: Headphones,
-      tone: "text-primary bg-secondary",
+      tone: "text-[#b47cff] bg-[rgba(180,124,255,.12)]",
+      changeTone: "text-[#b47cff]",
     },
     {
       title: "Pending Invoices",
@@ -72,6 +76,7 @@ export function StatsCards() {
       change: "Awaiting payment",
       icon: Receipt,
       tone: "text-[var(--status-info)] bg-[var(--status-info-bg)]",
+      changeTone: "text-[var(--status-warning)]",
     },
     {
       title: "Expired Users",
@@ -79,11 +84,12 @@ export function StatsCards() {
       change: `${statsData?.expiredUsers || 0} disconnected`,
       icon: CreditCard,
       tone: "text-[var(--status-danger)] bg-[var(--status-danger-bg)]",
+      changeTone: "text-[var(--status-danger)]",
     },
   ]
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
       {stats.map((stat) => <StatCard key={stat.title} {...stat} />)}
     </div>
   )
@@ -95,20 +101,23 @@ interface StatCardProps {
   change: string
   icon: React.ElementType
   tone: string
+  changeTone?: string
 }
 
-function StatCard({ title, value, change, icon: Icon, tone }: StatCardProps) {
+function StatCard({ title, value, change, icon: Icon, tone, changeTone }: StatCardProps) {
   return (
-    <div className="rounded-[14px] border bg-card p-4 text-card-foreground shadow-[var(--shadow-sm)]">
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-xs font-medium text-muted-foreground">{title}</p>
-        <div className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${tone}`} aria-hidden="true">
-          <Icon className="size-4" strokeWidth={1.75} />
+    <div className="network-kpi min-w-0 rounded-[10px] border bg-card p-3.5 text-card-foreground">
+      <div className="flex items-center gap-3">
+        <div className={`flex size-9 shrink-0 items-center justify-center rounded-[8px] ${tone}`} aria-hidden="true">
+          <Icon className="size-[18px]" strokeWidth={1.8} />
         </div>
+        <p className="truncate text-[11px] font-medium text-muted-foreground">{title}</p>
       </div>
-      <div className="mt-2">
-        <div className="font-data text-2xl font-semibold tabular-nums text-foreground">{value}</div>
-        <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{change}</p>
+      <div className="mt-2 pl-12">
+        <div className="font-data text-[21px] font-semibold tabular-nums leading-none text-foreground">{value}</div>
+        <p className={`mt-2 flex items-center gap-1 truncate text-[10px] ${changeTone || "text-muted-foreground"}`}>
+          {title === "Active Customers" && <TrendingUp className="size-3" />}{change}
+        </p>
       </div>
     </div>
   )

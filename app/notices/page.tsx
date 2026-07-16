@@ -6,6 +6,7 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { CalendarDateTimeInput } from "@/components/ui/calendar-datetime-input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { apiRequest } from "@/lib/api"
@@ -174,7 +175,7 @@ export default function NoticesPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Expires At</Label>
-                  <Input type="datetime-local" value={expiresAt} onChange={e => setExpiresAt(e.target.value)} />
+                  <CalendarDateTimeInput value={expiresAt} onChange={setExpiresAt} />
                 </div>
               </div>
             </div>

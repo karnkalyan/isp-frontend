@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Copy, Loader2, Mail, MessageSquare, Plus, RotateCcw, Save, Search, Trash2 } from "lucide-react"
+import { Copy, Loader2, Mail, MessageSquare, Plus, RotateCcw, Save, Search, Trash2, WandSparkles } from "lucide-react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { CardContainer } from "@/components/ui/card-container"
 import { Button } from "@/components/ui/button"
@@ -100,6 +100,28 @@ export default function MailTemplatesPage() {
   const duplicateTemplate = () => {
     setSelectedId("new")
     setDraft(prev => ({ ...prev, id: undefined, name: `${prev.name} Copy`, isDefault: false }))
+  }
+
+  const generateFromTitle = () => {
+    const title = (draft.name || draft.subject || activeEvent?.label || "Service update").trim()
+    if (!title) {
+      toast.error("Enter a template name or title first")
+      return
+    }
+    const lower = title.toLowerCase()
+    const detail = lower.includes("ticket")
+      ? "Your support ticket {ticketNumber} has been updated. Current status: {status}."
+      : lower.includes("task") || lower.includes("complete")
+        ? "The assigned work for {ticketNumber} has been completed. {resolution}"
+        : lower.includes("payment") || lower.includes("invoice")
+          ? "We have updated your account for {amount}. Reference: {invoiceNumber}."
+          : lower.includes("expiry") || lower.includes("renew")
+            ? "Your {packageName} service is due on {expiryDate}. Please renew to avoid interruption."
+            : `${title}. Please review the latest details in your account.`
+    setDraft(previous => previous.channel === "EMAIL"
+      ? { ...previous, subject: previous.subject?.trim() || title, body: `Hello {customerName},\n\n${detail}\n\nIf you need help, reply to this email and our support team will assist you.\n\nRegards,\n{ispName}` }
+      : { ...previous, body: `${title}: ${detail} - {ispName}`.slice(0, 320) })
+    toast.success(`${draft.channel === "EMAIL" ? "Email" : "SMS"} content generated from the title`)
   }
 
   const saveTemplate = async () => {
@@ -211,7 +233,7 @@ export default function MailTemplatesPage() {
                   <div className="space-y-4">
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>Template Name</Label>
+                        <div className="flex items-center justify-between"><Label>Template Name</Label><Button type="button" size="sm" variant="ghost" onClick={generateFromTitle}><WandSparkles className="mr-1 h-3.5 w-3.5" />Generate content</Button></div>
                         <Input value={draft.name} onChange={e => setDraft(prev => ({ ...prev, name: e.target.value }))} placeholder="e.g., Recharge Success" />
                       </div>
                       <div className="space-y-2">

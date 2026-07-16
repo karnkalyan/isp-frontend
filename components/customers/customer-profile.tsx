@@ -3211,7 +3211,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   }
 
   return (
-    <div className="space-y-6">
+    <div className="customer-profile-shell space-y-6">
       {/* Dialogs */}
       <NetTVDialog
         open={nettvProvisionOpen}
@@ -3689,6 +3689,25 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         </div>
       </CardContainer>
 
+      <section className="customer-service-strip grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Customer service summary">
+        <div className="customer-service-tile">
+          <span className="customer-service-icon bg-[var(--status-info-bg)] text-[var(--status-info)]"><Wifi className="size-4" /></span>
+          <div><p>Assigned devices</p><strong>{customer.devices.length}</strong></div>
+        </div>
+        <div className="customer-service-tile">
+          <span className="customer-service-icon bg-[var(--status-success-bg)] text-[var(--status-success)]"><Activity className="size-4" /></span>
+          <div><p>Radius logins</p><strong>{customer.connectionUsers.filter((item) => item.isActive).length} active</strong></div>
+        </div>
+        <div className="customer-service-tile">
+          <span className="customer-service-icon bg-[var(--status-warning-bg)] text-[var(--status-warning)]"><Package className="size-4" /></span>
+          <div><p>Service plan</p><strong>{latestSubscription ? `${daysUntilExpiry} days left` : "Not subscribed"}</strong></div>
+        </div>
+        <div className="customer-service-tile">
+          <span className="customer-service-icon bg-[var(--status-danger-bg)] text-[var(--status-danger)]"><CreditCard className="size-4" /></span>
+          <div><p>Outstanding balance</p><strong>{formatPrice(dueAmount)}</strong></div>
+        </div>
+      </section>
+
       <div className="customer-action-bar sticky top-0 z-20 flex flex-wrap gap-2 rounded-2xl border bg-card/95 p-3 shadow-[0_10px_35px_rgba(43,13,58,.08)] backdrop-blur-xl">
         <Button size="sm" variant="ai" className="h-9" onClick={() => setProvisionServicesOpen(true)}>
           <Zap className="mr-2 h-4 w-4" /> Activate / Provision Services
@@ -3754,7 +3773,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           <TabsTrigger value="overview" className="flex-1 flex-shrink-0"><User className="mr-2 h-4 w-4" />Overview</TabsTrigger>
           <TabsTrigger value="billing" className="flex-1 flex-shrink-0"><CreditCard className="mr-2 h-4 w-4" />Billing</TabsTrigger>
           <TabsTrigger value="devices" className="flex-1 flex-shrink-0"><Wifi className="mr-2 h-4 w-4" />Devices</TabsTrigger>
-          <TabsTrigger value="usage" className="flex-1 flex-shrink-0"><BarChart className="mr-2 h-4 w-4" />Usage</TabsTrigger>
+          <TabsTrigger value="usage" className="flex-1 flex-shrink-0"><BarChart className="mr-2 h-4 w-4" />Graphs</TabsTrigger>
           <TabsTrigger value="realtime" className="flex-1 flex-shrink-0"><Activity className="mr-2 h-4 w-4" />Realtime Usage</TabsTrigger>
           <TabsTrigger value="documents" className="flex-1 flex-shrink-0"><FileText className="mr-2 h-4 w-4" />Documents</TabsTrigger>
           <TabsTrigger value="radius" className="flex-1 flex-shrink-0"><Key className="mr-2 h-4 w-4" />Radius Login</TabsTrigger>

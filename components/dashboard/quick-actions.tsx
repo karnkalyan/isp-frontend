@@ -1,24 +1,27 @@
 "use client"
 
 import Link from "next/link"
-import { FileText, MessageSquare, PlusCircle, Ticket, UserPlus, Wifi } from "lucide-react"
+import { Ellipsis, FileText, MessageSquare, Ticket, UserPlus, Wifi, ChartNoAxesColumn } from "lucide-react"
 
 const actions = [
   { label: "Add customer", href: "/customers/new", icon: UserPlus },
-  { label: "Create lead", href: "/leads/create", icon: PlusCircle },
-  { label: "Create ticket", href: "/tickets/create", icon: Ticket },
-  { label: "Invoices", href: "/finance/invoices", icon: FileText },
-  { label: "Network status", href: "/dashboard/real-time", icon: Wifi },
-  { label: "Messages", href: "/messages", icon: MessageSquare },
+  { label: "New ticket", href: "/tickets/create", icon: Ticket },
+  { label: "Send SMS", href: "/sms-campaign", icon: MessageSquare },
+  { label: "Add invoice", href: "/finance/invoices", icon: FileText },
+  { label: "View reports", href: "/reports", icon: ChartNoAxesColumn },
+  { label: "Speed test", href: "/dashboard/real-time", icon: Wifi },
+  { label: "More", href: "/master-settings", icon: Ellipsis },
 ]
 
 export function QuickActions() {
   return (
-    <div className="grid grid-cols-2 gap-2">
-      {actions.map(({ label, href, icon: Icon }) => (
-        <Link key={label} href={href} className="group flex min-h-10 items-center gap-2 rounded-lg border bg-background px-3 text-xs font-medium text-foreground transition-colors hover:border-primary/30 hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-          <Icon className="size-4 text-muted-foreground transition-colors group-hover:text-primary" strokeWidth={1.75} />
-          <span>{label}</span>
+    <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+      {actions.map(({ label, href, icon: Icon }, index) => (
+        <Link key={label} href={href} className="group flex min-w-0 flex-col items-center gap-2 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <span className="flex size-10 items-center justify-center rounded-[7px] border border-border bg-background transition-colors group-hover:border-primary/50 group-hover:bg-accent">
+            <Icon className={`size-[18px] ${index % 3 === 0 ? "text-primary" : index % 3 === 1 ? "text-[#6fa8ff]" : "text-[#b47cff]"}`} strokeWidth={1.8} />
+          </span>
+          <span className="w-full truncate text-[9px] font-medium text-muted-foreground group-hover:text-foreground">{label}</span>
         </Link>
       ))}
     </div>
