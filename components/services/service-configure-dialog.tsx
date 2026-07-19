@@ -94,7 +94,9 @@ const defaultServiceTemplates: Record<string, { baseUrl: string; apiVersion: str
                 api_key: "5c232ef1fdf138",
                 api_secret: "72b7b119b2b98983e1ad33a385b08df489",
                 app_key: "",
-                app_secret: ""
+                app_secret: "",
+                reseller_id: "",
+                reseller_username: ""
             }
         }, null, 2)
     },
@@ -234,6 +236,21 @@ export function ServiceConfigureDialog({
         setFormData((prev) => ({ ...prev, [field]: value }));
     };
 
+    const accountingService = ["TSHUL", "NEPURIX"].includes(service.service.code);
+    const panNecessary = (() => {
+        try {
+            const config = JSON.parse(formData.config || "{}");
+            return config.is_pan_necessary ?? config.requiresPan ?? service.service.code === "TSHUL";
+        } catch { return service.service.code === "TSHUL"; }
+    })();
+    const setPanNecessary = (checked: boolean) => {
+        try {
+            const config = JSON.parse(formData.config || "{}");
+            config.is_pan_necessary = checked;
+            handleInputChange("config", JSON.stringify(config, null, 2));
+        } catch { toast.error("Fix the configuration JSON before changing PAN validation"); }
+    };
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[500px]">
@@ -283,6 +300,13 @@ export function ServiceConfigureDialog({
                             <p className="text-xs text-gray-500">
                                 Service-specific configuration in JSON format
                             </p>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                            {accountingService && <div className="flex w-full items-center justify-between rounded-lg border p-3">
+                                <div className="space-y-0.5"><Label htmlFor="panNecessary">PAN number required</Label><p className="text-xs text-gray-500">Require a valid PAN when provisioning customers to {service.service.name}.</p></div>
+                                <Switch id="panNecessary" checked={Boolean(panNecessary)} onCheckedChange={setPanNecessary} />
+                            </div>}
                         </div>
 
                         <div className="flex items-center justify-between">
