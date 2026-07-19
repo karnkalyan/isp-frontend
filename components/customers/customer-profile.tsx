@@ -82,7 +82,7 @@ import { TR069DeviceNeighbors } from "@/components/tr069/device-neighbors"
 // Realtime Usage Chart
 import { RealtimeUsageChart } from "@/components/customers/realtime-charts"
 import { CustomerBillingManagement } from "@/components/customers/customer-billing-management"
-import { NetTVDialog } from "@/components/customers/add-customer-form"
+import { NetTVDeviceOrderDialog, NetTVDialog } from "@/components/customers/add-customer-form"
 
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -535,6 +535,17 @@ function getLinkedNettvUsername(customer?: Customer | null) {
     subscription?.serviceData?.subscriber?.username ||
     ""
   ).trim()
+}
+
+function unwrapCustomerNettvList(value: any, depth = 0): any[] {
+  if (Array.isArray(value)) return value
+  if (!value || typeof value !== "object" || depth > 4) return []
+  for (const candidate of [value?.data, value?.items, value?.results, value?.orders]) {
+    if (Array.isArray(candidate)) return candidate
+    const nested = unwrapCustomerNettvList(candidate, depth + 1)
+    if (nested.length) return nested
+  }
+  return []
 }
 
 interface PackageOption {
@@ -1412,6 +1423,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   // Additional service details
   const [tshulDetails, setTshulDetails] = useState<any>(null)
   const [nettvDetails, setNettvDetails] = useState<any>(null)
+  const [nettvOrders, setNettvOrders] = useState<any[]>([])
   const [tshulMessage, setTshulMessage] = useState("")
   const [nettvMessage, setNettvMessage] = useState("")
   const [loadingTshul, setLoadingTshul] = useState(false)
@@ -1442,6 +1454,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const [provisioningStatusSaving, setProvisioningStatusSaving] = useState(false)
   const [serviceActionLoading, setServiceActionLoading] = useState<"radius" | "nettv" | "account" | "disconnect" | null>(null)
   const [nettvProvisionOpen, setNettvProvisionOpen] = useState(false)
+  const [nettvDeviceOrderOpen, setNettvDeviceOrderOpen] = useState(false)
+  const [nettvProvisionUsername, setNettvProvisionUsername] = useState("")
   const [nettvPasswordOpen, setNettvPasswordOpen] = useState(false)
   const [nettvPasswordSaving, setNettvPasswordSaving] = useState(false)
   const [nettvPasswordForm, setNettvPasswordForm] = useState({ password: "", conf_password: "" })
@@ -2519,6 +2533,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           } else if (res.success) {
             setNettvDetails(res.data)
             setNettvMessage("")
+            const ordersResponse = await ServicesAPI.getNetTVOrders(1, 100, linkedUsername).catch(() => null)
+            setNettvOrders(unwrapCustomerNettvList(ordersResponse?.data))
           }
         } catch (error: any) {
           setNettvDetails(null)
@@ -2549,6 +2565,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           if (fetchRes.success) {
             setNettvDetails(fetchRes.data)
             setNettvMessage("")
+            const ordersResponse = await ServicesAPI.getNetTVOrders(1, 100, linkedUsername).catch(() => null)
+            setNettvOrders(unwrapCustomerNettvList(ordersResponse?.data))
           }
         }
       } else {
@@ -2789,7 +2807,6 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
 
   const handleReprovisionNettv = async (nettvData: any) => {
     try {
-      const wasAlreadyLinked = Boolean(getLinkedNettvUsername(customer))
       setServiceActionLoading("nettv")
       const response = await apiRequest<{ success: boolean; message: string }>(`/customer/${customerId}/reprovision/nettv`, {
         method: 'POST',
@@ -2799,10 +2816,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       if (response.success) {
         toast.success(response.message || "NetTV reprovisioned successfully")
         await fetchCustomerData()
-        if (!wasAlreadyLinked && !nettvData?.provisioning?.stb?.serial) {
-          toast.success("Subscriber created. Select the customer's STB and subscription package to complete NetTV provisioning.")
-          setNettvProvisionOpen(true)
-        }
+        setNettvProvisionUsername(buildNettvCredential(nettvData?.username || getLinkedNettvUsername(customer) || customer.connectionUsers?.[0]?.username || customer.customerUniqueId))
+        setNettvDeviceOrderOpen(true)
       } else {
         toast.error("NetTV reprovisioning failed")
       }
@@ -3310,6 +3325,17 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         defaultMobile={customer.secondaryPhone && !/^no secondary$/i.test(customer.secondaryPhone.trim()) ? customer.secondaryPhone : (customer.phoneNumber || "")}
         defaultLat={String((customer as any).lead?.metadata?.latitude ?? (customer as any).lead?.latitude ?? (customer as any).lead?.lat ?? (customer as any).lead?.location?.latitude ?? (customer as any).latitude ?? (customer as any).lat ?? "")}
         defaultLng={String((customer as any).lead?.metadata?.longitude ?? (customer as any).lead?.longitude ?? (customer as any).lead?.lon ?? (customer as any).lead?.lng ?? (customer as any).lead?.location?.longitude ?? (customer as any).longitude ?? (customer as any).lon ?? (customer as any).lng ?? "")}
+      />
+      <NetTVDeviceOrderDialog
+        open={nettvDeviceOrderOpen}
+        onOpenChange={setNettvDeviceOrderOpen}
+        username={nettvProvisionUsername}
+        customerId={customer.id}
+        onComplete={async details => {
+          setNettvDetails(details)
+          setNettvMessage("")
+          await fetchCustomerData()
+        }}
       />
 
       <Dialog open={provisionServicesOpen} onOpenChange={setProvisionServicesOpen}>
@@ -5836,6 +5862,16 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                         })}
                       </div>
                     )}
+                  </CardContainer>
+                  <CardContainer title="NetTV Orders" className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm">
+                    {nettvOrders.length === 0 ? <p className="p-4 text-center text-sm text-muted-foreground">No NetTV orders found for this subscriber.</p> : <div className="space-y-2 p-1">
+                      {nettvOrders.map((order: any, index: number) => <div key={order.id || index} className="grid gap-2 rounded-lg border bg-muted/20 p-3 text-sm sm:grid-cols-4">
+                        <div><span className="block text-xs text-muted-foreground">Order</span>#{order.id || order.order_id || index + 1}</div>
+                        <div><span className="block text-xs text-muted-foreground">Package</span>{order.package_name || order.name || order.package?.name || "N/A"}</div>
+                        <div><span className="block text-xs text-muted-foreground">Quantity / Amount</span>{order.qty || order.quantity || 1} · Rs. {order.amount || order.total || order.price || 0}</div>
+                        <div><span className="block text-xs text-muted-foreground">Status</span><Badge variant="secondary">{order.status || "Active"}</Badge></div>
+                      </div>)}
+                    </div>}
                   </CardContainer>
                 </div>
               );
