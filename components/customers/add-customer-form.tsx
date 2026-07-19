@@ -1079,16 +1079,16 @@ export function NetTVDialog({
     }))
 
     const payload: any = {
-      username,
+      username: buildNettvCredential(username),
       password,
-      email,
+      email: email.trim(),
       status: "0", // active
-      fname,
-      mname,
-      lname,
-      address,
-      city,
-      district,
+      fname: fname.trim(),
+      mname: mname.trim(),
+      lname: lname.trim(),
+      address: address.trim(),
+      city: city.trim(),
+      district: district.trim(),
       province: province?.id || "",
       country: country?.id || "",
       phone_no,

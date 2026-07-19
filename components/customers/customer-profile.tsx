@@ -2788,6 +2788,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
 
   const handleReprovisionNettv = async (nettvData: any) => {
     try {
+      const wasAlreadyLinked = Boolean(getLinkedNettvUsername(customer))
       setServiceActionLoading("nettv")
       const response = await apiRequest<{ success: boolean; message: string }>(`/customer/${customerId}/reprovision/nettv`, {
         method: 'POST',
@@ -2796,7 +2797,11 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       })
       if (response.success) {
         toast.success(response.message || "NetTV reprovisioned successfully")
-        fetchCustomerData()
+        await fetchCustomerData()
+        if (!wasAlreadyLinked && !nettvData?.provisioning?.stb?.serial) {
+          toast.success("Subscriber created. Select the customer's STB and subscription package to complete NetTV provisioning.")
+          setNettvProvisionOpen(true)
+        }
       } else {
         toast.error("NetTV reprovisioning failed")
       }
