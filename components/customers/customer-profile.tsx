@@ -1439,6 +1439,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const [actionLoading, setActionLoading] = useState(false)
   const [removingDeviceKey, setRemovingDeviceKey] = useState<string | null>(null)
   const [acsSyncing, setAcsSyncing] = useState(false)
+  const [provisioningStatusSaving, setProvisioningStatusSaving] = useState(false)
   const [serviceActionLoading, setServiceActionLoading] = useState<"radius" | "nettv" | "account" | "disconnect" | null>(null)
   const [nettvProvisionOpen, setNettvProvisionOpen] = useState(false)
   const [nettvPasswordOpen, setNettvPasswordOpen] = useState(false)
@@ -3215,6 +3216,23 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     )
   }
 
+  const markProvisioningComplete = async () => {
+    setProvisioningStatusSaving(true)
+    try {
+      const response = await apiRequest<{ success: boolean; message?: string }>(`/customer/${customerId}/provisioning-status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "active" })
+      })
+      toast.success(response.message || "Customer provisioning marked complete")
+      await fetchCustomerData()
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update provisioning status")
+    } finally {
+      setProvisioningStatusSaving(false)
+    }
+  }
+
   if (isFieldStaff) {
     const ontDevices = (customer.devices || []).filter(device => device.deviceType === "ONT" && device.serialNumber)
     return (
@@ -3289,9 +3307,9 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         defaultProvince={customer.state || ""}
         defaultZip={customerProfileData.zipCode || ""}
         defaultPhone={customer.phoneNumber || ""}
-        defaultMobile={customer.secondaryPhone || customer.phoneNumber || ""}
-        defaultLat={String((customer as any).lead?.metadata?.latitude ?? (customer as any).lead?.lat ?? (customer as any).lat ?? "")}
-        defaultLng={String((customer as any).lead?.metadata?.longitude ?? (customer as any).lead?.lon ?? (customer as any).lon ?? "")}
+        defaultMobile={customer.secondaryPhone && !/^no secondary$/i.test(customer.secondaryPhone.trim()) ? customer.secondaryPhone : (customer.phoneNumber || "")}
+        defaultLat={String((customer as any).lead?.metadata?.latitude ?? (customer as any).lead?.latitude ?? (customer as any).lead?.lat ?? (customer as any).lead?.location?.latitude ?? (customer as any).latitude ?? (customer as any).lat ?? "")}
+        defaultLng={String((customer as any).lead?.metadata?.longitude ?? (customer as any).lead?.longitude ?? (customer as any).lead?.lon ?? (customer as any).lead?.lng ?? (customer as any).lead?.location?.longitude ?? (customer as any).longitude ?? (customer as any).lon ?? (customer as any).lng ?? "")}
       />
 
       <Dialog open={provisionServicesOpen} onOpenChange={setProvisionServicesOpen}>
@@ -3754,6 +3772,11 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         <Button size="sm" className="h-9 bg-gradient-to-r from-violet-600 to-purple-600 text-white border-0 shadow-sm" onClick={() => setProvisionServicesOpen(true)}>
           <Zap className="mr-2 h-4 w-4" /> Activate / Provision Services
         </Button>
+        {(customer.serviceDetails?.some(service => service.status !== "active") || customer.devices?.some(device => device.deviceType === "ONT" && device.provisioningStatus !== "active")) && (
+          <Button size="sm" variant="outline" className="h-9 border-emerald-600 text-emerald-700" onClick={markProvisioningComplete} disabled={provisioningStatusSaving}>
+            {provisioningStatusSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />} Mark Provisioning Complete
+          </Button>
+        )}
         <Button size="sm" className="h-9 bg-gradient-to-r from-green-500 to-emerald-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={() => setRenewPackageOpen(true)}>
           <RefreshCw className="mr-2 h-4 w-4" /> Renew Package
         </Button>
