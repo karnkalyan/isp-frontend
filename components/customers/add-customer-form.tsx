@@ -41,6 +41,7 @@ import {
 } from "lucide-react"
 import { toast } from "react-hot-toast"
 import { apiRequest } from "@/lib/api"
+import { ServicesAPI } from "@/lib/api/service"
 import { useAuth } from "@/contexts/AuthContext"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Textarea } from "@/components/ui/textarea"
@@ -851,6 +852,11 @@ export function NetTVDialog({
   const [website, setWebsite] = useState("")
   const [longitude, setLongitude] = useState(defaultLng)
   const [latitude, setLatitude] = useState(defaultLat)
+  const [nettvStbs, setNettvStbs] = useState<any[]>([])
+  const [nettvPackageConfigs, setNettvPackageConfigs] = useState<any[]>([])
+  const [selectedStb, setSelectedStb] = useState("")
+  const [selectedPackageSaleId, setSelectedPackageSaleId] = useState("")
+  const [packageQty, setPackageQty] = useState(1)
 
   // Document upload state
   const [documents, setDocuments] = useState<UploadedDocument[]>([])
@@ -923,6 +929,10 @@ export function NetTVDialog({
   // Fetch countries when dialog opens
   useEffect(() => {
     if (open) {
+      ServicesAPI.getNetTVSTBs(1, 100).then((response: any) => {
+        const payload = response?.data
+        setNettvStbs(Array.isArray(payload) ? payload : (payload?.data || payload?.items || payload?.stbs || []))
+      }).catch(() => setNettvStbs([]))
       const fetchCountries = async () => {
         setLoadingCountries(true)
         try {
@@ -936,20 +946,21 @@ export function NetTVDialog({
               setSelectedCountryId(nepal.id)
             }
 
-            // If defaultProvince is provided, try to find matching province
+            // Prefer the lead/customer province, but always fall back to Nepal /
+            // Province No. 3 when the upstream value is absent or uses an
+            // unmapped label (for example "Bagmati").
+            let resolvedProvince: Province | undefined
             if (defaultProvince) {
               const cleanDefault = String(defaultProvince).toLowerCase().replace(/province/gi, "").replace(/state/gi, "").replace(/no\./gi, "").trim();
-              const foundProvince = response.data.flatMap((c: Country) => c.provinces).find((p: Province) => {
+              resolvedProvince = response.data.flatMap((c: Country) => c.provinces || []).find((p: Province) => {
                 const cleanName = p.name.toLowerCase().replace(/province/gi, "").replace(/state/gi, "").replace(/no\./gi, "").trim();
                 return cleanName === cleanDefault || cleanName.includes(cleanDefault) || cleanDefault.includes(cleanName);
               })
-              if (foundProvince) {
-                setSelectedProvinceId(foundProvince.id)
-                setSelectedCountryId(foundProvince.country_id)
-              }
-            } else if (nepal) {
-              const defaultProvince = nepal.provinces?.find((province: Province) => province.id === 3891) || nepal.provinces?.[0]
-              if (defaultProvince) setSelectedProvinceId(defaultProvince.id)
+            }
+            resolvedProvince ||= nepal?.provinces?.find((province: Province) => province.id === 3891) || nepal?.provinces?.[0]
+            if (resolvedProvince) {
+              setSelectedProvinceId(resolvedProvince.id)
+              setSelectedCountryId(resolvedProvince.country_id)
             }
           } else {
             toast.error("Failed to load countries")
@@ -965,6 +976,18 @@ export function NetTVDialog({
     }
   }, [open, defaultProvince])
 
+  useEffect(() => {
+    if (!selectedStb) {
+      setNettvPackageConfigs([])
+      setSelectedPackageSaleId("")
+      return
+    }
+    ServicesAPI.getNetTVPackageConfigs(selectedStb).then((response: any) => {
+      const payload = response?.data
+      setNettvPackageConfigs(Array.isArray(payload) ? payload : (payload?.data || payload?.items || payload?.packages || []))
+    }).catch(() => setNettvPackageConfigs([]))
+  }, [selectedStb])
+
   // Update provinces when country changes
   useEffect(() => {
     if (selectedCountryId) {
@@ -974,14 +997,6 @@ export function NetTVDialog({
       setProvinces([])
     }
   }, [selectedCountryId, countries])
-
-  // Keep a valid lead/default province; only clear a selection that belongs to
-  // a different country.
-  useEffect(() => {
-    if (selectedProvinceId && !provinces.some(province => province.id === selectedProvinceId)) {
-      setSelectedProvinceId(null)
-    }
-  }, [selectedCountryId, selectedProvinceId, provinces])
 
   // Validate name fields (only alphabets)
   const validateName = (value: string): boolean => {
@@ -1064,6 +1079,16 @@ export function NetTVDialog({
       longitude: longitude || "0",
       latitude: latitude || "0",
       website,
+      provisioning: selectedStb ? {
+        stb: { serial: selectedStb, status: "1" },
+        package: selectedPackageSaleId ? {
+          pos: "web",
+          created_by: username,
+          payment_gateway: "reseller_wallet",
+          packages: [{ package_sale_id: Number(selectedPackageSaleId), qty: packageQty }],
+          send_mail: 0,
+        } : null,
+      } : undefined,
     }
     if (docsPayload.length > 0) {
       payload.documents = docsPayload
@@ -1251,6 +1276,36 @@ export function NetTVDialog({
               onChange={(e) => setWebsite(e.target.value)}
               placeholder="https://example.com"
             />
+          </div>
+
+          <div className="space-y-4 rounded-lg border p-4">
+            <div>
+              <Label className="text-base font-semibold">Set-Top Box (STB) & Service Provisioning</Label>
+              <p className="text-xs text-muted-foreground">Optionally link an available STB and assign its package during subscriber provisioning.</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Select Linked STB</Label>
+              <select value={selectedStb} onChange={event => setSelectedStb(event.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm">
+                <option value="">No STB</option>
+                {nettvStbs.map((stb: any) => {
+                  const serial = String(stb.serial || stb.mac || stb.serial_number || "")
+                  return <option key={serial} value={serial}>{serial} · {stb.model?.name || stb.model_name || stb.vendor?.name || "Default"}</option>
+                })}
+              </select>
+            </div>
+            {selectedStb && <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Assign Subscription Package</Label>
+                <select value={selectedPackageSaleId} onChange={event => setSelectedPackageSaleId(event.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm">
+                  <option value="">Select package configuration</option>
+                  {nettvPackageConfigs.map((pkg: any, index: number) => {
+                    const id = String(pkg.package_sale_id || pkg.sale_id || pkg.id || "")
+                    return <option key={`${id}-${index}`} value={id}>{pkg.name || pkg.package_name || pkg.title || `Package #${id}`}</option>
+                  })}
+                </select>
+              </div>
+              <div className="space-y-2"><Label>Quantity</Label><Input type="number" min={1} value={packageQty} onChange={event => setPackageQty(Math.max(1, Number(event.target.value) || 1))} /></div>
+            </div>}
           </div>
 
           {/* Document Upload Section */}
@@ -1646,7 +1701,7 @@ export function AddCustomerForm() {
           setAccountingService({
             code,
             name: selectedAccounting.service.name || code,
-            requiresPan: selectedAccounting.config?.requiresPan ?? selectedAccounting.config?.panRequired ?? code === "TSHUL",
+            requiresPan: selectedAccounting.config?.is_pan_necessary ?? selectedAccounting.config?.requiresPan ?? selectedAccounting.config?.panRequired ?? code === "TSHUL",
           })
           setSelectedAddonServices(new Set([code, "RADIUS"]))
         } else {

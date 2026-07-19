@@ -24,6 +24,7 @@ const defaultServiceTemplates: Record<string, { baseUrl: string; apiVersion: str
         baseUrl: "https://kisan-net.tshul.app/api",
         apiVersion: "v1",
         config: JSON.stringify({
+            is_pan_necessary: true,
             timeout: 30000,
             retryAttempts: 3,
             demoCredentials: {
@@ -35,7 +36,7 @@ const defaultServiceTemplates: Record<string, { baseUrl: string; apiVersion: str
     NEPURIX: {
         baseUrl: "https://your-nepurix-host.example",
         apiVersion: "v1",
-        config: JSON.stringify({ isDefault: true, timeout: 30000, retryAttempts: 3 }, null, 2)
+        config: JSON.stringify({ isDefault: true, is_pan_necessary: false, timeout: 30000, retryAttempts: 3 }, null, 2)
     },
     RADIUS: {
         baseUrl: "http://10.3.2.6:3005/api",

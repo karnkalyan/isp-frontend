@@ -1458,10 +1458,25 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const [reprovisionUsername, setReprovisionUsername] = useState("")
   const [reprovisionPassword, setReprovisionPassword] = useState("")
   const [provisionServicesOpen, setProvisionServicesOpen] = useState(false)
+  const [accountingProvision, setAccountingProvision] = useState({ code: "TSHUL", name: "Account Billing", requiresPan: true })
   const [identityOpen, setIdentityOpen] = useState(false)
   const [identityIdNumber, setIdentityIdNumber] = useState("")
   const [identityPanNumber, setIdentityPanNumber] = useState("")
   const [identitySaving, setIdentitySaving] = useState(false)
+
+  useEffect(() => {
+    apiRequest<any>("/services/isp", { suppressToast: true }).then((response) => {
+      const services = Array.isArray(response) ? response : (response?.data || [])
+      const selected = services.find((item: any) => ["TSHUL", "NEPURIX"].includes(item?.service?.code) && item.isActive && item.isEnabled)
+      if (!selected) return
+      const code = selected.service.code
+      setAccountingProvision({
+        code,
+        name: selected.service.name || code,
+        requiresPan: selected.config?.is_pan_necessary ?? selected.config?.requiresPan ?? selected.config?.panRequired ?? code === "TSHUL",
+      })
+    }).catch(() => undefined)
+  }, [])
   const [documentUploadOpen, setDocumentUploadOpen] = useState(false)
   const [documentType, setDocumentType] = useState("idProof")
   const [documentFile, setDocumentFile] = useState<File | null>(null)
@@ -3270,8 +3285,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         defaultZip={customerProfileData.zipCode || ""}
         defaultPhone={customer.phoneNumber || ""}
         defaultMobile={customer.secondaryPhone || customer.phoneNumber || ""}
-        defaultLat={(customer as any).lead?.metadata?.latitude || ""}
-        defaultLng={(customer as any).lead?.metadata?.longitude || ""}
+        defaultLat={String((customer as any).lead?.metadata?.latitude ?? (customer as any).lead?.lat ?? (customer as any).lat ?? "")}
+        defaultLng={String((customer as any).lead?.metadata?.longitude ?? (customer as any).lead?.lon ?? (customer as any).lon ?? "")}
       />
 
       <Dialog open={provisionServicesOpen} onOpenChange={setProvisionServicesOpen}>
@@ -3292,10 +3307,10 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
               <Button type="button" onClick={() => { setProvisionServicesOpen(false); setNettvProvisionOpen(true) }}>Configure</Button>
             </div>
             <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
-              <div><div className="font-medium">Account Billing</div><div className="text-sm text-muted-foreground">Requires an ID number and valid 9-digit PAN.</div></div>
+              <div><div className="font-medium">{accountingProvision.name} Billing</div><div className="text-sm text-muted-foreground">Requires an ID number{accountingProvision.requiresPan ? " and valid 9-digit PAN" : ""}.</div></div>
               <Button type="button" disabled={serviceActionLoading === "account"} onClick={() => {
-                if (!customer.idNumber || !/^\d{9}$/.test(customer.panNo || "")) {
-                  toast.error("Update the customer ID and 9-digit PAN before provisioning Account Billing.")
+                if (!customer.idNumber || (accountingProvision.requiresPan && !/^\d{9}$/.test(customer.panNo || ""))) {
+                  toast.error(`Update the customer ID${accountingProvision.requiresPan ? " and 9-digit PAN" : ""} before provisioning Account Billing.`)
                   setProvisionServicesOpen(false)
                   openIdentityDialog()
                   return
