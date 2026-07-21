@@ -5583,6 +5583,16 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
               <p className="text-sm text-muted-foreground">Linked username: <span className="font-mono font-medium text-foreground">{getLinkedNettvUsername(customer) || "Not linked"}</span></p>
             </div>
             <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setNettvProvisionUsername(getLinkedNettvUsername(customer))
+                  setNettvDeviceOrderOpen(true)
+                }}
+                disabled={!getLinkedNettvUsername(customer)}
+              >
+                <Tv className="mr-2 h-4 w-4" /> Manage STB & Package
+              </Button>
               {nettvDetails && (
                 <Button
                   onClick={() => {

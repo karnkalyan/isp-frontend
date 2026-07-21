@@ -878,6 +878,8 @@ export function NetTVDialog({
   const [packageQty, setPackageQty] = useState(1)
   const [nettvSubscriberRegistered, setNettvSubscriberRegistered] = useState(false)
   const [nettvResellerBalance, setNettvResellerBalance] = useState<number | null>(null)
+  const [hasRatv, setHasRatv] = useState(true)
+  const [subscriberGroupId, setSubscriberGroupId] = useState("6")
 
   // Document upload state
   const [documents, setDocuments] = useState<UploadedDocument[]>([])
@@ -978,7 +980,10 @@ export function NetTVDialog({
                 country_id: Number(province.country_id)
               }))
             }))
-            setCountries(normalizedCountries.length ? normalizedCountries : [NETTV_NEPAL_FALLBACK])
+            const countriesWithNepal = normalizedCountries.some((country: Country) => country.id === 156)
+              ? normalizedCountries
+              : [NETTV_NEPAL_FALLBACK, ...normalizedCountries]
+            setCountries(countriesWithNepal)
             
             // Set default country to Nepal (id 156 or name Nepal)
             const nepal = normalizedCountries.find((c: Country) => c.name.toLowerCase() === "nepal" || c.id === 156)
@@ -1090,6 +1095,8 @@ export function NetTVDialog({
       setLatitude(defaultLat)
       setSelectedCountryId(156)
       setSelectedProvinceId(3891)
+      setHasRatv(true)
+      setSubscriberGroupId("6")
       setNameErrors({ fname: "", lname: "" })
       setDocuments([])
     }
@@ -1097,7 +1104,7 @@ export function NetTVDialog({
 
   const handleConfirm = () => {
     // Validate required fields
-    if (!username || !email || !password || !fname || !lname || !address || !city || !district || !selectedCountryId || !selectedProvinceId || !phone_no || !mobile_no) {
+    if (!username || !email || !password || !fname || !lname || !address || !city || !district || !selectedCountryId || !selectedProvinceId || !mobile_no) {
       toast.error("Please fill all required fields")
       return
     }
@@ -1119,7 +1126,9 @@ export function NetTVDialog({
       username: buildNettvCredential(username),
       password,
       email: email.trim(),
-      status: "0", // active
+      status: "1",
+      has_ratv: hasRatv ? 1 : 0,
+      subscriber_group_id: Number(subscriberGroupId || 6),
       fname: fname.trim(),
       mname: mname.trim(),
       lname: lname.trim(),
@@ -1180,6 +1189,19 @@ export function NetTVDialog({
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
               />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-4 rounded-lg border bg-muted/20 p-4 sm:grid-cols-2">
+            <div className="flex items-center justify-between gap-3">
+              <div><Label htmlFor="nettvRatv">RATV Service</Label><p className="text-xs text-muted-foreground">Enable RATV access for this subscriber.</p></div>
+              <Switch id="nettvRatv" checked={hasRatv} onCheckedChange={setHasRatv} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="nettvSubscriberGroup">Subscriber Group</Label>
+              <Select value={subscriberGroupId} onValueChange={setSubscriberGroupId}>
+                <SelectTrigger id="nettvSubscriberGroup"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="6">Internet (Group 6)</SelectItem></SelectContent>
+              </Select>
             </div>
           </div>
           <div className="space-y-2">
@@ -1272,7 +1294,7 @@ export function NetTVDialog({
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="nettvPhone">Phone (Landline) *</Label>
+              <Label htmlFor="nettvPhone">Phone (Landline)</Label>
               <Input
                 id="nettvPhone"
                 value={phone_no}

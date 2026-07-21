@@ -557,6 +557,8 @@ export function NettvDashboard() {
       gender: toInputValue(contact?.gender),
       dob: toInputValue(contact?.dob),
       branch: toInputValue(contact?.branch),
+      has_ratv: String(firstDefined(subscriber?.has_ratv, contact?.has_ratv, 1)),
+      subscriber_group_id: "6",
     })
     setEditOpen(true)
   }
@@ -927,6 +929,18 @@ export function NettvDashboard() {
                   {countriesList.map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>RATV Service</Label>
+                <select value={editForm.has_ratv || "1"} onChange={(e) => updateEditField("has_ratv", e.target.value)} className="flex h-10 w-full rounded-md border bg-background px-3 text-sm">
+                  <option value="1">Enabled</option><option value="0">Disabled</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Subscriber Group</Label>
+                <select value={editForm.subscriber_group_id || "6"} onChange={(e) => updateEditField("subscriber_group_id", e.target.value)} className="flex h-10 w-full rounded-md border bg-background px-3 text-sm">
+                  <option value="6">Internet (Group 6)</option>
                 </select>
               </div>
 
