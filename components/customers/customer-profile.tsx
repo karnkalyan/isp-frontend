@@ -69,6 +69,7 @@ import {
   History
 } from "lucide-react"
 import { apiRequest, buildApiAssetUrl, getDynamicBaseUrl } from "@/lib/api"
+import { ServicesAPI } from "@/lib/api/service"
 import { useAuth } from "@/contexts/AuthContext"
 import { Switch } from "@/components/ui/switch"
 
@@ -2506,8 +2507,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       const nettvIsProvisioned = Boolean(customer.subscribedApps?.some((app) => {
         const serviceCode = String(app.service?.code || "").toUpperCase()
         const serviceName = String(app.service?.name || "").toUpperCase()
-        const status = String(app.status || "").toLowerCase()
-        return status === "active" && (serviceCode === "NETTV" || serviceName.includes("NETTV"))
+        return serviceCode === "NETTV" || serviceName.includes("NETTV")
       }))
 
       if (!nettvIsProvisioned) {

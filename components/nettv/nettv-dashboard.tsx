@@ -1474,7 +1474,7 @@ export function NettvDashboard() {
                   return (
                     <TableRow key={`${username}-${index}`}>
                       <TableCell>
-                        <div className="font-semibold">{fullName(subscriber)}</div>
+                        <button type="button" className="font-semibold text-left hover:text-primary hover:underline" onClick={() => openDetails(subscriber)}>{fullName(subscriber)}</button>
                         <div className="font-mono text-xs text-muted-foreground">{username}</div>
                       </TableCell>
                       <TableCell>
