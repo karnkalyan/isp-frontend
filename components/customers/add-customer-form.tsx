@@ -1413,10 +1413,11 @@ interface NetTVDeviceOrderDialogProps {
   onOpenChange: (open: boolean) => void
   username: string
   customerId?: number
+  linkedOnly?: boolean
   onComplete?: (details: any) => void | Promise<void>
 }
 
-export function NetTVDeviceOrderDialog({ open, onOpenChange, username, customerId, onComplete }: NetTVDeviceOrderDialogProps) {
+export function NetTVDeviceOrderDialog({ open, onOpenChange, username, customerId, linkedOnly = false, onComplete }: NetTVDeviceOrderDialogProps) {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [subscriberDetails, setSubscriberDetails] = useState<any>(null)
@@ -1434,13 +1435,13 @@ export function NetTVDeviceOrderDialog({ open, onOpenChange, username, customerI
     try {
       const [subscriberResponse, stbsResponse, ordersResponse] = await Promise.all([
         ServicesAPI.getNetTVSubscriber(normalizedUsername),
-        ServicesAPI.getNetTVSTBs(1, 250),
+        linkedOnly ? Promise.resolve({ data: [] } as any) : ServicesAPI.getNetTVSTBs(1, 250),
         ServicesAPI.getNetTVOrders(1, 100, normalizedUsername).catch(() => ({ data: [] } as any)),
       ])
       const overview = subscriberResponse?.data || {}
       const linkedStbs = unwrapNettvList(overview?.stbs || overview?.subscriber?.user_stbs)
       const availableStbs = unwrapNettvList(stbsResponse?.data)
-      const uniqueStbs = [...linkedStbs, ...availableStbs].filter((stb, index, list) => {
+      const uniqueStbs = [...linkedStbs, ...(linkedOnly ? [] : availableStbs)].filter((stb, index, list) => {
         const serial = String(stb?.stb?.serial || stb?.serial || stb?.mac || stb?.serial_number || "")
         return serial && list.findIndex(item => String(item?.stb?.serial || item?.serial || item?.mac || item?.serial_number || "") === serial) === index
       })
@@ -1454,7 +1455,7 @@ export function NetTVDeviceOrderDialog({ open, onOpenChange, username, customerI
     } finally {
       setLoading(false)
     }
-  }, [open, normalizedUsername])
+  }, [open, normalizedUsername, linkedOnly])
 
   useEffect(() => { loadDetails() }, [loadDetails])
 
@@ -1463,6 +1464,17 @@ export function NetTVDeviceOrderDialog({ open, onOpenChange, username, customerI
       setPackageConfigs([])
       return
     }
+    ServicesAPI.getNetTVSTB(selectedSerial)
+      .then(response => {
+        const details = response?.data?.stb || response?.data?.data || response?.data
+        if (!details) return
+        setStbs(current => current.map(item => {
+          const stb = item?.stb || item
+          const serial = String(stb?.serial || stb?.mac || stb?.serial_number || "")
+          return serial === selectedSerial ? { ...item, ...(item?.stb ? { stb: { ...stb, ...details } } : details) } : item
+        }))
+      })
+      .catch(() => undefined)
     ServicesAPI.getNetTVPackageConfigs(selectedSerial)
       .then(response => {
         const groups = unwrapNettvList(response?.data)
@@ -1509,19 +1521,20 @@ export function NetTVDeviceOrderDialog({ open, onOpenChange, username, customerI
     <DialogContent className="w-[95vw] max-h-[90vh] overflow-y-auto sm:max-w-3xl">
       <DialogHeader>
         <DialogTitle>NetTV Device & Order</DialogTitle>
-        <DialogDescription>Subscriber <span className="font-mono font-semibold">{normalizedUsername}</span> is confirmed. Select an STB and subscription package for this same customer.</DialogDescription>
+        <DialogDescription>Subscriber <span className="font-mono font-semibold">{normalizedUsername}</span> is confirmed. {linkedOnly ? "Select one of this subscriber's linked STBs and assign its subscription package." : "Select an STB and subscription package for this same customer."}</DialogDescription>
       </DialogHeader>
       {loading ? <div className="flex items-center justify-center py-12"><Loader2 className="h-7 w-7 animate-spin" /></div> : <div className="space-y-5 py-3">
         <div className="space-y-2">
           <Label>Select Device *</Label>
           <select value={selectedSerial} onChange={event => setSelectedSerial(event.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm">
-            <option value="">Select STB</option>
+            <option value="">{linkedOnly ? "Select linked STB" : "Select STB"}</option>
             {stbs.map((item: any) => {
               const stb = item?.stb || item
               const serial = String(stb?.serial || stb?.mac || stb?.serial_number || "")
               return <option key={serial} value={serial}>{serial} · {stb?.model?.name || stb?.model_name || stb?.vendor?.name || "Default"}{linkedSerials.has(serial) ? " · Linked" : ""}</option>
             })}
           </select>
+          {linkedOnly && stbs.length === 0 && <p className="text-sm text-muted-foreground">No STB is linked to this NetTV subscriber.</p>}
         </div>
         {selectedStb && <div className="grid grid-cols-2 gap-3 rounded-lg border p-4 text-sm md:grid-cols-4">
           <div><span className="block text-xs text-muted-foreground">Serial / MAC</span><span className="font-mono">{selectedSerial}</span></div>

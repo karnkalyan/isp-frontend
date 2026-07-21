@@ -3331,6 +3331,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         onOpenChange={setNettvDeviceOrderOpen}
         username={nettvProvisionUsername}
         customerId={customer.id}
+        linkedOnly
         onComplete={async details => {
           setNettvDetails(details)
           setNettvMessage("")
