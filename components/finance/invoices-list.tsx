@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { CardContainer } from "@/components/ui/card-container"
 import { StatusBadge } from "@/components/ui/status-badge"
-import { MoreHorizontal, FileText, Loader2, Printer, Search, Trash, Plus, ExternalLink } from "lucide-react"
+import { MoreHorizontal, FileText, Loader2, Printer, Search, Trash, Plus, ExternalLink, AlertTriangle } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -767,7 +767,18 @@ export function InvoicesList() {
                         )}
                       </div>
                     ) : invoice.accountingSyncError ? (
-                      <span className="text-xs text-red-600" title={invoice.accountingSyncError}>Sync failed</span>
+                      <div
+                        className="flex max-w-xs items-start gap-1.5 text-xs text-red-600"
+                        title={invoice.accountingSyncError}
+                      >
+                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        <div className="space-y-0.5">
+                          <div className="font-semibold">
+                            {invoice.accountingProvider ? `${invoice.accountingProvider} sync failed` : "Accounting sync failed"}
+                          </div>
+                          <div className="break-words leading-4">{invoice.accountingSyncError}</div>
+                        </div>
+                      </div>
                     ) : <span className="text-muted-foreground">—</span>}
                   </td>
                   <td className="p-4 text-right">
