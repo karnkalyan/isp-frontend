@@ -104,6 +104,7 @@ export function TR069DeviceList() {
   const [totalDevices, setTotalDevices] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
+  const [syncingDevice, setSyncingDevice] = useState<string | null>(null)
   const [rebootInProgress, setRebootInProgress] = useState<string | null>(null)
 
   // Pagination state
@@ -198,6 +199,22 @@ export function TR069DeviceList() {
       toast.error("Failed to sync with GenieACS", { id: "sync" })
     } finally {
       setIsSyncing(false)
+    }
+  }
+
+  const syncDevice = async (device: Device) => {
+    try {
+      setSyncingDevice(device.SerialNumber)
+      const response = await apiRequest<{ success: boolean; message?: string }>(
+        `/tr069-devices/${encodeURIComponent(device.SerialNumber)}/sync`,
+        { method: "POST" }
+      )
+      toast.success(response.message || `${device.device} synchronized`)
+      await fetchDevices()
+    } catch (error: any) {
+      toast.error(error.message || `Failed to synchronize ${device.device}`)
+    } finally {
+      setSyncingDevice(null)
     }
   }
 
@@ -580,7 +597,7 @@ export function TR069DeviceList() {
                           <TableCell>
                             <div className="w-32 space-y-1.5">
                               <div className="flex justify-between items-center text-[10px]">
-                                <span className={`font-bold ${signal.textColor}`}>{device.signal.replace(' dBm', ' dB')}</span>
+                                <span className={`font-bold ${signal.textColor}`}>{device.signal}</span>
                                 <span className="text-slate-400 capitalize">{signal.status}</span>
                               </div>
                               <Progress value={signal.percent} className="h-1.5" indicatorClassName={signal.color} />
@@ -589,7 +606,9 @@ export function TR069DeviceList() {
                           <TableCell>
                             <div className="space-y-0.5">
                               <p className="text-xs text-slate-700 font-medium">
-                                {new Date(device.lastContact).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                {device.lastContact
+                                  ? new Date(device.lastContact).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                                  : "N/A"}
                               </p>
                               <Tooltip>
                                 <TooltipTrigger className="text-[10px] text-slate-400 flex items-center gap-1">
@@ -611,6 +630,13 @@ export function TR069DeviceList() {
                                   <Link href={`/tr069/device/${device.SerialNumber}`} className="cursor-pointer">
                                     <Info className="h-4 w-4 mr-2" /> Device Details
                                   </Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => syncDevice(device)}
+                                  disabled={syncingDevice === device.SerialNumber}
+                                >
+                                  <RefreshCw className={`h-4 w-4 mr-2 ${syncingDevice === device.SerialNumber ? "animate-spin" : ""}`} />
+                                  {syncingDevice === device.SerialNumber ? "Syncing Device..." : "Sync This Device"}
                                 </DropdownMenuItem>
                                 {device.leadId ? (
                                   <DropdownMenuItem 
