@@ -2879,12 +2879,7 @@ export function AddCustomerForm() {
       }
 
       if (selectedAddonServices.has("RADIUS")) {
-        const selectedNas = nasOptions.find(nas => String(nas.id) === selectedNasId)
-        if (nasOptions.length > 0 && !selectedNas) {
-          toast.error("Select a NAS for RADIUS provisioning.")
-          setIsProvisioning(false)
-          return
-        }
+        const selectedNas = nasOptions.find(nas => String(nas.id) === selectedNasId) || nasOptions.find(nas => nas.isDefault) || nasOptions[0]
         // Use first valid wireless credential; if none, generate random
         let username = "", password = ""
         const validCred = wirelessCredentials.find(c => c.username && c.password)
@@ -2896,12 +2891,11 @@ export function AddCustomerForm() {
           password = Math.random().toString(36).substring(2, 10) + "A1!"
         }
 
-        // Expiry from subscription planEnd (if available)
-        const expiryDate = provisionResult?.subscription?.planEnd
-          ? new Date(provisionResult.subscription.planEnd).toLocaleDateString('en-GB', {
-            day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit'
-          }).replace(/,/g, '').replace(/ /g, ' ')
-          : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(/,/g, '').replace(/ /g, ' ')
+        // Expiry from subscription planEnd (if available) formatted with 00:00:00
+        const rawExpiry = provisionResult?.subscription?.planEnd ? new Date(provisionResult.subscription.planEnd) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        const parts = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).formatToParts(rawExpiry)
+        const getPart = (t: string) => parts.find(p => p.type === t)?.value || ''
+        const expiryDate = `${getPart('day')} ${getPart('month')} ${getPart('year')} 00:00:00`
 
         const radiusGroupName = getRadiusGroupByPackageId(serviceDetails.subscribedPkgId)
 
