@@ -168,6 +168,14 @@ export function TR069DeviceDetails({ deviceId }: TR069DeviceDetailsProps) {
     if (Number.isNaN(rxPowerNumeric)) rxPowerNumeric = 0;
   }
 
+  const getRxPowerInfo = (value: number, raw: string) => {
+    if (raw === "N/A") return { color: "#6b7280", status: "N/A" };
+    if (value >= -24 && value <= -15) return { color: "#22c55e", status: "Good" };
+    if (value >= -27 && value < -24) return { color: "#f59e0b", status: "Warning" };
+    return { color: "#ef4444", status: "Critical" };
+  };
+  const rxPowerInfo = getRxPowerInfo(rxPowerNumeric, rxPowerRaw);
+
   const formatBytes = (bytes: number) => {
     const safeBytes = Number(bytes) || 0;
     if (safeBytes === 0) return "0 B";
@@ -480,8 +488,9 @@ export function TR069DeviceDetails({ deviceId }: TR069DeviceDetailsProps) {
               </div>
 
               <div className="flex flex-col items-center">
-                <CircularProgress value={rxPowerNumeric} label="RX Power" color="#ef4444" />
+                <CircularProgress value={rxPowerNumeric} label="RX Power" color={rxPowerInfo.color} />
                 <span className="text-xs text-muted-foreground mt-1">{rxPowerRaw}</span>
+                <span className="text-xs font-medium mt-0.5" style={{ color: rxPowerInfo.color }}>{rxPowerInfo.status}</span>
               </div>
             </div>
 

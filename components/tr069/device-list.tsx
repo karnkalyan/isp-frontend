@@ -141,10 +141,10 @@ export function TR069DeviceList() {
       const totalPages = firstPage.pagination?.totalPages || 1
       const remainingPages = totalPages > 1
         ? await Promise.all(
-            Array.from({ length: totalPages - 1 }, (_, index) =>
-              apiRequest<ApiResponse>(`/tr069-devices?page=${index + 2}&limit=${fetchLimit}`)
-            )
+          Array.from({ length: totalPages - 1 }, (_, index) =>
+            apiRequest<ApiResponse>(`/tr069-devices?page=${index + 2}&limit=${fetchLimit}`)
           )
+        )
         : []
       const data: ApiResponse = {
         ...firstPage,
@@ -297,12 +297,12 @@ export function TR069DeviceList() {
     }
     const percentage = Math.min(100, Math.max(0, ((signalValue + 90) * (100 / 70))))
     const percent = Math.round(percentage)
-    if (signalValue < -24 || signalValue > -18) {
-      return { percent, color: "bg-red-500", textColor: "text-red-500", status: "Critical", icon: AlertCircle, signalValue }
-    } else if (signalValue < -22 || signalValue > -19) {
+    if (signalValue >= -24 && signalValue <= -15) {
+      return { percent, color: "bg-green-500", textColor: "text-green-500", status: "Good", icon: null, signalValue }
+    } else if (signalValue >= -27 && signalValue < -24) {
       return { percent, color: "bg-amber-500", textColor: "text-amber-500", status: "Warning", icon: null, signalValue }
     } else {
-      return { percent, color: "bg-green-500", textColor: "text-green-500", status: "Good", icon: null, signalValue }
+      return { percent, color: "bg-red-500", textColor: "text-red-500", status: "Critical", icon: AlertCircle, signalValue }
     }
   }
 
@@ -317,10 +317,10 @@ export function TR069DeviceList() {
   const toggleFilter = (type: keyof FilterOptions, value: string) => {
     setFilters(prev => ({
       ...prev,
-      [type]: (type === 'linked') ? value : 
-              (prev[type as keyof Omit<FilterOptions, 'linked'>].includes(value)
-                ? (prev[type as keyof Omit<FilterOptions, 'linked'>] as string[]).filter(v => v !== value)
-                : [...(prev[type as keyof Omit<FilterOptions, 'linked'>] as string[]), value])
+      [type]: (type === 'linked') ? value :
+        (prev[type as keyof Omit<FilterOptions, 'linked'>].includes(value)
+          ? (prev[type as keyof Omit<FilterOptions, 'linked'>] as string[]).filter(v => v !== value)
+          : [...(prev[type as keyof Omit<FilterOptions, 'linked'>] as string[]), value])
     }))
     setCurrentPage(1)
   }
@@ -331,28 +331,28 @@ export function TR069DeviceList() {
   }
 
   const hasActiveFilters = () => {
-    return filters.status.length > 0 || filters.signalStatus.length > 0 || 
-           filters.manufacturer.length > 0 || filters.productClass.length > 0 || 
-           filters.linked !== "all"
+    return filters.status.length > 0 || filters.signalStatus.length > 0 ||
+      filters.manufacturer.length > 0 || filters.productClass.length > 0 ||
+      filters.linked !== "all"
   }
 
   const filteredDevices = devices.filter(d => {
     const search = searchQuery.toLowerCase()
-    if (searchQuery && !(d.device || "").toLowerCase().includes(search) && 
-        !(d.SerialNumber || "").toLowerCase().includes(search) && 
-        !(d.ipAddress || "").toLowerCase().includes(search) && 
-        !(d.username || "").toLowerCase().includes(search) &&
-        !(d.ProductClass || "").toLowerCase().includes(search) &&
-        !(d.Manufacturer || "").toLowerCase().includes(search) &&
-        !(d.lead?.firstName || "").toLowerCase().includes(search) &&
-        !(d.lead?.lastName || "").toLowerCase().includes(search)
+    if (searchQuery && !(d.device || "").toLowerCase().includes(search) &&
+      !(d.SerialNumber || "").toLowerCase().includes(search) &&
+      !(d.ipAddress || "").toLowerCase().includes(search) &&
+      !(d.username || "").toLowerCase().includes(search) &&
+      !(d.ProductClass || "").toLowerCase().includes(search) &&
+      !(d.Manufacturer || "").toLowerCase().includes(search) &&
+      !(d.lead?.firstName || "").toLowerCase().includes(search) &&
+      !(d.lead?.lastName || "").toLowerCase().includes(search)
     ) return false
 
     if (filters.status.length > 0 && !filters.status.includes(d.status)) return false
     if (filters.signalStatus.length > 0 && !filters.signalStatus.includes(getSignalInfo(d.signal).status)) return false
     if (filters.manufacturer.length > 0 && !filters.manufacturer.includes(d.Manufacturer)) return false
     if (filters.productClass.length > 0 && !filters.productClass.includes(d.ProductClass)) return false
-    
+
     if (filters.linked === "linked" && !d.leadId) return false
     if (filters.linked === "unlinked" && d.leadId) return false
 
@@ -407,14 +407,14 @@ export function TR069DeviceList() {
                     )}
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  
+
                   <div className="p-1 space-y-4">
                     <div>
                       <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Linking Status</p>
                       <div className="flex flex-wrap gap-1">
                         {["all", "linked", "unlinked"].map(val => (
-                          <Badge 
-                            key={val} 
+                          <Badge
+                            key={val}
                             variant={filters.linked === val ? "default" : "outline"}
                             className={`cursor-pointer capitalize ${filters.linked === val ? "bg-indigo-600" : "text-slate-600"}`}
                             onClick={() => toggleFilter('linked', val)}
@@ -447,8 +447,8 @@ export function TR069DeviceList() {
             </div>
 
             <div className="flex items-center gap-2">
-              <Button 
-                onClick={syncDevices} 
+              <Button
+                onClick={syncDevices}
                 disabled={isSyncing}
                 variant="outline"
                 className="h-10 gap-2 border-indigo-200 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-50"
@@ -549,7 +549,7 @@ export function TR069DeviceList() {
                                   <User className="h-4 w-4 text-indigo-600" />
                                 </div>
                                 <div className="space-y-0.5">
-                                  <Link 
+                                  <Link
                                     href={
                                       (device.lead.status === 'converted' && device.lead.customers?.[0]?.id)
                                         ? `/customers/${device.lead.customers[0].id}`
@@ -563,9 +563,9 @@ export function TR069DeviceList() {
                                 </div>
                               </div>
                             ) : (
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
+                              <Button
+                                variant="ghost"
+                                size="sm"
                                 className="h-8 px-2 text-indigo-600 bg-indigo-50/30 hover:bg-indigo-50 border border-dashed border-indigo-200 rounded-lg text-xs"
                                 onClick={() => { setSelectedDevice(device); setLinkDialogOpen(true); }}
                               >
@@ -639,7 +639,7 @@ export function TR069DeviceList() {
                                   {syncingDevice === device.SerialNumber ? "Syncing Device..." : "Sync This Device"}
                                 </DropdownMenuItem>
                                 {device.leadId ? (
-                                  <DropdownMenuItem 
+                                  <DropdownMenuItem
                                     className="text-amber-600 focus:text-amber-600"
                                     onClick={() => handleUnlink(device)}
                                   >
@@ -651,7 +651,7 @@ export function TR069DeviceList() {
                                   </DropdownMenuItem>
                                 )}
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem 
+                                <DropdownMenuItem
                                   onClick={() => { setSelectedDevice(device); setRebootDialogOpen(true); }}
                                   disabled={isRebooting || device.status.toLowerCase().includes('offline')}
                                   className="text-destructive focus:text-destructive"
@@ -683,7 +683,7 @@ export function TR069DeviceList() {
               <div className="p-4 bg-slate-50/30 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-slate-500 whitespace-nowrap">
-                    Showing {(currentPage-1)*itemsPerPage + 1} to {Math.min(currentPage*itemsPerPage, filteredDevices.length)} of {filteredDevices.length}
+                    Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredDevices.length)} of {filteredDevices.length}
                   </span>
                   <Select value={itemsPerPage.toString()} onValueChange={(v) => { setItemsPerPage(parseInt(v)); setCurrentPage(1); }}>
                     <SelectTrigger className="w-[70px] h-8 text-xs border-slate-200">
@@ -716,14 +716,14 @@ export function TR069DeviceList() {
                 Confirm Device Reboot
               </DialogTitle>
               <DialogDescription>
-                Are you sure you want to reboot <strong>{selectedDevice?.device || selectedDevice?.SerialNumber}</strong>? 
+                Are you sure you want to reboot <strong>{selectedDevice?.device || selectedDevice?.SerialNumber}</strong>?
                 This will interrupt internet service for the user for several minutes.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="gap-2 sm:gap-0">
               <Button variant="outline" onClick={() => setRebootDialogOpen(false)}>Cancel</Button>
-              <Button 
-                variant="destructive" 
+              <Button
+                variant="destructive"
                 onClick={() => selectedDevice && rebootDevice(selectedDevice.SerialNumber)}
                 className="bg-red-600 hover:bg-red-700"
               >
