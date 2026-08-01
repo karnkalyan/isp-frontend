@@ -1557,6 +1557,13 @@ export function OLTDetailed() {
     }
   }
 
+  // Automatically fetch ONTs whenever selectedOLT changes or is opened
+  useEffect(() => {
+    if (selectedOLT?.id) {
+      fetchONTs(selectedOLT.id, 1, ontSearch || "", ontStatusFilter || "all");
+    }
+  }, [selectedOLT?.id]);
+
   // Sync ONTs from OLT via SSH
   const syncONTs = async (oltId: string) => {
     try {
