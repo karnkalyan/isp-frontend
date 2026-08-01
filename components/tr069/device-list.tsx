@@ -204,6 +204,29 @@ export function TR069DeviceList() {
     }
   }
 
+  const [refreshingOltSerial, setRefreshingOltSerial] = useState<string | null>(null)
+
+  const refreshOltPower = async (device: Device) => {
+    try {
+      setRefreshingOltSerial(device.SerialNumber)
+      toast.loading(`Fetching OLT power for ${device.device}...`, { id: "refresh-olt" })
+      const res = await apiRequest<{ success: boolean; found?: boolean; oltRxPower?: string; message?: string; error?: string }>(
+        `/tr069-devices/${encodeURIComponent(device.SerialNumber)}/refresh-olt-power`,
+        { method: 'POST' }
+      )
+      if (res.success && res.oltRxPower) {
+        toast.success(`OLT Rx Power: ${res.oltRxPower}`, { id: "refresh-olt" })
+        setDevices(prev => prev.map(d => d.SerialNumber === device.SerialNumber ? { ...d, oltRxPower: res.oltRxPower || d.oltRxPower } : d))
+      } else {
+        toast.error(res.error || res.message || "Could not fetch OLT power", { id: "refresh-olt" })
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to fetch OLT power", { id: "refresh-olt" })
+    } finally {
+      setRefreshingOltSerial(null)
+    }
+  }
+
   const syncDevice = async (device: Device) => {
     try {
       setSyncingDevice(device.SerialNumber)
@@ -597,7 +620,7 @@ export function TR069DeviceList() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <div className="w-36 space-y-1.5">
+                            <div className="w-40 space-y-1.5">
                               <div className="flex justify-between items-center text-[10px]">
                                 <span className="text-slate-400">ONT Rx:</span>
                                 <span className={`font-bold ${signal.textColor}`}>{device.signal}</span>
@@ -606,17 +629,31 @@ export function TR069DeviceList() {
                               <div className="flex justify-between items-center text-[10px]">
                                 <span className="text-slate-400 capitalize">{signal.status}</span>
                               </div>
-                              {device.oltRxPower && (
-                                <div className="flex justify-between items-center text-[10px] pt-0.5 border-t border-slate-100">
-                                  <span className="text-slate-400">OLT Rx:</span>
-                                  <Tooltip>
-                                    <TooltipTrigger>
-                                      <span className={`font-bold ${getSignalInfo(device.oltRxPower).textColor}`}>{device.oltRxPower}</span>
-                                    </TooltipTrigger>
-                                    <TooltipContent>OLT-side RX Power{device.oltName ? ` from ${device.oltName}` : ''}</TooltipContent>
-                                  </Tooltip>
+                              <div className="flex justify-between items-center text-[10px] pt-1 border-t border-slate-100">
+                                <span className="text-slate-400">OLT Rx:</span>
+                                <div className="flex items-center gap-1">
+                                  {device.oltRxPower ? (
+                                    <Tooltip>
+                                      <TooltipTrigger>
+                                        <span className={`font-bold ${getSignalInfo(device.oltRxPower).textColor}`}>{device.oltRxPower}</span>
+                                      </TooltipTrigger>
+                                      <TooltipContent>OLT-side RX Power{device.oltName ? ` from ${device.oltName}` : ''}</TooltipContent>
+                                    </Tooltip>
+                                  ) : (
+                                    <span className="text-slate-400 italic">N/A</span>
+                                  )}
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-4 w-4 p-0 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50"
+                                    title="Fetch live OLT power"
+                                    onClick={() => refreshOltPower(device)}
+                                    disabled={refreshingOltSerial === device.SerialNumber}
+                                  >
+                                    <RefreshCw className={`h-3 w-3 ${refreshingOltSerial === device.SerialNumber ? "animate-spin" : ""}`} />
+                                  </Button>
                                 </div>
-                              )}
+                              </div>
                             </div>
                           </TableCell>
                           <TableCell>
@@ -653,6 +690,13 @@ export function TR069DeviceList() {
                                 >
                                   <RefreshCw className={`h-4 w-4 mr-2 ${syncingDevice === device.SerialNumber ? "animate-spin" : ""}`} />
                                   {syncingDevice === device.SerialNumber ? "Syncing Device..." : "Sync This Device"}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => refreshOltPower(device)}
+                                  disabled={refreshingOltSerial === device.SerialNumber}
+                                >
+                                  <Signal className={`h-4 w-4 mr-2 ${refreshingOltSerial === device.SerialNumber ? "animate-spin text-indigo-600" : ""}`} />
+                                  {refreshingOltSerial === device.SerialNumber ? "Fetching Signal..." : "Fetch OLT Signal"}
                                 </DropdownMenuItem>
                                 {device.leadId ? (
                                   <DropdownMenuItem

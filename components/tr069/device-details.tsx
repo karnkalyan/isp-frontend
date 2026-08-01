@@ -1,7 +1,6 @@
-"use client";
-
 import { useEffect, useState } from "react";
 import { CardContainer } from "@/components/ui/card-container";
+import { Button } from "@/components/ui/button";
 import {
   Copy,
   ArrowUp,
@@ -10,6 +9,7 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { CircularProgress } from "@/components/ui/circular-progress";
@@ -29,6 +29,32 @@ export function TR069DeviceDetails({ deviceId }: TR069DeviceDetailsProps) {
   const [showFullLogs, setShowFullLogs] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [oltPowerData, setOltPowerData] = useState<{ oltRxPower: string | null; ontRxPower: string | null; oltName: string | null; found: boolean } | null>(null);
+  const [isRefreshingOltPower, setIsRefreshingOltPower] = useState(false);
+
+  const handleRefreshOltPower = async () => {
+    try {
+      setIsRefreshingOltPower(true);
+      toast.loading("Fetching live optical signal from OLT...", { id: "olt-power-sync" });
+      const res = await apiRequest<any>(`/tr069-devices/${encodeURIComponent(safeDeviceId)}/refresh-olt-power`, {
+        method: "POST"
+      });
+      if (res?.success) {
+        toast.success(res.message || "Live OLT signal updated!", { id: "olt-power-sync" });
+        setOltPowerData({
+          oltRxPower: res.oltRxPower,
+          ontRxPower: res.ontRxPower,
+          oltName: res.oltName,
+          found: true
+        });
+      } else {
+        toast.error(res?.error || res?.message || "Failed to fetch OLT signal", { id: "olt-power-sync" });
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to connect to OLT", { id: "olt-power-sync" });
+    } finally {
+      setIsRefreshingOltPower(false);
+    }
+  };
 
   useEffect(() => {
     if (!safeDeviceId) {
@@ -518,16 +544,24 @@ export function TR069DeviceDetails({ deviceId }: TR069DeviceDetailsProps) {
                 <span className="text-xs font-medium mt-0.5" style={{ color: rxPowerInfo.color }}>{rxPowerInfo.status}</span>
               </div>
 
-              {oltPowerData?.found && oltRxPowerRaw !== "N/A" && (
-                <div className="flex flex-col items-center">
-                  <CircularProgress value={oltRxPowerNumeric} label="OLT RX Power" color={oltRxPowerInfo.color} />
-                  <span className="text-xs text-muted-foreground mt-1">{oltRxPowerRaw}</span>
-                  <span className="text-xs font-medium mt-0.5" style={{ color: oltRxPowerInfo.color }}>{oltRxPowerInfo.status}</span>
-                  {oltPowerData.oltName && (
-                    <span className="text-[10px] text-muted-foreground mt-0.5">from {oltPowerData.oltName}</span>
-                  )}
-                </div>
-              )}
+              <div className="flex flex-col items-center">
+                <CircularProgress value={oltRxPowerNumeric} label="OLT RX Power" color={oltRxPowerInfo.color} />
+                <span className="text-xs text-muted-foreground mt-1">{oltRxPowerRaw}</span>
+                <span className="text-xs font-medium mt-0.5" style={{ color: oltRxPowerInfo.color }}>{oltRxPowerInfo.status}</span>
+                {oltPowerData?.oltName && (
+                  <span className="text-[10px] text-muted-foreground mt-0.5">from {oltPowerData.oltName}</span>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-2 h-7 px-2 text.xs gap-1 border-indigo-200 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100"
+                  onClick={handleRefreshOltPower}
+                  disabled={isRefreshingOltPower}
+                >
+                  <RefreshCw className={`h-3 w-3 ${isRefreshingOltPower ? 'animate-spin' : ''}`} />
+                  {isRefreshingOltPower ? "Fetching..." : "Fetch New"}
+                </Button>
+              </div>
             </div>
 
             <div className="mt-6 grid grid-cols-2 gap-y-4 text-sm">
