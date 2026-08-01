@@ -104,11 +104,19 @@ export function SplitterForm({ splitter, onSubmit, onCancel }: SplitterFormProps
   }
 
   const splitterTypes = [
+    { value: '1x2', label: '1:2 Balanced Splitter (2 outputs)' },
     { value: '1x4', label: '1:4 Splitter (4 outputs)' },
     { value: '1x8', label: '1:8 Splitter (8 outputs)' },
     { value: '1x16', label: '1:16 Splitter (16 outputs)' },
     { value: '1x32', label: '1:32 Splitter (32 outputs)' },
     { value: '1x64', label: '1:64 Splitter (64 outputs)' },
+    { value: '50:50', label: '50:50 Coupler (Balanced 50/50)' },
+    { value: '40:60', label: '40:60 Coupler (Asymmetric 40/60)' },
+    { value: '30:70', label: "30:70 Coupler (Asymmetric 30/70)" },
+    { value: '20:80', label: "20:80 Coupler (Asymmetric 20/80)" },
+    { value: '10:90', label: "10:90 Coupler (Asymmetric 10/90)" },
+    { value: '5:95', label: "5:95 Coupler (Asymmetric 5/95)" },
+    { value: '1:99', label: "1:99 Coupler (Asymmetric 1/99)" },
   ]
 
   return (

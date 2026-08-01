@@ -603,12 +603,26 @@ const MODEL_OPTIONS: Record<string, string[]> = {
 
 // Splitter types
 const SPLITTER_TYPES = [
-  { value: "1:2", label: "1:2" },
-  { value: "1:4", label: "1:4" },
-  { value: "1:8", label: "1:8" },
-  { value: "1:16", label: "1:16" },
-  { value: "1:32", label: "1:32" },
-  { value: "1:64", label: "1:64" },
+  { value: "1:2", label: "1:2 (Balanced)" },
+  { value: "1:4", label: "1:4 (Balanced)" },
+  { value: "1:8", label: "1:8 (Balanced)" },
+  { value: "1:16", label: "1:16 (Balanced)" },
+  { value: "1:32", label: "1:32 (Balanced)" },
+  { value: "1:64", label: "1:64 (Balanced)" },
+  { value: "50:50", label: "50:50 Coupler (Balanced 50/50)" },
+  { value: "45:55", label: "45:55 Coupler (Asymmetric 45/55)" },
+  { value: "40:60", label: "40:60 Coupler (Asymmetric 40/60)" },
+  { value: "35:65", label: "35:65 Coupler (Asymmetric 35/65)" },
+  { value: "30:70", label: "30:70 Coupler (Asymmetric 30/70)" },
+  { value: "25:75", label: "25:75 Coupler (Asymmetric 25/75)" },
+  { value: "20:80", label: "20:80 Coupler (Asymmetric 20/80)" },
+  { value: "15:85", label: "15:85 Coupler (Asymmetric 15/85)" },
+  { value: "10:90", label: "10:90 Coupler (Asymmetric 10/90)" },
+  { value: "5:95", label: "5:95 Coupler (Asymmetric 5/95)" },
+  { value: "1:99", label: "1:99 Coupler (Asymmetric 1/99)" },
+  { value: "2:98", label: "2:98 Coupler (Asymmetric 2/98)" },
+  { value: "3:97", label: "3:97 Coupler (Asymmetric 3/97)" },
+  { value: "55:45", label: "55:45 Coupler (Asymmetric 55/45)" },
   { value: "2:2", label: "2:2" },
   { value: "2:4", label: "2:4" },
   { value: "2:8", label: "2:8" },
@@ -629,7 +643,8 @@ const SPLITTER_TYPES = [
 // Splitter technology types
 const SPLITTER_TECH_TYPES = [
   { value: "PLC", label: "PLC (Planar Lightwave Circuit)" },
-  { value: "FBT", label: "FBT (Fused Biconical Taper)" }
+  { value: "FBT", label: "FBT (Fused Biconical Taper)" },
+  { value: "Coupler", label: "Coupler (Fiber Optic Coupler / Asymmetric T-Tap)" }
 ]
 
 // Fiber core colors
