@@ -57,6 +57,8 @@ type Device = {
   SerialNumber: string
   OUI: string
   leadId: number | null
+  oltRxPower: string | null
+  oltName: string | null
   lead?: {
     id: number
     firstName: string
@@ -595,12 +597,26 @@ export function TR069DeviceList() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <div className="w-32 space-y-1.5">
+                            <div className="w-36 space-y-1.5">
                               <div className="flex justify-between items-center text-[10px]">
+                                <span className="text-slate-400">ONT Rx:</span>
                                 <span className={`font-bold ${signal.textColor}`}>{device.signal}</span>
-                                <span className="text-slate-400 capitalize">{signal.status}</span>
                               </div>
                               <Progress value={signal.percent} className="h-1.5" indicatorClassName={signal.color} />
+                              <div className="flex justify-between items-center text-[10px]">
+                                <span className="text-slate-400 capitalize">{signal.status}</span>
+                              </div>
+                              {device.oltRxPower && (
+                                <div className="flex justify-between items-center text-[10px] pt-0.5 border-t border-slate-100">
+                                  <span className="text-slate-400">OLT Rx:</span>
+                                  <Tooltip>
+                                    <TooltipTrigger>
+                                      <span className={`font-bold ${getSignalInfo(device.oltRxPower).textColor}`}>{device.oltRxPower}</span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>OLT-side RX Power{device.oltName ? ` from ${device.oltName}` : ''}</TooltipContent>
+                                  </Tooltip>
+                                </div>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell>

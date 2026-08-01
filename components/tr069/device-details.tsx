@@ -28,6 +28,7 @@ export function TR069DeviceDetails({ deviceId }: TR069DeviceDetailsProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [showFullLogs, setShowFullLogs] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [oltPowerData, setOltPowerData] = useState<{ oltRxPower: string | null; ontRxPower: string | null; oltName: string | null; found: boolean } | null>(null);
 
   useEffect(() => {
     if (!safeDeviceId) {
@@ -39,13 +40,16 @@ export function TR069DeviceDetails({ deviceId }: TR069DeviceDetailsProps) {
       try {
         setIsLoading(true);
 
-        const [infoRes, wanRes] = await Promise.all([
+        const [infoRes, wanRes, oltPowerRes] = await Promise.all([
           apiRequest<{ success: boolean; data: any }>(
             `/services/genieacs/devices/${safeDeviceId}/deviceinfo`
           ),
           apiRequest<{ success: boolean; data: any }>(
             `/services/genieacs/devices/${safeDeviceId}/waninfo`
           ),
+          apiRequest<{ success: boolean; found: boolean; oltRxPower: string | null; ontRxPower: string | null; oltName: string | null }>(
+            `/tr069-devices/${encodeURIComponent(safeDeviceId)}/olt-power`
+          ).catch(() => null),
         ]);
 
         if (infoRes?.success) {
@@ -58,6 +62,17 @@ export function TR069DeviceDetails({ deviceId }: TR069DeviceDetailsProps) {
           setWanConnections(Array.isArray(wanRes.data?.wanConnections) ? wanRes.data.wanConnections : []);
         } else {
           setWanConnections([]);
+        }
+
+        if (oltPowerRes?.success && oltPowerRes?.found) {
+          setOltPowerData({
+            oltRxPower: oltPowerRes.oltRxPower,
+            ontRxPower: oltPowerRes.ontRxPower,
+            oltName: oltPowerRes.oltName,
+            found: true
+          });
+        } else {
+          setOltPowerData(null);
         }
       } catch (error) {
         console.error("Failed to load device details:", error);
@@ -175,6 +190,16 @@ export function TR069DeviceDetails({ deviceId }: TR069DeviceDetailsProps) {
     return { color: "#ef4444", status: "Critical" };
   };
   const rxPowerInfo = getRxPowerInfo(rxPowerNumeric, rxPowerRaw);
+
+  // OLT RX Power parsing
+  const oltRxPowerRaw = oltPowerData?.oltRxPower || "N/A";
+  let oltRxPowerNumeric = 0;
+  if (typeof oltRxPowerRaw === "string" && oltRxPowerRaw !== "N/A") {
+    const cleaned = oltRxPowerRaw.replace(/[^0-9.-]/g, "");
+    oltRxPowerNumeric = cleaned ? parseFloat(cleaned) : 0;
+    if (Number.isNaN(oltRxPowerNumeric)) oltRxPowerNumeric = 0;
+  }
+  const oltRxPowerInfo = getRxPowerInfo(oltRxPowerNumeric, oltRxPowerRaw);
 
   const formatBytes = (bytes: number) => {
     const safeBytes = Number(bytes) || 0;
@@ -488,10 +513,21 @@ export function TR069DeviceDetails({ deviceId }: TR069DeviceDetailsProps) {
               </div>
 
               <div className="flex flex-col items-center">
-                <CircularProgress value={rxPowerNumeric} label="RX Power" color={rxPowerInfo.color} />
+                <CircularProgress value={rxPowerNumeric} label="ONT RX Power" color={rxPowerInfo.color} />
                 <span className="text-xs text-muted-foreground mt-1">{rxPowerRaw}</span>
                 <span className="text-xs font-medium mt-0.5" style={{ color: rxPowerInfo.color }}>{rxPowerInfo.status}</span>
               </div>
+
+              {oltPowerData?.found && oltRxPowerRaw !== "N/A" && (
+                <div className="flex flex-col items-center">
+                  <CircularProgress value={oltRxPowerNumeric} label="OLT RX Power" color={oltRxPowerInfo.color} />
+                  <span className="text-xs text-muted-foreground mt-1">{oltRxPowerRaw}</span>
+                  <span className="text-xs font-medium mt-0.5" style={{ color: oltRxPowerInfo.color }}>{oltRxPowerInfo.status}</span>
+                  {oltPowerData.oltName && (
+                    <span className="text-[10px] text-muted-foreground mt-0.5">from {oltPowerData.oltName}</span>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="mt-6 grid grid-cols-2 gap-y-4 text-sm">
