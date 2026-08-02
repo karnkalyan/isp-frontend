@@ -1738,13 +1738,15 @@ export function AddCustomerForm() {
   // Helper to convert a serial (e.g., "ALCLB2C804B0") to hex format ("414C434CB2C804B0")
   const convertToPonHex = useCallback((serial: string): string => {
     if (!serial) return ""
-    // If it's already all hex digits, return as is (upper case)
-    if (/^[0-9A-Fa-f]+$/.test(serial)) return serial.toUpperCase()
-    // First 4 chars are vendor ID, convert each to hex ASCII
-    const vendor = serial.slice(0, 4)
-    const rest = serial.slice(4)
-    const hexVendor = vendor.split('').map(ch => ch.charCodeAt(0).toString(16).toUpperCase()).join('')
-    return hexVendor + rest.toUpperCase()
+    const clean = serial.trim().toUpperCase().replace(/[^0-9A-Z]/g, '')
+    if (/^[0-9A-F]{16}$/.test(clean)) return clean
+    if (/^[A-Z]{4}[0-9A-F]{8}$/.test(clean) || (clean.length === 12 && /^[A-Z]{4}/.test(clean))) {
+      const vendor = clean.slice(0, 4)
+      const rest = clean.slice(4)
+      const hexVendor = vendor.split('').map(ch => ch.charCodeAt(0).toString(16).toUpperCase()).join('')
+      return hexVendor + rest
+    }
+    return clean
   }, [])
 
   // When user selects a discovered ONT from dropdown, check for match
@@ -1806,10 +1808,10 @@ export function AddCustomerForm() {
   const getOntSerialForRegistration = useCallback((device: CustomerDevice, isEpon: boolean): string => {
     if (isEpon) {
       // EPON: use MAC address without dots
-      return device.macAddress
+      return (device.macAddress || "").replace(/[^0-9A-Fa-f]/g, '').toLowerCase()
     } else {
-      // GPON: use ponSerial if available, else convert serialNumber to hex
-      return device.ponSerial ? convertToPonHex(device.ponSerial) : convertToPonHex(device.serialNumber)
+      const rawSerial = device.ponSerial || device.serialNumber || ""
+      return convertToPonHex(rawSerial)
     }
   }, [convertToPonHex])
 
