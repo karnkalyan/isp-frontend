@@ -2414,7 +2414,7 @@ export function AddCustomerForm() {
   }, [provisionDetails.oltId, provisionDetails.useSplitter, provisionDetails.splitterId, provisionDetails.oltPort, splitters, findUltimateOltForSplitter, getSplitterPath]);
 
   // Helper to convert a serial (e.g., "ALCLB2C804B0") to hex format ("414C434CB2C804B0")
-  const convertToPonHex = useCallback((serial: string): string => {
+  const convertToPonHex = useCallback((serial: string, brand?: string): string => {
     if (!serial) return ""
     const clean = serial.trim().toUpperCase().replace(/[^0-9A-Z]/g, '')
     if (/^[0-9A-F]{16}$/.test(clean)) return clean
@@ -2423,6 +2423,17 @@ export function AddCustomerForm() {
       const rest = clean.slice(4)
       const hexVendor = vendor.split('').map(ch => ch.charCodeAt(0).toString(16).toUpperCase()).join('')
       return hexVendor + rest
+    }
+    if (/^[0-9A-F]{8}$/.test(clean) && brand) {
+      const b = brand.toLowerCase()
+      let hexVendor = ""
+      if (b.includes("nokia") || b.includes("alcatel")) hexVendor = "414C434C"
+      else if (b.includes("huawei")) hexVendor = "48575443"
+      else if (b.includes("zte")) hexVendor = "5A544547"
+      else if (b.includes("vsol")) hexVendor = "56534F4C"
+      else if (b.includes("fiberhome")) hexVendor = "46485454"
+
+      if (hexVendor) return hexVendor + clean
     }
     return clean
   }, [])
@@ -2459,8 +2470,8 @@ export function AddCustomerForm() {
         device.macAddress,
         device.serialNumber,
         device.ponSerial,
-        convertToPonHex(device.serialNumber || ""),
-        convertToPonHex(device.ponSerial || ""),
+        convertToPonHex(device.serialNumber || "", device.brand || device.model),
+        convertToPonHex(device.ponSerial || "", device.brand || device.model),
       ]
         .map(normalizeIdentifier)
         .filter(Boolean)
@@ -2483,8 +2494,8 @@ export function AddCustomerForm() {
         }
       } else {
         // GPON: match by serialNumber or ponSerial after converting to hex
-        const deviceSerialHex = convertToPonHex(device.serialNumber || "")
-        const devicePonHex = convertToPonHex(device.ponSerial || "")
+        const deviceSerialHex = convertToPonHex(device.serialNumber || "", device.brand || device.model)
+        const devicePonHex = convertToPonHex(device.ponSerial || "", device.brand || device.model)
         if ((devicePonHex && devicePonHex === ontIdentifier) || (deviceSerialHex && deviceSerialHex === ontIdentifier)) {
           setMatchedDeviceForOnt(device)
           setSelectedDiscoveredOnt((prev: any) => ({ ...prev, ont_id: ont.ont_id }))
@@ -2500,14 +2511,26 @@ export function AddCustomerForm() {
   }, [devices, provisionDetails.splitterId, splitters, findUltimateOltForSplitter, discoveredOnts, convertToPonHex])
 
   // Helper to get serial for OLT registration
-  const getOntSerialForRegistration = useCallback((device: CustomerDevice, isEpon: boolean): string => {
+  const getOntSerialForRegistration = useCallback((device: CustomerDevice, isEpon: boolean, selectedOnt?: any): string => {
     if (isEpon) {
-      // EPON: use MAC address without dots
-      return (device.macAddress || "").replace(/[^0-9A-Fa-f]/g, '').toLowerCase()
-    } else {
-      const rawSerial = device.ponSerial || device.serialNumber || ""
-      return convertToPonHex(rawSerial)
+      return (selectedOnt?.ont_id_details || device.macAddress || "").replace(/[^0-9A-Fa-f]/g, '').toLowerCase()
     }
+
+    if (selectedOnt?.ont_id_details) {
+      const formattedDiscovered = convertToPonHex(selectedOnt.ont_id_details, device.brand || device.model)
+      if (formattedDiscovered && formattedDiscovered.length === 16) {
+        return formattedDiscovered
+      }
+    }
+
+    const brand = device.brand || device.model
+    const hexFromSerial = convertToPonHex(device.serialNumber || "", brand)
+    const hexFromPon = convertToPonHex(device.ponSerial || "", brand)
+
+    if (hexFromSerial.length === 16) return hexFromSerial
+    if (hexFromPon.length === 16) return hexFromPon
+
+    return hexFromPon || hexFromSerial || device.ponSerial || device.serialNumber || ""
   }, [convertToPonHex])
 
   // OLT Provisioning function
@@ -2555,7 +2578,7 @@ export function AddCustomerForm() {
     const isEpon = boardType?.toUpperCase().includes("EPON")
 
     // Build serial
-    const serial = getOntSerialForRegistration(matchedDeviceForOnt, Boolean(isEpon))
+    const serial = getOntSerialForRegistration(matchedDeviceForOnt, Boolean(isEpon), selectedDiscoveredOnt)
     if (!serial) {
       toast.error("No serial/MAC available for ONT")
       return false
