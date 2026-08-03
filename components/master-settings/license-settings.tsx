@@ -192,7 +192,17 @@ export function LicenseSettings() {
   )
 }
 
+type IspTenant = {
+  id: number
+  companyName: string
+  contactPerson: string
+  hwid: string
+  active: boolean
+}
+
 export function LicenseGenerator({ onGenerated }: { onGenerated?: (license: GeneratedLicense) => void }) {
+  const [isps, setIsps] = useState<IspTenant[]>([])
+  const [selectedIspId, setSelectedIspId] = useState<string>("")
   const [form, setForm] = useState({
     company: "",
     contact: "",
@@ -203,12 +213,47 @@ export function LicenseGenerator({ onGenerated }: { onGenerated?: (license: Gene
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    apiRequest<{ hwid: string }>("/license/hwid", { suppressToast: true })
-      .then((data) => setForm((prev) => ({ ...prev, hwid: data.hwid })))
-      .catch(() => {})
+    apiRequest<{ isps: IspTenant[] }>("/license/isps", { suppressToast: true })
+      .then((data) => {
+        if (data?.isps?.length) {
+          setIsps(data.isps)
+          const first = data.isps[0]
+          setSelectedIspId(String(first.id))
+          setForm((prev) => ({
+            ...prev,
+            company: first.companyName,
+            contact: first.contactPerson || prev.contact,
+            hwid: first.hwid
+          }))
+        } else {
+          return apiRequest<{ hwid: string }>("/license/hwid", { suppressToast: true })
+            .then((res) => setForm((prev) => ({ ...prev, hwid: res.hwid })))
+        }
+      })
+      .catch(() => {
+        apiRequest<{ hwid: string }>("/license/hwid", { suppressToast: true })
+          .then((res) => setForm((prev) => ({ ...prev, hwid: res.hwid })))
+          .catch(() => {})
+      })
   }, [])
 
+  const handleIspSelect = (ispIdStr: string) => {
+    setSelectedIspId(ispIdStr)
+    const found = isps.find((item) => String(item.id) === ispIdStr)
+    if (found) {
+      setForm((prev) => ({
+        ...prev,
+        company: found.companyName,
+        contact: found.contactPerson || prev.contact,
+        hwid: found.hwid
+      }))
+    }
+  }
+
   const generate = async () => {
+    if (!form.company) return toast.error("Company is required")
+    if (!form.hwid) return toast.error("Hardware ID is required")
+    if (!form.expiresAt) return toast.error("Expiration date is required")
     setLoading(true)
     try {
       const response = await apiRequest<{ token: string; license: GeneratedLicense }>("/license/generate", {
@@ -217,7 +262,7 @@ export function LicenseGenerator({ onGenerated }: { onGenerated?: (license: Gene
       })
       setGenerated(response.token)
       await navigator.clipboard.writeText(response.token)
-      toast.success("License generated and copied")
+      toast.success(`License generated for ${form.company} and copied to clipboard`)
       onGenerated?.(response.license)
     } finally {
       setLoading(false)
@@ -225,17 +270,33 @@ export function LicenseGenerator({ onGenerated }: { onGenerated?: (license: Gene
   }
 
   return (
-    <CardContainer title="License Generator" description="Generate a hardware-bound JWT license">
+    <CardContainer title="License Generator" description="Generate an ISP tenant hardware-bound JWT license key">
       <div className="grid gap-4">
+        {isps.length > 0 && (
+          <div className="space-y-2">
+            <Label>Select Target ISP Tenant</Label>
+            <select
+              value={selectedIspId}
+              onChange={(e) => handleIspSelect(e.target.value)}
+              className="flex h-10 w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isps.map((isp) => (
+                <option key={isp.id} value={String(isp.id)}>
+                  {isp.companyName} (HWID: {isp.hwid.substring(0, 12)}...)
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Company" value={form.company} onChange={(value) => setForm({ ...form, company: value })} />
-          <Field label="Contact" value={form.contact} onChange={(value) => setForm({ ...form, contact: value })} />
-          <Field label="Expire Date" type="date" value={form.expiresAt} onChange={(value) => setForm({ ...form, expiresAt: value })} />
-          <Field label="Hardware ID" value={form.hwid} onChange={(value) => setForm({ ...form, hwid: value })} />
+          <Field label="Company / Tenant Name" value={form.company} onChange={(value) => setForm({ ...form, company: value })} />
+          <Field label="Contact Person" value={form.contact} onChange={(value) => setForm({ ...form, contact: value })} />
+          <Field label="Expiration Date" type="date" value={form.expiresAt} onChange={(value) => setForm({ ...form, expiresAt: value })} />
+          <Field label="ISP Tenant Hardware ID (HWID)" value={form.hwid} onChange={(value) => setForm({ ...form, hwid: value })} />
         </div>
         <Button onClick={generate} disabled={loading} className="w-fit">
           {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Generate
+          Generate Tenant License Key
         </Button>
         {generated && <Textarea readOnly value={generated} rows={5} className="font-mono text-xs" />}
       </div>
