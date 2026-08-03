@@ -46,7 +46,7 @@ export function MasterSettingsTabs() {
 
   useEffect(() => {
     const handleSecretLicenseToggle = async (event: KeyboardEvent) => {
-      if (!(event.ctrlKey && event.altKey && event.shiftKey && event.key === "F12")) return
+      if (!(event.ctrlKey && event.altKey && event.shiftKey && (event.key === "z" || event.key === "Z" || event.key.toLowerCase() === "z"))) return
       event.preventDefault()
       const nextValue = !showLicense
       setShowLicense(nextValue)

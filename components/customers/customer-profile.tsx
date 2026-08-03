@@ -1072,7 +1072,7 @@ function DeviceDialog({ open, onOpenChange, device, onSave }: DeviceDialogProps)
         ...prev,
         serialNumber: item.serialNumber,
         macAddress: item.macAddress || prev.macAddress,
-        ponSerial: item.ponSerialNumber || prev.ponSerial,
+        ponSerial: item.ponSerialNumber || item.serialNumber || prev.ponSerial,
         ponVendorIdIncluded: item.ponVendorIdIncluded !== false,
         brand: item.name || prev.brand,
         model: item.model || item.type || prev.model,

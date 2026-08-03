@@ -22,6 +22,8 @@ type LicenseStatus = {
   issuedAt?: string | null
   message?: string
   error?: string
+  isp?: { companyName?: string } | null
+  publicIsp?: { companyName?: string } | null
 }
 
 export type GeneratedLicense = {
@@ -95,6 +97,7 @@ export function LicenseSettings() {
             {!status?.active && <span className="text-sm text-muted-foreground">{status?.message}</span>}
           </div>
           <div className="grid gap-3 md:grid-cols-2">
+            <Info label="ISP Tenant" value={status?.isp?.companyName || status?.publicIsp?.companyName || "Current ISP"} />
             <Info label="Company" value={status?.company || "-"} />
             <Info label="Contact" value={status?.contact || "-"} />
             <Info label="License ID" value={status?.licenseId || "-"} />

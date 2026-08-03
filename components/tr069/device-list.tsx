@@ -9,7 +9,7 @@ import {
   Search, Filter, MoreVertical, Router, ExternalLink, AlertCircle,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   Power, PowerOff, Signal, SignalHigh, SignalMedium, SignalLow, X, RefreshCw,
-  User, UserPlus, UserMinus, Link2, Info, CheckCircle2, Trash2
+  User, UserPlus, UserMinus, Link2, Info, CheckCircle2, Trash2, Key, Lock, Unlock
 } from "lucide-react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
@@ -126,6 +126,10 @@ export function TR069DeviceList() {
   const [rebootDialogOpen, setRebootDialogOpen] = useState(false)
   const [linkDialogOpen, setLinkDialogOpen] = useState(false)
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null)
+  const [secretKey, setSecretKey] = useState("")
+  const [secretInput, setSecretInput] = useState("")
+  const [secretDialogOpen, setSecretDialogOpen] = useState(false)
+  const [isSecretActive, setIsSecretActive] = useState(false)
 
   // Available filter options
   const [availableFilters, setAvailableFilters] = useState<Omit<FilterOptions, 'linked'>>({
@@ -135,16 +139,18 @@ export function TR069DeviceList() {
     productClass: []
   })
 
-  const fetchDevices = useCallback(async () => {
+  const fetchDevices = useCallback(async (overrideSecretKey?: string) => {
     try {
       setIsLoading(true)
+      const currentKey = overrideSecretKey !== undefined ? overrideSecretKey : secretKey
+      const keyQuery = currentKey ? `&secretKey=${encodeURIComponent(currentKey)}` : ""
       const fetchLimit = 500
-      const firstPage = await apiRequest<ApiResponse>(`/tr069-devices?page=1&limit=${fetchLimit}`)
+      const firstPage = await apiRequest<ApiResponse>(`/tr069-devices?page=1&limit=${fetchLimit}${keyQuery}`)
       const totalPages = firstPage.pagination?.totalPages || 1
       const remainingPages = totalPages > 1
         ? await Promise.all(
           Array.from({ length: totalPages - 1 }, (_, index) =>
-            apiRequest<ApiResponse>(`/tr069-devices?page=${index + 2}&limit=${fetchLimit}`)
+            apiRequest<ApiResponse>(`/tr069-devices?page=${index + 2}&limit=${fetchLimit}${keyQuery}`)
           )
         )
         : []
@@ -156,6 +162,7 @@ export function TR069DeviceList() {
       if (data.success) {
         setDevices(data.devices)
         setTotalDevices(data.total || data.devices.length)
+        setIsSecretActive(Boolean(currentKey))
 
         // Extract available filter options
         const manufacturers = Array.from(new Set(data.devices.map(d => d.Manufacturer).filter(Boolean)))
@@ -176,7 +183,20 @@ export function TR069DeviceList() {
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [secretKey])
+
+  const handleApplySecretKey = () => {
+    setSecretKey(secretInput)
+    setSecretDialogOpen(false)
+    fetchDevices(secretInput)
+  }
+
+  const handleClearSecretKey = () => {
+    setSecretKey("")
+    setSecretInput("")
+    setSecretDialogOpen(false)
+    fetchDevices("")
+  }
 
   useEffect(() => {
     fetchDevices()
@@ -472,6 +492,14 @@ export function TR069DeviceList() {
             </div>
 
             <div className="flex items-center gap-2">
+              <Button
+                variant={isSecretActive ? "default" : "outline"}
+                onClick={() => setSecretDialogOpen(true)}
+                className={`h-10 gap-2 ${isSecretActive ? "bg-amber-600 hover:bg-amber-700 text-white" : "border-slate-200 text-slate-700"}`}
+              >
+                {isSecretActive ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                <span className="hidden sm:inline">{isSecretActive ? "Secret Mode On" : "Secret Key"}</span>
+              </Button>
               <Button
                 onClick={syncDevices}
                 disabled={isSyncing}
@@ -802,6 +830,51 @@ export function TR069DeviceList() {
             onLinked={fetchDevices}
           />
         )}
+
+        <Dialog open={secretDialogOpen} onOpenChange={setSecretDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Key className="h-5 w-5 text-amber-600" />
+                Secret Key Access (All ACS Devices)
+              </DialogTitle>
+              <DialogDescription>
+                By default, TR-069 page only displays devices linked to customers of your ISP. Enter your administrative secret key to view all unlinked ACS devices.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-3">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-600">Secret Key</label>
+                <Input
+                  type="password"
+                  placeholder="Enter secret key (e.g. CMSADMIN2026)"
+                  value={secretInput}
+                  onChange={(e) => setSecretInput(e.target.value)}
+                />
+              </div>
+              {isSecretActive && (
+                <p className="text-xs text-amber-700 bg-amber-50 p-2.5 rounded-md border border-amber-200">
+                  Secret key filter bypass is currently ACTIVE.
+                </p>
+              )}
+            </div>
+            <DialogFooter className="flex justify-between sm:justify-between">
+              {isSecretActive ? (
+                <Button type="button" variant="outline" onClick={handleClearSecretKey}>
+                  Lock (ISP Customers Only)
+                </Button>
+              ) : (
+                <div />
+              )}
+              <div className="flex gap-2">
+                <Button type="button" variant="ghost" onClick={() => setSecretDialogOpen(false)}>Cancel</Button>
+                <Button type="button" className="bg-amber-600 hover:bg-amber-700 text-white" onClick={handleApplySecretKey}>
+                  Apply Secret Key
+                </Button>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardContainer>
     </TooltipProvider>
   )
