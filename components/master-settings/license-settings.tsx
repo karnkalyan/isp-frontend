@@ -48,15 +48,29 @@ export type GeneratedLicense = {
 export function LicenseSettings() {
   const [status, setStatus] = useState<LicenseStatus | null>(null)
   const [token, setToken] = useState("")
+  const [tr069SecretKey, setTr069SecretKey] = useState("CMSADMIN2026")
   const [loading, setLoading] = useState(false)
+  const [savingSecret, setSavingSecret] = useState(false)
 
   const loadStatus = async () => {
     const data = await apiRequest<LicenseStatus>("/license/status", { suppressToast: true })
     setStatus(data)
   }
 
+  const loadSecretKey = async () => {
+    try {
+      const data = await apiRequest<Record<string, string>>("/settings", { suppressToast: true })
+      if (data?.tr069SecretKey) {
+        setTr069SecretKey(data.tr069SecretKey)
+      }
+    } catch (e) {
+      console.error("Failed to load TR069 secret key:", e)
+    }
+  }
+
   useEffect(() => {
     loadStatus().catch(() => {})
+    loadSecretKey().catch(() => {})
   }, [])
 
   const install = async () => {
@@ -69,7 +83,7 @@ export function LicenseSettings() {
       })
       setStatus(data)
       setToken("")
-      toast.success("License installed")
+      toast.success("License installed successfully")
     } finally {
       setLoading(false)
     }
@@ -80,9 +94,29 @@ export function LicenseSettings() {
     try {
       const data = await apiRequest<LicenseStatus>("/license", { method: "DELETE" })
       setStatus(data)
-      toast.success("License deleted")
+      toast.success("License deleted successfully")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const saveSecretKey = async () => {
+    if (!tr069SecretKey.trim()) return toast.error("Secret key cannot be empty")
+    setSavingSecret(true)
+    try {
+      await apiRequest("/settings", {
+        method: "POST",
+        body: JSON.stringify({
+          key: "tr069SecretKey",
+          value: tr069SecretKey.trim(),
+          description: "Secret key to reveal all TR069 devices across multi-tenant ISPs"
+        })
+      })
+      toast.success("TR069 Secret Key saved successfully")
+    } catch (e) {
+      toast.error("Failed to save secret key")
+    } finally {
+      setSavingSecret(false)
     }
   }
 
@@ -92,7 +126,7 @@ export function LicenseSettings() {
         <div className="space-y-4">
           <div className="flex items-center gap-3">
             <Badge variant={status?.active ? "default" : "destructive"}>
-              {status?.active ? "Active" : "Inactive"}
+              {status?.active ? "Active License" : "Inactive / Expired"}
             </Badge>
             {!status?.active && <span className="text-sm text-muted-foreground">{status?.message}</span>}
           </div>
@@ -107,7 +141,10 @@ export function LicenseSettings() {
             <Label>Hardware ID</Label>
             <div className="flex gap-2">
               <Input value={status?.hwid || ""} readOnly className="font-mono text-xs" />
-              <Button type="button" variant="outline" size="icon" onClick={() => navigator.clipboard.writeText(status?.hwid || "")}>
+              <Button type="button" variant="outline" size="icon" onClick={() => {
+                navigator.clipboard.writeText(status?.hwid || "")
+                toast.success("Hardware ID copied")
+              }}>
                 <Copy className="h-4 w-4" />
               </Button>
             </div>
@@ -117,7 +154,7 @@ export function LicenseSettings() {
 
       <CardContainer title="Install License" description="Paste the JWT license token issued for this hardware ID">
         <div className="space-y-4">
-          <Textarea value={token} onChange={(event) => setToken(event.target.value)} rows={5} className="font-mono text-xs" />
+          <Textarea value={token} onChange={(event) => setToken(event.target.value)} rows={5} placeholder="Paste JWT license token here..." className="font-mono text-xs" />
           <div className="flex justify-end gap-2">
             <Button variant="destructive" onClick={remove} disabled={loading || !status?.configured}>
               <Trash2 className="mr-2 h-4 w-4" />
@@ -126,6 +163,27 @@ export function LicenseSettings() {
             <Button onClick={install} disabled={loading}>
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
               Install License
+            </Button>
+          </div>
+        </div>
+      </CardContainer>
+
+      <CardContainer title="TR069 Secret Key Access" description="Configure secret key used to bypass multi-tenant isolation and show all TR069 devices (Hotkey: Ctrl + Shift + Z on TR069 page)">
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>TR069 Secret Key</Label>
+            <Input
+              type="text"
+              value={tr069SecretKey}
+              onChange={(e) => setTr069SecretKey(e.target.value)}
+              placeholder="e.g. CMSADMIN2026"
+              className="font-mono text-sm max-w-md"
+            />
+          </div>
+          <div className="flex justify-end">
+            <Button onClick={saveSecretKey} disabled={savingSecret}>
+              {savingSecret ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+              Save Secret Key
             </Button>
           </div>
         </div>

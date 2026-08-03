@@ -202,6 +202,17 @@ export function TR069DeviceList() {
     fetchDevices()
   }, [fetchDevices])
 
+  useEffect(() => {
+    const handleSecretKeyShortcut = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && (e.key === "z" || e.key === "Z" || e.key.toLowerCase() === "z")) {
+        e.preventDefault()
+        setSecretDialogOpen(true)
+      }
+    }
+    window.addEventListener("keydown", handleSecretKeyShortcut)
+    return () => window.removeEventListener("keydown", handleSecretKeyShortcut)
+  }, [])
+
   const syncDevices = async () => {
     try {
       setIsSyncing(true)
@@ -492,14 +503,6 @@ export function TR069DeviceList() {
             </div>
 
             <div className="flex items-center gap-2">
-              <Button
-                variant={isSecretActive ? "default" : "outline"}
-                onClick={() => setSecretDialogOpen(true)}
-                className={`h-10 gap-2 ${isSecretActive ? "bg-amber-600 hover:bg-amber-700 text-white" : "border-slate-200 text-slate-700"}`}
-              >
-                {isSecretActive ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-                <span className="hidden sm:inline">{isSecretActive ? "Secret Mode On" : "Secret Key"}</span>
-              </Button>
               <Button
                 onClick={syncDevices}
                 disabled={isSyncing}
@@ -839,7 +842,7 @@ export function TR069DeviceList() {
                 Secret Key Access (All ACS Devices)
               </DialogTitle>
               <DialogDescription>
-                By default, TR-069 page only displays devices linked to customers of your ISP. Enter your administrative secret key to view all unlinked ACS devices.
+                By default, TR-069 page only displays devices linked to customers of your ISP. Enter your administrative secret key to view all unlinked ACS devices. (Shortcut: <kbd className="px-1 py-0.5 text-[10px] font-mono bg-slate-100 border border-slate-300 rounded">Ctrl + Shift + Z</kbd>)
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-3">
