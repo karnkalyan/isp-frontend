@@ -713,22 +713,22 @@ function TicketsContent() {
   return (
     <DashboardLayout>
       <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
           <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <LifeBuoy className="h-7 w-7 text-primary" />
+            <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+              <LifeBuoy className="h-6 w-6 sm:h-7 sm:w-7 text-primary" />
               Support Tickets Dashboard
             </h1>
-            <p className="text-muted-foreground text-sm mt-1">Configure priorities, analyze support queues, and manage active workloads.</p>
+            <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">Configure priorities, analyze support queues, and manage active workloads.</p>
           </div>
           
-          <div className="flex items-center gap-3">
-            <div className="bg-muted p-1 rounded-lg flex items-center gap-1 shadow-inner">
+          <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-between sm:justify-end flex-wrap">
+            <div className="bg-muted p-1 rounded-xl flex items-center gap-1 shadow-inner flex-1 sm:flex-initial justify-center">
               <Button 
                 variant={viewMode === "dashboard" ? "default" : "ghost"} 
                 size="sm" 
                 onClick={() => setViewMode("dashboard")}
-                className="gap-1.5 h-8 text-xs font-semibold"
+                className="gap-1.5 h-8 text-xs font-semibold flex-1 sm:flex-initial"
               >
                 <BarChart2 className="h-4 w-4" /> Dashboard
               </Button>
@@ -736,7 +736,7 @@ function TicketsContent() {
                 variant={viewMode === "list" ? "default" : "ghost"} 
                 size="sm" 
                 onClick={() => setViewMode("list")}
-                className="gap-1.5 h-8 text-xs font-semibold"
+                className="gap-1.5 h-8 text-xs font-semibold flex-1 sm:flex-initial"
               >
                 <List className="h-4 w-4" /> Tickets List
               </Button>
@@ -745,7 +745,7 @@ function TicketsContent() {
             {hasPermission("tickets_create") && (
               <Dialog open={showCreate} onOpenChange={setShowCreate}>
                 <DialogTrigger asChild>
-                  <Button className="gap-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white border-0 shadow-sm hover:shadow-md h-9">
+                  <Button className="gap-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white border-0 shadow-sm hover:shadow-md h-9 text-xs font-semibold px-3">
                     <Plus className="h-4 w-4" /> New Ticket
                   </Button>
                 </DialogTrigger>
@@ -1345,25 +1345,25 @@ function TicketsContent() {
                           selectedTicket?.id === ticket.id ? "ring-2 ring-primary" : ""
                         }`}
                       >
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2 mb-2">
+                          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                             {getPriorityIcon(ticket.priority)}
-                            <span className="font-mono text-xs text-muted-foreground">{ticket.ticketNumber}</span>
-                            <Badge className={getStatusColor(ticket.status)}>{ticket.status.replace("_", " ")}</Badge>
-                            {ticket.ticketTypeId && <Badge variant="outline">{ticketTypes.find(type => type.id === ticket.ticketTypeId)?.name || "Other"}</Badge>}
+                            <span className="font-mono text-xs font-bold text-muted-foreground">{ticket.ticketNumber}</span>
+                            <Badge className={`${getStatusColor(ticket.status)} text-[10px] px-2 py-0.5 font-semibold`}>{ticket.status.replace("_", " ")}</Badge>
+                            {ticket.ticketTypeId && <Badge variant="outline" className="text-[10px] px-2 py-0.5">{ticketTypes.find(type => type.id === ticket.ticketTypeId)?.name || "Other"}</Badge>}
                           </div>
-                          <span className="text-xs text-muted-foreground">{new Date(ticket.createdAt).toLocaleDateString()}</span>
+                          <span className="text-[11px] font-mono text-muted-foreground shrink-0">{new Date(ticket.createdAt).toLocaleDateString()}</span>
                         </div>
-                        <h3 className="font-medium mb-1">{ticket.title}</h3>
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        <h3 className="font-semibold text-sm mb-1.5 text-foreground leading-snug">{ticket.title}</h3>
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-muted-foreground pt-1 border-t border-slate-100 dark:border-slate-800">
                           {ticket.subject && (
-                            <Link href={subjectHref(ticket.subject)} onClick={event => event.stopPropagation()} className="flex items-center gap-1 font-medium text-primary hover:underline">
-                              <Badge variant="outline" className="text-[10px] h-4 px-1">{ticket.subject.type}</Badge>
-                              {ticket.subject.firstName} {ticket.subject.lastName}
+                            <Link href={subjectHref(ticket.subject)} onClick={event => event.stopPropagation()} className="flex items-center gap-1 font-semibold text-primary hover:underline truncate max-w-[200px]">
+                              <Badge variant="outline" className="text-[9px] h-4 px-1 shrink-0">{ticket.subject.type}</Badge>
+                              <span className="truncate">{ticket.subject.firstName} {ticket.subject.lastName}</span>
                             </Link>
                           )}
-                          {ticket.assignedTo && <span>→ {ticket.assignedTo.name}</span>}
-                          {ticket._count && <span className="flex items-center gap-1"><MessageSquare className="h-3 w-3" />{ticket._count.comments}</span>}
+                          {ticket.assignedTo && <span className="truncate">→ {ticket.assignedTo.name}</span>}
+                          {ticket._count && <span className="flex items-center gap-1 ml-auto shrink-0"><MessageSquare className="h-3 w-3" />{ticket._count.comments}</span>}
                         </div>
                       </div>
                     ))}

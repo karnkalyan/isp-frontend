@@ -958,7 +958,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
 
   const renderDevicesTab = () => {
     return (
-      <div className="rounded-xl border bg-muted/40 p-6">
+      <div className="rounded-xl border bg-muted/40 p-4 sm:p-6">
         <div className="mb-4">
           <h3 className="text-lg font-bold text-foreground mb-1">Connected Clients</h3>
           <p className="text-xs text-muted-foreground">Devices currently associated with your router's LAN or WiFi interfaces</p>
@@ -982,22 +982,22 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
               return (
                 <div 
                   key={`${client.macAddress}-${index}`} 
-                  className="flex items-center justify-between rounded-xl border bg-card p-4 transition-all hover:bg-muted/50"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-xl border bg-card p-3.5 sm:p-4 transition-all hover:bg-muted/50 overflow-hidden"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                       <Icon className="h-5 w-5" />
                     </div>
-                    <div className="min-w-0">
-                      <div className="font-semibold text-foreground truncate">{client.hostName || "Unnamed Device"}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold text-foreground text-sm truncate">{client.hostName || "Unnamed Device"}</div>
                       <div className="text-xs text-muted-foreground font-mono mt-0.5 truncate">{client.macAddress || "MAC N/A"}</div>
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    <Badge className={client.active === true || client.active === 'true' ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20" : "bg-red-100 text-red-800 dark:bg-red-500/10 dark:text-red-400 border-red-200 dark:border-red-500/20"}>
+                  <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-1 shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 border-border/40">
+                    <Badge className={client.active === true || client.active === 'true' ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20 text-[10px] px-2 py-0.5" : "bg-red-100 text-red-800 dark:bg-red-500/10 dark:text-red-400 border-red-200 dark:border-red-500/20 text-[10px] px-2 py-0.5"}>
                       {client.active === true || client.active === 'true' ? "Online" : "Offline"}
                     </Badge>
-                    <span className="text-xs font-mono text-muted-foreground mt-0.5">{client.ipAddress || "No IP"}</span>
+                    <span className="text-xs font-mono text-muted-foreground">{client.ipAddress || "No IP"}</span>
                   </div>
                 </div>
               )
@@ -1288,31 +1288,33 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
         </div>
 
         {/* Sub-navigation */}
-        <div className="mb-6 flex flex-wrap gap-2 border-b border-border/60 pb-4">
-          {[
-            { id: "diagnostics", label: "Diagnostics", icon: Activity },
-            { id: "wifi", label: "Wi-Fi Networks", icon: Wifi },
-            { id: "devices", label: "Connected Devices", icon: Laptop },
-            { id: "ports", label: "Ethernet Ports", icon: Network },
-            { id: "stats", label: "Traffic Stats", icon: ArrowUpDown }
-          ].map((tab) => {
-            const Icon = tab.icon
-            const active = routerSubTab === tab.id
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setRouterSubTab(tab.id as any)}
-                className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-250 ${
-                  active
-                    ? "bg-primary text-primary-foreground shadow-sm font-semibold"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                {tab.label}
-              </button>
-            )
-          })}
+        <div className="mb-6 overflow-x-auto pb-2 scrollbar-none">
+          <div className="inline-flex w-full sm:w-auto items-center gap-1.5 rounded-xl bg-muted/60 p-1.5 border border-border/60 min-w-max">
+            {[
+              { id: "diagnostics", label: "Diagnostics", icon: Activity },
+              { id: "wifi", label: "Wi-Fi Networks", icon: Wifi },
+              { id: "devices", label: "Connected Devices", icon: Laptop },
+              { id: "ports", label: "Ethernet Ports", icon: Network },
+              { id: "stats", label: "Traffic Stats", icon: ArrowUpDown }
+            ].map((tab) => {
+              const Icon = tab.icon
+              const active = routerSubTab === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setRouterSubTab(tab.id as any)}
+                  className={`flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
+                    active
+                      ? "bg-primary text-primary-foreground shadow-sm font-semibold"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {tab.label}
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         {/* Reboot Progress Overlay */}
