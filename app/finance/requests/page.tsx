@@ -176,7 +176,7 @@ export default function RequestsPage() {
         </div>
 
         {/* Requests List */}
-        <div className="md:col-span-3">
+        <div className="col-span-1 lg:col-span-3">
           <CardContainer
             title="Requests Board"
             description="Manage requests sent from branches for administrative approval."
