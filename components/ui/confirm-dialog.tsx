@@ -59,22 +59,22 @@ export function ConfirmDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="max-w-[95vw] sm:max-w-[425px] rounded-2xl p-4 sm:p-6 border shadow-2xl">
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          {description && <DialogDescription>{description}</DialogDescription>}
+          <DialogTitle className="text-lg font-bold">{title}</DialogTitle>
+          {description && <DialogDescription className="text-xs sm:text-sm">{description}</DialogDescription>}
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           {showInput && (
             <div className="space-y-2">
-              {inputLabel && <Label htmlFor="dialog-input" className="text-sm font-medium">{inputLabel}</Label>}
+              {inputLabel && <Label htmlFor="dialog-input" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{inputLabel}</Label>}
               <Input
                 id="dialog-input"
                 placeholder={inputPlaceholder}
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                className="col-span-3 font-normal"
+                className="w-full h-10 text-xs sm:text-sm rounded-xl font-normal"
               />
             </div>
           )}
@@ -89,7 +89,7 @@ export function ConfirmDialog({
               {checkboxLabel && (
                 <Label
                   htmlFor="dialog-checkbox"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-75 cursor-pointer"
+                  className="text-xs sm:text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-75 cursor-pointer"
                 >
                   {checkboxLabel}
                 </Label>
@@ -98,13 +98,20 @@ export function ConfirmDialog({
           )}
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0 mt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 pt-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="w-full sm:w-auto h-10 text-xs rounded-xl"
+          >
             {cancelLabel}
           </Button>
           <Button
-            variant={variant === "destructive" ? "destructive" : "default"}
+            type="button"
+            variant={variant === 'destructive' ? 'destructive' : 'default'}
             onClick={handleConfirm}
+            className="w-full sm:w-auto h-10 text-xs rounded-xl"
           >
             {confirmLabel}
           </Button>
