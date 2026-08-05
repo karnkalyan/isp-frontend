@@ -346,36 +346,36 @@ export default function TicketDetailPage() {
 
   return (
     <DashboardLayout>
-      <div className="p-6 space-y-6">
+      <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 pb-24">
         {/* Top Bar */}
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => router.push("/tickets")}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+          <div className="flex items-center gap-2.5">
+            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => router.push("/tickets")}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-sm font-bold text-primary">{ticket.ticketNumber}</span>
-                <Badge className={`${getStatusColor(ticket.status)} font-semibold text-xs`}>{ticket.status.replace("_", " ")}</Badge>
-                <Badge variant="outline" className={`font-semibold text-xs ${getPriorityBadgeColor(ticket.priority)}`}>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-mono text-xs sm:text-sm font-bold text-primary">{ticket.ticketNumber}</span>
+                <Badge className={`${getStatusColor(ticket.status)} font-semibold text-[11px]`}>{ticket.status.replace("_", " ")}</Badge>
+                <Badge variant="outline" className={`font-semibold text-[11px] ${getPriorityBadgeColor(ticket.priority)}`}>
                   {getPriorityIcon(ticket.priority)}
                   <span className="ml-1">{ticket.priority}</span>
                 </Badge>
               </div>
-              <h1 className="text-xl font-bold mt-1">{ticket.title}</h1>
+              <h1 className="text-lg sm:text-xl font-bold mt-1 leading-snug">{ticket.title}</h1>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             {canConvertLead && (
-              <Button className="gap-1.5 text-xs" asChild>
+              <Button className="gap-1.5 text-xs h-10 sm:h-9 flex-1 sm:flex-initial" asChild>
                 <Link href={`/customers/new?leadId=${ticket.subject!.id}`}>
                   <User className="h-3.5 w-3.5" /> Convert to Customer
                 </Link>
               </Button>
             )}
             {hasPermission("tasks_create") && (
-              <Button variant="outline" className="gap-1.5 text-xs" asChild>
+              <Button variant="outline" className="gap-1.5 text-xs h-10 sm:h-9 flex-1 sm:flex-initial" asChild>
                 <Link href={`/tasks?ticketId=${ticket.id}&create=true`}>
                   <ClipboardList className="h-3.5 w-3.5" /> Schedule Task
                 </Link>
@@ -384,42 +384,42 @@ export default function TicketDetailPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
           {/* Main Content - Left 2 columns */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-6">
             {/* Ticket Details Card */}
             <div className={`rounded-2xl border-l-4 ${getStatusBorderColor(ticket.status)} border bg-card shadow-sm overflow-hidden`}>
-              <div className="p-6 space-y-5">
+              <div className="p-4 sm:p-6 space-y-4 sm:space-y-5">
                 {/* Description */}
                 {ticket.description && (
                   <div>
                     <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Description</h3>
-                    <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">{ticket.description}</p>
+                    <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">{ticket.description}</p>
                   </div>
                 )}
 
                 {/* Info Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="p-3 bg-muted/40 rounded-xl">
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Type</p>
-                    <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">{typeName}</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4">
+                  <div className="p-2.5 sm:p-3 bg-muted/40 rounded-xl">
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground mb-0.5">Type</p>
+                    <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 truncate">{typeName}</p>
                   </div>
-                  <div className="p-3 bg-muted/40 rounded-xl">
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Department</p>
-                    <p className="text-xs font-semibold">{deptName}</p>
+                  <div className="p-2.5 sm:p-3 bg-muted/40 rounded-xl">
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground mb-0.5">Department</p>
+                    <p className="text-xs font-semibold truncate">{deptName}</p>
                   </div>
-                  <div className="p-3 bg-muted/40 rounded-xl">
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Branch</p>
-                    <p className="text-xs font-semibold flex items-center gap-1.5">
-                      <Building className="h-3 w-3 text-muted-foreground" />
-                      {ticket.branch?.name || "Global / Main"}
+                  <div className="p-2.5 sm:p-3 bg-muted/40 rounded-xl">
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground mb-0.5">Branch</p>
+                    <p className="text-xs font-semibold flex items-center gap-1 truncate">
+                      <Building className="h-3 w-3 text-muted-foreground shrink-0" />
+                      <span className="truncate">{ticket.branch?.name || "Global / Main"}</span>
                     </p>
                   </div>
-                  <div className="p-3 bg-muted/40 rounded-xl">
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Created</p>
-                    <p className="text-xs font-semibold flex items-center gap-1.5">
-                      <Calendar className="h-3 w-3 text-muted-foreground" />
-                      {new Date(ticket.createdAt).toLocaleDateString()}
+                  <div className="p-2.5 sm:p-3 bg-muted/40 rounded-xl">
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground mb-0.5">Created</p>
+                    <p className="text-xs font-semibold flex items-center gap-1">
+                      <Calendar className="h-3 w-3 text-muted-foreground shrink-0" />
+                      <span>{new Date(ticket.createdAt).toLocaleDateString()}</span>
                     </p>
                     <p className="text-[10px] text-muted-foreground mt-0.5">
                       {new Date(ticket.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -430,24 +430,24 @@ export default function TicketDetailPage() {
                 {/* SLA Metrics */}
                 <div>
                   <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">SLA Metrics</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+                    <div className="p-2.5 sm:p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border">
                       <p className="text-[10px] uppercase font-bold text-muted-foreground">Response Time</p>
-                      <p className="text-sm font-bold mt-1 font-mono">{sla.rtHours}</p>
+                      <p className="text-xs sm:text-sm font-bold mt-0.5 font-mono">{sla.rtHours}</p>
                     </div>
-                    <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border">
+                    <div className="p-2.5 sm:p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border">
                       <p className="text-[10px] uppercase font-bold text-muted-foreground">Time to Resolve</p>
-                      <p className="text-sm font-bold mt-1 font-mono">{sla.ttrHours}</p>
+                      <p className="text-xs sm:text-sm font-bold mt-0.5 font-mono">{sla.ttrHours}</p>
                     </div>
-                    <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border">
+                    <div className="p-2.5 sm:p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border">
                       <p className="text-[10px] uppercase font-bold text-muted-foreground">SLA Status</p>
-                      <Badge variant={sla.slaStatus.includes("Overdue") ? "destructive" : "outline"} className="mt-1 text-[10px] font-bold">
+                      <Badge variant={sla.slaStatus.includes("Overdue") ? "destructive" : "outline"} className="mt-0.5 text-[9px] font-bold">
                         {sla.slaStatus}
                       </Badge>
                     </div>
-                    <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border">
+                    <div className="p-2.5 sm:p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border">
                       <p className="text-[10px] uppercase font-bold text-muted-foreground">Response Due</p>
-                      <p className="text-xs font-semibold mt-1">
+                      <p className="text-[11px] sm:text-xs font-semibold mt-0.5 truncate">
                         {ticket.responseDueAt ? new Date(ticket.responseDueAt).toLocaleString() : "—"}
                       </p>
                     </div>
@@ -456,11 +456,11 @@ export default function TicketDetailPage() {
 
                 {/* Status & Assignment Controls */}
                 {hasPermission("tickets_update") && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
                     <div className="space-y-1.5">
                       <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Update Status</Label>
                       <Select value={ticket.status} onValueChange={handleStatusChange}>
-                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-10 text-xs rounded-xl"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="OPEN">Open</SelectItem>
                           <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
@@ -472,7 +472,7 @@ export default function TicketDetailPage() {
                     <div className="space-y-1.5">
                       <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Assigned To</Label>
                       <Select value={ticket.assignedTo ? String(ticket.assignedTo.id) : "none"} onValueChange={handleReassign}>
-                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-10 text-xs rounded-xl"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">Unassigned</SelectItem>
                           {assignableUsers.map(u => (
@@ -489,7 +489,7 @@ export default function TicketDetailPage() {
             {/* Assigned Tasks Section */}
             {ticket.tasks && ticket.tasks.length > 0 && (
               <div className="space-y-3">
-                <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                   <ClipboardList className="h-4 w-4 text-primary" />
                   Assigned Field Tasks ({ticket.tasks.length})
                 </h3>
@@ -511,7 +511,7 @@ export default function TicketDetailPage() {
                         {task.description && (
                           <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{task.description}</p>
                         )}
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground mt-3">
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground mt-3">
                           <span className="flex items-center gap-1">
                             <User className="h-3 w-3" />
                             {task.assignedTo?.name || "Unassigned"}
@@ -529,60 +529,12 @@ export default function TicketDetailPage() {
                             </span>
                           )}
                           {task.customer && (
-                            <Link href={`/customers/${task.customer.id}`} className="flex items-center gap-1 text-primary hover:underline" onClick={e => e.stopPropagation()}>
+                            <Link href={`/customers/${task.customer.id}`} className="flex items-center gap-1 text-primary hover:underline ml-auto" onClick={e => e.stopPropagation()}>
                               {task.customer.customerUniqueId}
                               <ExternalLink className="h-3 w-3" />
                             </Link>
                           )}
                         </div>
-
-                        {/* Task Activity Logs */}
-                        {task.activityLogs && task.activityLogs.length > 0 && (
-                          <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-                            <p className="text-[10px] uppercase font-bold text-muted-foreground mb-2">Recent Activity</p>
-                            <div className="space-y-1.5">
-                              {task.activityLogs.slice(0, 3).map(log => (
-                                <div key={log.id} className="flex items-center gap-2 text-[11px]">
-                                  <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${log.action === "COMPLETED" ? "bg-emerald-500" : log.action === "IN_PROGRESS" ? "bg-blue-500" : "bg-slate-400"}`} />
-                                  <span className="font-semibold text-slate-700 dark:text-slate-300">{log.action === "COMMENT" ? "Note" : log.action.replace("_", " ")}</span>
-                                  <span className="text-muted-foreground">{log.notes || ""}</span>
-                                  {log.lat && log.lon && (
-                                    <span className="text-primary font-mono text-[9px]">
-                                      <MapPin className="h-2.5 w-2.5 inline" /> GPS
-                                    </span>
-                                  )}
-                                  <span className="ml-auto text-muted-foreground font-mono text-[10px]">
-                                    {new Date(log.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* GPS Duration Info */}
-                        {(task.startedAt || task.completedAt) && (
-                          <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-3 gap-2 text-[10px]">
-                            {task.startedAt && (
-                              <div className="bg-blue-50 dark:bg-blue-900/10 rounded-lg p-2">
-                                <p className="font-bold text-blue-600">Started</p>
-                                <p className="font-mono">{new Date(task.startedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
-                              </div>
-                            )}
-                            {task.completedAt && (
-                              <div className="bg-emerald-50 dark:bg-emerald-900/10 rounded-lg p-2">
-                                <p className="font-bold text-emerald-600">Completed</p>
-                                <p className="font-mono">{new Date(task.completedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
-                              </div>
-                            )}
-                            {task.workingDuration != null && task.workingDuration > 0 && (
-                              <div className="bg-indigo-50 dark:bg-indigo-900/10 rounded-lg p-2">
-                                <p className="font-bold text-indigo-600">Working Time</p>
-                                <p className="font-mono">{Math.round(task.workingDuration / 60)} min</p>
-                              </div>
-                            )}
-                          </div>
-                        )}
                       </div>
                     </div>
                   ))}
@@ -593,38 +545,29 @@ export default function TicketDetailPage() {
             {/* Comments / Activity Log */}
             <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
               <div className="p-4 border-b bg-slate-50 dark:bg-slate-900">
-                <h3 className="text-sm font-bold flex items-center gap-2">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                   <MessageSquare className="h-4 w-4 text-primary" />
                   Comments & Activity Log ({ticket.comments?.length || 0})
                 </h3>
               </div>
-              <div className="p-4 space-y-3">
-                <div className="max-h-[400px] overflow-y-auto space-y-3 pr-1">
+              <div className="p-3 sm:p-4 space-y-3">
+                <div className="max-h-[380px] overflow-y-auto space-y-3 pr-1">
                   {ticket.comments?.map(c => (
-                    <div key={c.id} className="flex gap-3">
-                      <Avatar className="h-8 w-8 shrink-0">
+                    <div key={c.id} className="flex gap-2.5 sm:gap-3">
+                      <Avatar className="h-7 w-7 sm:h-8 sm:w-8 shrink-0">
                         <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
                           {c.user?.name?.charAt(0) || "?"}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="flex-1 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl border">
-                        <div className="flex justify-between items-center text-xs mb-1.5">
+                      <div className="flex-1 bg-slate-50 dark:bg-slate-800/40 p-2.5 sm:p-3 rounded-xl border">
+                        <div className="flex justify-between items-center text-xs mb-1">
                           <span className="font-bold text-slate-800 dark:text-slate-200">{c.user?.name || "System"}</span>
-                          <span className="text-muted-foreground font-mono text-[10px]">{new Date(c.createdAt).toLocaleString()}</span>
+                          <span className="text-muted-foreground font-mono text-[10px]">{new Date(c.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                         </div>
-                        <p className="text-sm text-slate-600 dark:text-slate-350 whitespace-pre-wrap">{c.content}</p>
-                        {c.isInternal && (
-                          <Badge variant="outline" className="text-[9px] mt-1.5 text-amber-600 border-amber-200 bg-amber-50">Internal Note</Badge>
-                        )}
+                        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-350 whitespace-pre-wrap">{c.content}</p>
                       </div>
                     </div>
                   ))}
-                  {(!ticket.comments || ticket.comments.length === 0) && (
-                    <div className="text-center py-8">
-                      <MessageSquare className="h-10 w-10 text-slate-200 mx-auto mb-2" />
-                      <p className="text-sm text-muted-foreground">No comments yet. Be the first to add one.</p>
-                    </div>
-                  )}
                 </div>
 
                 {/* Add Comment */}
@@ -634,19 +577,18 @@ export default function TicketDetailPage() {
                     value={newComment}
                     onChange={e => setNewComment(e.target.value)}
                     onKeyDown={e => e.key === "Enter" && handleAddComment()}
-                    className="flex-1 rounded-lg"
+                    className="flex-1 rounded-xl h-11 text-xs sm:text-sm"
                   />
-                  <Button size="icon" onClick={handleAddComment} disabled={submitting || !newComment.trim()} className="h-9 w-9 shrink-0">
-                    {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                  <Button size="icon" onClick={handleAddComment} disabled={submitting || !newComment.trim()} className="h-11 w-11 shrink-0 rounded-xl">
+                    {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   </Button>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Right Sidebar */}
+          {/* Right Sidebar - Contact Details */}
           <div className="space-y-4">
-            {/* Subject/Contact Card */}
             {ticket.subject && (
               <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
                 <div className="p-4 border-b bg-gradient-to-r from-primary/5 to-primary/10">
@@ -678,14 +620,22 @@ export default function TicketDetailPage() {
 
                   {ticket.subject.email && (
                     <div className="flex items-center gap-2 text-xs">
-                      <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-slate-700 dark:text-slate-300">{ticket.subject.email}</span>
+                      <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <span className="text-slate-700 dark:text-slate-300 truncate">{ticket.subject.email}</span>
                     </div>
                   )}
                   {ticket.subject.phoneNumber && (
-                    <div className="flex items-center gap-2 text-xs">
-                      <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-slate-700 dark:text-slate-300">{ticket.subject.phoneNumber}</span>
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-2 truncate">
+                        <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <span className="text-slate-700 dark:text-slate-300 font-semibold">{ticket.subject.phoneNumber}</span>
+                      </div>
+                      <a
+                        href={`tel:${ticket.subject.phoneNumber}`}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 px-2.5 py-1.5 rounded-lg transition-colors border border-emerald-500/20 shrink-0"
+                      >
+                        <Phone className="h-3 w-3" /> Call
+                      </a>
                     </div>
                   )}
                   {ticket.subject.address && (
@@ -695,7 +645,7 @@ export default function TicketDetailPage() {
                     </div>
                   )}
                   {ticket.subject.address && (
-                    <Button variant="outline" className="w-full gap-2 text-xs" size="sm" onClick={() => openDirectionsFromCurrentLocation(ticket.subject!.address || "")}>
+                    <Button variant="outline" className="w-full gap-2 text-xs h-10 rounded-xl" size="sm" onClick={() => openDirectionsFromCurrentLocation(ticket.subject!.address || "")}>
                       <Navigation className="h-3.5 w-3.5" /> Get Directions
                     </Button>
                   )}

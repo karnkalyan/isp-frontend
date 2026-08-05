@@ -340,86 +340,86 @@ export default function TaskDetailPage() {
 
   return (
     <DashboardLayout>
-      <div className="p-6 space-y-6">
+      <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 pb-24">
         {/* Top Bar */}
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => router.push("/tasks")}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+          <div className="flex items-center gap-2.5">
+            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => router.push("/tasks")}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-mono text-sm font-bold text-primary">Task #{task.id}</span>
-                <Badge className={`${getStatusColor(task.status)} font-semibold text-xs`}>{task.status.replace("_", " ")}</Badge>
-                <Badge variant="outline" className={`font-semibold text-xs ${getPriorityBadgeColor(task.priority)}`}>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-mono text-xs sm:text-sm font-bold text-primary">Task #{task.id}</span>
+                <Badge className={`${getStatusColor(task.status)} font-semibold text-[11px]`}>{task.status.replace("_", " ")}</Badge>
+                <Badge variant="outline" className={`font-semibold text-[11px] ${getPriorityBadgeColor(task.priority)}`}>
                   <Clock className="h-3 w-3 mr-1 inline" />
                   {task.priority}
                 </Badge>
               </div>
-              <h1 className="text-xl font-bold mt-1">{task.title}</h1>
+              <h1 className="text-lg sm:text-xl font-bold mt-1 leading-snug">{task.title}</h1>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             {hasPermission("tasks_delete") && (
-              <Button variant="outline" className="text-rose-600 hover:bg-rose-50 border-rose-200 text-xs gap-1.5" onClick={handleDelete}>
+              <Button variant="outline" className="text-rose-600 hover:bg-rose-50 border-rose-200 text-xs gap-1.5 h-10 sm:h-9 w-full sm:w-auto" onClick={handleDelete}>
                 <Trash2 className="h-3.5 w-3.5" /> Delete Task
               </Button>
             )}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
           {/* Left Column - Details */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="rounded-2xl border bg-card shadow-sm overflow-hidden p-6 space-y-5">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+            <div className="rounded-2xl border bg-card shadow-sm overflow-hidden p-4 sm:p-6 space-y-4 sm:space-y-5">
               {/* Description */}
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Description</h3>
-                <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
+                <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
                   {task.description || "Field operation task scheduled for staff."}
                 </p>
               </div>
 
               {/* Task Details Info Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="p-3 bg-muted/40 rounded-xl">
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Scheduled Date</p>
-                  <p className="text-xs font-semibold flex items-center gap-1.5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4">
+                <div className="p-2.5 sm:p-3 bg-muted/40 rounded-xl">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground mb-0.5">Scheduled Date</p>
+                  <p className="text-xs font-semibold flex items-center gap-1">
                     <Calendar className="h-3.5 w-3.5 text-primary shrink-0" />
-                    {task.startTime ? new Date(task.startTime).toLocaleDateString() : "Flexible"}
+                    <span>{task.startTime ? new Date(task.startTime).toLocaleDateString() : "Flexible"}</span>
                   </p>
                 </div>
-                <div className="p-3 bg-muted/40 rounded-xl">
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Time Slot</p>
-                  <p className="text-xs font-semibold flex items-center gap-1.5">
+                <div className="p-2.5 sm:p-3 bg-muted/40 rounded-xl">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground mb-0.5">Time Slot</p>
+                  <p className="text-xs font-semibold flex items-center gap-1">
                     <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
-                    {task.startTime ? new Date(task.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Anytime"}
+                    <span>{task.startTime ? new Date(task.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Anytime"}</span>
                   </p>
                 </div>
-                <div className="p-3 bg-muted/40 rounded-xl">
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Duration</p>
-                  <p className="text-xs font-semibold flex items-center gap-1.5">
+                <div className="p-2.5 sm:p-3 bg-muted/40 rounded-xl">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground mb-0.5">Duration</p>
+                  <p className="text-xs font-semibold flex items-center gap-1">
                     <Timer className="h-3.5 w-3.5 text-primary shrink-0" />
-                    {task.duration ? (task.duration >= 60 ? `${Math.floor(task.duration / 60)}h ${task.duration % 60 ? (task.duration % 60) + "m" : ""}` : `${task.duration}m`) : "60m"}
+                    <span>{task.duration ? (task.duration >= 60 ? `${Math.floor(task.duration / 60)}h ${task.duration % 60 ? (task.duration % 60) + "m" : ""}` : `${task.duration}m`) : "60m"}</span>
                   </p>
                 </div>
-                <div className="p-3 bg-muted/40 rounded-xl">
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Branch</p>
-                  <p className="text-xs font-semibold flex items-center gap-1.5">
+                <div className="p-2.5 sm:p-3 bg-muted/40 rounded-xl">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground mb-0.5">Branch</p>
+                  <p className="text-xs font-semibold flex items-center gap-1 truncate">
                     <Building className="h-3.5 w-3.5 text-primary shrink-0" />
-                    {task.branch?.name || "Global / Main"}
+                    <span className="truncate">{task.branch?.name || "Global / Main"}</span>
                   </p>
                 </div>
               </div>
 
               {/* Status and Assignment controls */}
               {hasPermission("tasks_update") && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Update Status</Label>
                     <Select value={task.status} onValueChange={handleStatusChange} disabled={updatingStatus}>
-                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-10 text-xs rounded-xl"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="PENDING">Pending</SelectItem>
                         <SelectItem value="ACCEPTED">Accepted</SelectItem>
@@ -433,7 +433,7 @@ export default function TaskDetailPage() {
                   <div className="space-y-1.5">
                     <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Assigned Technician</Label>
                     <Select value={task.assignedTo ? String(task.assignedTo.id) : "none"} onValueChange={handleReassign}>
-                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-10 text-xs rounded-xl"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">Unassigned</SelectItem>
                         {assignableUsers.map(u => (
@@ -616,9 +616,17 @@ export default function TaskDetailPage() {
                       </div>
 
                       {phone && (
-                        <div className="flex items-center gap-2 text-xs">
-                          <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span className="text-slate-700 dark:text-slate-300">{phone}</span>
+                        <div className="flex items-center justify-between gap-2 text-xs">
+                          <div className="flex items-center gap-2 truncate">
+                            <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <span className="text-slate-700 dark:text-slate-300 font-semibold">{phone}</span>
+                          </div>
+                          <a
+                            href={`tel:${phone}`}
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 px-2.5 py-1.5 rounded-lg transition-colors border border-emerald-500/20 shrink-0"
+                          >
+                            <Phone className="h-3 w-3" /> Call
+                          </a>
                         </div>
                       )}
                       {destinationStr && (
@@ -664,9 +672,17 @@ export default function TaskDetailPage() {
                       </div>
 
                       {phone && (
-                        <div className="flex items-center gap-2 text-xs">
-                          <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span className="text-slate-700 dark:text-slate-300">{phone}</span>
+                        <div className="flex items-center justify-between gap-2 text-xs">
+                          <div className="flex items-center gap-2 truncate">
+                            <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <span className="text-slate-700 dark:text-slate-300 font-semibold">{phone}</span>
+                          </div>
+                          <a
+                            href={`tel:${phone}`}
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 px-2.5 py-1.5 rounded-lg transition-colors border border-emerald-500/20 shrink-0"
+                          >
+                            <Phone className="h-3 w-3" /> Call
+                          </a>
                         </div>
                       )}
                       {destinationStr && (
