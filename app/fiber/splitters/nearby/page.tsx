@@ -325,9 +325,9 @@ export default function SplittersNearbyPage() {
         </div>
 
         {/* Main Interface Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-270px)] min-h-[500px]">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 h-auto lg:h-[calc(100vh-270px)] min-h-[480px]">
           {/* List panel */}
-          <div className="lg:col-span-4 flex flex-col h-full bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl overflow-hidden shadow-md">
+          <div className="lg:col-span-4 flex flex-col h-[380px] sm:h-[420px] lg:h-full bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl overflow-hidden shadow-md">
             <CardHeader className="border-b border-slate-50 dark:border-slate-800/50 pb-4">
               <CardTitle className="text-lg font-bold flex justify-between items-center">
                 <span>Splitters Nearby</span>
@@ -410,7 +410,7 @@ export default function SplittersNearbyPage() {
           </div>
 
           {/* Map panel */}
-          <div className="lg:col-span-8 h-full bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl overflow-hidden shadow-md relative">
+          <div className="lg:col-span-8 h-[360px] sm:h-[450px] lg:h-full bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl overflow-hidden shadow-md relative">
             {isClient ? (
               <div className="w-full h-full">
                 <MapContainer

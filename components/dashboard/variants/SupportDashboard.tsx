@@ -87,7 +87,7 @@ export function SupportDashboard() {
         <p className="text-muted-foreground">Manage customer inquiries and ticket resolution efficiency.</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatsCard
           title="Open Tickets"
           value={loading ? "..." : openTickets.toString()}
@@ -117,8 +117,8 @@ export function SupportDashboard() {
         />
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
+      <div className="grid grid-cols-1 lg:grid-cols-7 gap-4 sm:gap-6">
+        <Card className="col-span-1 lg:col-span-4">
           <CardHeader>
             <CardTitle>Recent Support Tickets</CardTitle>
           </CardHeader>
@@ -152,7 +152,7 @@ export function SupportDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="col-span-3">
+        <Card className="col-span-1 lg:col-span-3">
           <CardHeader>
             <CardTitle>Technician Status</CardTitle>
           </CardHeader>

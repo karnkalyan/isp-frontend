@@ -68,7 +68,7 @@ export function TechnicalDashboard() {
         <p className="text-muted-foreground">Monitor infrastructure health, OLT performance, and traffic loads.</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatsCard
           title="Backbone Traffic"
           value="4.2 Gbps"
@@ -95,11 +95,11 @@ export function TechnicalDashboard() {
         />
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-        <div className="col-span-4">
+      <div className="grid grid-cols-1 lg:grid-cols-7 gap-4 sm:gap-6">
+        <div className="col-span-1 lg:col-span-4">
           <BandwidthMonitor />
         </div>
-        <Card className="col-span-3">
+        <Card className="col-span-1 lg:col-span-3">
           <CardHeader>
             <CardTitle>Hardware Health</CardTitle>
           </CardHeader>

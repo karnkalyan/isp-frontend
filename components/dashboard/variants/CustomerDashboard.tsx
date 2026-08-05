@@ -637,7 +637,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
   )
 
   const dashboardStats = (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
       <CardContainer title="Current Plan" className="border-0 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-sm dark:from-blue-950/30 dark:to-indigo-950/20">
         <div className="space-y-2">
           <PackageLine label={plan?.packageName || planDetails?.planName || "No active package"} value={plan?.packageDuration || "N/A"} />

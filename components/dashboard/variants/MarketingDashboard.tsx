@@ -39,7 +39,7 @@ export function MarketingDashboard() {
         <p className="text-muted-foreground">Monitor lead generation and customer conversion metrics.</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatsCard
           title="Total Leads"
           value={loading ? "..." : totalLeads.toString()}
@@ -69,8 +69,8 @@ export function MarketingDashboard() {
         />
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
+      <div className="grid grid-cols-1 lg:grid-cols-7 gap-4 sm:gap-6">
+        <Card className="col-span-1 lg:col-span-4">
           <CardHeader>
             <CardTitle>Conversion Funnel</CardTitle>
           </CardHeader>
@@ -98,7 +98,7 @@ export function MarketingDashboard() {
           </CardContent>
         </Card>
 
-        <div className="col-span-3">
+        <div className="col-span-1 lg:col-span-3">
           <UpcomingFollowUps />
         </div>
       </div>

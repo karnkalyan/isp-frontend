@@ -1052,7 +1052,7 @@ function TicketsContent() {
             </div>
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
               {[
                 { label: "Total Tickets", val: widgetStats.total, color: "text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-900" },
                 { label: "Open", val: widgetStats.total - widgetStats.progress - widgetStats.resolved - widgetStats.closed, color: "text-blue-600 bg-blue-50/50 dark:bg-blue-900/10" },

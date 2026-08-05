@@ -89,8 +89,8 @@ export function AdminDashboard() {
                 </div>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-                <Card className="col-span-4 shadow-sm border-muted/60 bg-card/50 backdrop-blur-sm">
+            <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-7">
+                <Card className="col-span-1 lg:col-span-4 shadow-sm border-muted/60 bg-card/50 backdrop-blur-sm">
                     <CardHeader className="flex flex-row items-center justify-between border-b pb-4 mb-4">
                         <div className="flex items-center gap-3">
                             <div className="p-2 bg-primary/10 rounded-lg">
@@ -106,7 +106,7 @@ export function AdminDashboard() {
                         <ActiveSessions />
                     </CardContent>
                 </Card>
-                <Card className="col-span-3 shadow-sm border-muted/60 bg-card/50 backdrop-blur-sm">
+                <Card className="col-span-1 lg:col-span-3 shadow-sm border-muted/60 bg-card/50 backdrop-blur-sm">
                     <CardHeader className="flex flex-row items-center gap-3 border-b pb-4 mb-4">
                         <div className="p-2 bg-primary/10 rounded-lg">
                             <Activity className="h-5 w-5 text-primary" />

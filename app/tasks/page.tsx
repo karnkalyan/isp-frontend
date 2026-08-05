@@ -1194,7 +1194,7 @@ export default function TasksPage() {
             </div>
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
               {[
                 { label: "Total Tasks", val: widgetStats.total, color: "text-slate-800 bg-slate-50 dark:bg-slate-900 dark:text-slate-200" },
                 { label: "Pending", val: widgetStats.pending, color: "text-blue-600 bg-blue-50/50 dark:bg-blue-900/10" },
