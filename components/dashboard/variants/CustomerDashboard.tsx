@@ -1287,34 +1287,32 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
           </div>
         </div>
 
-        {/* Sub-navigation */}
-        <div className="mb-6 overflow-x-auto pb-2 scrollbar-none">
-          <div className="inline-flex w-full sm:w-auto items-center gap-1.5 rounded-xl bg-muted/60 p-1.5 border border-border/60 min-w-max">
-            {[
-              { id: "diagnostics", label: "Diagnostics", icon: Activity },
-              { id: "wifi", label: "Wi-Fi Networks", icon: Wifi },
-              { id: "devices", label: "Connected Devices", icon: Laptop },
-              { id: "ports", label: "Ethernet Ports", icon: Network },
-              { id: "stats", label: "Traffic Stats", icon: ArrowUpDown }
-            ].map((tab) => {
-              const Icon = tab.icon
-              const active = routerSubTab === tab.id
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setRouterSubTab(tab.id as any)}
-                  className={`flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
-                    active
-                      ? "bg-primary text-primary-foreground shadow-sm font-semibold"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {tab.label}
-                </button>
-              )
-            })}
-          </div>
+        {/* Sub-navigation Buttons */}
+        <div className="mb-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 border-b border-border/60 pb-4">
+          {[
+            { id: "diagnostics", label: "Diagnostics", icon: Activity },
+            { id: "wifi", label: "Wi-Fi Networks", icon: Wifi },
+            { id: "devices", label: "Connected Devices", icon: Laptop },
+            { id: "ports", label: "Ethernet Ports", icon: Network },
+            { id: "stats", label: "Traffic Stats", icon: ArrowUpDown }
+          ].map((tab) => {
+            const Icon = tab.icon
+            const active = routerSubTab === tab.id
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setRouterSubTab(tab.id as any)}
+                className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs sm:text-sm font-semibold transition-all shadow-sm ${
+                  active
+                    ? "bg-primary text-primary-foreground font-bold ring-2 ring-primary/30"
+                    : "border border-border/60 bg-card text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="truncate">{tab.label}</span>
+              </button>
+            )
+          })}
         </div>
 
         {/* Reboot Progress Overlay */}

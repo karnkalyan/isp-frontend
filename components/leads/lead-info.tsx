@@ -1659,12 +1659,12 @@ export default function LeadDetailsPage() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={editLead}
-                className="gap-2 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"
+                className="gap-2 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 flex-1 sm:flex-initial h-9 text-xs"
               >
                 <Edit className="h-4 w-4" />
                 Edit
@@ -1673,7 +1673,7 @@ export default function LeadDetailsPage() {
                 <Button
                   size="sm"
                   onClick={handleConvert}
-                  className="gap-2 bg-green-600 hover:bg-green-700 text-white"
+                  className="gap-2 bg-green-600 hover:bg-green-700 text-white flex-1 sm:flex-initial h-9 text-xs"
                 >
                   <UserPlus className="h-4 w-4" />
                   Convert
@@ -1684,7 +1684,7 @@ export default function LeadDetailsPage() {
                 size="sm"
                 onClick={handleDelete}
                 disabled={deleting}
-                className="gap-2"
+                className="gap-2 flex-1 sm:flex-initial h-9 text-xs"
               >
                 <Trash2 className="h-4 w-4" />
                 {deleting ? "Deleting..." : "Delete"}
