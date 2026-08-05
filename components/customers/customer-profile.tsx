@@ -2035,7 +2035,31 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         ? findUltimateOltForSplitter(hwProvisionDetails.splitterId)
         : selectedOlt
 
-      // Step 1: Register ONT on OLT (if fiber, and discovery/matching is set)
+      // Step 1: Unregister from old OLT if changing OLT/PON
+      const currentServiceOltId = customer?.serviceDetails?.[0]?.oltId
+      const newOltId = ultimateOlt?.id || hwProvisionDetails.oltId ? Number(ultimateOlt?.id || hwProvisionDetails.oltId) : null
+
+      if (currentServiceOltId && newOltId && currentServiceOltId !== newOltId && matchedDeviceForOnt) {
+        const oldOltIdStr = currentServiceOltId.toString()
+        const ontSerialToDelete = matchedDeviceForOnt.serialNumber || matchedDeviceForOnt.ponSerial
+        if (ontSerialToDelete) {
+          try {
+            await apiRequest(`/device/${oldOltIdStr}/action`, {
+              method: "POST",
+              body: JSON.stringify({
+                action: "deleteOnt",
+                params: { serial: ontSerialToDelete }
+              }),
+              headers: { "Content-Type": "application/json" }
+            })
+            toast.info("Unregistered ONT from previous OLT")
+          } catch (e: any) {
+            console.warn("Failed to unregister from previous OLT:", e.message)
+          }
+        }
+      }
+
+      // Step 1.5: Register ONT on OLT (if fiber, and discovery/matching is set)
       if (selectedDiscoveredOnt && matchedDeviceForOnt) {
         const ontRegistered = await registerOntOnOlt()
         if (!ontRegistered) {
@@ -5226,6 +5250,20 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                         {device.notes && <div className="text-xs text-muted-foreground italic">Note: {device.notes}</div>}
                       </div>
                       <div className="flex items-center gap-2">
+                        {device.deviceType === "ONT" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs gap-1.5"
+                            onClick={() => {
+                              setAssignHardwareOpen(true);
+                            }}
+                            disabled={actionLoading || isRemoving}
+                          >
+                            <Network className="h-3.5 w-3.5" />
+                            Change OLT/PON
+                          </Button>
+                        )}
                         <Button 
                           variant="ghost" 
                           size="icon" 
