@@ -1450,6 +1450,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const [selectedPlanName, setSelectedPlanName] = useState("")
   const [newMacAddress, setNewMacAddress] = useState("")
   const [actionLoading, setActionLoading] = useState(false)
+  const [rebootingSerial, setRebootingSerial] = useState<string | null>(null)
+  const [rebootDevice, setRebootDevice] = useState<CustomerDevice | null>(null)
   const [removingDeviceKey, setRemovingDeviceKey] = useState<string | null>(null)
   const [acsSyncing, setAcsSyncing] = useState(false)
   const [provisioningStatusSaving, setProvisioningStatusSaving] = useState(false)
@@ -1462,6 +1464,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const [nettvPasswordForm, setNettvPasswordForm] = useState({ password: "", conf_password: "" })
   const [renewLoading, setRenewLoading] = useState(false)
   const [assignHardwareOpen, setAssignHardwareOpen] = useState(false)
+  const [hardwareDialogMode, setHardwareDialogMode] = useState<"add" | "change-olt">("add")
+  const [changeOltDeviceId, setChangeOltDeviceId] = useState<number | null>(null)
   const [hardwareSearch, setHardwareSearch] = useState("")
   const [availableStock, setAvailableStock] = useState<any[]>([])
   const [selectedHardwareId, setSelectedHardwareId] = useState<number | null>(null)
@@ -1660,7 +1664,10 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           selectedLoadFileId: "",
         })
       }
-      const mappedDevices: CustomerDevice[] = (customer?.devices || []).map((dev) => ({
+      const dialogDevices = hardwareDialogMode === "change-olt"
+        ? (customer?.devices || []).filter((dev) => dev.id === changeOltDeviceId)
+        : (customer?.devices || [])
+      const mappedDevices: CustomerDevice[] = dialogDevices.map((dev) => ({
         id: dev.id,
         deviceType: dev.deviceType,
         brand: dev.brand,
@@ -1694,7 +1701,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       setAutoFindError(null)
       setDiscoveredOnts([])
     }
-  }, [assignHardwareOpen, customer, fetchOltsAndSplitters])
+  }, [assignHardwareOpen, customer, fetchOltsAndSplitters, hardwareDialogMode, changeOltDeviceId])
 
   const openDeviceDialogForEdit = useCallback((index: number) => {
     setHwEditingDeviceIndex(index)
@@ -1874,7 +1881,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         toast.success("ONT registered on OLT successfully")
         return true
       } else {
-        toast.error(response?.error || "Failed to register ONT")
+        toast.error("Server error. The ONT could not be registered.")
         return false
       }
     } catch (error: any) {
@@ -2039,7 +2046,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       const currentServiceOltId = customer?.serviceDetails?.[0]?.oltId
       const newOltId = ultimateOlt?.id || hwProvisionDetails.oltId ? Number(ultimateOlt?.id || hwProvisionDetails.oltId) : null
 
-      if (currentServiceOltId && newOltId && currentServiceOltId !== newOltId && matchedDeviceForOnt) {
+      if (currentServiceOltId && newOltId && matchedDeviceForOnt && (hardwareDialogMode === "change-olt" || currentServiceOltId !== newOltId)) {
         const oldOltIdStr = currentServiceOltId.toString()
         const ontSerialToDelete = matchedDeviceForOnt.serialNumber || matchedDeviceForOnt.ponSerial
         if (ontSerialToDelete) {
@@ -2276,6 +2283,21 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       toast.error(error.message || "Failed to synchronize ACS device")
     } finally {
       setAcsSyncing(false)
+    }
+  }
+
+  const handleRebootAcsDevice = async () => {
+    const serial = rebootDevice?.serialNumber
+    if (!serial) return
+    setRebootingSerial(serial)
+    try {
+      await apiRequest(`/services/genieacs/devices/${encodeURIComponent(serial)}/reboot`, { method: "POST" })
+      toast.success("Reboot command sent to the device")
+    } catch (error: any) {
+      toast.error(error.message || "Failed to reboot device")
+    } finally {
+      setRebootingSerial(null)
+      setRebootDevice(null)
     }
   }
 
@@ -3507,8 +3529,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       <Dialog open={changeUsernameOpen} onOpenChange={setChangeUsernameOpen}>
         <DialogContent className="w-[95vw] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Change Username</DialogTitle>
-            <DialogDescription>Update the username for this customer's connection.</DialogDescription>
+            <DialogTitle>Change Radius Username</DialogTitle>
+            <DialogDescription>Update the connection username in both this system and Radius.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -3533,7 +3555,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
             <Button variant="outline" onClick={() => setChangeUsernameOpen(false)}>Cancel</Button>
             <Button onClick={handleChangeUsername} disabled={actionLoading}>
               {actionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Change Username
+              Update Radius Username
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3859,7 +3881,18 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           {acsSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />} Sync ACS
         </Button>
         <Button size="sm" className="h-9 bg-gradient-to-r from-blue-500 to-indigo-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={() => setChangeUsernameOpen(true)}>
-          <User className="mr-2 h-4 w-4" /> Change Username
+          <User className="mr-2 h-4 w-4" /> Change Radius Username
+        </Button>
+        <Button
+          size="sm"
+          className="h-9 bg-gradient-to-r from-sky-500 to-cyan-600 text-white border-0 shadow-sm hover:shadow-md transition-all"
+          onClick={() => {
+            const selected = customer.connectionUsers.find((item) => String(item.id) === selectedConnectionUser) || customer.connectionUsers[0]
+            if (selected) openRadiusPasswordDialog(selected)
+            else toast.error("No connection user is available")
+          }}
+        >
+          <Key className="mr-2 h-4 w-4" /> Change Radius Password
         </Button>
         <Button size="sm" className="h-9 bg-gradient-to-r from-amber-500 to-orange-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={() => setChangePackageOpen(true)}>
           <Package className="mr-2 h-4 w-4" /> Change Packages
@@ -4757,10 +4790,12 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Cpu className="h-5 w-5" />
-                  Fiber Network Provisioning
+                  {hardwareDialogMode === "change-olt" ? "Change OLT / PON" : "Fiber Network Provisioning"}
                 </DialogTitle>
                 <DialogDescription>
-                  Configure splitter, OLT, VLANs, and add devices. Use Autofind to discover and match ONT.
+                  {hardwareDialogMode === "change-olt"
+                    ? "Move the existing ONT to another OLT or PON port. Autofind is available to locate the same device."
+                    : "Configure splitter, OLT, VLANs, and add devices. Use Autofind to discover and match ONT."}
                 </DialogDescription>
               </DialogHeader>
 
@@ -5041,14 +5076,16 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                 {/* Customer Devices Section */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <Label className="text-base font-semibold">Customer Devices</Label>
-                    <Button type="button" variant="outline" size="sm" onClick={() => {
-                      setHwEditingDeviceIndex(null)
-                      setHwDeviceDialogOpen(true)
-                    }}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Device
-                    </Button>
+                    <Label className="text-base font-semibold">{hardwareDialogMode === "change-olt" ? "Existing Device" : "Customer Devices"}</Label>
+                    {hardwareDialogMode === "add" && (
+                      <Button type="button" variant="outline" size="sm" onClick={() => {
+                        setHwEditingDeviceIndex(null)
+                        setHwDeviceDialogOpen(true)
+                      }}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Device
+                      </Button>
+                    )}
                   </div>
 
                   {hwDevices.length === 0 ? (
@@ -5065,14 +5102,14 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                             </div>
                             {device.notes && <div className="text-xs text-gray-500 mt-1 italic">Notes: {device.notes}</div>}
                           </div>
-                          <div className="flex gap-2">
+                          {hardwareDialogMode === "add" && <div className="flex gap-2">
                             <Button type="button" variant="ghost" size="sm" onClick={() => openDeviceDialogForEdit(index)}>
                               Edit
                             </Button>
                             <Button type="button" variant="ghost" size="sm" className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20" onClick={() => removeDevice(index)}>
                               <Trash2 className="h-4 w-4" />
                             </Button>
-                          </div>
+                          </div>}
                         </div>
                       ))}
                     </div>
@@ -5084,7 +5121,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                   <div className="space-y-4 border rounded-lg p-4 bg-muted/20">
                     <div className="flex items-center justify-between">
                       <Label className="text-sm font-semibold">ONT Discovery</Label>
-                      {isAlreadyProvisioned ? (
+                      {isAlreadyProvisioned && hardwareDialogMode !== "change-olt" ? (
                         <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-100">
                           PROVISIONED & ACTIVE
                         </Badge>
@@ -5105,7 +5142,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                       )}
                     </div>
 
-                    {isAlreadyProvisioned ? (
+                    {isAlreadyProvisioned && hardwareDialogMode !== "change-olt" ? (
                       <p className="text-xs text-muted-foreground">
                         The ONT device is already successfully provisioned and active on the OLT network.
                       </p>
@@ -5185,7 +5222,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                 <Button variant="outline" onClick={() => setAssignHardwareOpen(false)}>Cancel</Button>
                 <Button onClick={handleHwProvisionSave} disabled={hwProvisionLoading}>
                   {hwProvisionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Device Provision
+                  {hardwareDialogMode === "change-olt" ? "Save OLT / PON Change" : "Device Provision"}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -5220,10 +5257,20 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
             onConfirm={confirmDeleteDevice}
           />
 
+          <ConfirmDialog
+            open={Boolean(rebootDevice)}
+            onOpenChange={(open) => { if (!open && !rebootingSerial) setRebootDevice(null) }}
+            title="Reboot ACS device?"
+            description={`Send a TR-069 reboot command to ${rebootDevice?.brand || "the"} ${rebootDevice?.model || "device"} (${rebootDevice?.serialNumber || "unknown serial"})? The customer's connection may be interrupted briefly.`}
+            confirmLabel="Reboot Device"
+            cancelLabel="Cancel"
+            onConfirm={handleRebootAcsDevice}
+          />
+
           <CardContainer title="Assigned Hardware" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
             <div className="flex items-center justify-between mb-4">
               <div className="text-sm text-muted-foreground">{customer.devices.length} device{customer.devices.length === 1 ? "" : "s"} assigned</div>
-              <Button onClick={() => setAssignHardwareOpen(true)}>
+              <Button onClick={() => { setHardwareDialogMode("add"); setChangeOltDeviceId(null); setAssignHardwareOpen(true) }}>
                 <Plus className="mr-2 h-4 w-4" /> Add Hardware
               </Button>
             </div>
@@ -5256,7 +5303,9 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                             size="sm"
                             className="h-8 text-xs gap-1.5"
                             onClick={() => {
-                              setAssignHardwareOpen(true);
+                              setHardwareDialogMode("change-olt")
+                              setChangeOltDeviceId(device.id)
+                              setAssignHardwareOpen(true)
                             }}
                             disabled={actionLoading || isRemoving}
                           >
@@ -5269,7 +5318,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                           size="icon" 
                           className="h-8 w-8 text-muted-foreground hover:text-foreground"
                           onClick={() => {
-                            setAssignHardwareOpen(true);
+                            setEditingDevice(device)
+                            setEditDeviceOpen(true)
                           }}
                           disabled={actionLoading || isRemoving}
                         >
@@ -5306,6 +5356,21 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                 </TabsList>
                 {customer.devices.filter(d => d.deviceType === "ONT").map((device, idx) => (
                   <TabsContent key={idx} value={device.serialNumber}>
+                    <div className="mb-3 flex justify-end">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="border-amber-500 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                        onClick={() => setRebootDevice({ ...device, notes: device.notes || "" })}
+                        disabled={rebootingSerial === device.serialNumber}
+                      >
+                        {rebootingSerial === device.serialNumber
+                          ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          : <RotateCcw className="mr-2 h-4 w-4" />}
+                        Reboot Device
+                      </Button>
+                    </div>
                     <Tabs defaultValue="basic-info">
                       <TabsList className="w-full flex overflow-x-auto justify-start h-auto scrollbar-none mb-4 bg-muted p-1 rounded-lg">
                         <TabsTrigger value="basic-info" className="flex-shrink-0">Basic Info</TabsTrigger>

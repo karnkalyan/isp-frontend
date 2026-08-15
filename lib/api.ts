@@ -161,7 +161,9 @@ export async function apiRequest<T = any>(
   try {
     response = await fetch(url, options);
   } catch (err: any) {
-    const msg = err?.name === "TimeoutError" ? "The server took too long to respond. Please check the customer before retrying." : (err?.message || "Network error");
+    const msg = err?.name === "TimeoutError"
+      ? "The server took too long to respond. Please try again."
+      : "Server error. Please check your connection and try again.";
     if (isClient() && !suppressToast) toast.error(msg);
     throw new Error(msg);
   }
@@ -227,6 +229,10 @@ export async function apiRequest<T = any>(
     if (response.status === 402) {
       notifyLicenseExpired(payload, payloadStr);
       throw new Error(payloadStr);
+    }
+
+    if (response.status >= 500) {
+      payloadStr = "Internal server error. Please try again.";
     }
 
     if (isClient() && !suppressToast) toast.error(payloadStr);
