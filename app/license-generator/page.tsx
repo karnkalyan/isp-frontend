@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Copy, Eye, KeyRound, Lock, Loader2, RefreshCw, ShieldAlert, ShieldCheck, ShieldX, Upload } from "lucide-react"
+import { Copy, Eye, KeyRound, Lock, Loader2, RefreshCw, ShieldAlert, ShieldX, Upload } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { PageHeader } from "@/components/ui/page-header"
@@ -94,8 +94,8 @@ export default function LicenseGeneratorPage() {
     }
   }, [unlocked])
 
-  const updateStatus = async (license: GeneratedLicense, status: "ACTIVE" | "DEACTIVATED" | "STOLEN") => {
-    const reason = status === "ACTIVE" ? "" : status === "STOLEN" ? "Marked as stolen by administrator" : "Deactivated by administrator"
+  const updateStatus = async (license: GeneratedLicense, status: "DEACTIVATED" | "STOLEN") => {
+    const reason = status === "STOLEN" ? "Marked as stolen by administrator" : "Deactivated by administrator"
     setUpdatingId(license.id)
     try {
       const response = await apiRequest<{ license: GeneratedLicense }>(`/license/generated/${license.id}/status`, {
@@ -201,12 +201,6 @@ export default function LicenseGeneratorPage() {
                               {installingId === license.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
                               Install
                             </Button>
-                            {!isActive && (
-                              <Button type="button" size="sm" variant="outline" disabled={isBusy} onClick={() => updateStatus(license, "ACTIVE")}>
-                                <ShieldCheck className="mr-2 h-4 w-4" />
-                                Activate
-                              </Button>
-                            )}
                             <Button type="button" size="sm" variant="outline" disabled={isBusy || license.status === "DEACTIVATED"} onClick={() => updateStatus(license, "DEACTIVATED")}>
                               <ShieldX className="mr-2 h-4 w-4" />
                               Deactivate
