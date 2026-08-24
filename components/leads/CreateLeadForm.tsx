@@ -580,8 +580,8 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
     const [interestedPlanId, setInterestedPlanId] = useState("")
     const [memberships, setMemberships] = useState<Membership[]>([])
     const [splitters, setSplitters] = useState<Splitter[]>([])
-    const [branches, setBranches] = useState<Array<{ id: string; name: string; parentId?: number | string | null }>>([])
-    const [subBranches, setSubBranches] = useState<Array<{ id: string; name: string; parentId?: number | string | null }>>([])
+    const [branches, setBranches] = useState<Array<{ id: string; name: string; code?: string; parentId?: number | string | null }>>([])
+    const [subBranches, setSubBranches] = useState<Array<{ id: string; name: string; code?: string; parentId?: number | string | null }>>([])
     const [leadFollowUps, setLeadFollowUps] = useState<FollowUp[]>([])
     const [showFollowUpDialog, setShowFollowUpDialog] = useState(false)
     const [editingFollowUp, setEditingFollowUp] = useState<FollowUp | null>(null)
@@ -712,16 +712,16 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
     const mainBranchOptions: Option[] = useMemo(() => {
         return branches.map(branch => ({
             value: String(branch.id),
-            label: branch.name
+            label: branch.code ? `${branch.name} (${branch.code})` : branch.name
         }));
     }, [branches])
 
     const subBranchOptions: Option[] = useMemo(() =>
         subBranches
-            .filter(sb => !formData.branchId || String(sb.parentId) === formData.branchId)
+            .filter(sb => !formData.branchId || String(sb.parentId) === String(formData.branchId))
             .map(sb => ({
                 value: String(sb.id),
-                label: sb.name
+                label: sb.code ? `${sb.name} (${sb.code})` : sb.name
             })),
         [subBranches, formData.branchId]
     )
@@ -882,25 +882,23 @@ export function CreateLeadForm({ leadId }: CreateLeadFormProps) {
             const processed = list.map((b: any) => ({
                 id: String(b.id),
                 name: b.name,
+                code: b.code || "",
                 parentId: b.parentId ? String(b.parentId) : null
             }))
 
-            // Level 1: Branch (has parent which has no parent)
-            const level1 = processed.filter((b: any) => {
-                if (!b.parentId) return false; // Level 0 (Head Office / Org)
-                const parent = processed.find((p: any) => p.id === b.parentId);
-                return !parent || !parent.parentId; // Parent has no parent
-            });
+            // Main / Parent Branches:
+            // 1. Root branches with parentId === null
+            // 2. Any branch that acts as a parent to other branches
+            const main = processed.filter((b: any) => 
+                !b.parentId || processed.some((child: any) => String(child.parentId) === String(b.id))
+            )
 
-            // Level 2: Sub-branch (has parent which has a parent)
-            const level2 = processed.filter((b: any) => {
-                if (!b.parentId) return false;
-                const parent = processed.find((p: any) => p.id === b.parentId);
-                return parent && parent.parentId; // Parent has a parent itself
-            });
+            // Sub-branches:
+            // All branches that have a parentId assigned
+            const subs = processed.filter((b: any) => Boolean(b.parentId))
 
-            setBranches(level1)
-            setSubBranches(level2)
+            setBranches(main)
+            setSubBranches(subs)
         } catch (error: any) {
             console.error("Failed to fetch branches:", error)
             toast.error("Failed to load branches")
