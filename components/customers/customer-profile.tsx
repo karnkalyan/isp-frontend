@@ -1582,7 +1582,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const findUltimateOltForSplitter = useCallback((splitterId: string): OLT | null => {
     if (!splitterId) return null
     const findRoot = (sId: string): Splitter | null => {
-      const splitter = splitters.find(s => s.id.toString() === sId)
+      const splitter = splitters.find(s => s.id.toString() === sId.toString())
       if (!splitter) return null
       if (!splitter.masterSplitterId) return splitter
       const parent = splitters.find(s => s.splitterId === splitter.masterSplitterId)
@@ -1591,12 +1591,12 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     }
     const rootSplitter = findRoot(splitterId)
     if (!rootSplitter?.connectedServiceBoard) return null
-    return olts.find(o => o.id.toString() === rootSplitter.connectedServiceBoard?.oltId) || null
+    return olts.find(o => o.id.toString() === rootSplitter.connectedServiceBoard?.oltId?.toString()) || null
   }, [splitters, olts])
 
   const getSplitterPath = useCallback((splitterId: string): Splitter[] => {
     const path: Splitter[] = []
-    let current = splitters.find(s => s.id.toString() === splitterId)
+    let current = splitters.find(s => s.id.toString() === splitterId.toString())
     while (current) {
       path.unshift(current)
       if (!current.masterSplitterId) break
@@ -1632,25 +1632,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   useEffect(() => {
     if (assignHardwareOpen) {
       fetchOltsAndSplitters()
-      const sd = customer?.serviceDetails?.[0]
-      if (sd) {
-        let selectedVlanIds: string[] = []
-        if (sd.vlanId) {
-          selectedVlanIds = sd.vlanId.split(',').filter(Boolean)
-        }
-        setHwProvisionDetails({
-          useSplitter: !!sd.splitterId,
-          useDirectOLT: !sd.splitterId,
-          oltId: sd.oltId?.toString() || "",
-          splitterId: sd.splitterId?.toString() || "",
-          splitterPort: sd.splitterPort || "",
-          oltPort: sd.oltPort || "",
-          selectedVlanIds,
-          selectedProfileIds: [],
-          loadOntConfig: false,
-          selectedLoadFileId: "",
-        })
-      } else {
+      if (hardwareDialogMode === "change-olt") {
         setHwProvisionDetails({
           useSplitter: true,
           useDirectOLT: false,
@@ -1663,9 +1645,42 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           loadOntConfig: false,
           selectedLoadFileId: "",
         })
+      } else {
+        const sd = customer?.serviceDetails?.[0]
+        if (sd) {
+          let selectedVlanIds: string[] = []
+          if (sd.vlanId) {
+            selectedVlanIds = sd.vlanId.split(',').filter(Boolean)
+          }
+          setHwProvisionDetails({
+            useSplitter: !!sd.splitterId,
+            useDirectOLT: !sd.splitterId,
+            oltId: sd.oltId?.toString() || "",
+            splitterId: sd.splitterId?.toString() || "",
+            splitterPort: sd.splitterPort || "",
+            oltPort: sd.oltPort || "",
+            selectedVlanIds,
+            selectedProfileIds: [],
+            loadOntConfig: false,
+            selectedLoadFileId: "",
+          })
+        } else {
+          setHwProvisionDetails({
+            useSplitter: true,
+            useDirectOLT: false,
+            oltId: "",
+            splitterId: "",
+            splitterPort: "",
+            oltPort: "",
+            selectedVlanIds: [],
+            selectedProfileIds: [],
+            loadOntConfig: false,
+            selectedLoadFileId: "",
+          })
+        }
       }
       const dialogDevices = hardwareDialogMode === "change-olt"
-        ? (customer?.devices || []).filter((dev) => dev.id === changeOltDeviceId)
+        ? (customer?.devices || []).filter((dev) => changeOltDeviceId ? (dev.id === changeOltDeviceId || String(dev.id) === String(changeOltDeviceId)) : dev.deviceType === "ONT")
         : (customer?.devices || [])
       const mappedDevices: CustomerDevice[] = dialogDevices.map((dev) => ({
         id: dev.id,
@@ -1682,6 +1697,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       setSelectedDiscoveredOnt(null)
       setMatchedDeviceForOnt(null)
       setAutoFindError(null)
+      setDiscoveredOnts([])
     } else {
       setHwDevices([])
       setHwProvisionDetails({
@@ -1773,9 +1789,136 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     return hexFromPon || hexFromSerial || device.ponSerial || device.serialNumber || ""
   }, [convertToPonHex])
 
+  // Delete ONT from OLT hardware and synchronized inventory
+  const deleteOntFromOlt = useCallback(async (serialNumber: string, targetOltId?: number | string): Promise<boolean> => {
+    if (!serialNumber) {
+      console.warn("Cannot delete ONT: serial number is missing")
+      return false
+    }
+    const oltId = targetOltId || customer?.serviceDetails?.[0]?.oltId || customer?.oltId
+    if (!oltId) {
+      console.warn("Cannot delete ONT: customer has no associated OLT")
+      return false
+    }
+    
+    try {
+      console.log(`[OLT_DELETE] Fetching ONT details for serial ${serialNumber} from OLT ${oltId}`)
+      const serialCandidates = [...new Set([
+        serialNumber, 
+        convertToPonHex(serialNumber),
+        normalizeIdentifier(serialNumber),
+      ].filter(Boolean))]
+      
+      let res: any = null
+      for (const candidate of serialCandidates) {
+        try {
+          const candidateResponse = await apiRequest<any>(`/olt/${oltId}/onts?search=${encodeURIComponent(candidate)}`)
+          if (candidateResponse?.success && Array.isArray(candidateResponse.data) && candidateResponse.data.length > 0) {
+            res = candidateResponse
+            break
+          }
+        } catch (searchErr) {
+          console.warn("[OLT_DELETE] Search onts error:", searchErr)
+        }
+      }
+
+      if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
+        const ont = res.data[0]
+        const fsp = ont.servicePort || ""
+        const ontIdVal = ont.ontId
+        const servicePorts = ont.ontDetails?.servicePorts
+
+        // Parse FSP (frame/slot/port)
+        const fspParts = fsp ? fsp.split('/') : []
+        const frame = fspParts.length > 0 ? parseInt(fspParts[0], 10) : 0
+        const slot = fspParts.length > 1 ? parseInt(fspParts[1], 10) : 0
+        const port = fspParts.length > 2 ? parseInt(fspParts[2], 10) : 0
+        const ont_id = parseInt(ontIdVal, 10)
+
+        let service_port_indices: number[] = []
+        if (servicePorts) {
+          try {
+            const ports = typeof servicePorts === 'string'
+              ? JSON.parse(servicePorts)
+              : servicePorts
+            if (Array.isArray(ports)) {
+              service_port_indices = ports
+                .map((sp: any) => Number(sp?.index ?? sp?.servicePortIndex ?? sp?.service_port))
+                .filter((v: any) => Number.isInteger(v) && v >= 0)
+            }
+          } catch (e) {
+            console.error("[OLT_DELETE] Error parsing service ports:", e)
+          }
+        }
+
+        const payload = {
+          action: "deleteOnt",
+          params: {
+            frame: isNaN(frame) ? 0 : frame,
+            slot: isNaN(slot) ? 0 : slot,
+            port: isNaN(port) ? 0 : port,
+            ont_id: isNaN(ont_id) ? undefined : ont_id,
+            serial: serialNumber,
+            service_port_indices
+          }
+        }
+
+        console.log(`[OLT_DELETE] Sending deleteOnt action to /device/${oltId}/action`, payload)
+        const actionRes = await apiRequest<any>(`/device/${oltId}/action`, {
+          method: "POST",
+          body: JSON.stringify(payload),
+          headers: { "Content-Type": "application/json" }
+        })
+
+        if (actionRes?.success) {
+          console.log(`[OLT_DELETE] ONT ${serialNumber} deleted successfully from OLT ${oltId}`)
+          return true
+        } else {
+          console.warn("[OLT_DELETE] Action deleteOnt returned non-success:", actionRes?.error || actionRes?.message)
+          return false
+        }
+      } else {
+        // Fallback: Check if customer has an existing oltPort
+        const existingPort = customer?.serviceDetails?.[0]?.oltPort
+        if (existingPort) {
+          const parts = existingPort.split('/').map(Number)
+          if (parts.length >= 2 && !parts.some(isNaN)) {
+            const frame = parts.length === 3 ? parts[0] : 0
+            const slot = parts.length === 3 ? parts[1] : parts[0]
+            const port = parts.length === 3 ? parts[2] : parts[1]
+            try {
+              const fallbackRes = await apiRequest<any>(`/device/${oltId}/action`, {
+                method: "POST",
+                body: JSON.stringify({
+                  action: "deleteOnt",
+                  params: { frame, slot, port, serial: serialNumber }
+                }),
+                headers: { "Content-Type": "application/json" }
+              })
+              if (fallbackRes?.success) return true
+            } catch (fbErr) {
+              console.warn("[OLT_DELETE] Fallback deleteOnt error:", fbErr)
+            }
+          }
+        }
+        console.warn(`[OLT_DELETE] ONT ${serialNumber} was not found in synchronized inventory of OLT ${oltId}`)
+        return false
+      }
+    } catch (err: any) {
+      console.error("[OLT_DELETE] Failed to delete ONT from OLT:", err)
+      return false
+    }
+  }, [customer, convertToPonHex])
+
   // OLT Provisioning function
   const registerOntOnOlt = useCallback(async (): Promise<boolean> => {
-    if (!hwProvisionDetails.oltId) {
+    const selectedSplitter = hwProvisionDetails.splitterId ? splitters.find(s => s.id.toString() === hwProvisionDetails.splitterId.toString()) : null
+    const ultimateOlt = hwProvisionDetails.splitterId ? findUltimateOltForSplitter(hwProvisionDetails.splitterId) : null
+    const targetOltId = hwProvisionDetails.useSplitter
+      ? (ultimateOlt?.id?.toString() || hwProvisionDetails.oltId)
+      : hwProvisionDetails.oltId
+
+    if (!targetOltId) {
       toast.error("No OLT selected")
       return false
     }
@@ -1784,7 +1927,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       return false
     }
 
-    const selectedOlt = olts.find(o => o.id.toString() === hwProvisionDetails.oltId)
+    const selectedOlt = olts.find(o => o.id.toString() === targetOltId.toString())
     if (!selectedOlt) {
       toast.error("Please select a valid OLT")
       return false
@@ -1794,7 +1937,6 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     let boardType = selectedOlt.serviceBoards?.[0]?.type
 
     if (hwProvisionDetails.useSplitter) {
-      const ultimateOlt = findUltimateOltForSplitter(hwProvisionDetails.splitterId)
       if (!ultimateOlt) {
         toast.error("Could not determine OLT from selected splitter")
         return false
@@ -1802,7 +1944,6 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
 
       const path = getSplitterPath(hwProvisionDetails.splitterId)
       boardPortStr = resolveSplitterBoardPort(path)
-      const selectedSplitter = splitters.find(s => s.id.toString() === hwProvisionDetails.splitterId)
       boardType = selectedSplitter?.connectedServiceBoard?.boardType || ultimateOlt.serviceBoards?.[0]?.type
     }
 
@@ -1872,7 +2013,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     }
 
     try {
-      const response = await apiRequest<any>(`/device/${hwProvisionDetails.oltId}/action`, {
+      const response = await apiRequest<any>(`/device/${targetOltId}/action`, {
         method: "POST",
         body: JSON.stringify(payload),
         headers: { "Content-Type": "application/json" },
@@ -1881,18 +2022,136 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         toast.success("ONT registered on OLT successfully")
         return true
       } else {
-        toast.error("Server error. The ONT could not be registered.")
+        toast.error(response?.error || response?.message || "Server error. The ONT could not be registered.")
         return false
       }
     } catch (error: any) {
-      toast.error(error?.message || "Error")
+      toast.error(error?.message || "Error registering ONT on OLT")
       return false
     }
   }, [hwProvisionDetails, matchedDeviceForOnt, selectedDiscoveredOnt, findUltimateOltForSplitter, getSplitterPath, splitters, olts, customer, getOntSerialForRegistration])
 
+  const handleSelectDiscoveredOnt = useCallback((ontId: string, customOntList?: any[]) => {
+    const list = customOntList || discoveredOnts
+    const ont = list.find(o => o.ont_id_details === ontId)
+    setSelectedDiscoveredOnt(ont || null)
+
+    if (!ont) {
+      setMatchedDeviceForOnt(null)
+      return
+    }
+
+    const availableDevices = hwDevices.length > 0 ? hwDevices : (customer?.devices || [])
+    if (!availableDevices.length) {
+      setMatchedDeviceForOnt(null)
+      toast.error("No customer devices available for matching.")
+      return
+    }
+
+    const selectedSplitter = hwProvisionDetails.splitterId ? splitters.find(s => s.id.toString() === hwProvisionDetails.splitterId.toString()) : null
+    const ultimateOlt = hwProvisionDetails.splitterId ? findUltimateOltForSplitter(hwProvisionDetails.splitterId) : null
+    const boardType = selectedSplitter?.connectedServiceBoard?.boardType || ultimateOlt?.serviceBoards?.[0]?.type
+    const isEpon = !!boardType?.toUpperCase().includes("EPON")
+
+    const ontIdentifier = String(ont.ont_id_details || "").trim()
+    const normalizedOnt = normalizeIdentifier(ontIdentifier)
+
+    // Try to match with existing ONT device
+    for (const device of availableDevices) {
+      if (device.deviceType !== "ONT") continue
+
+      const devSerial = String(device.serialNumber || "").trim()
+      const devPon = String(device.ponSerial || "").trim()
+      const devMac = String(device.macAddress || "").trim()
+
+      const devSerialHex = convertToPonHex(devSerial, device.brand || device.model)
+      const devPonHex = convertToPonHex(devPon, device.brand || device.model)
+
+      const candidateStrings = [
+        devSerial,
+        devPon,
+        devMac,
+        devSerialHex,
+        devPonHex,
+      ].filter(Boolean)
+
+      // 1. Direct case-insensitive match
+      if (candidateStrings.some(c => c.toLowerCase() === ontIdentifier.toLowerCase())) {
+        setMatchedDeviceForOnt(device)
+        setSelectedDiscoveredOnt((prev: any) => prev ? ({ ...prev, ont_id: ont.ont_id }) : null)
+        toast.success(`Matched with device: ${device.brand || ""} ${device.model || ""}`)
+        return
+      }
+
+      // 2. Normalized hex match
+      const candidateNormalized = candidateStrings.map(normalizeIdentifier).filter(Boolean)
+      if (candidateNormalized.includes(normalizedOnt)) {
+        setMatchedDeviceForOnt(device)
+        setSelectedDiscoveredOnt((prev: any) => prev ? ({ ...prev, ont_id: ont.ont_id }) : null)
+        toast.success(`Matched with device: ${device.brand || ""} ${device.model || ""}`)
+        return
+      }
+
+      // 3. EPON MAC match
+      if (isEpon) {
+        const normMac = normalizeIdentifier(devMac)
+        if (normMac && normMac === normalizedOnt) {
+          setMatchedDeviceForOnt(device)
+          setSelectedDiscoveredOnt((prev: any) => prev ? ({ ...prev, ont_id: ont.ont_id }) : null)
+          toast.success(`Matched with device: ${device.brand || ""} ${device.model || ""}`)
+          return
+        }
+      }
+
+      // 4. GPON Hex match
+      if (devPonHex && devPonHex.toLowerCase() === ontIdentifier.toLowerCase()) {
+        setMatchedDeviceForOnt(device)
+        setSelectedDiscoveredOnt((prev: any) => prev ? ({ ...prev, ont_id: ont.ont_id }) : null)
+        toast.success(`Matched with device: ${device.brand || ""} ${device.model || ""}`)
+        return
+      }
+      if (devSerialHex && devSerialHex.toLowerCase() === ontIdentifier.toLowerCase()) {
+        setMatchedDeviceForOnt(device)
+        setSelectedDiscoveredOnt((prev: any) => prev ? ({ ...prev, ont_id: ont.ont_id }) : null)
+        toast.success(`Matched with device: ${device.brand || ""} ${device.model || ""}`)
+        return
+      }
+
+      // 5. Suffix match (e.g. last 8 hex digits if vendor prefix matches)
+      if (normalizedOnt.length === 16 && (devSerialHex.length === 16 || devPonHex.length === 16)) {
+        const hex = devPonHex.length === 16 ? devPonHex : devSerialHex
+        if (hex.slice(-8).toLowerCase() === normalizedOnt.slice(-8).toLowerCase()) {
+          setMatchedDeviceForOnt(device)
+          setSelectedDiscoveredOnt((prev: any) => prev ? ({ ...prev, ont_id: ont.ont_id }) : null)
+          toast.success(`Matched with device: ${device.brand || ""} ${device.model || ""}`)
+          return
+        }
+      }
+    }
+
+    // In change-olt mode, if there is only 1 ONT device in availableDevices, match it
+    if (hardwareDialogMode === "change-olt" && availableDevices.length === 1 && availableDevices[0].deviceType === "ONT") {
+      const dev = availableDevices[0]
+      setMatchedDeviceForOnt(dev)
+      setSelectedDiscoveredOnt((prev: any) => prev ? ({ ...prev, ont_id: ont.ont_id }) : null)
+      toast.success(`Selected ONT matched with existing device: ${dev.brand || ""} ${dev.model || ""}`)
+      return
+    }
+
+    // No match found
+    setMatchedDeviceForOnt(null)
+    toast.error("No matching device found for selected ONT")
+  }, [hwDevices, customer, hwProvisionDetails.splitterId, splitters, findUltimateOltForSplitter, discoveredOnts, convertToPonHex, hardwareDialogMode, toast])
+
   const handleAutoFindOnt = useCallback(async () => {
-    if (!hwProvisionDetails.oltId) {
-      toast.error("Please select an OLT first")
+    const selectedSplitter = hwProvisionDetails.splitterId ? splitters.find(s => s.id.toString() === hwProvisionDetails.splitterId.toString()) : null
+    const ultimateOlt = hwProvisionDetails.splitterId ? findUltimateOltForSplitter(hwProvisionDetails.splitterId) : null
+    const targetOltId = hwProvisionDetails.useSplitter 
+      ? (ultimateOlt?.id?.toString() || hwProvisionDetails.oltId) 
+      : hwProvisionDetails.oltId
+
+    if (!targetOltId) {
+      toast.error(hwProvisionDetails.useSplitter ? "Please select a splitter first" : "Please select an OLT first")
       return
     }
 
@@ -1904,19 +2163,17 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         return
       }
 
-      const selectedSplitter = splitters.find(s => s.id.toString() === hwProvisionDetails.splitterId)
-      const ultimateOlt = findUltimateOltForSplitter(hwProvisionDetails.splitterId)
       const path = getSplitterPath(hwProvisionDetails.splitterId)
       const boardPortStr = resolveSplitterBoardPort(path)
 
       if (!boardPortStr) {
-        toast.error("Unable to determine board port from splitter")
+        toast.error("Unable to determine board port from splitter hierarchy. Please ensure the root splitter is connected to an OLT service board.")
         return
       }
 
       const parts = boardPortStr.split('/').map(Number)
       if (parts.length !== 3 || parts.some(isNaN)) {
-        toast.error(`Invalid board port format from splitter: ${boardPortStr}`)
+        toast.error(`Invalid board port format from splitter: ${boardPortStr}. Expected frame/slot/port.`)
         return
       }
       [frame, slot, port] = parts
@@ -1941,7 +2198,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     setMatchedDeviceForOnt(null)
 
     try {
-      const response = await apiRequest<any>(`/device/${hwProvisionDetails.oltId}/action`, {
+      const response = await apiRequest<any>(`/device/${targetOltId}/action`, {
         method: "POST",
         body: JSON.stringify({
           action: "autofind",
@@ -1952,6 +2209,12 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
 
       if (response?.success && response.data) {
         setDiscoveredOnts(response.data)
+        if (response.data.length === 0) {
+          setAutoFindError("No unconfigured ONTs found on this PON port.")
+        } else if (response.data.length === 1) {
+          // If only 1 discovered ONT, automatically match/select it
+          handleSelectDiscoveredOnt(response.data[0].ont_id_details, response.data)
+        }
       } else {
         setAutoFindError(response?.error || "Failed to discover ONTs")
       }
@@ -1960,78 +2223,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     } finally {
       setIsAutoFinding(false)
     }
-  }, [hwProvisionDetails, splitters, findUltimateOltForSplitter, getSplitterPath, toast])
-
-  const handleSelectDiscoveredOnt = useCallback((ontId: string) => {
-    const ont = discoveredOnts.find(o => o.ont_id_details === ontId)
-    setSelectedDiscoveredOnt(ont || null)
-
-    if (!ont) {
-      setMatchedDeviceForOnt(null)
-      return
-    }
-
-    if (!hwDevices.length) {
-      setMatchedDeviceForOnt(null)
-      toast.error("No devices added. Please add a device first.")
-      return
-    }
-
-    const selectedSplitter = splitters.find(s => s.id.toString() === hwProvisionDetails.splitterId)
-    const ultimateOlt = findUltimateOltForSplitter(hwProvisionDetails.splitterId)
-    const boardType = selectedSplitter?.connectedServiceBoard?.boardType || ultimateOlt?.serviceBoards?.[0]?.type
-    const isEpon = boardType?.toUpperCase().includes("EPON")
-
-    const ontIdentifier = ont.ont_id_details  // e.g., "414C434CB2C804B0" for GPON
-    const normalizedOnt = normalizeIdentifier(ontIdentifier)
-
-    // Try to match with any added ONT device
-    for (const device of hwDevices) {
-      if (device.deviceType !== "ONT") continue
-
-      const candidateIdentifiers = [
-        device.macAddress,
-        device.serialNumber,
-        device.ponSerial,
-        convertToPonHex(device.serialNumber || ""),
-        convertToPonHex(device.ponSerial || ""),
-      ]
-        .map(normalizeIdentifier)
-        .filter(Boolean)
-
-      if (candidateIdentifiers.includes(normalizedOnt)) {
-        setMatchedDeviceForOnt(device)
-        setSelectedDiscoveredOnt((prev: any) => prev ? ({ ...prev, ont_id: ont.ont_id }) : null)
-        toast.success(`Matched with device: ${device.brand} ${device.model}`)
-        return
-      }
-
-      if (isEpon) {
-        // EPON: match by MAC
-        const normalizedMac = normalizeIdentifier(device.macAddress)
-        if (normalizedMac && normalizedMac === normalizedOnt) {
-          setMatchedDeviceForOnt(device)
-          setSelectedDiscoveredOnt((prev: any) => prev ? ({ ...prev, ont_id: ont.ont_id }) : null)
-          toast.success(`Matched with device: ${device.brand} ${device.model}`)
-          return
-        }
-      } else {
-        // GPON: match by serialNumber or ponSerial after converting to hex
-        const deviceSerialHex = convertToPonHex(device.serialNumber || "")
-        const devicePonHex = convertToPonHex(device.ponSerial || "")
-        if ((devicePonHex && devicePonHex === ontIdentifier) || (deviceSerialHex && deviceSerialHex === ontIdentifier)) {
-          setMatchedDeviceForOnt(device)
-          setSelectedDiscoveredOnt((prev: any) => prev ? ({ ...prev, ont_id: ont.ont_id }) : null)
-          toast.success(`Matched with device: ${device.brand} ${device.model}`)
-          return
-        }
-      }
-    }
-
-    // No match found
-    setMatchedDeviceForOnt(null)
-    toast.error("No matching device found")
-  }, [hwDevices, hwProvisionDetails.splitterId, splitters, findUltimateOltForSplitter, discoveredOnts, convertToPonHex, toast])
+  }, [hwProvisionDetails, splitters, findUltimateOltForSplitter, getSplitterPath, handleSelectDiscoveredOnt, toast])
 
   const handleHwProvisionSave = async () => {
     if (!customer) return
@@ -2042,31 +2234,105 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         ? findUltimateOltForSplitter(hwProvisionDetails.splitterId)
         : selectedOlt
 
-      // Step 1: Unregister from old OLT if changing OLT/PON
       const currentServiceOltId = customer?.serviceDetails?.[0]?.oltId
       const newOltId = ultimateOlt?.id || hwProvisionDetails.oltId ? Number(ultimateOlt?.id || hwProvisionDetails.oltId) : null
 
-      if (currentServiceOltId && newOltId && matchedDeviceForOnt && (hardwareDialogMode === "change-olt" || currentServiceOltId !== newOltId)) {
-        const oldOltIdStr = currentServiceOltId.toString()
-        const ontSerialToDelete = matchedDeviceForOnt.serialNumber || matchedDeviceForOnt.ponSerial
-        if (ontSerialToDelete) {
-          try {
-            await apiRequest(`/device/${oldOltIdStr}/action`, {
-              method: "POST",
-              body: JSON.stringify({
-                action: "deleteOnt",
-                params: { serial: ontSerialToDelete }
-              }),
-              headers: { "Content-Type": "application/json" }
-            })
-            toast.info("Unregistered ONT from previous OLT")
-          } catch (e: any) {
-            console.warn("Failed to unregister from previous OLT:", e.message)
+      if (hardwareDialogMode === "change-olt") {
+        if (!newOltId) {
+          toast.error("Please select a target OLT or Splitter")
+          setHwProvisionLoading(false)
+          return
+        }
+
+        const targetDevice = matchedDeviceForOnt || hwDevices.find(d => d.deviceType === "ONT") || customer?.devices?.find(d => d.id === changeOltDeviceId || d.deviceType === "ONT")
+        if (!targetDevice) {
+          toast.error("No existing ONT device found to move")
+          setHwProvisionLoading(false)
+          return
+        }
+
+        if (!selectedDiscoveredOnt || !matchedDeviceForOnt) {
+          toast.error("Please run Autofind ONT and select the discovered device to match")
+          setHwProvisionLoading(false)
+          return
+        }
+
+        // Step 1: Delete/Unregister ONT from previous OLT / PON port
+        if (currentServiceOltId) {
+          const ontSerialToDelete = targetDevice.ponSerial || targetDevice.serialNumber || targetDevice.macAddress
+          if (ontSerialToDelete) {
+            toast.loading("Unregistering ONT from previous OLT...", { id: "olt-change-progress" })
+            try {
+              const deleted = await deleteOntFromOlt(ontSerialToDelete, currentServiceOltId)
+              if (deleted) {
+                toast.success("Unregistered ONT from previous OLT", { id: "olt-change-progress" })
+              } else {
+                toast.info("Previous OLT registration cleared / not found", { id: "olt-change-progress" })
+              }
+            } catch (delErr: any) {
+              console.warn("Delete ONT from previous OLT warning:", delErr)
+            }
           }
         }
+
+        // Step 2: Register ONT on the new OLT / PON port
+        toast.loading("Registering ONT on new OLT / PON port...", { id: "olt-change-progress" })
+        const ontRegistered = await registerOntOnOlt()
+        if (!ontRegistered) {
+          setHwProvisionLoading(false)
+          return
+        }
+
+        // Step 3: Save connection details to customer in database
+        const vlanIdStr = hwProvisionDetails.selectedVlanIds.join(',')
+        let newOltPort = hwProvisionDetails.oltPort || null
+        if (hwProvisionDetails.useSplitter && hwProvisionDetails.splitterId) {
+          const path = getSplitterPath(hwProvisionDetails.splitterId)
+          newOltPort = resolveSplitterBoardPort(path) || hwProvisionDetails.oltPort || null
+        }
+
+        await apiRequest(`/customer/${customer.id}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            connectionType: "fiber",
+            oltId: newOltId,
+            splitterId: hwProvisionDetails.splitterId ? Number(hwProvisionDetails.splitterId) : null,
+            oltPort: newOltPort,
+            splitterPort: hwProvisionDetails.splitterPort || null,
+            vlanId: vlanIdStr,
+          }),
+          headers: { "Content-Type": "application/json" },
+        })
+
+        // Step 4: Ensure the existing ONT device provisioning status is active
+        if (targetDevice.id) {
+          await apiRequest(`/customer/${customer.id}/devices/${targetDevice.id}`, {
+            method: "PUT",
+            body: JSON.stringify({
+              provisioningStatus: "active",
+            }),
+            headers: { "Content-Type": "application/json" }
+          })
+        }
+
+        // Step 5: Sync new OLT & TR-069
+        const syncOltId = String(newOltId)
+        const syncPromises: Promise<any>[] = [
+          apiRequest("/tr069-devices/sync", { method: "POST" }),
+          apiRequest(`/olt/${syncOltId}/onts/sync`, { method: "POST" }),
+        ]
+        if (currentServiceOltId && String(currentServiceOltId) !== syncOltId) {
+          syncPromises.push(apiRequest(`/olt/${currentServiceOltId}/onts/sync`, { method: "POST" }))
+        }
+        await Promise.allSettled(syncPromises)
+
+        toast.success("ONT successfully moved to new OLT / PON port!", { id: "olt-change-progress" })
+        setAssignHardwareOpen(false)
+        fetchCustomerData()
+        return
       }
 
-      // Step 1.5: Register ONT on OLT (if fiber, and discovery/matching is set)
+      // --- ADD HARDWARE MODE (Existing logic) ---
       if (selectedDiscoveredOnt && matchedDeviceForOnt) {
         const ontRegistered = await registerOntOnOlt()
         if (!ontRegistered) {
@@ -2075,24 +2341,26 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         }
       }
 
-      // Step 2: Save connection details to customer
-      // vlanId field needs to be a comma-separated string of the selected VLAN IDs (database IDs)
       const vlanIdStr = hwProvisionDetails.selectedVlanIds.join(',')
+      let newOltPort = hwProvisionDetails.oltPort || null
+      if (hwProvisionDetails.useSplitter && hwProvisionDetails.splitterId) {
+        const path = getSplitterPath(hwProvisionDetails.splitterId)
+        newOltPort = resolveSplitterBoardPort(path) || hwProvisionDetails.oltPort || null
+      }
 
       await apiRequest(`/customer/${customer.id}`, {
         method: "PUT",
         body: JSON.stringify({
           connectionType: "fiber",
-          oltId: ultimateOlt?.id || hwProvisionDetails.oltId ? Number(ultimateOlt?.id || hwProvisionDetails.oltId) : null,
+          oltId: newOltId,
           splitterId: hwProvisionDetails.splitterId ? Number(hwProvisionDetails.splitterId) : null,
-          oltPort: hwProvisionDetails.oltPort || null,
+          oltPort: newOltPort,
           splitterPort: hwProvisionDetails.splitterPort || null,
           vlanId: vlanIdStr,
         }),
         headers: { "Content-Type": "application/json" },
       })
 
-      // Step 3: Assign new devices to customer
       const newDevices = hwDevices.filter(d => !d.id && d.inventoryItemId)
       for (const dev of newDevices) {
         await apiRequest(`/inventory/${dev.inventoryItemId}/assign`, {
@@ -2101,8 +2369,6 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         })
       }
 
-      // Step 3.5: Activate ONT Devices in database
-      // Fetch fresh customer details to get IDs of newly assigned devices
       const freshData = await apiRequest<any>(`/customer/${customer.id}`)
       if (freshData) {
         const freshDevices = freshData.devices || []
@@ -2116,7 +2382,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         }
       }
 
-      const syncOltId = String(ultimateOlt?.id || hwProvisionDetails.oltId || "")
+      const syncOltId = String(newOltId || "")
       if (syncOltId) {
         const syncResults = await Promise.allSettled([
           apiRequest("/tr069-devices/sync", { method: "POST" }),
@@ -2969,89 +3235,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     }
   }
 
-  const deleteOntFromOlt = async (serialNumber: string) => {
-    if (!serialNumber) throw new Error("Cannot delete ONT: serial number is missing");
-    const oltId = customer?.serviceDetails?.[0]?.oltId || customer?.oltId;
-    if (!oltId) {
-      throw new Error("Cannot delete ONT: customer has no associated OLT");
-    }
-    
-    try {
-      console.log(`[OLT_DELETE] Fetching ONT details for serial ${serialNumber} from OLT ${oltId}`);
-      const serialCandidates = [...new Set([serialNumber, convertToPonHex(serialNumber)].filter(Boolean))]
-      let res: any = null
-      for (const candidate of serialCandidates) {
-        const candidateResponse = await apiRequest<any>(`/olt/${oltId}/onts?search=${encodeURIComponent(candidate)}`)
-        if (candidateResponse?.success && Array.isArray(candidateResponse.data) && candidateResponse.data.length > 0) {
-          res = candidateResponse
-          break
-        }
-      }
-      if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
-        const ont = res.data[0];
-        const fsp = ont.servicePort || ""; 
-        const ontIdVal = ont.ontId;
-        const servicePorts = ont.ontDetails?.servicePorts;
 
-        // Parse FSP (frame/slot/port)
-        const fspParts = fsp ? fsp.split('/') : [];
-        const frame = fspParts.length > 0 ? parseInt(fspParts[0], 10) : 0;
-        const slot = fspParts.length > 1 ? parseInt(fspParts[1], 10) : 0;
-        const port = fspParts.length > 2 ? parseInt(fspParts[2], 10) : 0;
-        const ont_id = parseInt(ontIdVal, 10);
-
-        if (isNaN(frame) || isNaN(slot) || isNaN(port) || isNaN(ont_id)) {
-          throw new Error(`Cannot delete ONT: invalid F/S/P or ONT ID (${fsp}, ${ontIdVal})`);
-        }
-
-        let service_port_indices: number[] = [];
-        if (servicePorts) {
-          try {
-            const ports = typeof servicePorts === 'string'
-              ? JSON.parse(servicePorts)
-              : servicePorts;
-            if (Array.isArray(ports)) {
-              service_port_indices = ports
-                .map((sp: any) => Number(sp?.index ?? sp?.servicePortIndex ?? sp?.service_port))
-                .filter((v: any) => Number.isInteger(v) && v >= 0);
-            }
-          } catch (e) {
-            console.error("[OLT_DELETE] Error parsing service ports:", e);
-          }
-        }
-
-        const payload = {
-          action: "deleteOnt",
-          params: {
-            frame,
-            slot,
-            port,
-            ont_id,
-            serial: serialNumber,
-            service_port_indices
-          }
-        };
-
-        console.log(`[OLT_DELETE] Sending deleteOnt action to /device/${oltId}/action`, payload);
-        const actionRes = await apiRequest<any>(`/device/${oltId}/action`, {
-          method: "POST",
-          body: JSON.stringify(payload),
-          headers: { "Content-Type": "application/json" }
-        });
-
-        if (actionRes?.success) {
-          toast.success("ONT deleted from OLT successfully");
-        } else {
-          throw new Error(actionRes?.error || actionRes?.message || "ONT deletion from OLT returned failure status.");
-        }
-      } else {
-        throw new Error(`Cannot delete ONT: ${serialNumber} was not found in synchronized OLT inventory`);
-      }
-    } catch (err: any) {
-      console.error("[OLT_DELETE] Failed to delete ONT from OLT:", err);
-      throw err;
-    }
-  };
 
   const confirmReturnHardware = async (note: string, isFaulty: boolean) => {
     if (!returnHardwareItem) return
