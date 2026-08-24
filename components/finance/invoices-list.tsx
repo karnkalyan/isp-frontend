@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { CardContainer } from "@/components/ui/card-container"
 import { StatusBadge } from "@/components/ui/status-badge"
-import { MoreHorizontal, FileText, Loader2, Printer, Search, Trash, Plus, ExternalLink, AlertTriangle } from "lucide-react"
+import { MoreHorizontal, FileText, Loader2, Printer, Search, Trash, Plus, ExternalLink, AlertTriangle, Percent, Tag, SlidersHorizontal, CheckCircle2, MinusCircle, Sparkles } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,11 +54,20 @@ function PrintableInvoice({
   tscPercentage?: number
 }) {
   const tscPct = Number(tscPercentage || 10)
+  const hasActualOrderItems = Array.isArray(invoice?.items) && invoice.items.length > 0
   const hasConfiguredPackageItems = Array.isArray(invoice?.packageItems) && invoice.packageItems.length > 0
   const configuredByReference = new Map((invoice?.packageItems || []).filter((item: any) => item.referenceId).map((item: any) => [item.referenceId, item]))
-  const hasActualOrderItems = Array.isArray(invoice?.items) && invoice.items.length > 0
   const items = invoice?.isTrialInvoice
     ? [{ itemName: invoice?.packageName || "Trial Package", description: "Trial subscription", referenceId: null, itemPrice: 0, isTaxable: false, isTscApplicable: false }]
+    : hasActualOrderItems
+    ? invoice.items.map((item: any) => {
+        const configured: any = item.referenceId ? configuredByReference.get(item.referenceId) : null
+        return {
+          ...item,
+          isTaxable: configured ? (configured.isTaxable !== false && configured.IsTaxable !== false) : (item.isTaxable !== false),
+          isTscApplicable: configured ? (configured.isTscApplicable === true || configured.IsExcisable === true) : (item.isTscApplicable === true),
+        }
+      })
     : hasConfiguredPackageItems
     ? invoice.packageItems.map((item: any) => ({
         id: `package-${item.id}`,
@@ -69,15 +78,6 @@ function PrintableInvoice({
         isTaxable: item.isTaxable !== false,
         isTscApplicable: item.isTscApplicable === true,
       }))
-    : hasActualOrderItems
-    ? invoice.items.map((item: any) => {
-        const configured: any = item.referenceId ? configuredByReference.get(item.referenceId) : null
-        return {
-          ...item,
-          isTaxable: configured ? (configured.isTaxable !== false && configured.IsTaxable !== false) : (item.isTaxable !== false),
-          isTscApplicable: configured ? (configured.isTscApplicable === true || configured.IsExcisable === true) : (item.isTscApplicable === true),
-        }
-      })
     : [{ itemName: invoice?.packageName || "Internet Package", referenceId: null, itemPrice: Number(invoice?.amount || 0), isTaxable: true, isTscApplicable: invoice?.isTscApplicable || false }]
   
   const itemsSum = items.reduce((sum: number, item: any) => sum + Number(item.itemPrice || 0), 0)
@@ -104,7 +104,7 @@ function PrintableInvoice({
     return found || null
   }
 
-  const isLegacy = !invoice?.isTrialInvoice && !hasConfiguredPackageItems && Math.abs(itemsSum - invoiceTotalAmount) < 1
+  const isLegacy = !invoice?.isTrialInvoice && !hasActualOrderItems && !hasConfiguredPackageItems && Math.abs(itemsSum - invoiceTotalAmount) < 1
 
   if (isLegacy) {
     total = invoiceTotalAmount
@@ -151,8 +151,6 @@ function PrintableInvoice({
         isTscApplicable = false
       }
 
-
-
       const itemTsc = isTscApplicable ? (price * tscPct) / 100 : 0
 
       return {
@@ -175,6 +173,9 @@ function PrintableInvoice({
     vat = Math.round(taxableAmount * 0.13 * 100) / 100
     total = Math.round((subtotal + totalTsc + vat) * 100) / 100
   }
+
+  const grossSubtotal = displayItems.filter((i: any) => Number(i.preTaxPrice) > 0).reduce((sum: number, item: any) => sum + Number(item.preTaxPrice), 0)
+  const discountTotal = displayItems.filter((i: any) => Number(i.preTaxPrice) < 0).reduce((sum: number, item: any) => sum + Math.abs(Number(item.preTaxPrice)), 0)
 
   const printedAt = new Date()
 
@@ -279,8 +280,8 @@ function PrintableInvoice({
           <table className="border-collapse text-sm">
             <tbody>
               {[
-                ["Total", subtotal],
-                ["Discount", 0],
+                ["Total", grossSubtotal > 0 && discountTotal > 0 ? grossSubtotal : subtotal],
+                ["Discount", discountTotal],
                 ["TSC", totalTsc],
                 ["Taxable Amount", taxableAmount],
                 ["Vat 13 %", vat],
@@ -398,6 +399,12 @@ export function InvoicesList() {
   const [paymentSubmitting, setPaymentSubmitting] = useState(false)
   const [isp, setIsp] = useState<any>(null)
   const [adjustingInvoice, setAdjustingInvoice] = useState<any>(null)
+  const [discountingInvoice, setDiscountingInvoice] = useState<any>(null)
+  const [discountType, setDiscountType] = useState<"percentage" | "flat">("percentage")
+  const [discountValue, setDiscountValue] = useState("")
+  const [discountReason, setDiscountReason] = useState("")
+  const [discountTargetItemId, setDiscountTargetItemId] = useState<string>("all")
+  const [discountSubmitting, setDiscountSubmitting] = useState(false)
   const [newItemName, setNewItemName] = useState("")
   const [newItemPrice, setNewItemPrice] = useState("")
   const [adjustmentSubmitting, setAdjustmentSubmitting] = useState(false)
@@ -616,6 +623,46 @@ export function InvoicesList() {
     }
   }
 
+  const handleApplyDiscount = async () => {
+    if (!discountingInvoice) return
+    const val = parseFloat(discountValue)
+    if (isNaN(val) || val <= 0) {
+      toast.error("Please enter a valid positive discount value")
+      return
+    }
+    if (discountType === "percentage" && val > 100) {
+      toast.error("Percentage discount cannot exceed 100%")
+      return
+    }
+
+    try {
+      setDiscountSubmitting(true)
+      const payload: any = {
+        orderId: discountingInvoice.id,
+        discountType,
+        discountValue: val,
+        reason: discountReason.trim() || undefined,
+        applyToItemId: discountTargetItemId !== "all" ? Number(discountTargetItemId) : undefined
+      }
+
+      await apiRequest("/billing/invoices/discount", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      })
+
+      toast.success("Discount applied successfully")
+      setDiscountingInvoice(null)
+      setDiscountValue("")
+      setDiscountReason("")
+      setDiscountTargetItemId("all")
+      fetchInvoices()
+    } catch (err: any) {
+      toast.error(err.message || "Failed to apply discount")
+    } finally {
+      setDiscountSubmitting(false)
+    }
+  }
+
   const handleAddAdjustment = async () => {
     if (!adjustingInvoice || !newItemName.trim() || !newItemPrice.trim()) {
       toast.error("Item name and price are required")
@@ -819,11 +866,32 @@ export function InvoicesList() {
                         {invoice.status !== "paid" && (
                           <>
                             <DropdownMenuSeparator className="bg-border" />
-                            <DropdownMenuItem className="text-blue-600 focus:text-blue-600 dark:focus:bg-blue-950 cursor-pointer" onClick={() => setAdjustingInvoice(invoice)}>
-                              Adjust
+                            <DropdownMenuItem 
+                              className="text-amber-600 focus:text-amber-600 dark:focus:bg-amber-950 cursor-pointer flex items-center gap-2" 
+                              onClick={() => {
+                                setDiscountingInvoice(invoice)
+                                setDiscountType("percentage")
+                                setDiscountValue("")
+                                setDiscountReason("")
+                                setDiscountTargetItemId("all")
+                              }}
+                            >
+                              <Percent className="h-4 w-4" />
+                              Discount
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              className="text-blue-600 focus:text-blue-600 dark:focus:bg-blue-950 cursor-pointer flex items-center gap-2" 
+                              onClick={() => setAdjustingInvoice(invoice)}
+                            >
+                              <SlidersHorizontal className="h-4 w-4" />
+                              Adjust / Items
                             </DropdownMenuItem>
                             <DropdownMenuSeparator className="bg-border" />
-                            <DropdownMenuItem className="text-green-600 focus:text-green-600 focus:bg-green-50 dark:focus:bg-green-950 cursor-pointer" onClick={() => openMarkPaid(invoice)}>
+                            <DropdownMenuItem 
+                              className="text-green-600 focus:text-green-600 focus:bg-green-50 dark:focus:bg-green-950 cursor-pointer flex items-center gap-2" 
+                              onClick={() => openMarkPaid(invoice)}
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
                               Mark as paid
                             </DropdownMenuItem>
                           </>
@@ -912,34 +980,243 @@ export function InvoicesList() {
         </DialogContent>
       </Dialog>
 
+      {/* Discount Modal */}
+      <Dialog open={!!discountingInvoice} onOpenChange={(open) => { if (!open) { setDiscountingInvoice(null); setDiscountValue(""); setDiscountReason(""); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-foreground">
+              <Tag className="h-5 w-5 text-amber-500" />
+              Apply Discount - {discountingInvoice?.invoiceId || `INV-${discountingInvoice?.id}`}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 my-2">
+            <div className="bg-muted/40 p-3 rounded-lg flex justify-between items-center text-sm border border-border">
+              <div>
+                <p className="font-semibold text-foreground">{discountingInvoice?.customer || "Customer"}</p>
+                <p className="text-xs text-muted-foreground">{discountingInvoice?.packageName || "Package"}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground">Current Total</p>
+                <p className="font-bold text-base text-foreground">{formatNpr(Number(discountingInvoice?.amount || 0))}</p>
+              </div>
+            </div>
+
+            {/* Discount Type Selector */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Discount Mode</label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant={discountType === "percentage" ? "default" : "outline"}
+                  onClick={() => { setDiscountType("percentage"); setDiscountValue(""); }}
+                  className={`gap-2 ${discountType === "percentage" ? "bg-amber-600 hover:bg-amber-700 text-white" : ""}`}
+                >
+                  <Percent className="h-4 w-4" />
+                  Percentage (%)
+                </Button>
+                <Button
+                  type="button"
+                  variant={discountType === "flat" ? "default" : "outline"}
+                  onClick={() => { setDiscountType("flat"); setDiscountValue(""); }}
+                  className={`gap-2 ${discountType === "flat" ? "bg-amber-600 hover:bg-amber-700 text-white" : ""}`}
+                >
+                  <span className="font-bold text-xs">NPR</span>
+                  Flat Amount
+                </Button>
+              </div>
+            </div>
+
+            {/* Target Item Selection (Optional) */}
+            {discountingInvoice?.items && discountingInvoice.items.length > 1 && (
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Apply Discount On</label>
+                <Select value={discountTargetItemId} onValueChange={setDiscountTargetItemId}>
+                  <SelectTrigger className="bg-background border-input text-foreground">
+                    <SelectValue placeholder="Select target item" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover border-border text-popover-foreground">
+                    <SelectItem value="all">Entire Invoice / Subtotal</SelectItem>
+                    {discountingInvoice.items.filter((i: any) => Number(i.itemPrice) > 0).map((item: any) => (
+                      <SelectItem key={item.id} value={String(item.id)}>
+                        {item.itemName} ({formatNpr(Number(item.itemPrice))})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Discount Value Input & Presets */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">
+                {discountType === "percentage" ? "Discount Percentage (%)" : "Discount Amount (NPR)"}
+              </label>
+              <Input
+                type="number"
+                min="0"
+                max={discountType === "percentage" ? "100" : undefined}
+                placeholder={discountType === "percentage" ? "e.g. 10" : "e.g. 250"}
+                value={discountValue}
+                onChange={(e) => setDiscountValue(e.target.value)}
+                disabled={discountSubmitting}
+                autoFocus
+              />
+
+              {/* Quick Presets */}
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {discountType === "percentage" ? (
+                  [5, 10, 15, 20, 25, 50, 100].map((pct) => (
+                    <Button
+                      key={pct}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className={`h-7 px-2.5 text-xs ${discountValue === String(pct) ? "border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold" : ""}`}
+                      onClick={() => setDiscountValue(String(pct))}
+                    >
+                      {pct}%
+                    </Button>
+                  ))
+                ) : (
+                  [100, 200, 300, 500, 1000].map((amt) => (
+                    <Button
+                      key={amt}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className={`h-7 px-2.5 text-xs ${discountValue === String(amt) ? "border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold" : ""}`}
+                      onClick={() => setDiscountValue(String(amt))}
+                    >
+                      NPR {amt}
+                    </Button>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Reason / Notes Input */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Reason / Description (Optional)</label>
+              <Input
+                placeholder="e.g. Promotional Offer, Customer Retention"
+                value={discountReason}
+                onChange={(e) => setDiscountReason(e.target.value)}
+                disabled={discountSubmitting}
+              />
+              <div className="flex flex-wrap gap-1 pt-1">
+                {["Special Promotion", "Customer Retention", "Management Approval", "Service Compensation"].map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => setDiscountReason(tag)}
+                    className="text-[11px] bg-muted hover:bg-muted/80 text-muted-foreground px-2 py-0.5 rounded-md transition-colors border border-border"
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Live Calculation Preview */}
+            {(() => {
+              const val = parseFloat(discountValue)
+              if (isNaN(val) || val <= 0) return null
+
+              let targetBase = Number(discountingInvoice?.amount || 0)
+              if (discountTargetItemId !== "all") {
+                const target = discountingInvoice?.items?.find((i: any) => i.id === Number(discountTargetItemId))
+                if (target) targetBase = Math.max(0, Number(target.itemPrice))
+              }
+              const calcDiscount = discountType === "percentage"
+                ? Math.round((targetBase * val) / 100 * 100) / 100
+                : Math.min(Number(discountingInvoice?.amount || 0), val)
+              const newTotal = Math.max(0, Number(discountingInvoice?.amount || 0) - calcDiscount)
+
+              return (
+                <div className="border border-amber-500/30 bg-amber-500/10 dark:bg-amber-950/30 p-3.5 rounded-lg space-y-1.5 text-sm">
+                  <div className="flex justify-between text-muted-foreground text-xs">
+                    <span>Base Amount:</span>
+                    <span>{formatNpr(Number(discountingInvoice?.amount || 0))}</span>
+                  </div>
+                  <div className="flex justify-between font-medium text-amber-600 dark:text-amber-400">
+                    <span>Calculated Discount:</span>
+                    <span>- {formatNpr(calcDiscount)}</span>
+                  </div>
+                  <div className="border-t border-amber-500/20 pt-1.5 flex justify-between font-bold text-foreground">
+                    <span>New Total Amount:</span>
+                    <span className="text-base text-primary">{formatNpr(newTotal)}</span>
+                  </div>
+                </div>
+              )
+            })()}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setDiscountingInvoice(null)} disabled={discountSubmitting}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleApplyDiscount}
+                disabled={discountSubmitting || !discountValue.trim() || isNaN(parseFloat(discountValue)) || parseFloat(discountValue) <= 0}
+                className="gap-2 bg-amber-600 hover:bg-amber-700 text-white"
+              >
+                {discountSubmitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Percent className="h-4 w-4" />
+                )}
+                Apply Discount
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Adjust Invoice Items Modal */}
       <Dialog open={!!adjustingInvoice} onOpenChange={(open) => { if (!open) { setAdjustingInvoice(null); setNewItemName(""); setNewItemPrice(""); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Adjust Invoice: {adjustingInvoice?.invoiceId}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <SlidersHorizontal className="h-5 w-5 text-blue-500" />
+              Adjust Invoice Items: {adjustingInvoice?.invoiceId || `INV-${adjustingInvoice?.id}`}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 my-2">
             <div>
-              <h4 className="text-sm font-semibold mb-2 text-foreground">Current Items</h4>
+              <h4 className="text-sm font-semibold mb-2 text-foreground">Current Items & Adjustments</h4>
               {adjustingInvoice?.items && adjustingInvoice.items.length > 0 ? (
-                <div className="border border-border rounded-lg divide-y divide-border overflow-hidden bg-background max-h-48 overflow-y-auto">
-                  {adjustingInvoice.items.map((item: any) => (
-                    <div key={item.id} className="flex justify-between items-center p-3 text-sm">
-                      <div className="flex-1 min-w-0 pr-4">
-                        <p className="font-medium text-foreground truncate">{item.itemName}</p>
-                        <p className="text-xs text-muted-foreground">Price: {formatNpr(item.itemPrice)}</p>
+                <div className="border border-border rounded-lg divide-y divide-border overflow-hidden bg-background max-h-56 overflow-y-auto">
+                  {adjustingInvoice.items.map((item: any) => {
+                    const isDiscount = Number(item.itemPrice) < 0
+                    return (
+                      <div key={item.id} className="flex justify-between items-center p-3 text-sm">
+                        <div className="flex-1 min-w-0 pr-4">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-foreground truncate">{item.itemName}</p>
+                            {isDiscount && (
+                              <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                                Discount
+                              </span>
+                            )}
+                          </div>
+                          <p className={`text-xs ${isDiscount ? "text-amber-600 dark:text-amber-400 font-semibold" : "text-muted-foreground"}`}>
+                            {isDiscount ? `- ${formatNpr(Math.abs(item.itemPrice))}` : formatNpr(item.itemPrice)}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          disabled={adjustmentSubmitting}
+                          onClick={() => handleRemoveAdjustment(item.id)}
+                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          title="Remove item from invoice"
+                        >
+                          <Trash className="h-4 w-4" />
+                          <span className="sr-only">Delete</span>
+                        </Button>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        disabled={adjustmentSubmitting}
-                        onClick={() => handleRemoveAdjustment(item.id)}
-                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                      >
-                        <Trash className="h-4 w-4" />
-                        <span className="sr-only">Delete</span>
-                      </Button>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground italic bg-muted/40 p-4 rounded-lg text-center">No items on this invoice.</p>
@@ -947,12 +1224,12 @@ export function InvoicesList() {
             </div>
 
             <div className="border-t border-border pt-4">
-              <h4 className="text-sm font-semibold mb-3 text-foreground">Add Custom Adjustment</h4>
+              <h4 className="text-sm font-semibold mb-3 text-foreground">Add Custom Item / Charge</h4>
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Item Name</label>
                   <Input
-                    placeholder="e.g. Discount, Router Charge"
+                    placeholder="e.g. Router Charge, Setup Fee"
                     value={newItemName}
                     onChange={(e) => setNewItemName(e.target.value)}
                     disabled={adjustmentSubmitting}
@@ -962,7 +1239,7 @@ export function InvoicesList() {
                   <label className="text-xs font-medium text-muted-foreground">Amount (NPR)</label>
                   <Input
                     type="number"
-                    placeholder="e.g. 150 or -200"
+                    placeholder="e.g. 500 or -200"
                     value={newItemPrice}
                     onChange={(e) => setNewItemPrice(e.target.value)}
                     disabled={adjustmentSubmitting}
@@ -984,8 +1261,8 @@ export function InvoicesList() {
             </div>
 
             <div className="border-t border-border pt-4 flex justify-between items-center text-sm font-semibold">
-              <span className="text-foreground">Updated Total (Excl. VAT):</span>
-              <span className="text-primary text-base">
+              <span className="text-foreground">Updated Total:</span>
+              <span className="text-primary text-base font-bold">
                 {adjustingInvoice && formatNpr(Number(adjustingInvoice.amount))}
               </span>
             </div>
