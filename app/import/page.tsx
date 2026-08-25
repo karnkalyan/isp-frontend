@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { SearchableSelect, type Option } from "@/components/ui/searchable-select"
 import {
     Upload,
     CheckCircle2,
@@ -39,7 +40,10 @@ import {
     Database,
     Zap,
     Link2,
-    Network
+    Network,
+    Calculator,
+    Check,
+    Eye
 } from "lucide-react"
 import { apiRequest, getApiUrl } from "@/lib/api"
 import { toast } from "react-hot-toast"
@@ -73,9 +77,37 @@ function ImportHubContent() {
     const [logFilter, setLogFilter] = useState<"all" | "success" | "skipped" | "failed">("all")
     const [logSearch, setLogSearch] = useState("")
 
+    // Speed Plan Selection & Tax Settings
+    const [planOptions, setPlanOptions] = useState<Option[]>([])
+    const [selectedTargetPlanId, setSelectedTargetPlanId] = useState<string>("")
+    const [tscPercentage, setTscPercentage] = useState<number>(10)
+
     // Import Options
     const [skipExisting, setSkipExisting] = useState(false)
     const [syncRadius, setSyncRadius] = useState(true)
+
+    // Load available speed plans and ISP tax settings
+    useEffect(() => {
+        apiRequest<{ id: number; planName: string }[]>("/pkgplan")
+            .then((raw) => {
+                const list = Array.isArray(raw)
+                    ? raw.map((p) => ({ value: String(p.id), label: p.planName }))
+                    : []
+                setPlanOptions([
+                    { value: "", label: "Auto-match from Template (or Create Plan)" },
+                    ...list
+                ])
+            })
+            .catch(() => {})
+
+        apiRequest<Record<string, string>>("/settings")
+            .then((data) => {
+                if (data && data.tscPercentage) {
+                    setTscPercentage(parseInt(data.tscPercentage, 10) || 10)
+                }
+            })
+            .catch(() => {})
+    }, [])
 
     useEffect(() => {
         const typeParam = searchParams.get("type") as TabType
@@ -221,7 +253,8 @@ function ImportHubContent() {
                 const payload = {
                     items: batchItems,
                     skipExisting,
-                    syncRadius: activeTab === "plans" || activeTab === "packages" || activeTab === "customers" ? syncRadius : false
+                    syncRadius: activeTab === "plans" || activeTab === "packages" || activeTab === "customers" ? syncRadius : false,
+                    targetPlanId: activeTab === "packages" && selectedTargetPlanId ? Number(selectedTargetPlanId) : undefined
                 }
 
                 try {
@@ -678,6 +711,26 @@ function ImportHubContent() {
                                     description="Auto-parses duration prices (1M, 3M, 6M, 12M), Internet/Support charges with TSC (10%) and VAT (13%), and connects with Package Plans"
                                 >
                                     <div className="space-y-5">
+                                        {/* Optional Target Internet Speed Plan Selector */}
+                                        <div className="p-3.5 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-border/80 space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <Label className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+                                                    <Wifi className="h-3.5 w-3.5 text-amber-600" />
+                                                    Target Internet Speed Plan (Optional Override)
+                                                </Label>
+                                                <span className="text-[10px] text-muted-foreground">
+                                                    If blank, plan is read or created from template
+                                                </span>
+                                            </div>
+                                            <SearchableSelect
+                                                options={planOptions}
+                                                value={selectedTargetPlanId}
+                                                onValueChange={(val) => setSelectedTargetPlanId(val as string)}
+                                                placeholder="Select Speed Plan or auto-match from template"
+                                                className="bg-white dark:bg-slate-950"
+                                            />
+                                        </div>
+
                                         <div className="flex gap-2 border-b border-border pb-3">
                                             <Button
                                                 type="button"
@@ -719,7 +772,7 @@ function ImportHubContent() {
                                                             {fileName ? fileName : "Click to select or drag & drop Tariff Rate Sheet"}
                                                         </p>
                                                         <p className="text-xs text-muted-foreground mt-1">
-                                                            Supports Rate Matrix with 1M, 3M, 6M, 12M columns or Flat Price rows
+                                                            Supports 1M, 3M, 6M, 12M rate matrix with Internet, Support, Drop Wire, Router
                                                         </p>
                                                     </div>
                                                 </label>
@@ -728,7 +781,7 @@ function ImportHubContent() {
                                             <div className="space-y-2">
                                                 <Label className="text-xs font-semibold">Paste Tariff CSV or JSON Array</Label>
                                                 <Textarea
-                                                    placeholder="Package Name,Speed (Mbps),1M Internet,1M Support,1M Total,3M Internet,3M Support,3M Total,6M Internet,6M Support,6M Total,12M Internet,12M Support,12M Total&#10;100 Mbps,100,500,500,1186.50,1400,1400,3322.20,2700,2700,6407.10,5200,5200,12339.60&#10;50 Mbps,50,420,420,996.66,1200,1200,2847.60,2300,2300,5457.90,4400,4400,10441.20"
+                                                    placeholder="Plan Name,Package Reference Name,Speed (Mbps),1M Enabled,1M Online,1M Internet,1M Support,1M Drop Wire,1M Douplex Router,3M Enabled,3M Online,3M Internet,3M Support,3M Drop Wire,3M Douplex Router,6M Enabled,6M Online,6M Internet,6M Support,6M Drop Wire,6M Douplex Router,12M Enabled,12M Online,12M Internet,12M Support,12M Drop Wire,12M Douplex Router&#10;100 Mbps,Premium Fiber 100M,100,TRUE,FALSE,500,500,0,0,TRUE,FALSE,1400,1400,0,0,TRUE,FALSE,2700,2700,0,0,TRUE,TRUE,5200,5200,0,0&#10;50 Mbps,Standard Fiber 50M,50,TRUE,FALSE,420,420,0,0,TRUE,FALSE,1200,1200,0,0,TRUE,FALSE,2300,2300,0,0,TRUE,FALSE,4400,4400,0,0"
                                                     rows={6}
                                                     value={rawText}
                                                     onChange={(e) => setRawText(e.target.value)}
@@ -737,6 +790,175 @@ function ImportHubContent() {
                                                 <Button size="sm" variant="outline" onClick={handleParseRawText}>
                                                     Parse Pasted Data
                                                 </Button>
+                                            </div>
+                                        )}
+
+                                        {/* Live Preview of Parsed Packages */}
+                                        {parsedRows.length > 0 && (
+                                            <div className="space-y-3 pt-2">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <Calculator className="h-4 w-4 text-amber-600" />
+                                                        <span className="text-xs font-bold text-foreground">
+                                                            Parsed Tariff Rate Matrix Preview ({parsedRows.length} plans)
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                                                        <Check className="h-3.5 w-3.5" />
+                                                        Auto-calculating TSC ({tscPercentage}%) & VAT (13%)
+                                                    </span>
+                                                </div>
+
+                                                <div className="max-h-96 overflow-y-auto space-y-4 pr-1">
+                                                    {parsedRows.slice(0, 5).map((row, rIdx) => {
+                                                        const targetPlanObj = planOptions.find(p => p.value === selectedTargetPlanId);
+                                                        const planName = targetPlanObj?.value ? targetPlanObj.label : (row['Plan Name'] || row.planName || row['Internet Speed Plan'] || row['Package Name'] || row.packageName || `Plan #${rIdx + 1}`);
+                                                        const pkgRefName = row['Package Reference Name'] || row.packageReferenceName || row['Package Name'] || row.packageName || planName;
+
+                                                        const parseBool = (v: any, def: boolean) => {
+                                                            if (v === undefined || v === null || v === '') return def;
+                                                            if (typeof v === 'boolean') return v;
+                                                            const s = String(v).trim().toLowerCase();
+                                                            if (['true', '1', 'yes', 'enabled', 'active', 'y'].includes(s)) return true;
+                                                            if (['false', '0', 'no', 'disabled', 'inactive', 'n'].includes(s)) return false;
+                                                            return def;
+                                                        };
+
+                                                        const tiers = [
+                                                            {
+                                                                dur: "1 Month",
+                                                                enabled: parseBool(row['1M Enabled'] ?? row['1mEnabled'] ?? row['1M Active'] ?? row['1mActive'] ?? row['Is Active'], true),
+                                                                online: parseBool(row['1M Online'] ?? row['1mOnline'] ?? row['Is Online'], false),
+                                                                internet: parseFloat(row['1M Internet'] ?? row['1mInternet'] ?? row['1m_internet'] ?? 0) || 0,
+                                                                support: parseFloat(row['1M Support'] ?? row['1mSupport'] ?? row['1m_support'] ?? 0) || 0,
+                                                                dropWire: parseFloat(row['1M Drop Wire'] ?? row['1mDropWire'] ?? 0) || 0,
+                                                                router: parseFloat(row['1M Douplex Router'] ?? row['1M Router'] ?? row['1mRouter'] ?? 0) || 0,
+                                                            },
+                                                            {
+                                                                dur: "3 Months",
+                                                                enabled: parseBool(row['3M Enabled'] ?? row['3mEnabled'] ?? row['3M Active'] ?? row['3mActive'] ?? row['Is Active'], true),
+                                                                online: parseBool(row['3M Online'] ?? row['3mOnline'] ?? row['Is Online'], false),
+                                                                internet: parseFloat(row['3M Internet'] ?? row['3mInternet'] ?? row['3m_internet'] ?? 0) || 0,
+                                                                support: parseFloat(row['3M Support'] ?? row['3mSupport'] ?? row['3m_support'] ?? 0) || 0,
+                                                                dropWire: parseFloat(row['3M Drop Wire'] ?? row['3mDropWire'] ?? 0) || 0,
+                                                                router: parseFloat(row['3M Douplex Router'] ?? row['3M Router'] ?? row['3mRouter'] ?? 0) || 0,
+                                                            },
+                                                            {
+                                                                dur: "6 Months",
+                                                                enabled: parseBool(row['6M Enabled'] ?? row['6mEnabled'] ?? row['6M Active'] ?? row['6mActive'] ?? row['Is Active'], true),
+                                                                online: parseBool(row['6M Online'] ?? row['6mOnline'] ?? row['Is Online'], false),
+                                                                internet: parseFloat(row['6M Internet'] ?? row['6mInternet'] ?? row['6m_internet'] ?? 0) || 0,
+                                                                support: parseFloat(row['6M Support'] ?? row['6mSupport'] ?? row['6m_support'] ?? 0) || 0,
+                                                                dropWire: parseFloat(row['6M Drop Wire'] ?? row['6mDropWire'] ?? 0) || 0,
+                                                                router: parseFloat(row['6M Douplex Router'] ?? row['6M Router'] ?? row['6mRouter'] ?? 0) || 0,
+                                                            },
+                                                            {
+                                                                dur: "12 Months",
+                                                                enabled: parseBool(row['12M Enabled'] ?? row['12mEnabled'] ?? row['12M Active'] ?? row['12mActive'] ?? row['Is Active'], true),
+                                                                online: parseBool(row['12M Online'] ?? row['12mOnline'] ?? row['Is Online'], false),
+                                                                internet: parseFloat(row['12M Internet'] ?? row['12mInternet'] ?? row['12m_internet'] ?? 0) || 0,
+                                                                support: parseFloat(row['12M Support'] ?? row['12mSupport'] ?? row['12m_support'] ?? 0) || 0,
+                                                                dropWire: parseFloat(row['12M Drop Wire'] ?? row['12mDropWire'] ?? 0) || 0,
+                                                                router: parseFloat(row['12M Douplex Router'] ?? row['12M Router'] ?? row['12mRouter'] ?? 0) || 0,
+                                                            }
+                                                        ];
+
+                                                        return (
+                                                            <div key={rIdx} className="bg-card border rounded-xl p-4 shadow-sm space-y-3">
+                                                                <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+                                                                    <div>
+                                                                        <span className="font-bold text-sm text-foreground">{pkgRefName}</span>
+                                                                        {planName !== pkgRefName && (
+                                                                            <span className="text-xs text-muted-foreground ml-2">({planName})</span>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="text-[11px] text-muted-foreground">
+                                                                        Row #{rIdx + 1}
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                                                    {tiers.map((t) => {
+                                                                        const tscAmt = (t.internet * tscPercentage) / 100;
+                                                                        const recurringBase = t.internet + t.support;
+                                                                        const itemsSum = t.internet + t.support + t.dropWire + t.router;
+                                                                        const initialTaxable = itemsSum + tscAmt;
+                                                                        const initialTotal = Math.round((initialTaxable * 1.13) * 100) / 100;
+                                                                        const renewTaxable = recurringBase + tscAmt;
+                                                                        const renewTotal = Math.round((renewTaxable * 1.13) * 100) / 100;
+
+                                                                        return (
+                                                                            <div key={t.dur} className="bg-muted/30 border rounded-lg p-2.5 text-[11px] space-y-2">
+                                                                                <div className="flex justify-between items-center font-bold border-b pb-1">
+                                                                                    <span className="text-amber-600 dark:text-amber-400">{t.dur}</span>
+                                                                                    <div className="flex gap-1 text-[9px]">
+                                                                                        <span className={`px-1 rounded ${t.enabled ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-slate-200 text-slate-600'}`}>
+                                                                                            {t.enabled ? 'Active' : 'Off'}
+                                                                                        </span>
+                                                                                        <span className={`px-1 rounded ${t.online ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300' : 'bg-slate-200 text-slate-600'}`}>
+                                                                                            {t.online ? 'Online' : 'Offline'}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                </div>
+
+                                                                                <div className="space-y-0.5 text-muted-foreground">
+                                                                                    <div className="flex justify-between">
+                                                                                        <span>Internet:</span>
+                                                                                        <span className="font-medium text-foreground">Rs. {t.internet}</span>
+                                                                                    </div>
+                                                                                    <div className="flex justify-between">
+                                                                                        <span>Support:</span>
+                                                                                        <span className="font-medium text-foreground">Rs. {t.support}</span>
+                                                                                    </div>
+                                                                                    {(t.dropWire > 0 || t.router > 0) && (
+                                                                                        <>
+                                                                                            {t.dropWire > 0 && (
+                                                                                                <div className="flex justify-between">
+                                                                                                    <span>Drop Wire:</span>
+                                                                                                    <span className="font-medium text-foreground">Rs. {t.dropWire}</span>
+                                                                                                </div>
+                                                                                            )}
+                                                                                            {t.router > 0 && (
+                                                                                                <div className="flex justify-between">
+                                                                                                    <span>Router:</span>
+                                                                                                    <span className="font-medium text-foreground">Rs. {t.router}</span>
+                                                                                                </div>
+                                                                                            )}
+                                                                                        </>
+                                                                                    )}
+                                                                                </div>
+
+                                                                                <div className="border-t pt-1.5 space-y-0.5 font-medium">
+                                                                                    <div className="flex justify-between text-blue-600 dark:text-blue-400">
+                                                                                        <span>Items TSC ({tscPercentage}%):</span>
+                                                                                        <span>Rs. {tscAmt.toFixed(2)}</span>
+                                                                                    </div>
+                                                                                    <div className="flex justify-between text-foreground">
+                                                                                        <span>Items Sum:</span>
+                                                                                        <span>Rs. {itemsSum}</span>
+                                                                                    </div>
+                                                                                    <div className="flex justify-between font-bold text-emerald-600 dark:text-emerald-400">
+                                                                                        <span>Est. Total (VAT 13%):</span>
+                                                                                        <span>Rs. {initialTotal}</span>
+                                                                                    </div>
+                                                                                    <div className="flex justify-between text-[10px] text-muted-foreground">
+                                                                                        <span>Renew (VAT 13%):</span>
+                                                                                        <span>Rs. {renewTotal}</span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                    {parsedRows.length > 5 && (
+                                                        <p className="text-[11px] text-center text-muted-foreground pt-1">
+                                                            Showing preview for first 5 of {parsedRows.length} packages...
+                                                        </p>
+                                                    )}
+                                                </div>
                                             </div>
                                         )}
 
@@ -771,7 +993,7 @@ function ImportHubContent() {
                             </div>
 
                             <div className="space-y-6">
-                                <CardContainer title="Download Tariff Templates" description="Pre-filled with rate sheet data (100Mbps, 50Mbps, 25Mbps, 15Mbps)">
+                                <CardContainer title="Download Tariff Templates" description="Pre-filled with Package Creation rate sheets (100Mbps, 50Mbps, 25Mbps)">
                                     <div className="space-y-3">
                                         <Button
                                             variant="outline"
@@ -781,7 +1003,7 @@ function ImportHubContent() {
                                             <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
                                             <div className="text-left">
                                                 <div className="text-xs font-bold">Tariff Excel Template (.xlsx)</div>
-                                                <div className="text-[10px] text-muted-foreground">With 1M, 3M, 6M, 12M rate matrix</div>
+                                                <div className="text-[10px] text-muted-foreground">1M, 3M, 6M, 12M rate matrix & items</div>
                                             </div>
                                         </Button>
 
@@ -793,7 +1015,7 @@ function ImportHubContent() {
                                             <FileText className="h-5 w-5 text-blue-600" />
                                             <div className="text-left">
                                                 <div className="text-xs font-bold">Tariff CSV Template (.csv)</div>
-                                                <div className="text-[10px] text-muted-foreground">Standard rate breakdown</div>
+                                                <div className="text-[10px] text-muted-foreground">Standard rate breakdown with items</div>
                                             </div>
                                         </Button>
 
@@ -811,11 +1033,12 @@ function ImportHubContent() {
                                     </div>
 
                                     <div className="mt-5 p-3.5 bg-muted/40 rounded-lg border border-border text-xs space-y-2">
-                                        <p className="font-semibold text-foreground">Tariff Calculation Highlights:</p>
+                                        <p className="font-semibold text-foreground">Package Creation & Tariff Highlights:</p>
                                         <ul className="list-disc list-inside text-muted-foreground space-y-1 text-[11px]">
-                                            <li><span className="font-semibold text-foreground">Rate Matrix:</span> Parses individual columns for 1M, 3M, 6M, 12M with internet and support charges.</li>
-                                            <li><span className="font-semibold text-foreground">Taxes:</span> Automatically calculates TSC (10%) and VAT (13%) when total amounts are not pre-calculated.</li>
-                                            <li><span className="font-semibold text-foreground">Unique Reference IDs:</span> Auto-assigns unique reference IDs (e.g. `INT-100MBPS1Month`) for flawless billing.</li>
+                                            <li><span className="font-semibold text-foreground">No Manual Taxes Needed:</span> TSC (10%) and VAT (13%) are automatically computed from item rules—no tax columns needed in your rate sheet!</li>
+                                            <li><span className="font-semibold text-foreground">Duration Tiers:</span> Supports 1M, 3M, 6M, and 12M with separate <span className="font-mono text-foreground">Enabled</span> and <span className="font-mono text-foreground">Online</span> status flags.</li>
+                                            <li><span className="font-semibold text-foreground">Item Breakdown:</span> Supports Internet, Support & Maintenance, Drop Wire, and Douplex Router charges per duration tier.</li>
+                                            <li><span className="font-semibold text-foreground">Billing & RADIUS Synced:</span> Auto-creates unique reference IDs and synchronizes seamlessly with FreeRADIUS & Nepurix/Billing services.</li>
                                         </ul>
                                     </div>
                                 </CardContainer>
