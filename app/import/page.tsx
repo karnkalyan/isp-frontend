@@ -67,7 +67,7 @@ function findMatchingAddon(rawKey: string, addonList: any[]) {
     if (!clean) return null
 
     if (/^\d+$/.test(clean)) {
-        const byId = addonList.find((a) => a.id === Number(clean))
+        const byId = addonList.find((a) => a && a.id === Number(clean))
         if (byId) return byId
     }
 
@@ -75,9 +75,11 @@ function findMatchingAddon(rawKey: string, addonList: any[]) {
 
     let match = addonList.find(
         (a) =>
-            (a.code && a.code.toLowerCase() === lower) ||
-            (a.name && a.name.toLowerCase() === lower) ||
-            (a.referenceId && a.referenceId.toLowerCase() === lower)
+            a && (
+                (a.code && a.code.toLowerCase() === lower) ||
+                (a.name && a.name.toLowerCase() === lower) ||
+                (a.referenceId && a.referenceId.toLowerCase() === lower)
+            )
     )
     if (match) return match
 
@@ -87,13 +89,16 @@ function findMatchingAddon(rawKey: string, addonList: any[]) {
 
     match = addonList.find(
         (a) =>
-            (a.code && normalize(a.code) === normKey) ||
-            (a.name && normalize(a.name) === normKey) ||
-            (a.referenceId && normalize(a.referenceId) === normKey)
+            a && (
+                (a.code && normalize(a.code) === normKey) ||
+                (a.name && normalize(a.name) === normKey) ||
+                (a.referenceId && normalize(a.referenceId) === normKey)
+            )
     )
     if (match) return match
 
     match = addonList.find((a) => {
+        if (!a) return false
         const nName = normalize(a.name)
         const nCode = normalize(a.code)
         return (
@@ -110,7 +115,7 @@ function ImportHubContent() {
     const searchParams = useSearchParams()
     const router = useRouter()
 
-    const paramType = searchParams.get("type") as TabType
+    const paramType = searchParams ? (searchParams.get("type") as TabType) : "branches"
     const initialType: TabType = ["branches", "plans", "packages", "leads", "customers"].includes(paramType)
         ? paramType
         : "branches"
@@ -163,7 +168,7 @@ function ImportHubContent() {
     }, [])
 
     useEffect(() => {
-        const typeParam = searchParams.get("type") as TabType
+        const typeParam = searchParams ? (searchParams.get("type") as TabType) : null
         if (typeParam && ["branches", "plans", "packages", "leads", "customers"].includes(typeParam)) {
             setActiveTab(typeParam)
             resetState()
@@ -961,16 +966,21 @@ function ImportHubContent() {
                                                             let totalTsc = 0;
 
                                                             items.forEach(({ addon, amount }) => {
-                                                                const tscAmt = addon.isTscApplicable ? (amount * tscPercentage) / 100 : 0;
+                                                                if (!addon) return;
+                                                                const isTsc = Boolean(addon.isTscApplicable);
+                                                                const isTaxable = addon.isTaxable !== false;
+                                                                const isRenewal = Boolean(addon.isRenewal);
+
+                                                                const tscAmt = isTsc ? (amount * tscPercentage) / 100 : 0;
                                                                 totalTsc += tscAmt;
 
-                                                                const taxableAmt = addon.isTaxable ? (amount + tscAmt) : 0;
-                                                                const nonTaxableAmt = !addon.isTaxable ? (amount + tscAmt) : 0;
+                                                                const taxableAmt = isTaxable ? (amount + tscAmt) : 0;
+                                                                const nonTaxableAmt = !isTaxable ? (amount + tscAmt) : 0;
 
                                                                 initialTaxableSum += taxableAmt;
                                                                 initialNonTaxableSum += nonTaxableAmt;
 
-                                                                if (addon.isRenewal) {
+                                                                if (isRenewal) {
                                                                     recurringBase += amount;
                                                                     renewTaxableSum += taxableAmt;
                                                                     renewNonTaxableSum += nonTaxableAmt;
