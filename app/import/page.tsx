@@ -58,6 +58,54 @@ type LogItem = {
 
 type TabType = "branches" | "plans" | "packages" | "leads" | "customers"
 
+/**
+ * Universal Item Matcher for Package Addon Charges
+ */
+function findMatchingAddon(rawKey: string, addonList: any[]) {
+    if (!rawKey || !Array.isArray(addonList) || addonList.length === 0) return null
+    const clean = String(rawKey).trim()
+    if (!clean) return null
+
+    if (/^\d+$/.test(clean)) {
+        const byId = addonList.find((a) => a.id === Number(clean))
+        if (byId) return byId
+    }
+
+    const lower = clean.toLowerCase()
+
+    let match = addonList.find(
+        (a) =>
+            (a.code && a.code.toLowerCase() === lower) ||
+            (a.name && a.name.toLowerCase() === lower) ||
+            (a.referenceId && a.referenceId.toLowerCase() === lower)
+    )
+    if (match) return match
+
+    const normalize = (s: string) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "")
+    const normKey = normalize(clean)
+    if (!normKey) return null
+
+    match = addonList.find(
+        (a) =>
+            (a.code && normalize(a.code) === normKey) ||
+            (a.name && normalize(a.name) === normKey) ||
+            (a.referenceId && normalize(a.referenceId) === normKey)
+    )
+    if (match) return match
+
+    match = addonList.find((a) => {
+        const nName = normalize(a.name)
+        const nCode = normalize(a.code)
+        return (
+            (nName && (normKey.includes(nName) || nName.includes(normKey))) ||
+            (nCode && (normKey === nCode || normKey.includes(nCode)))
+        )
+    })
+    if (match) return match
+
+    return null
+}
+
 function ImportHubContent() {
     const searchParams = useSearchParams()
     const router = useRouter()
@@ -77,16 +125,13 @@ function ImportHubContent() {
     const [logFilter, setLogFilter] = useState<"all" | "success" | "skipped" | "failed">("all")
     const [logSearch, setLogSearch] = useState("")
 
-    // Speed Plan Selection & Tax Settings
+    // Speed Plan Selection, Addon Charges & Tax Settings
     const [planOptions, setPlanOptions] = useState<Option[]>([])
     const [selectedTargetPlanId, setSelectedTargetPlanId] = useState<string>("")
     const [tscPercentage, setTscPercentage] = useState<number>(10)
+    const [addonCharges, setAddonCharges] = useState<any[]>([])
 
-    // Import Options
-    const [skipExisting, setSkipExisting] = useState(false)
-    const [syncRadius, setSyncRadius] = useState(true)
-
-    // Load available speed plans and ISP tax settings
+    // Load available speed plans, addon inventory items, and ISP tax settings
     useEffect(() => {
         apiRequest<{ id: number; planName: string }[]>("/pkgplan")
             .then((raw) => {
@@ -97,6 +142,14 @@ function ImportHubContent() {
                     { value: "", label: "Auto-match from Template (or Create Plan)" },
                     ...list
                 ])
+            })
+            .catch(() => {})
+
+        apiRequest<any[]>("/extra-charges")
+            .then((raw) => {
+                if (Array.isArray(raw)) {
+                    setAddonCharges(raw)
+                }
             })
             .catch(() => {})
 
@@ -824,44 +877,122 @@ function ImportHubContent() {
                                                             return def;
                                                         };
 
-                                                        const tiers = [
-                                                            {
-                                                                dur: "1 Month",
-                                                                enabled: parseBool(row['1M Enabled'] ?? row['1mEnabled'] ?? row['1M Active'] ?? row['1mActive'] ?? row['Is Active'], true),
-                                                                online: parseBool(row['1M Online'] ?? row['1mOnline'] ?? row['Is Online'], false),
-                                                                internet: parseFloat(row['1M Internet'] ?? row['1mInternet'] ?? row['1m_internet'] ?? 0) || 0,
-                                                                support: parseFloat(row['1M Support'] ?? row['1mSupport'] ?? row['1m_support'] ?? 0) || 0,
-                                                                dropWire: parseFloat(row['1M Drop Wire'] ?? row['1mDropWire'] ?? 0) || 0,
-                                                                router: parseFloat(row['1M Douplex Router'] ?? row['1M Router'] ?? row['1mRouter'] ?? 0) || 0,
-                                                            },
-                                                            {
-                                                                dur: "3 Months",
-                                                                enabled: parseBool(row['3M Enabled'] ?? row['3mEnabled'] ?? row['3M Active'] ?? row['3mActive'] ?? row['Is Active'], true),
-                                                                online: parseBool(row['3M Online'] ?? row['3mOnline'] ?? row['Is Online'], false),
-                                                                internet: parseFloat(row['3M Internet'] ?? row['3mInternet'] ?? row['3m_internet'] ?? 0) || 0,
-                                                                support: parseFloat(row['3M Support'] ?? row['3mSupport'] ?? row['3m_support'] ?? 0) || 0,
-                                                                dropWire: parseFloat(row['3M Drop Wire'] ?? row['3mDropWire'] ?? 0) || 0,
-                                                                router: parseFloat(row['3M Douplex Router'] ?? row['3M Router'] ?? row['3mRouter'] ?? 0) || 0,
-                                                            },
-                                                            {
-                                                                dur: "6 Months",
-                                                                enabled: parseBool(row['6M Enabled'] ?? row['6mEnabled'] ?? row['6M Active'] ?? row['6mActive'] ?? row['Is Active'], true),
-                                                                online: parseBool(row['6M Online'] ?? row['6mOnline'] ?? row['Is Online'], false),
-                                                                internet: parseFloat(row['6M Internet'] ?? row['6mInternet'] ?? row['6m_internet'] ?? 0) || 0,
-                                                                support: parseFloat(row['6M Support'] ?? row['6mSupport'] ?? row['6m_support'] ?? 0) || 0,
-                                                                dropWire: parseFloat(row['6M Drop Wire'] ?? row['6mDropWire'] ?? 0) || 0,
-                                                                router: parseFloat(row['6M Douplex Router'] ?? row['6M Router'] ?? row['6mRouter'] ?? 0) || 0,
-                                                            },
-                                                            {
-                                                                dur: "12 Months",
-                                                                enabled: parseBool(row['12M Enabled'] ?? row['12mEnabled'] ?? row['12M Active'] ?? row['12mActive'] ?? row['Is Active'], true),
-                                                                online: parseBool(row['12M Online'] ?? row['12mOnline'] ?? row['Is Online'], false),
-                                                                internet: parseFloat(row['12M Internet'] ?? row['12mInternet'] ?? row['12m_internet'] ?? 0) || 0,
-                                                                support: parseFloat(row['12M Support'] ?? row['12mSupport'] ?? row['12m_support'] ?? 0) || 0,
-                                                                dropWire: parseFloat(row['12M Drop Wire'] ?? row['12mDropWire'] ?? 0) || 0,
-                                                                router: parseFloat(row['12M Douplex Router'] ?? row['12M Router'] ?? row['12mRouter'] ?? 0) || 0,
-                                                            }
+                                                        const DURATIONS_DEF = [
+                                                            { name: "1 Month", prefixes: ['1m', '1 month', '1_month', '1month', '1_m'] },
+                                                            { name: "3 Months", prefixes: ['3m', '3 months', '3_months', '3months', '3 month', '3_m'] },
+                                                            { name: "6 Months", prefixes: ['6m', '6 months', '6_months', '6months', '6 month', '6_m'] },
+                                                            { name: "12 Months", prefixes: ['12m', '12 months', '12_months', '12months', '1 year', '1_year', '1year', '12 month', '12_m'] }
                                                         ];
+
+                                                        const tiers = DURATIONS_DEF.map(dConf => {
+                                                            let enabled = true;
+                                                            let online = false;
+                                                            const itemsMap = new Map<number, { addon: any; amount: number }>();
+
+                                                            for (const [rawColKey, rawVal] of Object.entries(row)) {
+                                                                if (rawVal === undefined || rawVal === null || rawVal === '') continue;
+                                                                const colKey = rawColKey.trim();
+                                                                const colKeyLower = colKey.toLowerCase();
+
+                                                                let matchedPrefix: string | null = null;
+                                                                for (const p of dConf.prefixes) {
+                                                                    if (colKeyLower.startsWith(p)) {
+                                                                        const rem = colKey.slice(p.length);
+                                                                        if (!rem || /^[\s_:-]/.test(rem)) {
+                                                                            matchedPrefix = p;
+                                                                            break;
+                                                                        }
+                                                                    }
+                                                                }
+
+                                                                if (!matchedPrefix) continue;
+
+                                                                const suffix = colKey.slice(matchedPrefix.length).replace(/^[\s_:-]+/, '').trim();
+                                                                const normSuffix = suffix.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+                                                                if (['enabled', 'active', 'isactive', 'isenabled', 'status'].includes(normSuffix)) {
+                                                                    enabled = parseBool(rawVal, true);
+                                                                    continue;
+                                                                }
+
+                                                                if (['online', 'isonline', 'live', 'portal'].includes(normSuffix)) {
+                                                                    online = parseBool(rawVal, false);
+                                                                    continue;
+                                                                }
+
+                                                                if (['items', 'addons', 'charges', 'itemlist'].includes(normSuffix)) {
+                                                                    try {
+                                                                        if (typeof rawVal === 'object') {
+                                                                            for (const [k, v] of Object.entries(rawVal as Record<string, any>)) {
+                                                                                const matched = findMatchingAddon(k, addonCharges);
+                                                                                if (matched) {
+                                                                                    itemsMap.set(matched.id, { addon: matched, amount: parseFloat(v as string) || 0 });
+                                                                                }
+                                                                            }
+                                                                        } else if (typeof rawVal === 'string') {
+                                                                            const parts = (rawVal as string).split(/[;,|]+/);
+                                                                            for (const part of parts) {
+                                                                                const [k, v] = part.split(/[:=]+/);
+                                                                                if (k && v !== undefined) {
+                                                                                    const matched = findMatchingAddon(k.trim(), addonCharges);
+                                                                                    if (matched) {
+                                                                                        itemsMap.set(matched.id, { addon: matched, amount: parseFloat(v.trim()) || 0 });
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    } catch (e) {}
+                                                                    continue;
+                                                                }
+
+                                                                const matchedAddon = findMatchingAddon(suffix, addonCharges);
+                                                                if (matchedAddon) {
+                                                                    const amt = parseFloat(rawVal as string) || 0;
+                                                                    itemsMap.set(matchedAddon.id, { addon: matchedAddon, amount: amt });
+                                                                }
+                                                            }
+
+                                                            const items = Array.from(itemsMap.values());
+                                                            let initialTaxableSum = 0;
+                                                            let initialNonTaxableSum = 0;
+                                                            let renewTaxableSum = 0;
+                                                            let renewNonTaxableSum = 0;
+                                                            let recurringBase = 0;
+                                                            let totalTsc = 0;
+
+                                                            items.forEach(({ addon, amount }) => {
+                                                                const tscAmt = addon.isTscApplicable ? (amount * tscPercentage) / 100 : 0;
+                                                                totalTsc += tscAmt;
+
+                                                                const taxableAmt = addon.isTaxable ? (amount + tscAmt) : 0;
+                                                                const nonTaxableAmt = !addon.isTaxable ? (amount + tscAmt) : 0;
+
+                                                                initialTaxableSum += taxableAmt;
+                                                                initialNonTaxableSum += nonTaxableAmt;
+
+                                                                if (addon.isRenewal) {
+                                                                    recurringBase += amount;
+                                                                    renewTaxableSum += taxableAmt;
+                                                                    renewNonTaxableSum += nonTaxableAmt;
+                                                                }
+                                                            });
+
+                                                            const itemsSum = items.reduce((sum, i) => sum + i.amount, 0);
+                                                            const initialTotal = Math.round((initialTaxableSum * 1.13 + initialNonTaxableSum) * 100) / 100;
+                                                            const renewTotal = Math.round((renewTaxableSum * 1.13 + renewNonTaxableSum) * 100) / 100;
+
+                                                            return {
+                                                                dur: dConf.name,
+                                                                enabled,
+                                                                online,
+                                                                items,
+                                                                recurringBase: recurringBase > 0 ? recurringBase : itemsSum,
+                                                                totalTsc,
+                                                                itemsSum,
+                                                                initialTotal,
+                                                                renewTotal
+                                                            };
+                                                        });
 
                                                         return (
                                                             <div key={rIdx} className="bg-card border rounded-xl p-4 shadow-sm space-y-3">
@@ -878,77 +1009,62 @@ function ImportHubContent() {
                                                                 </div>
 
                                                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                                                                    {tiers.map((t) => {
-                                                                        const tscAmt = (t.internet * tscPercentage) / 100;
-                                                                        const recurringBase = t.internet + t.support;
-                                                                        const itemsSum = t.internet + t.support + t.dropWire + t.router;
-                                                                        const initialTaxable = itemsSum + tscAmt;
-                                                                        const initialTotal = Math.round((initialTaxable * 1.13) * 100) / 100;
-                                                                        const renewTaxable = recurringBase + tscAmt;
-                                                                        const renewTotal = Math.round((renewTaxable * 1.13) * 100) / 100;
-
-                                                                        return (
-                                                                            <div key={t.dur} className="bg-muted/30 border rounded-lg p-2.5 text-[11px] space-y-2">
-                                                                                <div className="flex justify-between items-center font-bold border-b pb-1">
-                                                                                    <span className="text-amber-600 dark:text-amber-400">{t.dur}</span>
-                                                                                    <div className="flex gap-1 text-[9px]">
-                                                                                        <span className={`px-1 rounded ${t.enabled ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-slate-200 text-slate-600'}`}>
-                                                                                            {t.enabled ? 'Active' : 'Off'}
-                                                                                        </span>
-                                                                                        <span className={`px-1 rounded ${t.online ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300' : 'bg-slate-200 text-slate-600'}`}>
-                                                                                            {t.online ? 'Online' : 'Offline'}
-                                                                                        </span>
-                                                                                    </div>
-                                                                                </div>
-
-                                                                                <div className="space-y-0.5 text-muted-foreground">
-                                                                                    <div className="flex justify-between">
-                                                                                        <span>Internet:</span>
-                                                                                        <span className="font-medium text-foreground">Rs. {t.internet}</span>
-                                                                                    </div>
-                                                                                    <div className="flex justify-between">
-                                                                                        <span>Support:</span>
-                                                                                        <span className="font-medium text-foreground">Rs. {t.support}</span>
-                                                                                    </div>
-                                                                                    {(t.dropWire > 0 || t.router > 0) && (
-                                                                                        <>
-                                                                                            {t.dropWire > 0 && (
-                                                                                                <div className="flex justify-between">
-                                                                                                    <span>Drop Wire:</span>
-                                                                                                    <span className="font-medium text-foreground">Rs. {t.dropWire}</span>
-                                                                                                </div>
-                                                                                            )}
-                                                                                            {t.router > 0 && (
-                                                                                                <div className="flex justify-between">
-                                                                                                    <span>Router:</span>
-                                                                                                    <span className="font-medium text-foreground">Rs. {t.router}</span>
-                                                                                                </div>
-                                                                                            )}
-                                                                                        </>
-                                                                                    )}
-                                                                                </div>
-
-                                                                                <div className="border-t pt-1.5 space-y-0.5 font-medium">
-                                                                                    <div className="flex justify-between text-blue-600 dark:text-blue-400">
-                                                                                        <span>Items TSC ({tscPercentage}%):</span>
-                                                                                        <span>Rs. {tscAmt.toFixed(2)}</span>
-                                                                                    </div>
-                                                                                    <div className="flex justify-between text-foreground">
-                                                                                        <span>Items Sum:</span>
-                                                                                        <span>Rs. {itemsSum}</span>
-                                                                                    </div>
-                                                                                    <div className="flex justify-between font-bold text-emerald-600 dark:text-emerald-400">
-                                                                                        <span>Est. Total (VAT 13%):</span>
-                                                                                        <span>Rs. {initialTotal}</span>
-                                                                                    </div>
-                                                                                    <div className="flex justify-between text-[10px] text-muted-foreground">
-                                                                                        <span>Renew (VAT 13%):</span>
-                                                                                        <span>Rs. {renewTotal}</span>
-                                                                                    </div>
+                                                                    {tiers.map((t) => (
+                                                                        <div key={t.dur} className="bg-muted/30 border rounded-lg p-2.5 text-[11px] space-y-2">
+                                                                            <div className="flex justify-between items-center font-bold border-b pb-1">
+                                                                                <span className="text-amber-600 dark:text-amber-400">{t.dur}</span>
+                                                                                <div className="flex gap-1 text-[9px]">
+                                                                                    <span className={`px-1 rounded ${t.enabled ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-slate-200 text-slate-600'}`}>
+                                                                                        {t.enabled ? 'Active' : 'Off'}
+                                                                                    </span>
+                                                                                    <span className={`px-1 rounded ${t.online ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300' : 'bg-slate-200 text-slate-600'}`}>
+                                                                                        {t.online ? 'Online' : 'Offline'}
+                                                                                    </span>
                                                                                 </div>
                                                                             </div>
-                                                                        );
-                                                                    })}
+
+                                                                            <div className="space-y-1 text-muted-foreground min-h-[45px]">
+                                                                                {t.items.length > 0 ? (
+                                                                                    t.items.map(({ addon, amount }) => (
+                                                                                        <div key={addon.id} className="flex justify-between items-center text-[10px]">
+                                                                                            <span className="truncate max-w-[100px]" title={addon.name}>
+                                                                                                {addon.name || addon.code}:
+                                                                                            </span>
+                                                                                            <div className="flex items-center gap-1 font-medium text-foreground">
+                                                                                                {addon.isTscApplicable && (
+                                                                                                    <span className="text-[8px] bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 px-1 rounded">
+                                                                                                        +TSC
+                                                                                                    </span>
+                                                                                                )}
+                                                                                                <span>Rs. {amount}</span>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    ))
+                                                                                ) : (
+                                                                                    <p className="text-[10px] text-muted-foreground/60 italic">No item breakdown</p>
+                                                                                )}
+                                                                            </div>
+
+                                                                            <div className="border-t pt-1.5 space-y-0.5 font-medium">
+                                                                                <div className="flex justify-between text-blue-600 dark:text-blue-400 text-[10px]">
+                                                                                    <span>Items TSC ({tscPercentage}%):</span>
+                                                                                    <span>Rs. {t.totalTsc.toFixed(2)}</span>
+                                                                                </div>
+                                                                                <div className="flex justify-between text-foreground text-[10px]">
+                                                                                    <span>Base (Recurring):</span>
+                                                                                    <span>Rs. {t.recurringBase}</span>
+                                                                                </div>
+                                                                                <div className="flex justify-between font-bold text-emerald-600 dark:text-emerald-400">
+                                                                                    <span>Est. Total (VAT 13%):</span>
+                                                                                    <span>Rs. {t.initialTotal}</span>
+                                                                                </div>
+                                                                                <div className="flex justify-between text-[10px] text-muted-foreground">
+                                                                                    <span>Renew (VAT 13%):</span>
+                                                                                    <span>Rs. {t.renewTotal}</span>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
                                                                 </div>
                                                             </div>
                                                         );
