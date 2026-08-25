@@ -129,6 +129,8 @@ function ImportHubContent() {
     const [logs, setLogs] = useState<LogItem[]>([])
     const [logFilter, setLogFilter] = useState<"all" | "success" | "skipped" | "failed">("all")
     const [logSearch, setLogSearch] = useState("")
+    const [skipExisting, setSkipExisting] = useState(false)
+    const [syncRadius, setSyncRadius] = useState(true)
 
     // Speed Plan Selection, Addon Charges & Tax Settings
     const [planOptions, setPlanOptions] = useState<Option[]>([])
