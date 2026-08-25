@@ -307,7 +307,7 @@ function ImportHubContent() {
                             <div className="lg:col-span-2 space-y-6">
                                 <CardContainer
                                     title="Upload Branches & Sub-Branches"
-                                    description="Supports parent branch hierarchy (e.g. Charikot > Bhimeshwor, ARROWNET Pvt. Ltd. > Akar Complex)"
+                                    description="Supports parent branch hierarchy and identical names (e.g. Branch: Arrownet > Sub-Branch: Arrownet, Charikot > Bhimeshwor)"
                                 >
                                     <div className="space-y-5">
                                         <div className="flex gap-2 border-b border-border pb-3">
@@ -360,7 +360,7 @@ function ImportHubContent() {
                                             <div className="space-y-2">
                                                 <Label className="text-xs font-semibold">Paste CSV Lines or JSON Array</Label>
                                                 <Textarea
-                                                    placeholder="Branch Name,Sub-Branch Name,Phone Number,Email,Address&#10;Charikot,Bhimeshwor,9801191323,pashupati@arrownet.com.np,Charikot&#10;Charikot,Melung Arrownet,9801191323,melung@arrownet.com.np,Melung"
+                                                    placeholder="Branch Name,Sub-Branch Name,Phone Number,Email,Address&#10;Arrownet,Arrownet,9802022600,info@arrownet.com.np,Head Office&#10;Arrownet,Arrownet Akar Complex,9802022600,sushila@arrownet.com.np,Akar Complex&#10;Charikot,Charikot,9801191323,charikot@arrownet.com.np,Main Bazar&#10;Charikot,Bhimeshwor,9801191323,bhimeshwor@arrownet.com.np,Bhimeshwor Ward 3"
                                                     rows={6}
                                                     value={rawText}
                                                     onChange={(e) => setRawText(e.target.value)}
@@ -440,7 +440,8 @@ function ImportHubContent() {
                                     <div className="mt-5 p-3.5 bg-muted/40 rounded-lg border border-border text-xs space-y-2">
                                         <p className="font-semibold text-foreground">Hierarchy Tips:</p>
                                         <ul className="list-disc list-inside text-muted-foreground space-y-1 text-[11px]">
-                                            <li>Leave <span className="font-mono text-foreground">Sub-Branch Name</span> blank to create an Organization / Head Branch.</li>
+                                            <li><span className="font-semibold text-foreground">Same-Name Branch & Sub-Branch:</span> Supported! A sub-branch can share the exact name as the parent branch (e.g. Branch: <span className="font-mono text-foreground">Arrownet</span> & Sub-Branch: <span className="font-mono text-foreground">Arrownet</span>).</li>
+                                            <li>Leave <span className="font-mono text-foreground">Sub-Branch Name</span> blank to create an Organization / Head Branch only.</li>
                                             <li>To group sub-branches under a parent, specify the same <span className="font-mono text-foreground">Branch Name</span> across rows.</li>
                                         </ul>
                                     </div>
@@ -662,7 +663,7 @@ function ImportHubContent() {
                                             <div className="space-y-2">
                                                 <Label className="text-xs font-semibold">Paste Leads CSV or JSON Array</Label>
                                                 <Textarea
-                                                    placeholder="First Name,Last Name,Phone Number,Email,Address,City,Branch Name,Interested Package&#10;Ram,Thapa,9841234567,ram@gmail.com,Putalisadak,Kathmandu,ARROWNET Pvt. Ltd.,100 Mbps&#10;Sita,Shrestha,9851098765,sita@gmail.com,Bhimeshwor,Charikot,Charikot,50 Mbps"
+                                                    placeholder="First Name,Last Name,Phone Number,Email,Address,City,Branch Name,Interested Package&#10;Ram,Thapa,9841234567,ram@gmail.com,Putalisadak,Kathmandu,Arrownet,100 Mbps&#10;Sita,Shrestha,9851098765,sita@gmail.com,Bhimeshwor,Charikot,Charikot,50 Mbps"
                                                     rows={6}
                                                     value={rawText}
                                                     onChange={(e) => setRawText(e.target.value)}
@@ -759,7 +760,7 @@ function ImportHubContent() {
                             <div className="lg:col-span-2 space-y-6">
                                 <CardContainer
                                     title="Upload Active Customers & RADIUS Subscribers"
-                                    description="Imports complete customer records with PPPoE/Radius credentials, auto-linked Lead ID, Package subscriptions, and hardware info"
+                                    description="Imports complete customer records with Lead ID linking, PPPoE/Radius credentials, Internet Plan subscriptions, and OLT/ONT hardware"
                                 >
                                     <div className="space-y-5">
                                         <div className="flex gap-2 border-b border-border pb-3">
@@ -803,7 +804,7 @@ function ImportHubContent() {
                                                             {fileName ? fileName : "Click to select or drag & drop Customers file"}
                                                         </p>
                                                         <p className="text-xs text-muted-foreground mt-1">
-                                                            Includes PPPoE login, Plan expiry, ONT serial, and PAN/ID data
+                                                            Supports Lead ID link, PPPoE login, Plan expiry, OLT/Splitter/VLAN, and ONT serial
                                                         </p>
                                                     </div>
                                                 </label>
@@ -812,7 +813,7 @@ function ImportHubContent() {
                                             <div className="space-y-2">
                                                 <Label className="text-xs font-semibold">Paste Customers CSV or JSON Array</Label>
                                                 <Textarea
-                                                    placeholder="Customer ID,First Name,Last Name,Phone Number,Email,Branch Name,Package Name,PPPoE Username,PPPoE Password,Plan End Date&#10;ARN-CUST-1001,Bikash,Shrestha,9841239901,bikash@example.com,ARROWNET Pvt. Ltd.,100 Mbps,bikash_arn1001,User@12345,2026-09-30&#10;ARN-CUST-1002,Prakash,Dahal,9801191325,prakash@example.com,Charikot,50 Mbps,prakash_chk50,User@12345,2026-11-30"
+                                                    placeholder="Lead ID,Customer ID,Package Name,Duration,Branch Name,Sub-Branch Name,PPPoE Username,PPPoE Password,OLT Name,OLT Port,Splitter Name,Splitter Port,VLAN ID,ONT Serial,MAC Address&#10;21048,ARN-CUST-1001,100 Mbps,1 Month,Arrownet,Arrownet,bikash_arn1001,User@12345,OLT-Akar-01,0/1/1,SPL-01,Port 1,101,ALCLB892109,48:8F:5A:12:34:56&#10;,ARN-CUST-1002,50 Mbps,3 Months,Charikot,Bhimeshwor,prakash_chk50,User@12345,OLT-Charikot-01,0/1/2,SPL-02,Port 2,102,HWTC782103,74:4D:28:90:12:34"
                                                     rows={6}
                                                     value={rawText}
                                                     onChange={(e) => setRawText(e.target.value)}
@@ -873,7 +874,7 @@ function ImportHubContent() {
                                             <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
                                             <div className="text-left">
                                                 <div className="text-xs font-bold">Customers Excel Template (.xlsx)</div>
-                                                <div className="text-[10px] text-muted-foreground">With Radius & Plan duration columns</div>
+                                                <div className="text-[10px] text-muted-foreground">With Lead ID, Radius & Network columns</div>
                                             </div>
                                         </Button>
 
@@ -905,10 +906,11 @@ function ImportHubContent() {
                                     <div className="mt-5 p-3.5 bg-muted/40 rounded-lg border border-border text-xs space-y-2">
                                         <p className="font-semibold text-foreground">Automatic Integrations:</p>
                                         <ul className="list-disc list-inside text-muted-foreground space-y-1 text-[11px]">
-                                            <li><span className="font-semibold text-foreground">Lead ID:</span> If omitted, a corresponding Lead is automatically created and marked converted.</li>
+                                            <li><span className="font-semibold text-foreground">Lead ID:</span> Specify <span className="font-mono text-foreground">Lead ID</span> to pull all customer personal & address information directly from the CRM Lead and mark it converted.</li>
+                                            <li><span className="font-semibold text-foreground">Branch & Sub-Branch:</span> Branch and Sub-Branch can have the exact same name (e.g. <span className="font-mono text-foreground">Arrownet</span> &gt; <span className="font-mono text-foreground">Arrownet</span>).</li>
                                             <li><span className="font-semibold text-foreground">FreeRADIUS:</span> Creates <span className="font-mono text-foreground">radcheck</span> with cleartext password and assigns to <span className="font-mono text-foreground">radusergroup</span>.</li>
                                             <li><span className="font-semibold text-foreground">Expiration Date:</span> Synced to Radius as <span className="font-mono text-foreground">Expiration := DD Mon YYYY</span> attribute.</li>
-                                            <li><span className="font-semibold text-foreground">Hardware:</span> ONT Serial and VLAN ID are automatically registered in Device & Service Connection records.</li>
+                                            <li><span className="font-semibold text-foreground">Network & Hardware:</span> OLT, Splitter, Port, VLAN ID, and ONT Serial/MAC are registered automatically into Service Connection and Device records.</li>
                                         </ul>
                                     </div>
                                 </CardContainer>
