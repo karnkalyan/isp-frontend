@@ -12,7 +12,7 @@ export default function CustomersPage() {
           description="View and manage all customer accounts"
           actions={[
             { label: "Add Customer", href: "/customers/new" },
-            { label: "Import", href: "#" },
+            { label: "Import Customers", href: "/import?type=customers" },
             { label: "Export", href: "#" },
           ]}
         />

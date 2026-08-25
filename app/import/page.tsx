@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useMemo, Suspense } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { PageHeader } from "@/components/ui/page-header"
 import { CardContainer } from "@/components/ui/card-container"
@@ -31,7 +31,14 @@ import {
     Terminal,
     ArrowRight,
     Layers,
-    Server
+    Server,
+    UserPlus,
+    Users,
+    Key,
+    ShieldCheck,
+    Database,
+    Zap,
+    Link2
 } from "lucide-react"
 import { apiRequest, getApiUrl } from "@/lib/api"
 import { toast } from "react-hot-toast"
@@ -44,11 +51,18 @@ type LogItem = {
     message: string
 }
 
+type TabType = "branches" | "packages" | "leads" | "customers"
+
 function ImportHubContent() {
     const searchParams = useSearchParams()
-    const initialType = searchParams.get("type") === "packages" ? "packages" : "branches"
+    const router = useRouter()
 
-    const [activeTab, setActiveTab] = useState<"branches" | "packages">(initialType as any)
+    const paramType = searchParams.get("type") as TabType
+    const initialType: TabType = ["branches", "packages", "leads", "customers"].includes(paramType)
+        ? paramType
+        : "branches"
+
+    const [activeTab, setActiveTab] = useState<TabType>(initialType)
     const [inputMode, setInputMode] = useState<"file" | "paste">("file")
     const [fileName, setFileName] = useState("")
     const [rawText, setRawText] = useState("")
@@ -63,12 +77,18 @@ function ImportHubContent() {
     const [syncRadius, setSyncRadius] = useState(true)
 
     useEffect(() => {
-        const typeParam = searchParams.get("type")
-        if (typeParam === "packages" || typeParam === "branches") {
+        const typeParam = searchParams.get("type") as TabType
+        if (typeParam && ["branches", "packages", "leads", "customers"].includes(typeParam)) {
             setActiveTab(typeParam)
             resetState()
         }
     }, [searchParams])
+
+    const handleTabChange = (val: TabType) => {
+        setActiveTab(val)
+        resetState()
+        router.push(`/import?type=${val}`, { scroll: false })
+    }
 
     const resetState = () => {
         setFileName("")
@@ -145,7 +165,7 @@ function ImportHubContent() {
         }
     }
 
-    // Download template from backend or generate locally
+    // Download template from backend
     const handleDownloadTemplate = async (format: "xlsx" | "csv" | "json") => {
         try {
             const url = `${getApiUrl()}/import/template/${activeTab}?format=${format}`
@@ -166,11 +186,15 @@ function ImportHubContent() {
         setLogs([])
 
         try {
-            const endpoint = activeTab === "branches" ? "/import/branches" : "/import/packages"
+            let endpoint = "/import/branches"
+            if (activeTab === "packages") endpoint = "/import/packages"
+            else if (activeTab === "leads") endpoint = "/import/leads"
+            else if (activeTab === "customers") endpoint = "/import/customers"
+
             const payload = {
                 items: parsedRows,
                 skipExisting,
-                syncRadius
+                syncRadius: activeTab === "packages" || activeTab === "customers" ? syncRadius : false
             }
 
             const response = await apiRequest<any>(endpoint, {
@@ -187,9 +211,9 @@ function ImportHubContent() {
             const skipped = response?.skippedCount || 0
 
             if (failed === 0) {
-                toast.success(`Import complete! ${success} imported successfully.`)
+                toast.success(`Import complete! ${success} processed successfully.`)
             } else {
-                toast.error(`Import completed with warnings: ${success} succeeded, ${failed} failed.`)
+                toast.error(`Import completed with errors: ${success} succeeded, ${failed} failed, ${skipped} skipped.`)
             }
         } catch (err: any) {
             toast.error(err.message || "Failed to process import")
@@ -236,7 +260,7 @@ function ImportHubContent() {
             <div className="space-y-6 max-w-7xl mx-auto pb-12">
                 <PageHeader
                     title="Data Import Hub"
-                    description="Easily import Branches, Sub-Branches, Packages & Internet Plans with FreeRADIUS sync and live row-by-row logs"
+                    description="Centralized data ingestion for Branches, Packages, CRM Leads, and Customers with FreeRADIUS sync and live row-by-row logs"
                     icon={Upload}
                     breadcrumbs={[
                         { label: "Dashboard", href: "/dashboard" },
@@ -245,29 +269,47 @@ function ImportHubContent() {
                 />
 
                 {/* Primary Section Tabs */}
-                <Tabs value={activeTab} onValueChange={(val: any) => { setActiveTab(val); resetState(); }} className="w-full">
-                    <TabsList className="grid grid-cols-2 max-w-md h-11 bg-muted/60 p-1">
-                        <TabsTrigger value="branches" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-semibold">
+                <Tabs value={activeTab} onValueChange={(val: any) => handleTabChange(val)} className="w-full">
+                    <TabsList className="grid grid-cols-2 md:grid-cols-4 w-full h-auto p-1.5 bg-muted/60 rounded-xl gap-1">
+                        <TabsTrigger
+                            value="branches"
+                            className="gap-2 py-2.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-semibold rounded-lg text-xs sm:text-sm"
+                        >
                             <Building2 className="h-4 w-4" />
                             Branches & Sub-Branches
                         </TabsTrigger>
-                        <TabsTrigger value="packages" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-semibold">
+                        <TabsTrigger
+                            value="packages"
+                            className="gap-2 py-2.5 data-[state=active]:bg-amber-600 data-[state=active]:text-white font-semibold rounded-lg text-xs sm:text-sm"
+                        >
                             <Package className="h-4 w-4" />
-                            Packages & Internet Plans
+                            Packages & Tariffs
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value="leads"
+                            className="gap-2 py-2.5 data-[state=active]:bg-emerald-600 data-[state=active]:text-white font-semibold rounded-lg text-xs sm:text-sm"
+                        >
+                            <UserPlus className="h-4 w-4" />
+                            CRM Leads
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value="customers"
+                            className="gap-2 py-2.5 data-[state=active]:bg-blue-600 data-[state=active]:text-white font-semibold rounded-lg text-xs sm:text-sm"
+                        >
+                            <Users className="h-4 w-4" />
+                            Customers (RADIUS)
                         </TabsTrigger>
                     </TabsList>
 
-                    {/* BRANCHES TAB CONTENT */}
+                    {/* ================= BRANCHES TAB ================= */}
                     <TabsContent value="branches" className="space-y-6 mt-6">
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            {/* Left Col: Upload & Config */}
                             <div className="lg:col-span-2 space-y-6">
                                 <CardContainer
                                     title="Upload Branches & Sub-Branches"
-                                    description="Supports parent branch hierarchy (e.g. Charikot > Bhimeshwor, ARROWNET Pvt. Ltd. > Arrownet Akar Complex)"
+                                    description="Supports parent branch hierarchy (e.g. Charikot > Bhimeshwor, ARROWNET Pvt. Ltd. > Akar Complex)"
                                 >
                                     <div className="space-y-5">
-                                        {/* Input Mode Selector */}
                                         <div className="flex gap-2 border-b border-border pb-3">
                                             <Button
                                                 type="button"
@@ -330,16 +372,14 @@ function ImportHubContent() {
                                             </div>
                                         )}
 
-                                        {/* Options */}
                                         <div className="bg-muted/40 p-4 rounded-lg flex items-center justify-between border border-border">
                                             <div>
                                                 <p className="text-sm font-semibold text-foreground">Skip Already Existing Branches</p>
-                                                <p className="text-xs text-muted-foreground">If enabled, existing branches & sub-branches will not be updated</p>
+                                                <p className="text-xs text-muted-foreground">If enabled, existing branches & sub-branches will not be overwritten</p>
                                             </div>
                                             <Switch checked={skipExisting} onCheckedChange={setSkipExisting} />
                                         </div>
 
-                                        {/* Action Button */}
                                         <div className="flex items-center justify-between pt-2">
                                             <p className="text-xs font-medium text-muted-foreground">
                                                 {parsedRows.length > 0 ? `✅ ${parsedRows.length} rows ready for import` : "No rows loaded yet"}
@@ -357,7 +397,6 @@ function ImportHubContent() {
                                 </CardContainer>
                             </div>
 
-                            {/* Right Col: Sample Templates */}
                             <div className="space-y-6">
                                 <CardContainer title="Download Sample Templates" description="Pre-filled with real hierarchical branch data">
                                     <div className="space-y-3">
@@ -410,17 +449,15 @@ function ImportHubContent() {
                         </div>
                     </TabsContent>
 
-                    {/* PACKAGES TAB CONTENT */}
+                    {/* ================= PACKAGES TAB ================= */}
                     <TabsContent value="packages" className="space-y-6 mt-6">
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            {/* Left Col: Upload & Config */}
                             <div className="lg:col-span-2 space-y-6">
                                 <CardContainer
                                     title="Upload Packages & Tariff Rate Sheet"
                                     description="Auto-parses bandwidth (e.g. 100Mbps -> 100M/100M), duration prices (1M, 3M, 6M, 12M), and syncs to FreeRADIUS"
                                 >
                                     <div className="space-y-5">
-                                        {/* Input Mode Selector */}
                                         <div className="flex gap-2 border-b border-border pb-3">
                                             <Button
                                                 type="button"
@@ -445,7 +482,7 @@ function ImportHubContent() {
                                         </div>
 
                                         {inputMode === "file" ? (
-                                            <div className="border-2 border-dashed border-border hover:border-primary/50 transition-colors rounded-xl p-8 text-center bg-muted/20">
+                                            <div className="border-2 border-dashed border-border hover:border-amber-500/50 transition-colors rounded-xl p-8 text-center bg-muted/20">
                                                 <input
                                                     type="file"
                                                     id="package-file-input"
@@ -483,7 +520,6 @@ function ImportHubContent() {
                                             </div>
                                         )}
 
-                                        {/* RADIUS Sync Option */}
                                         <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-lg flex items-center justify-between">
                                             <div className="flex items-center gap-3">
                                                 <Server className="h-5 w-5 text-blue-600 dark:text-blue-400" />
@@ -497,7 +533,6 @@ function ImportHubContent() {
                                             <Switch checked={syncRadius} onCheckedChange={setSyncRadius} />
                                         </div>
 
-                                        {/* Action Button */}
                                         <div className="flex items-center justify-between pt-2">
                                             <p className="text-xs font-medium text-muted-foreground">
                                                 {parsedRows.length > 0 ? `✅ ${parsedRows.length} plans ready for import` : "No plans loaded yet"}
@@ -515,7 +550,6 @@ function ImportHubContent() {
                                 </CardContainer>
                             </div>
 
-                            {/* Right Col: Sample Templates */}
                             <div className="space-y-6">
                                 <CardContainer title="Download Tariff Templates" description="Pre-filled with rate sheet data (100Mbps, 50Mbps, 25Mbps, 15Mbps)">
                                     <div className="space-y-3">
@@ -568,13 +602,326 @@ function ImportHubContent() {
                             </div>
                         </div>
                     </TabsContent>
+
+                    {/* ================= LEADS TAB ================= */}
+                    <TabsContent value="leads" className="space-y-6 mt-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div className="lg:col-span-2 space-y-6">
+                                <CardContainer
+                                    title="Upload CRM Prospect Leads"
+                                    description="Import sales prospects with auto-branch resolution, interested package linking, and status tracking"
+                                >
+                                    <div className="space-y-5">
+                                        <div className="flex gap-2 border-b border-border pb-3">
+                                            <Button
+                                                type="button"
+                                                variant={inputMode === "file" ? "default" : "outline"}
+                                                size="sm"
+                                                onClick={() => setInputMode("file")}
+                                                className="gap-1.5"
+                                            >
+                                                <Upload className="h-4 w-4" />
+                                                File Upload (.xlsx, .csv, .json)
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant={inputMode === "paste" ? "default" : "outline"}
+                                                size="sm"
+                                                onClick={() => setInputMode("paste")}
+                                                className="gap-1.5"
+                                            >
+                                                <FileText className="h-4 w-4" />
+                                                Paste Raw CSV / JSON
+                                            </Button>
+                                        </div>
+
+                                        {inputMode === "file" ? (
+                                            <div className="border-2 border-dashed border-border hover:border-emerald-500/50 transition-colors rounded-xl p-8 text-center bg-muted/20">
+                                                <input
+                                                    type="file"
+                                                    id="lead-file-input"
+                                                    className="hidden"
+                                                    accept=".xlsx,.xls,.csv,.json"
+                                                    onChange={handleFileUpload}
+                                                />
+                                                <label htmlFor="lead-file-input" className="cursor-pointer flex flex-col items-center gap-3">
+                                                    <div className="h-12 w-12 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-600">
+                                                        <UserPlus className="h-6 w-6" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-semibold text-foreground text-sm">
+                                                            {fileName ? fileName : "Click to select or drag & drop Leads spreadsheet"}
+                                                        </p>
+                                                        <p className="text-xs text-muted-foreground mt-1">
+                                                            Supported formats: .xlsx, .xls, .csv, .json
+                                                        </p>
+                                                    </div>
+                                                </label>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                <Label className="text-xs font-semibold">Paste Leads CSV or JSON Array</Label>
+                                                <Textarea
+                                                    placeholder="First Name,Last Name,Phone Number,Email,Address,City,Branch Name,Interested Package&#10;Ram,Thapa,9841234567,ram@gmail.com,Putalisadak,Kathmandu,ARROWNET Pvt. Ltd.,100 Mbps&#10;Sita,Shrestha,9851098765,sita@gmail.com,Bhimeshwor,Charikot,Charikot,50 Mbps"
+                                                    rows={6}
+                                                    value={rawText}
+                                                    onChange={(e) => setRawText(e.target.value)}
+                                                    className="font-mono text-xs"
+                                                />
+                                                <Button size="sm" variant="outline" onClick={handleParseRawText}>
+                                                    Parse Pasted Data
+                                                </Button>
+                                            </div>
+                                        )}
+
+                                        <div className="bg-muted/40 p-4 rounded-lg flex items-center justify-between border border-border">
+                                            <div>
+                                                <p className="text-sm font-semibold text-foreground">Skip Already Existing Leads</p>
+                                                <p className="text-xs text-muted-foreground">If enabled, leads with matching email or phone number will be skipped</p>
+                                            </div>
+                                            <Switch checked={skipExisting} onCheckedChange={setSkipExisting} />
+                                        </div>
+
+                                        <div className="flex items-center justify-between pt-2">
+                                            <p className="text-xs font-medium text-muted-foreground">
+                                                {parsedRows.length > 0 ? `✅ ${parsedRows.length} leads ready for import` : "No leads loaded yet"}
+                                            </p>
+                                            <Button
+                                                onClick={handleExecuteImport}
+                                                disabled={loading || parsedRows.length === 0}
+                                                className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6"
+                                            >
+                                                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+                                                Start Leads Import
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </CardContainer>
+                            </div>
+
+                            <div className="space-y-6">
+                                <CardContainer title="Download Leads Template" description="Pre-filled with standard CRM sales prospect format">
+                                    <div className="space-y-3">
+                                        <Button
+                                            variant="outline"
+                                            className="w-full justify-start gap-3 h-11 border-emerald-500/30 hover:bg-emerald-500/10 text-foreground"
+                                            onClick={() => handleDownloadTemplate("xlsx")}
+                                        >
+                                            <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
+                                            <div className="text-left">
+                                                <div className="text-xs font-bold">Leads Excel Template (.xlsx)</div>
+                                                <div className="text-[10px] text-muted-foreground">Formatted with sample lead prospects</div>
+                                            </div>
+                                        </Button>
+
+                                        <Button
+                                            variant="outline"
+                                            className="w-full justify-start gap-3 h-11 border-blue-500/30 hover:bg-blue-500/10 text-foreground"
+                                            onClick={() => handleDownloadTemplate("csv")}
+                                        >
+                                            <FileText className="h-5 w-5 text-blue-600" />
+                                            <div className="text-left">
+                                                <div className="text-xs font-bold">Leads CSV Template (.csv)</div>
+                                                <div className="text-[10px] text-muted-foreground">Standard comma-separated format</div>
+                                            </div>
+                                        </Button>
+
+                                        <Button
+                                            variant="outline"
+                                            className="w-full justify-start gap-3 h-11 border-purple-500/30 hover:bg-purple-500/10 text-foreground"
+                                            onClick={() => handleDownloadTemplate("json")}
+                                        >
+                                            <FileCode className="h-5 w-5 text-purple-600" />
+                                            <div className="text-left">
+                                                <div className="text-xs font-bold">Leads JSON Template (.json)</div>
+                                                <div className="text-[10px] text-muted-foreground">Programmatic JSON payload</div>
+                                            </div>
+                                        </Button>
+                                    </div>
+
+                                    <div className="mt-5 p-3.5 bg-muted/40 rounded-lg border border-border text-xs space-y-2">
+                                        <p className="font-semibold text-foreground">Supported Lead Columns:</p>
+                                        <ul className="list-disc list-inside text-muted-foreground space-y-1 text-[11px]">
+                                            <li><span className="font-mono text-foreground">First Name, Last Name, Full Name</span></li>
+                                            <li><span className="font-mono text-foreground">Phone Number, Email, Address, City, Province</span></li>
+                                            <li><span className="font-mono text-foreground">Branch Name, Sub-Branch Name, Interested Package</span></li>
+                                            <li><span className="font-mono text-foreground">Status (new, contacted, qualified), Source, Notes</span></li>
+                                        </ul>
+                                    </div>
+                                </CardContainer>
+                            </div>
+                        </div>
+                    </TabsContent>
+
+                    {/* ================= CUSTOMERS TAB (WITH RADIUS) ================= */}
+                    <TabsContent value="customers" className="space-y-6 mt-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div className="lg:col-span-2 space-y-6">
+                                <CardContainer
+                                    title="Upload Active Customers & RADIUS Subscribers"
+                                    description="Imports complete customer records with PPPoE/Radius credentials, auto-linked Lead ID, Package subscriptions, and hardware info"
+                                >
+                                    <div className="space-y-5">
+                                        <div className="flex gap-2 border-b border-border pb-3">
+                                            <Button
+                                                type="button"
+                                                variant={inputMode === "file" ? "default" : "outline"}
+                                                size="sm"
+                                                onClick={() => setInputMode("file")}
+                                                className="gap-1.5"
+                                            >
+                                                <Upload className="h-4 w-4" />
+                                                File Upload (.xlsx, .csv, .json)
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant={inputMode === "paste" ? "default" : "outline"}
+                                                size="sm"
+                                                onClick={() => setInputMode("paste")}
+                                                className="gap-1.5"
+                                            >
+                                                <FileText className="h-4 w-4" />
+                                                Paste Raw CSV / JSON
+                                            </Button>
+                                        </div>
+
+                                        {inputMode === "file" ? (
+                                            <div className="border-2 border-dashed border-border hover:border-blue-500/50 transition-colors rounded-xl p-8 text-center bg-muted/20">
+                                                <input
+                                                    type="file"
+                                                    id="customer-file-input"
+                                                    className="hidden"
+                                                    accept=".xlsx,.xls,.csv,.json"
+                                                    onChange={handleFileUpload}
+                                                />
+                                                <label htmlFor="customer-file-input" className="cursor-pointer flex flex-col items-center gap-3">
+                                                    <div className="h-12 w-12 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-600">
+                                                        <Users className="h-6 w-6" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-semibold text-foreground text-sm">
+                                                            {fileName ? fileName : "Click to select or drag & drop Customers file"}
+                                                        </p>
+                                                        <p className="text-xs text-muted-foreground mt-1">
+                                                            Includes PPPoE login, Plan expiry, ONT serial, and PAN/ID data
+                                                        </p>
+                                                    </div>
+                                                </label>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                <Label className="text-xs font-semibold">Paste Customers CSV or JSON Array</Label>
+                                                <Textarea
+                                                    placeholder="Customer ID,First Name,Last Name,Phone Number,Email,Branch Name,Package Name,PPPoE Username,PPPoE Password,Plan End Date&#10;ARN-CUST-1001,Bikash,Shrestha,9841239901,bikash@example.com,ARROWNET Pvt. Ltd.,100 Mbps,bikash_arn1001,User@12345,2026-09-30&#10;ARN-CUST-1002,Prakash,Dahal,9801191325,prakash@example.com,Charikot,50 Mbps,prakash_chk50,User@12345,2026-11-30"
+                                                    rows={6}
+                                                    value={rawText}
+                                                    onChange={(e) => setRawText(e.target.value)}
+                                                    className="font-mono text-xs"
+                                                />
+                                                <Button size="sm" variant="outline" onClick={handleParseRawText}>
+                                                    Parse Pasted Data
+                                                </Button>
+                                            </div>
+                                        )}
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <div className="bg-muted/40 p-4 rounded-lg flex items-center justify-between border border-border">
+                                                <div>
+                                                    <p className="text-sm font-semibold text-foreground">Skip Existing Customers</p>
+                                                    <p className="text-xs text-muted-foreground">Skip if Customer ID or username already exists</p>
+                                                </div>
+                                                <Switch checked={skipExisting} onCheckedChange={setSkipExisting} />
+                                            </div>
+
+                                            <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-lg flex items-center justify-between">
+                                                <div className="flex items-center gap-2.5">
+                                                    <Server className="h-5 w-5 text-blue-600 shrink-0" />
+                                                    <div>
+                                                        <p className="text-sm font-semibold text-foreground">Sync to FreeRADIUS</p>
+                                                        <p className="text-xs text-muted-foreground">Create radcheck & radusergroup records</p>
+                                                    </div>
+                                                </div>
+                                                <Switch checked={syncRadius} onCheckedChange={setSyncRadius} />
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center justify-between pt-2">
+                                            <p className="text-xs font-medium text-muted-foreground">
+                                                {parsedRows.length > 0 ? `✅ ${parsedRows.length} customers ready for import` : "No customers loaded yet"}
+                                            </p>
+                                            <Button
+                                                onClick={handleExecuteImport}
+                                                disabled={loading || parsedRows.length === 0}
+                                                className="gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6"
+                                            >
+                                                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
+                                                Start Customers & Radius Import
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </CardContainer>
+                            </div>
+
+                            <div className="space-y-6">
+                                <CardContainer title="Download Customer Template" description="Pre-filled with comprehensive subscriber & FreeRADIUS format">
+                                    <div className="space-y-3">
+                                        <Button
+                                            variant="outline"
+                                            className="w-full justify-start gap-3 h-11 border-emerald-500/30 hover:bg-emerald-500/10 text-foreground"
+                                            onClick={() => handleDownloadTemplate("xlsx")}
+                                        >
+                                            <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
+                                            <div className="text-left">
+                                                <div className="text-xs font-bold">Customers Excel Template (.xlsx)</div>
+                                                <div className="text-[10px] text-muted-foreground">With Radius & Plan duration columns</div>
+                                            </div>
+                                        </Button>
+
+                                        <Button
+                                            variant="outline"
+                                            className="w-full justify-start gap-3 h-11 border-blue-500/30 hover:bg-blue-500/10 text-foreground"
+                                            onClick={() => handleDownloadTemplate("csv")}
+                                        >
+                                            <FileText className="h-5 w-5 text-blue-600" />
+                                            <div className="text-left">
+                                                <div className="text-xs font-bold">Customers CSV Template (.csv)</div>
+                                                <div className="text-[10px] text-muted-foreground">Standard comma-separated format</div>
+                                            </div>
+                                        </Button>
+
+                                        <Button
+                                            variant="outline"
+                                            className="w-full justify-start gap-3 h-11 border-purple-500/30 hover:bg-purple-500/10 text-foreground"
+                                            onClick={() => handleDownloadTemplate("json")}
+                                        >
+                                            <FileCode className="h-5 w-5 text-purple-600" />
+                                            <div className="text-left">
+                                                <div className="text-xs font-bold">Customers JSON Template (.json)</div>
+                                                <div className="text-[10px] text-muted-foreground">Programmatic JSON payload</div>
+                                            </div>
+                                        </Button>
+                                    </div>
+
+                                    <div className="mt-5 p-3.5 bg-muted/40 rounded-lg border border-border text-xs space-y-2">
+                                        <p className="font-semibold text-foreground">Automatic Integrations:</p>
+                                        <ul className="list-disc list-inside text-muted-foreground space-y-1 text-[11px]">
+                                            <li><span className="font-semibold text-foreground">Lead ID:</span> If omitted, a corresponding Lead is automatically created and marked converted.</li>
+                                            <li><span className="font-semibold text-foreground">FreeRADIUS:</span> Creates <span className="font-mono text-foreground">radcheck</span> with cleartext password and assigns to <span className="font-mono text-foreground">radusergroup</span>.</li>
+                                            <li><span className="font-semibold text-foreground">Expiration Date:</span> Synced to Radius as <span className="font-mono text-foreground">Expiration := DD Mon YYYY</span> attribute.</li>
+                                            <li><span className="font-semibold text-foreground">Hardware:</span> ONT Serial and VLAN ID are automatically registered in Device & Service Connection records.</li>
+                                        </ul>
+                                    </div>
+                                </CardContainer>
+                            </div>
+                        </div>
+                    </TabsContent>
                 </Tabs>
 
-                {/* DATA PREVIEW TABLE */}
+                {/* ================= DATA PREVIEW TABLE ================= */}
                 {parsedRows.length > 0 && (
                     <CardContainer
                         title={`Data Preview (${parsedRows.length} Rows)`}
-                        description="Review loaded data before running the import"
+                        description="Review parsed rows before executing the import"
                     >
                         <div className="overflow-x-auto max-h-64 overflow-y-auto border border-border rounded-lg">
                             <table className="w-full text-xs text-left border-collapse">
@@ -610,13 +957,12 @@ function ImportHubContent() {
                     </CardContainer>
                 )}
 
-                {/* ROW-BY-ROW LOGS TERMINAL CONSOLE */}
+                {/* ================= ROW-BY-ROW EXECUTION LOGS ================= */}
                 {logs.length > 0 && (
                     <CardContainer
                         title="Import Execution Logs"
-                        description="Detailed row-by-row confirmation of CMS and FreeRADIUS database insertions"
+                        description="Detailed row-by-row confirmation of CMS and FreeRADIUS database operations"
                     >
-                        {/* Summary Badges */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                             <div className="bg-muted/40 p-3 rounded-lg border border-border text-center">
                                 <span className="text-xs text-muted-foreground font-medium">Total Processed</span>
@@ -631,12 +977,11 @@ function ImportHubContent() {
                                 <p className="text-xl font-bold text-amber-600 dark:text-amber-400">{counts.skipped}</p>
                             </div>
                             <div className="bg-destructive/10 p-3 rounded-lg border border-destructive/20 text-center">
-                                <span className="text-xs text-destructive font-medium">Failed</span>
+                                <span className="text-xs text-destructive font-medium">Failed / Errors</span>
                                 <p className="text-xl font-bold text-destructive">{counts.failed}</p>
                             </div>
                         </div>
 
-                        {/* Search & Filter Bar */}
                         <div className="flex flex-col sm:flex-row gap-3 justify-between items-center mb-3">
                             <div className="flex gap-1.5 bg-muted/60 p-1 rounded-lg">
                                 <Button
@@ -690,7 +1035,6 @@ function ImportHubContent() {
                             </div>
                         </div>
 
-                        {/* Logs Console Box */}
                         <div className="bg-slate-950 text-slate-100 font-mono rounded-lg p-4 max-h-96 overflow-y-auto divide-y divide-slate-800 text-xs border border-slate-800 shadow-inner">
                             {filteredLogs.length === 0 ? (
                                 <p className="text-slate-500 italic py-4 text-center">No logs match the current filter.</p>
@@ -698,7 +1042,6 @@ function ImportHubContent() {
                                 filteredLogs.map((log) => {
                                     const isSuccess = log.status === "success"
                                     const isSkipped = log.status === "skipped"
-                                    const isFailed = log.status === "failed"
 
                                     return (
                                         <div key={log.rowNumber} className="py-2.5 flex items-start gap-3">

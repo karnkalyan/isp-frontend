@@ -18,7 +18,7 @@ export default function LeadsPage() {
           description="Manage sales leads and track conversion"
           actions={[
             { label: "Add New Lead", href: "/leads/create" },
-            { label: "Import Leads", href: "/leads/import" },
+            { label: "Import Leads", href: "/import?type=leads" },
             { label: "Follow-ups", href: "/leads/follow-ups" }, // ✅ Yahan add karo
             { label: "Lead Reports", href: "/leads/reports" },
           ]}

@@ -120,6 +120,7 @@ const menuCategories: MenuCategory[] = [
         submenu: [
           { title: "All Customers", href: "/customers/all", permission: "customers_list" },
           { title: "Add New Customer", href: "/customers/new", permission: "customers_create" },
+          { title: "Import Customers", href: "/import?type=customers", permission: "customers_create" },
         ],
       },
       {
@@ -210,7 +211,7 @@ const menuCategories: MenuCategory[] = [
           { title: "Unqualified", href: "/leads/unqualified", permission: "lead_read" },
           { title: "Converted", href: "/leads/converted", permission: "lead_read" },
           { title: "Follow-up Tracking", href: "/leads/follow-ups", permission: "lead_read" },
-          { title: "Import Leads", href: "/leads/import", permission: "lead_create" },
+          { title: "Import Leads", href: "/import?type=leads", permission: "lead_create" },
           { title: "Lead Reports", href: "/leads/reports", permission: "reports_read" },
         ],
       },
