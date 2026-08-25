@@ -176,7 +176,9 @@ function ImportHubContent() {
         }
     }
 
-    // Execute Import API
+    const [importProgress, setImportProgress] = useState<{ current: number; total: number; percent: number; batch: number; totalBatches: number } | null>(null)
+
+    // Execute Import API with Automatic Batching (to prevent 413 Payload Too Large)
     const handleExecuteImport = async () => {
         if (!parsedRows || parsedRows.length === 0) {
             toast.error("No data rows available to import. Please upload a file or paste data.")
@@ -185,6 +187,7 @@ function ImportHubContent() {
 
         setLoading(true)
         setLogs([])
+        setImportProgress(null)
 
         try {
             let endpoint = "/import/branches"
@@ -193,34 +196,78 @@ function ImportHubContent() {
             else if (activeTab === "leads") endpoint = "/import/leads"
             else if (activeTab === "customers") endpoint = "/import/customers"
 
-            const payload = {
-                items: parsedRows,
-                skipExisting,
-                syncRadius: activeTab === "plans" || activeTab === "packages" || activeTab === "customers" ? syncRadius : false
+            const BATCH_SIZE = 50
+            const totalRows = parsedRows.length
+            const totalBatches = Math.ceil(totalRows / BATCH_SIZE)
+
+            let overallSuccess = 0
+            let overallFailed = 0
+            let overallSkipped = 0
+            const accumulatedLogs: any[] = []
+
+            for (let b = 0; b < totalBatches; b++) {
+                const batchItems = parsedRows.slice(b * BATCH_SIZE, (b + 1) * BATCH_SIZE)
+                const currentCount = Math.min((b + 1) * BATCH_SIZE, totalRows)
+                const percent = Math.round((currentCount / totalRows) * 100)
+
+                setImportProgress({
+                    current: currentCount,
+                    total: totalRows,
+                    percent,
+                    batch: b + 1,
+                    totalBatches
+                })
+
+                const payload = {
+                    items: batchItems,
+                    skipExisting,
+                    syncRadius: activeTab === "plans" || activeTab === "packages" || activeTab === "customers" ? syncRadius : false
+                }
+
+                try {
+                    const response = await apiRequest<any>(endpoint, {
+                        method: "POST",
+                        body: JSON.stringify(payload)
+                    })
+
+                    if (response?.logs && Array.isArray(response.logs)) {
+                        const offsetLogs = response.logs.map((l: any, idx: number) => ({
+                            ...l,
+                            rowNumber: l.rowNumber ? (b * BATCH_SIZE) + l.rowNumber : (b * BATCH_SIZE) + idx + 1
+                        }))
+                        accumulatedLogs.push(...offsetLogs)
+                        setLogs([...accumulatedLogs])
+                    }
+
+                    overallSuccess += response?.successCount || 0
+                    overallFailed += response?.failedCount || 0
+                    overallSkipped += response?.skippedCount || 0
+                } catch (batchErr: any) {
+                    console.error(`Batch ${b + 1} failed:`, batchErr)
+                    const errorMsg = batchErr.message || "Failed to process batch"
+                    batchItems.forEach((item, itemIdx) => {
+                        accumulatedLogs.push({
+                            rowNumber: (b * BATCH_SIZE) + itemIdx + 1,
+                            name: item['Plan Name'] || item['Plan Code'] || item['First Name'] || item['Branch Name'] || `Row ${(b * BATCH_SIZE) + itemIdx + 1}`,
+                            status: "failed",
+                            message: errorMsg
+                        })
+                    })
+                    overallFailed += batchItems.length
+                    setLogs([...accumulatedLogs])
+                }
             }
 
-            const response = await apiRequest<any>(endpoint, {
-                method: "POST",
-                body: JSON.stringify(payload)
-            })
-
-            if (response?.logs) {
-                setLogs(response.logs)
-            }
-
-            const success = response?.successCount || 0
-            const failed = response?.failedCount || 0
-            const skipped = response?.skippedCount || 0
-
-            if (failed === 0) {
-                toast.success(`Import complete! ${success} processed successfully.`)
+            if (overallFailed === 0) {
+                toast.success(`Import complete! ${overallSuccess} processed successfully.`)
             } else {
-                toast.error(`Import completed with errors: ${success} succeeded, ${failed} failed, ${skipped} skipped.`)
+                toast.error(`Import completed: ${overallSuccess} succeeded, ${overallFailed} failed, ${overallSkipped} skipped.`)
             }
         } catch (err: any) {
             toast.error(err.message || "Failed to process import")
         } finally {
             setLoading(false)
+            setImportProgress(null)
         }
     }
 
@@ -1138,12 +1185,31 @@ function ImportHubContent() {
                 )}
 
                 {/* ================= LIVE EXECUTION LOGS ================= */}
-                {logs.length > 0 && (
+                {(logs.length > 0 || importProgress) && (
                     <CardContainer
                         title="Import Execution Summary & Live Logs"
                         description="Detailed row-by-row status of created, updated, skipped, and failed entities"
                     >
                         <div className="space-y-4">
+                            {/* Live Batch Progress Bar */}
+                            {importProgress && (
+                                <div className="p-4 rounded-xl bg-primary/10 border border-primary/20 space-y-2">
+                                    <div className="flex items-center justify-between text-xs font-semibold">
+                                        <span className="flex items-center gap-2 text-primary">
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            Processing Batch {importProgress.batch} of {importProgress.totalBatches} ({importProgress.current} / {importProgress.total} items)...
+                                        </span>
+                                        <span className="text-primary font-bold">{importProgress.percent}%</span>
+                                    </div>
+                                    <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                                        <div
+                                            className="bg-primary h-2 rounded-full transition-all duration-300"
+                                            style={{ width: `${importProgress.percent}%` }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Summary Badges */}
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                 <div className="p-3 rounded-lg bg-muted/40 border border-border">
