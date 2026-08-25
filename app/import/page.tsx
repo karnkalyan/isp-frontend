@@ -38,7 +38,8 @@ import {
     ShieldCheck,
     Database,
     Zap,
-    Link2
+    Link2,
+    Network
 } from "lucide-react"
 import { apiRequest, getApiUrl } from "@/lib/api"
 import { toast } from "react-hot-toast"
@@ -51,14 +52,14 @@ type LogItem = {
     message: string
 }
 
-type TabType = "branches" | "packages" | "leads" | "customers"
+type TabType = "branches" | "plans" | "packages" | "leads" | "customers"
 
 function ImportHubContent() {
     const searchParams = useSearchParams()
     const router = useRouter()
 
     const paramType = searchParams.get("type") as TabType
-    const initialType: TabType = ["branches", "packages", "leads", "customers"].includes(paramType)
+    const initialType: TabType = ["branches", "plans", "packages", "leads", "customers"].includes(paramType)
         ? paramType
         : "branches"
 
@@ -78,7 +79,7 @@ function ImportHubContent() {
 
     useEffect(() => {
         const typeParam = searchParams.get("type") as TabType
-        if (typeParam && ["branches", "packages", "leads", "customers"].includes(typeParam)) {
+        if (typeParam && ["branches", "plans", "packages", "leads", "customers"].includes(typeParam)) {
             setActiveTab(typeParam)
             resetState()
         }
@@ -187,14 +188,15 @@ function ImportHubContent() {
 
         try {
             let endpoint = "/import/branches"
-            if (activeTab === "packages") endpoint = "/import/packages"
+            if (activeTab === "plans") endpoint = "/import/plans"
+            else if (activeTab === "packages") endpoint = "/import/packages"
             else if (activeTab === "leads") endpoint = "/import/leads"
             else if (activeTab === "customers") endpoint = "/import/customers"
 
             const payload = {
                 items: parsedRows,
                 skipExisting,
-                syncRadius: activeTab === "packages" || activeTab === "customers" ? syncRadius : false
+                syncRadius: activeTab === "plans" || activeTab === "packages" || activeTab === "customers" ? syncRadius : false
             }
 
             const response = await apiRequest<any>(endpoint, {
@@ -260,7 +262,7 @@ function ImportHubContent() {
             <div className="space-y-6 max-w-7xl mx-auto pb-12">
                 <PageHeader
                     title="Data Import Hub"
-                    description="Centralized data ingestion for Branches, Packages, CRM Leads, and Customers with FreeRADIUS sync and live row-by-row logs"
+                    description="Centralized data ingestion for Branches, Internet Plans, Package Tariffs, CRM Leads, and RADIUS Customers with live verification logs"
                     icon={Upload}
                     breadcrumbs={[
                         { label: "Dashboard", href: "/dashboard" },
@@ -270,13 +272,20 @@ function ImportHubContent() {
 
                 {/* Primary Section Tabs */}
                 <Tabs value={activeTab} onValueChange={(val: any) => handleTabChange(val)} className="w-full">
-                    <TabsList className="grid grid-cols-2 md:grid-cols-4 w-full h-auto p-1.5 bg-muted/60 rounded-xl gap-1">
+                    <TabsList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 w-full h-auto p-1.5 bg-muted/60 rounded-xl gap-1">
                         <TabsTrigger
                             value="branches"
                             className="gap-2 py-2.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-semibold rounded-lg text-xs sm:text-sm"
                         >
                             <Building2 className="h-4 w-4" />
                             Branches & Sub-Branches
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value="plans"
+                            className="gap-2 py-2.5 data-[state=active]:bg-indigo-600 data-[state=active]:text-white font-semibold rounded-lg text-xs sm:text-sm"
+                        >
+                            <Wifi className="h-4 w-4" />
+                            Internet Plans
                         </TabsTrigger>
                         <TabsTrigger
                             value="packages"
@@ -301,7 +310,7 @@ function ImportHubContent() {
                         </TabsTrigger>
                     </TabsList>
 
-                    {/* ================= BRANCHES TAB ================= */}
+                    {/* ================= 1. BRANCHES TAB ================= */}
                     <TabsContent value="branches" className="space-y-6 mt-6">
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                             <div className="lg:col-span-2 space-y-6">
@@ -450,13 +459,176 @@ function ImportHubContent() {
                         </div>
                     </TabsContent>
 
-                    {/* ================= PACKAGES TAB ================= */}
+                    {/* ================= 2. INTERNET PLANS TAB ================= */}
+                    <TabsContent value="plans" className="space-y-6 mt-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div className="lg:col-span-2 space-y-6">
+                                <CardContainer
+                                    title="Upload Internet Plans & RADIUS Profiles"
+                                    description="Configure base internet plans with speeds (Down, Up, Local, FIR, INT), multi-NAS (Cisco, Juniper, MikroTik, Nokia), Organization branch linking, FUP, framed pools, and custom RADIUS attributes"
+                                >
+                                    <div className="space-y-5">
+                                        <div className="flex gap-2 border-b border-border pb-3">
+                                            <Button
+                                                type="button"
+                                                variant={inputMode === "file" ? "default" : "outline"}
+                                                size="sm"
+                                                onClick={() => setInputMode("file")}
+                                                className="gap-1.5"
+                                            >
+                                                <Upload className="h-4 w-4" />
+                                                File Upload (.xlsx, .csv, .json)
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant={inputMode === "paste" ? "default" : "outline"}
+                                                size="sm"
+                                                onClick={() => setInputMode("paste")}
+                                                className="gap-1.5"
+                                            >
+                                                <FileText className="h-4 w-4" />
+                                                Paste Raw CSV / JSON
+                                            </Button>
+                                        </div>
+
+                                        {inputMode === "file" ? (
+                                            <div className="border-2 border-dashed border-border hover:border-indigo-500/50 transition-colors rounded-xl p-8 text-center bg-muted/20">
+                                                <input
+                                                    type="file"
+                                                    id="plan-file-input"
+                                                    className="hidden"
+                                                    accept=".xlsx,.xls,.csv,.json"
+                                                    onChange={handleFileUpload}
+                                                />
+                                                <label htmlFor="plan-file-input" className="cursor-pointer flex flex-col items-center gap-3">
+                                                    <div className="h-12 w-12 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-600">
+                                                        <Wifi className="h-6 w-6" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-semibold text-foreground text-sm">
+                                                            {fileName ? fileName : "Click to select or drag & drop Internet Plans spreadsheet"}
+                                                        </p>
+                                                        <p className="text-xs text-muted-foreground mt-1">
+                                                            Supports full plan specifications, branch mapping, and FreeRADIUS profiles
+                                                        </p>
+                                                    </div>
+                                                </label>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                <Label className="text-xs font-semibold">Paste Internet Plans CSV or JSON Array</Label>
+                                                <Textarea
+                                                    placeholder="Plan Name,Plan Code,Service,NAS Type,Priority,Package Type,Connection Type,Download Speed (Mbps),Upload Speed (Mbps),INT Upload,FIR Download,Local Upload,Local Download,Organization,Allow Rename,FUP Apply,Is FUP Package,Only Renewal,Popular,High Priority,FUP Limit (GB),Apply Framed Pool,Framed Pool Value,Vendor-Specific Profiles,Custom Radius Attributes,Description&#10;155 Mbps,155 MBPS,155 Mbps,cisco, juniper, mikrotik, nokia,1,HOME,FTTH,155,155,155,155,155,155,Arrownet Pvt Ltd (BR-ARROWNET-PVT-LTD), Yatkha (SB-YATKHA), Bahrabise (SB-BAHRABISE), Charikot (BR-CHARIKOT),FALSE,TRUE,FALSE,FALSE,TRUE,TRUE,0,TRUE,Pool 2 (pool2),JUNIPER:xFTTH-pp0,ERX-IPv6-Delegated-Pool-Name := v6-default-pd\nFramed-IPv6-Pool := v6-ndra,Ultra High Speed 155 Mbps FTTH Internet&#10;100 Mbps,100 MBPS,Internet,mikrotik, juniper,1,HOME,Fiber,100,100,100,100,100,100,All Branches,FALSE,TRUE,FALSE,FALSE,TRUE,FALSE,0,FALSE,,,Standard 100 Mbps Unlimited Fiber Internet"
+                                                    rows={7}
+                                                    value={rawText}
+                                                    onChange={(e) => setRawText(e.target.value)}
+                                                    className="font-mono text-xs"
+                                                />
+                                                <Button size="sm" variant="outline" onClick={handleParseRawText}>
+                                                    Parse Pasted Data
+                                                </Button>
+                                            </div>
+                                        )}
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <div className="bg-muted/40 p-4 rounded-lg flex items-center justify-between border border-border">
+                                                <div>
+                                                    <p className="text-sm font-semibold text-foreground">Skip Existing Plans</p>
+                                                    <p className="text-xs text-muted-foreground">Skip if Plan Code or Name already exists</p>
+                                                </div>
+                                                <Switch checked={skipExisting} onCheckedChange={setSkipExisting} />
+                                            </div>
+
+                                            <div className="bg-indigo-500/10 border border-indigo-500/20 p-4 rounded-lg flex items-center justify-between">
+                                                <div className="flex items-center gap-2.5">
+                                                    <Server className="h-5 w-5 text-indigo-600 shrink-0" />
+                                                    <div>
+                                                        <p className="text-sm font-semibold text-foreground">Sync to FreeRADIUS</p>
+                                                        <p className="text-xs text-muted-foreground">Create radgroupcheck & radgroupreply</p>
+                                                    </div>
+                                                </div>
+                                                <Switch checked={syncRadius} onCheckedChange={setSyncRadius} />
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center justify-between pt-2">
+                                            <p className="text-xs font-medium text-muted-foreground">
+                                                {parsedRows.length > 0 ? `✅ ${parsedRows.length} internet plans ready for import` : "No plans loaded yet"}
+                                            </p>
+                                            <Button
+                                                onClick={handleExecuteImport}
+                                                disabled={loading || parsedRows.length === 0}
+                                                className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6"
+                                            >
+                                                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wifi className="h-4 w-4" />}
+                                                Start Internet Plan Import
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </CardContainer>
+                            </div>
+
+                            <div className="space-y-6">
+                                <CardContainer title="Download Plan Templates" description="Pre-filled with multi-NAS & Organization branch formats">
+                                    <div className="space-y-3">
+                                        <Button
+                                            variant="outline"
+                                            className="w-full justify-start gap-3 h-11 border-emerald-500/30 hover:bg-emerald-500/10 text-foreground"
+                                            onClick={() => handleDownloadTemplate("xlsx")}
+                                        >
+                                            <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
+                                            <div className="text-left">
+                                                <div className="text-xs font-bold">Internet Plans Excel Template (.xlsx)</div>
+                                                <div className="text-[10px] text-muted-foreground">Full technical specifications & branch mapping</div>
+                                            </div>
+                                        </Button>
+
+                                        <Button
+                                            variant="outline"
+                                            className="w-full justify-start gap-3 h-11 border-blue-500/30 hover:bg-blue-500/10 text-foreground"
+                                            onClick={() => handleDownloadTemplate("csv")}
+                                        >
+                                            <FileText className="h-5 w-5 text-blue-600" />
+                                            <div className="text-left">
+                                                <div className="text-xs font-bold">Internet Plans CSV Template (.csv)</div>
+                                                <div className="text-[10px] text-muted-foreground">Standard comma-separated format</div>
+                                            </div>
+                                        </Button>
+
+                                        <Button
+                                            variant="outline"
+                                            className="w-full justify-start gap-3 h-11 border-purple-500/30 hover:bg-purple-500/10 text-foreground"
+                                            onClick={() => handleDownloadTemplate("json")}
+                                        >
+                                            <FileCode className="h-5 w-5 text-purple-600" />
+                                            <div className="text-left">
+                                                <div className="text-xs font-bold">Internet Plans JSON Template (.json)</div>
+                                                <div className="text-[10px] text-muted-foreground">Programmatic JSON payload</div>
+                                            </div>
+                                        </Button>
+                                    </div>
+
+                                    <div className="mt-5 p-3.5 bg-muted/40 rounded-lg border border-border text-xs space-y-2">
+                                        <p className="font-semibold text-foreground">Plan Configuration Features:</p>
+                                        <ul className="list-disc list-inside text-muted-foreground space-y-1 text-[11px]">
+                                            <li><span className="font-semibold text-foreground">Organization / Branches:</span> In the <span className="font-mono text-foreground">Organization</span> column, list branch names or codes (e.g. `Arrownet Pvt Ltd (BR-ARROWNET-PVT-LTD), Yatkha (SB-YATKHA)` or `All Branches`). The importer auto-links their IDs into the plan.</li>
+                                            <li><span className="font-semibold text-foreground">Multi-NAS RADIUS:</span> Supports <span className="font-mono text-foreground">cisco, juniper, mikrotik, nokia</span>. Generates dynamic vendor profiles (e.g. `JUNIPER:xFTTH-pp0`), IPv6 delegation pools, and QoS overrides automatically.</li>
+                                            <li><span className="font-semibold text-foreground">Speeds:</span> Supports Download, Upload, INT Upload, FIR Download, Local Upload, and Local Download in Mbps.</li>
+                                            <li><span className="font-semibold text-foreground">FUP & Framed Pools:</span> Supports FUP Limit (GB), FUP Penalty Plan, and Framed Pool names (e.g. `Pool 2 (pool2)`).</li>
+                                        </ul>
+                                    </div>
+                                </CardContainer>
+                            </div>
+                        </div>
+                    </TabsContent>
+
+                    {/* ================= 3. PACKAGES & TARIFFS TAB ================= */}
                     <TabsContent value="packages" className="space-y-6 mt-6">
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                             <div className="lg:col-span-2 space-y-6">
                                 <CardContainer
                                     title="Upload Packages & Tariff Rate Sheet"
-                                    description="Auto-parses bandwidth (e.g. 100Mbps -> 100M/100M), duration prices (1M, 3M, 6M, 12M), and syncs to FreeRADIUS"
+                                    description="Auto-parses duration prices (1M, 3M, 6M, 12M), Internet/Support charges with TSC (10%) and VAT (13%), and connects with Package Plans"
                                 >
                                     <div className="space-y-5">
                                         <div className="flex gap-2 border-b border-border pb-3">
@@ -543,8 +715,8 @@ function ImportHubContent() {
                                                 disabled={loading || parsedRows.length === 0}
                                                 className="gap-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold px-6"
                                             >
-                                                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wifi className="h-4 w-4" />}
-                                                Start Package & Radius Import
+                                                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Layers className="h-4 w-4" />}
+                                                Start Package & Tariff Import
                                             </Button>
                                         </div>
                                     </div>
@@ -592,11 +764,11 @@ function ImportHubContent() {
                                     </div>
 
                                     <div className="mt-5 p-3.5 bg-muted/40 rounded-lg border border-border text-xs space-y-2">
-                                        <p className="font-semibold text-foreground">Speed & Radius Auto-Detection:</p>
+                                        <p className="font-semibold text-foreground">Tariff Calculation Highlights:</p>
                                         <ul className="list-disc list-inside text-muted-foreground space-y-1 text-[11px]">
-                                            <li>If <span className="font-mono text-foreground">Speed</span> column is omitted, the speed is automatically parsed from <span className="font-mono text-foreground">Package Name</span> (e.g. `100 Mbps-A` → `100 Mbps`).</li>
-                                            <li>FreeRADIUS <span className="font-mono text-foreground">Mikrotik-Rate-Limit</span> is automatically generated as `100M/100M`.</li>
-                                            <li>Duration prices for 1M, 3M, 6M, 12M are automatically registered with accurate TSC (10%) and VAT (13%).</li>
+                                            <li><span className="font-semibold text-foreground">Rate Matrix:</span> Parses individual columns for 1M, 3M, 6M, 12M with internet and support charges.</li>
+                                            <li><span className="font-semibold text-foreground">Taxes:</span> Automatically calculates TSC (10%) and VAT (13%) when total amounts are not pre-calculated.</li>
+                                            <li><span className="font-semibold text-foreground">Unique Reference IDs:</span> Auto-assigns unique reference IDs (e.g. `INT-100MBPS1Month`) for flawless billing.</li>
                                         </ul>
                                     </div>
                                 </CardContainer>
@@ -604,7 +776,7 @@ function ImportHubContent() {
                         </div>
                     </TabsContent>
 
-                    {/* ================= LEADS TAB ================= */}
+                    {/* ================= 4. LEADS TAB ================= */}
                     <TabsContent value="leads" className="space-y-6 mt-6">
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                             <div className="lg:col-span-2 space-y-6">
@@ -754,7 +926,7 @@ function ImportHubContent() {
                         </div>
                     </TabsContent>
 
-                    {/* ================= CUSTOMERS TAB (WITH RADIUS) ================= */}
+                    {/* ================= 5. CUSTOMERS TAB (WITH RADIUS) ================= */}
                     <TabsContent value="customers" className="space-y-6 mt-6">
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                             <div className="lg:col-span-2 space-y-6">
@@ -922,151 +1094,198 @@ function ImportHubContent() {
                 {/* ================= DATA PREVIEW TABLE ================= */}
                 {parsedRows.length > 0 && (
                     <CardContainer
-                        title={`Data Preview (${parsedRows.length} Rows)`}
-                        description="Review parsed rows before executing the import"
+                        title={`Data Preview (${parsedRows.length} Rows Detected)`}
+                        description="Review the parsed records before triggering database insertion and RADIUS synchronization"
                     >
-                        <div className="overflow-x-auto max-h-64 overflow-y-auto border border-border rounded-lg">
-                            <table className="w-full text-xs text-left border-collapse">
-                                <thead className="bg-muted/80 sticky top-0 border-b border-border font-semibold text-foreground">
-                                    <tr>
-                                        <th className="p-2.5 w-12 text-center">#</th>
-                                        {Object.keys(parsedRows[0] || {}).map((header) => (
-                                            <th key={header} className="p-2.5 whitespace-nowrap">
-                                                {header}
-                                            </th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border">
-                                    {parsedRows.slice(0, 50).map((row, idx) => (
-                                        <tr key={idx} className="hover:bg-muted/30">
-                                            <td className="p-2 text-center text-muted-foreground font-mono">{idx + 1}</td>
-                                            {Object.keys(parsedRows[0] || {}).map((header) => (
-                                                <td key={header} className="p-2 truncate max-w-[200px] text-foreground">
-                                                    {String(row[header] ?? "")}
-                                                </td>
-                                            ))}
+                        <div className="space-y-4">
+                            <div className="border border-border rounded-xl overflow-hidden max-h-96 overflow-y-auto">
+                                <table className="w-full text-xs text-left">
+                                    <thead className="bg-muted/80 text-muted-foreground font-semibold sticky top-0 border-b border-border">
+                                        <tr>
+                                            <th className="p-3">#</th>
+                                            {Object.keys(parsedRows[0] || {})
+                                                .slice(0, 8)
+                                                .map((key) => (
+                                                    <th key={key} className="p-3 font-mono">
+                                                        {key}
+                                                    </th>
+                                                ))}
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody className="divide-y divide-border">
+                                        {parsedRows.slice(0, 10).map((row, idx) => (
+                                            <tr key={idx} className="hover:bg-muted/30 transition-colors">
+                                                <td className="p-3 text-muted-foreground font-mono">{idx + 1}</td>
+                                                {Object.keys(parsedRows[0] || {})
+                                                    .slice(0, 8)
+                                                    .map((key) => (
+                                                        <td key={key} className="p-3 text-foreground max-w-[200px] truncate">
+                                                            {String(row[key] ?? "")}
+                                                        </td>
+                                                    ))}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {parsedRows.length > 10 && (
+                                <p className="text-[11px] text-muted-foreground text-center">
+                                    Showing first 10 rows of {parsedRows.length} total rows.
+                                </p>
+                            )}
                         </div>
-                        {parsedRows.length > 50 && (
-                            <p className="text-xs text-muted-foreground mt-2 text-right italic">
-                                Showing preview of first 50 rows out of {parsedRows.length} total.
-                            </p>
-                        )}
                     </CardContainer>
                 )}
 
-                {/* ================= ROW-BY-ROW EXECUTION LOGS ================= */}
+                {/* ================= LIVE EXECUTION LOGS ================= */}
                 {logs.length > 0 && (
                     <CardContainer
-                        title="Import Execution Logs"
-                        description="Detailed row-by-row confirmation of CMS and FreeRADIUS database operations"
+                        title="Import Execution Summary & Live Logs"
+                        description="Detailed row-by-row status of created, updated, skipped, and failed entities"
                     >
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                            <div className="bg-muted/40 p-3 rounded-lg border border-border text-center">
-                                <span className="text-xs text-muted-foreground font-medium">Total Processed</span>
-                                <p className="text-xl font-bold text-foreground">{counts.total}</p>
-                            </div>
-                            <div className="bg-emerald-500/10 p-3 rounded-lg border border-emerald-500/20 text-center">
-                                <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Success</span>
-                                <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{counts.success}</p>
-                            </div>
-                            <div className="bg-amber-500/10 p-3 rounded-lg border border-amber-500/20 text-center">
-                                <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">Skipped / Exists</span>
-                                <p className="text-xl font-bold text-amber-600 dark:text-amber-400">{counts.skipped}</p>
-                            </div>
-                            <div className="bg-destructive/10 p-3 rounded-lg border border-destructive/20 text-center">
-                                <span className="text-xs text-destructive font-medium">Failed / Errors</span>
-                                <p className="text-xl font-bold text-destructive">{counts.failed}</p>
-                            </div>
-                        </div>
-
-                        <div className="flex flex-col sm:flex-row gap-3 justify-between items-center mb-3">
-                            <div className="flex gap-1.5 bg-muted/60 p-1 rounded-lg">
-                                <Button
-                                    variant={logFilter === "all" ? "default" : "ghost"}
-                                    size="sm"
-                                    className="h-7 text-xs px-2.5"
-                                    onClick={() => setLogFilter("all")}
-                                >
-                                    All ({counts.total})
-                                </Button>
-                                <Button
-                                    variant={logFilter === "success" ? "default" : "ghost"}
-                                    size="sm"
-                                    className="h-7 text-xs px-2.5 text-emerald-600"
-                                    onClick={() => setLogFilter("success")}
-                                >
-                                    Success ({counts.success})
-                                </Button>
-                                <Button
-                                    variant={logFilter === "skipped" ? "default" : "ghost"}
-                                    size="sm"
-                                    className="h-7 text-xs px-2.5 text-amber-600"
-                                    onClick={() => setLogFilter("skipped")}
-                                >
-                                    Skipped ({counts.skipped})
-                                </Button>
-                                <Button
-                                    variant={logFilter === "failed" ? "default" : "ghost"}
-                                    size="sm"
-                                    className="h-7 text-xs px-2.5 text-destructive"
-                                    onClick={() => setLogFilter("failed")}
-                                >
-                                    Errors ({counts.failed})
-                                </Button>
-                            </div>
-
-                            <div className="flex gap-2 w-full sm:w-auto">
-                                <div className="relative flex-1 sm:w-64">
-                                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                                    <Input
-                                        placeholder="Filter logs..."
-                                        value={logSearch}
-                                        onChange={(e) => setLogSearch(e.target.value)}
-                                        className="h-8 pl-8 text-xs bg-background"
-                                    />
+                        <div className="space-y-4">
+                            {/* Summary Badges */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <div className="p-3 rounded-lg bg-muted/40 border border-border">
+                                    <p className="text-xs text-muted-foreground">Total Rows</p>
+                                    <p className="text-xl font-bold text-foreground mt-0.5">{counts.total}</p>
                                 </div>
-                                <Button variant="outline" size="sm" onClick={copyLogsToClipboard} className="h-8 gap-1.5 text-xs">
-                                    <Copy className="h-3.5 w-3.5" />
-                                    Copy
-                                </Button>
+                                <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                                    <p className="text-xs text-emerald-600 dark:text-emerald-400">Success</p>
+                                    <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                                        {counts.success}
+                                    </p>
+                                </div>
+                                <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                                    <p className="text-xs text-amber-600 dark:text-amber-400">Skipped</p>
+                                    <p className="text-xl font-bold text-amber-600 dark:text-amber-400 mt-0.5">
+                                        {counts.skipped}
+                                    </p>
+                                </div>
+                                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                                    <p className="text-xs text-red-600 dark:text-red-400">Failed</p>
+                                    <p className="text-xl font-bold text-red-600 dark:text-red-400 mt-0.5">
+                                        {counts.failed}
+                                    </p>
+                                </div>
                             </div>
-                        </div>
 
-                        <div className="bg-slate-950 text-slate-100 font-mono rounded-lg p-4 max-h-96 overflow-y-auto divide-y divide-slate-800 text-xs border border-slate-800 shadow-inner">
-                            {filteredLogs.length === 0 ? (
-                                <p className="text-slate-500 italic py-4 text-center">No logs match the current filter.</p>
-                            ) : (
-                                filteredLogs.map((log) => {
-                                    const isSuccess = log.status === "success"
-                                    const isSkipped = log.status === "skipped"
+                            {/* Log Filters & Search */}
+                            <div className="flex flex-col sm:flex-row gap-2 justify-between items-center">
+                                <div className="flex gap-1.5 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+                                    <Button
+                                        size="sm"
+                                        variant={logFilter === "all" ? "default" : "outline"}
+                                        onClick={() => setLogFilter("all")}
+                                        className="text-xs h-8"
+                                    >
+                                        All ({counts.total})
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant={logFilter === "success" ? "default" : "outline"}
+                                        onClick={() => setLogFilter("success")}
+                                        className="text-xs h-8 text-emerald-600"
+                                    >
+                                        Success ({counts.success})
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant={logFilter === "skipped" ? "default" : "outline"}
+                                        onClick={() => setLogFilter("skipped")}
+                                        className="text-xs h-8 text-amber-600"
+                                    >
+                                        Skipped ({counts.skipped})
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant={logFilter === "failed" ? "default" : "outline"}
+                                        onClick={() => setLogFilter("failed")}
+                                        className="text-xs h-8 text-red-600"
+                                    >
+                                        Failed ({counts.failed})
+                                    </Button>
+                                </div>
 
-                                    return (
-                                        <div key={log.rowNumber} className="py-2.5 flex items-start gap-3">
-                                            <span className="text-slate-500 shrink-0 font-bold">#{log.rowNumber}</span>
-                                            <span
-                                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase shrink-0 ${
-                                                    isSuccess
-                                                        ? "bg-emerald-950 text-emerald-400 border border-emerald-800"
-                                                        : isSkipped
-                                                        ? "bg-amber-950 text-amber-400 border border-amber-800"
-                                                        : "bg-rose-950 text-rose-400 border border-rose-800"
+                                <div className="flex gap-2 w-full sm:w-auto">
+                                    <div className="relative w-full sm:w-64">
+                                        <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                                        <Input
+                                            placeholder="Search log output..."
+                                            value={logSearch}
+                                            onChange={(e) => setLogSearch(e.target.value)}
+                                            className="pl-8 text-xs h-8"
+                                        />
+                                    </div>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={copyLogsToClipboard}
+                                        className="h-8 gap-1.5 text-xs shrink-0"
+                                    >
+                                        <Copy className="h-3.5 w-3.5" />
+                                        Copy Logs
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {/* Logs Container */}
+                            <div className="rounded-xl border border-border bg-card overflow-hidden">
+                                <div className="max-h-[420px] overflow-y-auto divide-y divide-border">
+                                    {filteredLogs.length === 0 ? (
+                                        <div className="p-8 text-center text-xs text-muted-foreground">
+                                            No logs match the current filter criteria
+                                        </div>
+                                    ) : (
+                                        filteredLogs.map((log, idx) => (
+                                            <div
+                                                key={idx}
+                                                className={`p-3 text-xs flex items-start gap-3 transition-colors ${
+                                                    log.status === "failed"
+                                                        ? "bg-red-500/5 hover:bg-red-500/10"
+                                                        : log.status === "skipped"
+                                                        ? "bg-amber-500/5 hover:bg-amber-500/10"
+                                                        : "hover:bg-muted/30"
                                                 }`}
                                             >
-                                                {log.status}
-                                            </span>
-                                            <div className="flex-1 min-w-0">
-                                                <span className="font-semibold text-slate-200 mr-2">{log.name}:</span>
-                                                <span className="text-slate-400">{log.message}</span>
+                                                <div className="shrink-0 mt-0.5">
+                                                    {log.status === "success" && (
+                                                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                                                    )}
+                                                    {log.status === "skipped" && (
+                                                        <AlertCircle className="h-4 w-4 text-amber-600" />
+                                                    )}
+                                                    {log.status === "failed" && (
+                                                        <AlertCircle className="h-4 w-4 text-red-600" />
+                                                    )}
+                                                </div>
+
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-mono text-[11px] text-muted-foreground">
+                                                            Row #{log.rowNumber}
+                                                        </span>
+                                                        <span className="font-semibold text-foreground truncate">
+                                                            {log.name}
+                                                        </span>
+                                                    </div>
+                                                    <p
+                                                        className={`text-[11px] mt-0.5 ${
+                                                            log.status === "failed"
+                                                                ? "text-red-600 dark:text-red-400"
+                                                                : log.status === "skipped"
+                                                                ? "text-amber-600 dark:text-amber-400"
+                                                                : "text-muted-foreground"
+                                                        }`}
+                                                    >
+                                                        {log.message}
+                                                    </p>
+                                                </div>
                                             </div>
-                                        </div>
-                                    )
-                                })
-                            )}
+                                        ))
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     </CardContainer>
                 )}
@@ -1077,14 +1296,7 @@ function ImportHubContent() {
 
 export default function ImportHubPage() {
     return (
-        <Suspense fallback={
-            <DashboardLayout>
-                <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <p className="text-sm text-muted-foreground">Loading Import Hub...</p>
-                </div>
-            </DashboardLayout>
-        }>
+        <Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">Loading Import Hub...</div>}>
             <ImportHubContent />
         </Suspense>
     )
