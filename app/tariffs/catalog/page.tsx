@@ -13,8 +13,7 @@ export default function TariffCatalogPage() {
           description="Manage service plans and pricing"
           actions={[
             { label: "Create Plan", href: "/tariffs/edit" },
-            { label: "Import", href: "#" },
-            { label: "Export", href: "#" },
+            { label: "Import Packages", href: "/import?type=packages" },
           ]}
         />
 

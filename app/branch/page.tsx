@@ -2,7 +2,7 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { PageHeader } from "@/components/ui/page-header"
 import BranchForm from "@/components/branch/branch-form"
 import { BranchStatsCards } from "@/components/branch/branch-stat-cards"
-import { Building, Users, MapPin, BarChart3 } from "lucide-react"
+import { Building, Users, MapPin, BarChart3, Upload } from "lucide-react"
 
 export default function BranchesPage() {
     return (
@@ -17,6 +17,11 @@ export default function BranchesPage() {
                         { label: "Branches", href: "/dashboard/branches" },
                     ]}
                     actions={[
+                        {
+                            label: "Import Branches",
+                            href: "/import?type=branches",
+                            icon: <Upload className="mr-2 h-4 w-4" />
+                        },
                         {
                             label: "Customer",
                             href: "/customers/list",

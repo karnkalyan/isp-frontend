@@ -128,6 +128,7 @@ const menuCategories: MenuCategory[] = [
         permission: "branches_read",
         submenu: [
           { title: "Branches", href: "/branch", permission: "branches_read" },
+          { title: "Import Branches", href: "/import?type=branches", permission: "branches_create" },
         ],
       },
       {
@@ -372,6 +373,7 @@ const menuCategories: MenuCategory[] = [
         submenu: [
           { title: "System Settings", href: "/master-settings", permission: "settings_read" },
           { title: "Package Settings", href: "/dashboard/settings", permission: "settings_read" },
+          { title: "Data Import Hub", href: "/import", permission: "settings_read" },
         ],
       },
       {
