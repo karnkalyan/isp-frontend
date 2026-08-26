@@ -138,6 +138,21 @@ function ImportHubContent() {
     const [tscPercentage, setTscPercentage] = useState<number>(10)
     const [addonCharges, setAddonCharges] = useState<any[]>([])
 
+    const dynamicPackagePlaceholder = useMemo(() => {
+        const itemNames = addonCharges.length > 0
+            ? addonCharges.map(a => a.name || a.code)
+            : ["Internet", "Support and Maintenance", "Drop Wire", "Douplex Router"]
+        const durTiers = ["1M", "3M", "6M", "12M"]
+        const colList: string[] = ["Plan Name", "Package Reference Name", "Speed (Mbps)"]
+        durTiers.forEach(dur => {
+            colList.push(`${dur} Enabled`, `${dur} Online`)
+            itemNames.forEach(name => colList.push(`${dur} ${name}`))
+        })
+        const headerLine = colList.join(",")
+        const sampleLine1 = `100 Mbps,Premium Fiber 100M,100,` + durTiers.map((dur, dIdx) => `TRUE,${dIdx === 3 ? 'TRUE' : 'FALSE'},` + itemNames.map(() => `500`).join(',')).join(',')
+        return `${headerLine}\n${sampleLine1}`
+    }, [addonCharges])
+
     // Load available speed plans, addon inventory items, and ISP tax settings
     useEffect(() => {
         apiRequest<{ id: number; planName: string }[]>("/pkgplan")
@@ -832,7 +847,7 @@ function ImportHubContent() {
                                                             {fileName ? fileName : "Click to select or drag & drop Tariff Rate Sheet"}
                                                         </p>
                                                         <p className="text-xs text-muted-foreground mt-1">
-                                                            Supports 1M, 3M, 6M, 12M rate matrix with Internet, Support, Drop Wire, Router
+                                                            Supports 1M, 3M, 6M, 12M rate matrix with dynamic inventory items from your catalog
                                                         </p>
                                                     </div>
                                                 </label>
@@ -841,7 +856,7 @@ function ImportHubContent() {
                                             <div className="space-y-2">
                                                 <Label className="text-xs font-semibold">Paste Tariff CSV or JSON Array</Label>
                                                 <Textarea
-                                                    placeholder="Plan Name,Package Reference Name,Speed (Mbps),1M Enabled,1M Online,1M Internet,1M Support,1M Drop Wire,1M Douplex Router,3M Enabled,3M Online,3M Internet,3M Support,3M Drop Wire,3M Douplex Router,6M Enabled,6M Online,6M Internet,6M Support,6M Drop Wire,6M Douplex Router,12M Enabled,12M Online,12M Internet,12M Support,12M Drop Wire,12M Douplex Router&#10;100 Mbps,Premium Fiber 100M,100,TRUE,FALSE,500,500,0,0,TRUE,FALSE,1400,1400,0,0,TRUE,FALSE,2700,2700,0,0,TRUE,TRUE,5200,5200,0,0&#10;50 Mbps,Standard Fiber 50M,50,TRUE,FALSE,420,420,0,0,TRUE,FALSE,1200,1200,0,0,TRUE,FALSE,2300,2300,0,0,TRUE,FALSE,4400,4400,0,0"
+                                                    placeholder={dynamicPackagePlaceholder}
                                                     rows={6}
                                                     value={rawText}
                                                     onChange={(e) => setRawText(e.target.value)}
@@ -1121,7 +1136,7 @@ function ImportHubContent() {
                             </div>
 
                             <div className="space-y-6">
-                                <CardContainer title="Download Tariff Templates" description="Pre-filled with Package Creation rate sheets (100Mbps, 50Mbps, 25Mbps)">
+                                <CardContainer title="Download Tariff Templates" description="Pre-filled with dynamic rate sheets from your inventory package addon charges">
                                     <div className="space-y-3">
                                         <Button
                                             variant="outline"
@@ -1131,7 +1146,7 @@ function ImportHubContent() {
                                             <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
                                             <div className="text-left">
                                                 <div className="text-xs font-bold">Tariff Excel Template (.xlsx)</div>
-                                                <div className="text-[10px] text-muted-foreground">1M, 3M, 6M, 12M rate matrix & items</div>
+                                                <div className="text-[10px] text-muted-foreground">1M, 3M, 6M, 12M rate matrix with dynamic inventory items</div>
                                             </div>
                                         </Button>
 
@@ -1143,7 +1158,7 @@ function ImportHubContent() {
                                             <FileText className="h-5 w-5 text-blue-600" />
                                             <div className="text-left">
                                                 <div className="text-xs font-bold">Tariff CSV Template (.csv)</div>
-                                                <div className="text-[10px] text-muted-foreground">Standard rate breakdown with items</div>
+                                                <div className="text-[10px] text-muted-foreground">Standard rate breakdown with dynamic inventory items</div>
                                             </div>
                                         </Button>
 
@@ -1165,7 +1180,7 @@ function ImportHubContent() {
                                         <ul className="list-disc list-inside text-muted-foreground space-y-1 text-[11px]">
                                             <li><span className="font-semibold text-foreground">No Manual Taxes Needed:</span> TSC (10%) and VAT (13%) are automatically computed from item rules—no tax columns needed in your rate sheet!</li>
                                             <li><span className="font-semibold text-foreground">Duration Tiers:</span> Supports 1M, 3M, 6M, and 12M with separate <span className="font-mono text-foreground">Enabled</span> and <span className="font-mono text-foreground">Online</span> status flags.</li>
-                                            <li><span className="font-semibold text-foreground">Item Breakdown:</span> Supports Internet, Support & Maintenance, Drop Wire, and Douplex Router charges per duration tier.</li>
+                                            <li><span className="font-semibold text-foreground">Dynamic Item Breakdown:</span> Automatically generates columns for all active Inventory Items for Package Addon Charges (e.g. Internet, Support, Drop Wire, Douplex Router, NetTV, etc.) with custom item amounts.</li>
                                             <li><span className="font-semibold text-foreground">Billing & RADIUS Synced:</span> Auto-creates unique reference IDs and synchronizes seamlessly with FreeRADIUS & Nepurix/Billing services.</li>
                                         </ul>
                                     </div>
