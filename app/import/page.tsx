@@ -1463,7 +1463,7 @@ function ImportHubContent() {
                                             <div className="bg-muted/40 p-4 rounded-lg flex items-center justify-between border border-border">
                                                 <div>
                                                     <p className="text-sm font-semibold text-foreground">Skip Existing Customers</p>
-                                                    <p className="text-xs text-muted-foreground">Skip if Customer ID or username already exists</p>
+                                                    <p className="text-xs text-muted-foreground">Skip if subscriber username or phone already exists</p>
                                                 </div>
                                                 <Switch checked={skipExisting} onCheckedChange={setSkipExisting} />
                                             </div>
