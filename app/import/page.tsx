@@ -139,18 +139,17 @@ function ImportHubContent() {
     const [addonCharges, setAddonCharges] = useState<any[]>([])
 
     const dynamicPackagePlaceholder = useMemo(() => {
-        const itemNames = addonCharges.length > 0
-            ? addonCharges.map(a => a.name || a.code)
-            : ["Internet", "Support and Maintenance", "Drop Wire", "Douplex Router"]
-        const durTiers = ["1M", "3M", "6M", "12M"]
-        const colList: string[] = ["Plan Name", "Package Reference Name", "Speed (Mbps)"]
-        durTiers.forEach(dur => {
-            colList.push(`${dur} Enabled`, `${dur} Online`)
-            itemNames.forEach(name => colList.push(`${dur} ${name}`))
-        })
-        const headerLine = colList.join(",")
-        const sampleLine1 = `100 Mbps,Premium Fiber 100M,100,` + durTiers.map((dur, dIdx) => `TRUE,${dIdx === 3 ? 'TRUE' : 'FALSE'},` + itemNames.map(() => `500`).join(',')).join(',')
-        return `${headerLine}\n${sampleLine1}`
+        const itemSamples = addonCharges.length > 0
+            ? addonCharges.map(a => `${a.name || a.code}: ${a.amount || (a.isRenewal ? 500 : 0)}`).join(", ")
+            : "Internet: 500, Support And Maintance: 500, Drop Wire: 0, Douplex Router: 0"
+        
+        return [
+            "Plan Name,Package Reference Name,Duration,Enabled,Online,Package Items",
+            `100 Mbps,Premium Fiber 100M,1 Month,TRUE,FALSE,"${itemSamples}"`,
+            `100 Mbps,Premium Fiber 100M,3 Months,TRUE,FALSE,"${itemSamples}"`,
+            `100 Mbps,Premium Fiber 100M,6 Months,TRUE,FALSE,"${itemSamples}"`,
+            `100 Mbps,Premium Fiber 100M,12 Months,TRUE,TRUE,"${itemSamples}"`
+        ].join("\n")
     }, [addonCharges])
 
     // Load available speed plans, addon inventory items, and ISP tax settings
@@ -906,10 +905,52 @@ function ImportHubContent() {
                                                             { name: "12 Months", prefixes: ['12m', '12 months', '12_months', '12months', '1 year', '1_year', '1year', '12 month', '12_m'] }
                                                         ];
 
+                                                        const rowDurationRaw = (row.duration || row['Duration'] || row.period || row['Period'] || row.tier || row['Tier'] || '').toString().trim().toLowerCase();
+
                                                         const tiers = DURATIONS_DEF.map(dConf => {
                                                             let enabled = true;
                                                             let online = false;
                                                             const itemsMap = new Map<number, { addon: any; amount: number }>();
+
+                                                            const isSingleTierRow = Boolean(rowDurationRaw);
+                                                            const matchesThisDuration = isSingleTierRow && dConf.prefixes.some(p => {
+                                                                const cleanP = p.replace(/[^a-z0-9]/g, '');
+                                                                const cleanD = rowDurationRaw.replace(/[^a-z0-9]/g, '');
+                                                                return cleanD === cleanP || cleanD.startsWith(cleanP);
+                                                            });
+
+                                                            // If this row is a single-tier row for another duration, mark unconfigured
+                                                            if (isSingleTierRow && !matchesThisDuration) {
+                                                                return {
+                                                                    dur: dConf.name,
+                                                                    enabled: false,
+                                                                    online: false,
+                                                                    items: [],
+                                                                    recurringBase: 0,
+                                                                    totalTsc: 0,
+                                                                    itemsSum: 0,
+                                                                    initialTotal: 0,
+                                                                    renewTotal: 0
+                                                                };
+                                                            }
+
+                                                            if (isSingleTierRow) {
+                                                                enabled = parseBool(row.enabled ?? row['Enabled'] ?? row.active ?? row['Active'] ?? row.status ?? row['Status'], true);
+                                                                online = parseBool(row.online ?? row['Online'] ?? row.isOnline ?? row['Is Online'], false);
+                                                                const rawItems = row.packageItems || row['Package Items'] || row.items || row['Items'] || row.addons || row['Addon Charges'] || row['Item Charges'];
+                                                                if (rawItems && typeof rawItems === 'string') {
+                                                                    const parts = rawItems.split(/[\n\r,;|]+/);
+                                                                    for (const part of parts) {
+                                                                        const [k, v] = part.split(/[:=]+/);
+                                                                        if (k) {
+                                                                            const matched = findMatchingAddon(k.trim(), addonCharges);
+                                                                            if (matched) {
+                                                                                itemsMap.set(matched.id, { addon: matched, amount: parseFloat(v ? v.trim() : '0') || (matched.amount || 0) });
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
 
                                                             for (const [rawColKey, rawVal] of Object.entries(row)) {
                                                                 if (rawVal === undefined || rawVal === null || rawVal === '') continue;
@@ -927,7 +968,15 @@ function ImportHubContent() {
                                                                     }
                                                                 }
 
-                                                                if (!matchedPrefix) continue;
+                                                                if (!matchedPrefix) {
+                                                                    if (isSingleTierRow) {
+                                                                        const matchedAddon = findMatchingAddon(colKey, addonCharges);
+                                                                        if (matchedAddon && !itemsMap.has(matchedAddon.id)) {
+                                                                            itemsMap.set(matchedAddon.id, { addon: matchedAddon, amount: parseFloat(rawVal as string) || 0 });
+                                                                        }
+                                                                    }
+                                                                    continue;
+                                                                }
 
                                                                 const suffix = colKey.slice(matchedPrefix.length).replace(/^[\s_:-]+/, '').trim();
                                                                 const normSuffix = suffix.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -942,7 +991,7 @@ function ImportHubContent() {
                                                                     continue;
                                                                 }
 
-                                                                if (['items', 'addons', 'charges', 'itemlist'].includes(normSuffix)) {
+                                                                if (['items', 'addons', 'charges', 'itemlist', 'packageitems'].includes(normSuffix)) {
                                                                     try {
                                                                         if (typeof rawVal === 'object') {
                                                                             for (const [k, v] of Object.entries(rawVal as Record<string, any>)) {
@@ -952,13 +1001,13 @@ function ImportHubContent() {
                                                                                 }
                                                                             }
                                                                         } else if (typeof rawVal === 'string') {
-                                                                            const parts = (rawVal as string).split(/[;,|]+/);
+                                                                            const parts = (rawVal as string).split(/[\n\r,;|]+/);
                                                                             for (const part of parts) {
                                                                                 const [k, v] = part.split(/[:=]+/);
-                                                                                if (k && v !== undefined) {
+                                                                                if (k) {
                                                                                     const matched = findMatchingAddon(k.trim(), addonCharges);
                                                                                     if (matched) {
-                                                                                        itemsMap.set(matched.id, { addon: matched, amount: parseFloat(v.trim()) || 0 });
+                                                                                        itemsMap.set(matched.id, { addon: matched, amount: parseFloat(v ? v.trim() : '0') || 0 });
                                                                                     }
                                                                                 }
                                                                             }
