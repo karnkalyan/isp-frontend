@@ -56,7 +56,7 @@ type LogItem = {
     message: string
 }
 
-type TabType = "branches" | "plans" | "packages" | "leads" | "customers"
+type TabType = "branches" | "plans" | "packages" | "leads" | "customers" | "olts"
 
 /**
  * Universal Item Matcher for Package Addon Charges
@@ -116,7 +116,7 @@ function ImportHubContent() {
     const router = useRouter()
 
     const paramType = searchParams ? (searchParams.get("type") as TabType) : "branches"
-    const initialType: TabType = ["branches", "plans", "packages", "leads", "customers"].includes(paramType)
+    const initialType: TabType = ["branches", "plans", "packages", "leads", "customers", "olts"].includes(paramType)
         ? paramType
         : "branches"
 
@@ -301,6 +301,7 @@ function ImportHubContent() {
             else if (activeTab === "packages") endpoint = "/import/packages"
             else if (activeTab === "leads") endpoint = "/import/leads"
             else if (activeTab === "customers") endpoint = "/import/customers"
+            else if (activeTab === "olts") endpoint = "/import/olts"
 
             const BATCH_SIZE = 50
             const totalRows = parsedRows.length
@@ -426,7 +427,7 @@ function ImportHubContent() {
 
                 {/* Primary Section Tabs */}
                 <Tabs value={activeTab} onValueChange={(val: any) => handleTabChange(val)} className="w-full">
-                    <TabsList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 w-full h-auto p-1.5 bg-muted/60 rounded-xl gap-1">
+                    <TabsList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 w-full h-auto p-1.5 bg-muted/60 rounded-xl gap-1">
                         <TabsTrigger
                             value="branches"
                             className="gap-2 py-2.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-semibold rounded-lg text-xs sm:text-sm"
@@ -461,6 +462,13 @@ function ImportHubContent() {
                         >
                             <Users className="h-4 w-4" />
                             Customers (RADIUS)
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value="olts"
+                            className="gap-2 py-2.5 data-[state=active]:bg-cyan-600 data-[state=active]:text-white font-semibold rounded-lg text-xs sm:text-sm"
+                        >
+                            <Server className="h-4 w-4" />
+                            OLTs & PON
                         </TabsTrigger>
                     </TabsList>
 
@@ -1546,6 +1554,156 @@ function ImportHubContent() {
                                             <li><span className="font-semibold text-foreground">Single PPPoE / NetTV / Login Username:</span> Uses the same username for Customer Portal login, PPPoE/Radius subscriber, and NetTV IPTV service mapping.</li>
                                             <li><span className="font-semibold text-foreground">Subscription & Billing:</span> Auto-provisions <span className="font-mono text-foreground">CustomerSubscription</span>, creates completed <span className="font-mono text-foreground">CustomerOrderManagement</span> and <span className="font-mono text-foreground">OrderDetail</span> records.</li>
                                             <li><span className="font-semibold text-foreground">FreeRADIUS:</span> Creates <span className="font-mono text-foreground">radcheck</span> with cleartext password and assigns to <span className="font-mono text-foreground">radusergroup</span> with expiry attribute.</li>
+                                        </ul>
+                                    </div>
+                                </CardContainer>
+                            </div>
+                        </div>
+                    </TabsContent>
+
+                    {/* ================= 6. OLTS TAB ================= */}
+                    <TabsContent value="olts" className="space-y-6 mt-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div className="lg:col-span-2 space-y-6">
+                                <CardContainer
+                                    title="Upload Optical Line Terminals (OLTs)"
+                                    description="Provision hardware OLTs with SSH/Telnet credentials, service boards array, VLANs, and profiles"
+                                >
+                                    <div className="space-y-5">
+                                        <div className="flex gap-2 border-b border-border pb-3">
+                                            <Button
+                                                type="button"
+                                                variant={inputMode === "file" ? "default" : "outline"}
+                                                size="sm"
+                                                onClick={() => setInputMode("file")}
+                                                className="gap-1.5"
+                                            >
+                                                <Upload className="h-4 w-4" />
+                                                File Upload (.xlsx, .csv, .json)
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant={inputMode === "paste" ? "default" : "outline"}
+                                                size="sm"
+                                                onClick={() => setInputMode("paste")}
+                                                className="gap-1.5"
+                                            >
+                                                <FileText className="h-4 w-4" />
+                                                Paste Raw CSV / JSON
+                                            </Button>
+                                        </div>
+
+                                        {inputMode === "file" ? (
+                                            <div className="border-2 border-dashed border-border hover:border-cyan-500/50 transition-colors rounded-xl p-8 text-center bg-muted/20">
+                                                <input
+                                                    type="file"
+                                                    id="olt-file-input"
+                                                    className="hidden"
+                                                    accept=".xlsx,.xls,.csv,.json"
+                                                    onChange={handleFileUpload}
+                                                />
+                                                <label htmlFor="olt-file-input" className="cursor-pointer flex flex-col items-center gap-3">
+                                                    <div className="h-12 w-12 rounded-full bg-cyan-500/10 flex items-center justify-center text-cyan-600">
+                                                        <Server className="h-6 w-6" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-semibold text-foreground text-sm">
+                                                            {fileName ? fileName : "Click to select or drag & drop OLTs file"}
+                                                        </p>
+                                                        <p className="text-xs text-muted-foreground mt-1">
+                                                            Supports Huawei, ZTE, VSOL, BDCOM, Fiberhome, Nokia with SSH/Telnet shared passwords and Service Boards array
+                                                        </p>
+                                                    </div>
+                                                </label>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                <Label className="text-xs font-semibold">Paste OLTs CSV or JSON Array</Label>
+                                                <Textarea
+                                                    placeholder="OLT Name,IP Address,Vendor,Model,Status,Branch Name,Username,Password,Default Transport,SSH Port,Telnet Port,Telnet Enabled,Number of Service Boards,Board Type,Ports per Board,Service Boards,VLANs,Line Profiles,Service Profiles&#10;OLT-Charikot-01,192.168.10.10,Huawei,MA5608T,online,Charikot,admin,Admin@12345,ssh,22,23,true,2,GPON,16,[{&quot;slot&quot;:1,&quot;type&quot;:&quot;GPON&quot;,&quot;portCount&quot;:16},{&quot;slot&quot;:2,&quot;type&quot;:&quot;GPON&quot;,&quot;portCount&quot;:16}],101;102;103,LineProfile_100M,ServiceProfile_Internet&#10;OLT-Khadichaur-01,192.168.20.10,ZTE,C320,online,Khadichaur,admin,Admin@12345,ssh,22,23,false,1,GPON,16,[{&quot;slot&quot;:1,&quot;type&quot;:&quot;GPON&quot;,&quot;portCount&quot;:16}],101;102,LineProfile_100M,ServiceProfile_Internet&#10;OLT-Akar-01,192.168.30.10,VSOL,V1600G,online,Arrownet,admin,Admin@12345,ssh,22,23,false,1,EPON,8,[{&quot;slot&quot;:1,&quot;type&quot;:&quot;EPON&quot;,&quot;portCount&quot;:8}],101,LineProfile_50M,ServiceProfile_Internet"
+                                                    rows={6}
+                                                    value={rawText}
+                                                    onChange={(e) => setRawText(e.target.value)}
+                                                    className="font-mono text-xs"
+                                                />
+                                                <Button size="sm" variant="outline" onClick={handleParseRawText}>
+                                                    Parse Pasted Data
+                                                </Button>
+                                            </div>
+                                        )}
+
+                                        <div className="bg-muted/40 p-4 rounded-lg flex items-center justify-between border border-border">
+                                            <div>
+                                                <p className="text-sm font-semibold text-foreground">Skip Existing OLTs</p>
+                                                <p className="text-xs text-muted-foreground">Skip if OLT with same IP Address or Name already exists</p>
+                                            </div>
+                                            <Switch checked={skipExisting} onCheckedChange={setSkipExisting} />
+                                        </div>
+
+                                        <div className="flex items-center justify-between pt-2">
+                                            <p className="text-xs font-medium text-muted-foreground">
+                                                {parsedRows.length > 0 ? `✅ ${parsedRows.length} OLTs ready for import` : "No OLTs loaded yet"}
+                                            </p>
+                                            <Button
+                                                onClick={handleExecuteImport}
+                                                disabled={loading || parsedRows.length === 0}
+                                                className="gap-2 bg-cyan-600 hover:bg-cyan-700 text-white font-semibold px-6"
+                                            >
+                                                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Server className="h-4 w-4" />}
+                                                Start OLT Import
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </CardContainer>
+                            </div>
+
+                            <div className="space-y-6">
+                                <CardContainer title="Download OLT Template" description="Pre-configured template with service board arrays & credentials">
+                                    <div className="space-y-3">
+                                        <Button
+                                            variant="outline"
+                                            className="w-full justify-start gap-3 h-11 border-emerald-500/30 hover:bg-emerald-500/10 text-foreground"
+                                            onClick={() => handleDownloadTemplate("xlsx")}
+                                        >
+                                            <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
+                                            <div className="text-left">
+                                                <div className="text-xs font-bold">OLT Excel Template (.xlsx)</div>
+                                                <div className="text-[10px] text-muted-foreground">Formatted with Service Boards & VLAN columns</div>
+                                            </div>
+                                        </Button>
+
+                                        <Button
+                                            variant="outline"
+                                            className="w-full justify-start gap-3 h-11 border-blue-500/30 hover:bg-blue-500/10 text-foreground"
+                                            onClick={() => handleDownloadTemplate("csv")}
+                                        >
+                                            <FileText className="h-5 w-5 text-blue-600" />
+                                            <div className="text-left">
+                                                <div className="text-xs font-bold">OLT CSV Template (.csv)</div>
+                                                <div className="text-[10px] text-muted-foreground">Standard comma-separated format</div>
+                                            </div>
+                                        </Button>
+
+                                        <Button
+                                            variant="outline"
+                                            className="w-full justify-start gap-3 h-11 border-purple-500/30 hover:bg-purple-500/10 text-foreground"
+                                            onClick={() => handleDownloadTemplate("json")}
+                                        >
+                                            <FileCode className="h-5 w-5 text-purple-600" />
+                                            <div className="text-left">
+                                                <div className="text-xs font-bold">OLT JSON Template (.json)</div>
+                                                <div className="text-[10px] text-muted-foreground">Full JSON schema with ServiceBoard arrays</div>
+                                            </div>
+                                        </Button>
+                                    </div>
+
+                                    <div className="mt-5 p-3.5 bg-muted/40 rounded-lg border border-border text-xs space-y-2">
+                                        <p className="font-semibold text-foreground">OLT Import Specifications:</p>
+                                        <ul className="list-disc list-inside text-muted-foreground space-y-1 text-[11px]">
+                                            <li><span className="font-semibold text-foreground">Unified Password:</span> The password supplied is applied to <span className="font-mono text-foreground">SSH Password</span>, <span className="font-mono text-foreground">SSH Enable Password</span>, and <span className="font-mono text-foreground">Telnet Password</span>.</li>
+                                            <li><span className="font-semibold text-foreground">Service Boards Array:</span> Can be provided as JSON array <span className="font-mono text-foreground">[{`{"slot":1,"type":"GPON","portCount":16}`}]</span> or with separate columns (<span className="font-mono text-foreground">Number of Service Boards</span>, <span className="font-mono text-foreground">Board Type</span>, <span className="font-mono text-foreground">Ports per Board</span>).</li>
+                                            <li><span className="font-semibold text-foreground">VLAN & Profiles Auto-Insert:</span> Automatically inserts missing VLANs into OLT VLAN tables, and registers Line Profiles and Service Profiles.</li>
+                                            <li><span className="font-semibold text-foreground">Multi-Vendor Support:</span> Built for Huawei, ZTE, VSOL, BDCOM, Fiberhome, and Nokia devices.</li>
                                         </ul>
                                     </div>
                                 </CardContainer>
