@@ -1455,7 +1455,7 @@ function ImportHubContent() {
                                             <div className="space-y-2">
                                                 <Label className="text-xs font-semibold">Paste Customers CSV or JSON Array</Label>
                                                 <Textarea
-                                                    placeholder="First Name,Last Name,Phone Number,Email,Address,City,Province,Branch Name,Sub-Branch Name,Customer Type,Service Type,NAS,Package Name,Duration,Plan Start Date,Plan End Date,PPPoE Username,PPPoE Password,OLT Name,OLT Port,Splitter Name,Splitter Port,VLAN ID,VLAN Name,GEM Index,Profile ID,Profile Name,Services,Upstream Bandwidth,Downstream Bandwidth,Device Type,Device Brand,Device Model,Device Serial Number,PON Serial,MAC Address&#10;Prakash,Dahal,9801191325,prakash.dahal@example.com,Bhimeshwor Main Road,Charikot,Bagmati,Charikot,Bhimeshwor,Home,Fiber,Mikrotik-Charikot-01,50 Mbps,3 Months,2026-08-26,2026-11-26,prakash_chk50,User@12345,OLT-Charikot-01,0/1/2,SPL-02,Port 2,527,527_ACS,6,12,KISAN_FTTH,internet; voice; iptv; management,100M,1G,ONT,Huawei,HG8145V5,HWTC782103,HWTC782103,744d.2890.1234&#10;Sunil,Khadka,9802022610,sunil.khadka@example.com,Barhabise Chowk,Sindhupalchok,Bagmati,Khadichaur,Barhabisa Municipality Sindhupalchok,Enterprise,Fiber,Mikrotik-Khadichaur-01,100 Mbps,12 Months,2026-08-26,2027-08-26,sunil_ent100,User@12345,OLT-Khadichaur-01,0/1/3,SPL-03,Port 1,103,103_INTERNET,3,14,ENT_PROFILE,internet; management,100M,1G,ONT,ZTE,F670L,ZTEGC901234,ZTEGC901234,9000.4e55.6677"
+                                                    placeholder="First Name,Last Name,Phone Number,Email,Address,City,Province,Branch Name,Sub-Branch Name,Customer Type,Service Type,NAS,Package Name,Duration,Plan Start Date,Plan End Date,PPPoE Username,PPPoE Password,OLT Name,OLT Port,Splitter Name,Splitter Port,VLAN IDs,VLAN Names,GEM Indices,Line Profile ID,Line Profile Name,Service Profile ID,Service Profile Name,Services,Upstream Bandwidth,Downstream Bandwidth,Device Type,Device Brand,Device Model,Device Serial Number,PON Serial,MAC Address&#10;Prakash,Dahal,9801191325,prakash.dahal@example.com,Bhimeshwor Main Road,Charikot,Bagmati,Charikot,Bhimeshwor,Home,Fiber,Mikrotik-Charikot-01,50 Mbps,3 Months,2026-08-26,2026-11-26,prakash_chk50,User@12345,OLT-Charikot-01,0/1/2,SPL-02,Port 2,527; 528,527_ACS; 528_INTERNET,6; 7,12,KISAN_LINE_100M,12,KISAN_SERV_FTTH,internet; voice; iptv; management,100M,1G,ONT,Huawei,HG8145V5,HWTC782103,HWTC782103,744d.2890.1234&#10;Sunil,Khadka,9802022610,sunil.khadka@example.com,Barhabise Chowk,Sindhupalchok,Bagmati,Khadichaur,Barhabisa Municipality Sindhupalchok,Enterprise,Fiber,Mikrotik-Khadichaur-01,100 Mbps,12 Months,2026-08-26,2027-08-26,sunil_ent100,User@12345,OLT-Khadichaur-01,0/1/3,SPL-03,Port 1,103; 104,103_ENT; 104_MGMT,3; 4,14,ENT_LINE_1G,14,ENT_SERV_1G,internet; management,100M,1G,ONT,ZTE,F670L,ZTEGC901234,ZTEGC901234,9000.4e55.6677"
                                                     rows={6}
                                                     value={rawText}
                                                     onChange={(e) => setRawText(e.target.value)}
@@ -1478,10 +1478,14 @@ function ImportHubContent() {
 
                                             <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-lg flex items-center justify-between">
                                                 <div className="flex items-center gap-2.5">
-                                                    <Server className="h-5 w-5 text-blue-600 shrink-0" />
+                                                    <Server className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
                                                     <div>
-                                                        <p className="text-sm font-semibold text-foreground">Sync to FreeRADIUS</p>
-                                                        <p className="text-xs text-muted-foreground">Create radcheck & radusergroup records</p>
+                                                        <p className="text-sm font-semibold text-blue-900 dark:text-blue-200">
+                                                            Sync with FreeRADIUS
+                                                        </p>
+                                                        <p className="text-xs text-blue-700 dark:text-blue-300">
+                                                            Pushes radcheck and radusergroup subscriber records to FreeRADIUS
+                                                        </p>
                                                     </div>
                                                 </div>
                                                 <Switch checked={syncRadius} onCheckedChange={setSyncRadius} />
@@ -1497,8 +1501,8 @@ function ImportHubContent() {
                                                 disabled={loading || parsedRows.length === 0}
                                                 className="gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6"
                                             >
-                                                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
-                                                Start Customers & Radius Import
+                                                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                                                Start Customer Import
                                             </Button>
                                         </div>
                                     </div>
@@ -1506,7 +1510,7 @@ function ImportHubContent() {
                             </div>
 
                             <div className="space-y-6">
-                                <CardContainer title="Download Customer Template" description="Pre-filled with complete subscriber, inventory & FreeRADIUS format">
+                                <CardContainer title="Download Customer Template" description="Pre-filled with CRM Leads, multiple VLANs, Line/Service profiles, and device inventory">
                                     <div className="space-y-3">
                                         <Button
                                             variant="outline"
@@ -1515,8 +1519,8 @@ function ImportHubContent() {
                                         >
                                             <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
                                             <div className="text-left">
-                                                <div className="text-xs font-bold">Complete Customers Excel Template (.xlsx)</div>
-                                                <div className="text-[10px] text-muted-foreground">Full Lead, Network, Device, PPPoE & Billing columns</div>
+                                                <div className="text-xs font-bold">Customers Excel Template (.xlsx)</div>
+                                                <div className="text-[10px] text-muted-foreground">Complete multi-vlan, profile, and inventory template</div>
                                             </div>
                                         </Button>
 
@@ -1548,11 +1552,11 @@ function ImportHubContent() {
                                     <div className="mt-5 p-3.5 bg-muted/40 rounded-lg border border-border text-xs space-y-2">
                                         <p className="font-semibold text-foreground">Automatic 360° Provisioning Pipeline:</p>
                                         <ul className="list-disc list-inside text-muted-foreground space-y-1 text-[11px]">
-                                            <li><span className="font-semibold text-foreground">Lead Auto-Creation:</span> User information in the template automatically creates or converts CRM Lead records and links <span className="font-mono text-foreground">leadId</span> to the Customer.</li>
-                                            <li><span className="font-semibold text-foreground">Service Connection:</span> Supports <span className="font-mono text-foreground">Fiber</span> (via Splitter or Direct OLT), <span className="font-mono text-foreground">Wireless</span>, and <span className="font-mono text-foreground">Infra Share</span> with NAS selection.</li>
-                                            <li><span className="font-semibold text-foreground">Inventory & Device:</span> Automatically creates devices in <span className="font-mono text-foreground">InventoryItem</span>, updates status to <span className="font-mono text-foreground">ASSIGNED_TO_CUSTOMER</span>, creates <span className="font-mono text-foreground">InventoryLog</span>, and binds <span className="font-mono text-foreground">CustomerDevice</span>.</li>
-                                            <li><span className="font-semibold text-foreground">Single PPPoE / NetTV / Login Username:</span> Uses the same username for Customer Portal login, PPPoE/Radius subscriber, and NetTV IPTV service mapping.</li>
-                                            <li><span className="font-semibold text-foreground">Subscription & Billing:</span> Auto-provisions <span className="font-mono text-foreground">CustomerSubscription</span>, creates completed <span className="font-mono text-foreground">CustomerOrderManagement</span> and <span className="font-mono text-foreground">OrderDetail</span> records.</li>
+                                            <li><span className="font-semibold text-foreground">Dynamic Multiple VLANs:</span> Supports multiple VLANs per customer (<span className="font-mono text-foreground">VLAN IDs: 527, 528</span>, <span className="font-mono text-foreground">VLAN Names: 527_ACS, 528_INTERNET</span>, <span className="font-mono text-foreground">GEM Indices: 6, 7</span>) with auto-creation in OLT tables.</li>
+                                            <li><span className="font-semibold text-foreground">Separate Line & Service Profiles:</span> Supports distinct <span className="font-mono text-foreground">Line Profile ID / Name</span> and <span className="font-mono text-foreground">Service Profile ID / Name</span> with services and bandwidth.</li>
+                                            <li><span className="font-semibold text-foreground">Standard MAC Dot Notation:</span> Formats MAC addresses into <span className="font-mono text-foreground">xxxx.xxxx.xxxx</span>.</li>
+                                            <li><span className="font-semibold text-foreground">Unified Serial Numbers:</span> Assigns same serial number to Device Serial and PON Serial across Inventory and Device mappings.</li>
+                                            <li><span className="font-semibold text-foreground">Local DB Registration:</span> All OLT hardware, profiles, and VLANs are stored locally in the database.</li>
                                             <li><span className="font-semibold text-foreground">FreeRADIUS:</span> Creates <span className="font-mono text-foreground">radcheck</span> with cleartext password and assigns to <span className="font-mono text-foreground">radusergroup</span> with expiry attribute.</li>
                                         </ul>
                                     </div>
