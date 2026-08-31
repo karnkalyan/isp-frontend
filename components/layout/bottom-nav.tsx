@@ -11,7 +11,7 @@ const navItems = [
   {
     title: "Dashboard",
     icon: LayoutDashboard,
-    href: "/",
+    href: "/dashboard/overview",
   },
   {
     title: "Users",
@@ -56,7 +56,7 @@ export function BottomNav() {
   ]
 
   const fieldStaffItems = [
-    { title: "Dashboard", icon: LayoutDashboard, href: "/" },
+    { title: "Dashboard", icon: LayoutDashboard, href: "/dashboard/overview" },
     { title: "Tickets", icon: HelpCircle, href: "/tickets" },
     { title: "Task", icon: ListChecks, href: "/tasks" },
     { title: "Splitter", icon: Cable, href: "/fiber/splitters/nearby" },

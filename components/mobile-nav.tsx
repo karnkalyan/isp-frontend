@@ -3,6 +3,7 @@
 import { BarChart3, CreditCard, LayoutDashboard, Settings, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { usePathname } from "next/navigation"
+import Link from "next/link"
 
 const navItems = [
   {
@@ -41,7 +42,7 @@ export function MobileNav() {
         {navItems.map((item) => {
           const isActive = pathname === item.href
           return (
-            <a
+            <Link
               key={item.title}
               href={item.href}
               className="flex flex-1 flex-col items-center justify-center gap-1"
@@ -51,7 +52,7 @@ export function MobileNav() {
               <span className={cn("text-[10px]", isActive ? "text-primary" : "text-muted-foreground")}>
                 {item.title}
               </span>
-            </a>
+            </Link>
           )
         })}
       </nav>

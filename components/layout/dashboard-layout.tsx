@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import { Navbar } from "@/components/layout/navbar";
 import { Sidebar } from "@/components/layout/sidebar";
 import { BottomNav } from "@/components/layout/bottom-nav";
@@ -52,7 +52,20 @@ const pathPermissionMap: Record<string, string | string[]> = {
   "/admin/audit-log": "audit_log_read",
 };
 
+const DashboardShellContext = createContext(false);
+
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const isInsideSharedShell = useContext(DashboardShellContext);
+
+  // Existing pages still wrap their content in DashboardLayout. Once the
+  // root-level shell is active, those wrappers become transparent so route
+  // changes do not remount the navbar/sidebar and their global API effects.
+  if (isInsideSharedShell) return <>{children}</>;
+
+  return <DashboardLayoutShell>{children}</DashboardLayoutShell>;
+}
+
+function DashboardLayoutShell({ children }: { children: React.ReactNode }) {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -177,20 +190,23 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   }, [user, loading, mounted]);
 
   return (
-    <div
-      className="flex h-full"
-      style={{ backgroundColor: "var(--theme-bg)", color: "var(--theme-text)" }}
-      data-theme={mounted ? (isDarkMode ? "dark" : "light") : undefined}
-      suppressHydrationWarning
-    >
-      {!useMobilePortalLayout && <Sidebar open={sidebarOpen} setOpen={setSidebarOpen} />}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {!useMobilePortalLayout && <Navbar onMenuClick={() => setSidebarOpen((o) => !o)} />}
-        <main className="flex-1 overflow-auto p-3 pb-24 sm:p-4 md:p-6 md:pb-6">
-          {isAuthorized ? children : <div className="flex items-center justify-center h-full">Redirecting...</div>}
-        </main>
-        {isMobile && <BottomNav />}
+    <DashboardShellContext.Provider value={true}>
+      <div
+        className="flex h-full"
+        style={{ backgroundColor: "var(--theme-bg)", color: "var(--theme-text)" }}
+        data-theme={mounted ? (isDarkMode ? "dark" : "light") : undefined}
+        data-dashboard-shell="shared"
+        suppressHydrationWarning
+      >
+        {!useMobilePortalLayout && <Sidebar open={sidebarOpen} setOpen={setSidebarOpen} />}
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {!useMobilePortalLayout && <Navbar onMenuClick={() => setSidebarOpen((o) => !o)} />}
+          <main className="flex-1 overflow-auto p-3 pb-24 sm:p-4 md:p-6 md:pb-6">
+            {isAuthorized ? children : <div className="flex items-center justify-center h-full">Redirecting...</div>}
+          </main>
+          {isMobile && <BottomNav />}
+        </div>
       </div>
-    </div>
+    </DashboardShellContext.Provider>
   );
 }

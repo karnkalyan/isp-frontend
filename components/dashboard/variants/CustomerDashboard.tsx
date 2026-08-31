@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import Link from "next/link"
 
 function formatBytes(val: any) {
   if (val === "N/A" || val === undefined || val === null) return "N/A";
@@ -623,9 +624,9 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild className="gap-2">
-            <a href="/messages">
+            <Link href="/messages">
               <MessageSquare className="h-4 w-4" /> Chat with Support
-            </a>
+            </Link>
           </Button>
           <Badge variant={String(profile.status).toLowerCase() === "active" ? "success" : "secondary"} className="px-3 py-1">
             {profile.status || "unknown"}
@@ -1702,9 +1703,9 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild className="gap-2">
-            <a href="/messages">
+            <Link href="/messages">
               <MessageSquare className="h-4 w-4" /> Chat with Support
-            </a>
+            </Link>
           </Button>
           <Badge variant={String(profile.status).toLowerCase() === "active" ? "success" : "secondary"}>
             {profile.status || "unknown"}
@@ -1732,7 +1733,7 @@ export function CustomerDashboard({ initialTab = "overview" }: CustomerDashboard
             <div className="text-2xl font-bold">{activeTickets.length}</div>
             <p className="text-xs text-muted-foreground">active support tickets</p>
             <Button asChild size="sm" variant="outline" className="mt-2 w-full gap-2">
-              <a href="/messages"><MessageSquare className="h-4 w-4" /> Chat</a>
+              <Link href="/messages"><MessageSquare className="h-4 w-4" /> Chat</Link>
             </Button>
           </div>
         </CardContainer>

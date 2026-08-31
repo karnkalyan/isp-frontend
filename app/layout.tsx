@@ -8,6 +8,7 @@ import { WebSocketProvider } from "@/contexts/WebSocketContext";
 import { BranchProvider } from "@/contexts/BranchContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { LicenseExpiredModal } from "@/components/license-expired-modal";
+import { RootDashboardShell } from "@/components/layout/root-dashboard-shell";
 
 export const metadata: Metadata = {
   title: "Radius Manager - ISP Dashboard",
@@ -83,7 +84,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AuthProvider>
             <WebSocketProvider>
               <BranchProvider>
-                {children}
+                <RootDashboardShell>{children}</RootDashboardShell>
               </BranchProvider>
               <LicenseExpiredModal />
               <Toaster

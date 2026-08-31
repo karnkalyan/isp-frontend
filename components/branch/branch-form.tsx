@@ -43,6 +43,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { apiRequest } from "@/lib/api"
 import { useConfirmToast } from "@/hooks/use-confirm-toast"
+import Link from "next/link"
 import { BranchStatsCards } from "./branch-stat-cards"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/contexts/AuthContext"
@@ -1184,11 +1185,13 @@ export default function BranchForm() {
                                                                     <Button
                                                                         variant="ghost"
                                                                         size="icon"
-                                                                        onClick={() => window.location.href = `/branch/${branch.id}/settings`}
+                                                                        asChild
                                                                         className="h-7 w-7 text-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-500/20"
                                                                         title="Branch Settings"
                                                                     >
-                                                                        <Settings className="h-3.5 w-3.5" />
+                                                                        <Link href={`/branch/${branch.id}/settings`}>
+                                                                            <Settings className="h-3.5 w-3.5" />
+                                                                        </Link>
                                                                     </Button>
                                                                 )}
                                                                 <Button

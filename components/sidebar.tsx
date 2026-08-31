@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/sidebar"
 import { usePathname } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
+import Link from "next/link"
 
 const menuItems = [
   {
@@ -109,12 +110,12 @@ export function Sidebar() {
             return (
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton asChild isActive={isActive} tooltip={item.title}>
-                  <a href={item.href} className="group">
+                  <Link href={item.href} className="group">
                     <item.icon
                       className={`transition-all duration-200 ${isActive ? "text-primary drop-shadow-[0_0_8px_rgba(16,185,129,0.4)]" : "group-hover:text-primary group-hover:drop-shadow-[0_0_8px_rgba(16,185,129,0.4)]"}`}
                     />
                     <span>{item.title}</span>
-                  </a>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             )

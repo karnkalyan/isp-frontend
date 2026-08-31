@@ -4,6 +4,7 @@ import type React from "react"
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import {
   Building,
   Globe,
@@ -681,13 +682,13 @@ export function ISPRegistrationFormWithSettings() {
                   />
                   <Label htmlFor="agreeToTerms" className="text-sm">
                     I agree to the{" "}
-                    <a href="/terms" className="text-primary hover:underline">
+                    <Link href="/terms" className="text-primary hover:underline">
                       Terms of Service
-                    </a>{" "}
+                    </Link>{" "}
                     and{" "}
-                    <a href="/privacy" className="text-primary hover:underline">
+                    <Link href="/privacy" className="text-primary hover:underline">
                       Privacy Policy
-                    </a>
+                    </Link>
                   </Label>
                 </div>
 

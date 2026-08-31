@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 import { toast } from "react-hot-toast"
 import { apiRequest } from "@/lib/api"
+import Link from "next/link"
 
 interface AsteriskStatus {
   service: string
@@ -270,7 +271,7 @@ export default function AsteriskDashboard({ ispId }: AsteriskDashboardProps) {
             </div>
           </div>
           <Button variant="outline" asChild>
-            <a href="/services">Configure Service</a>
+            <Link href="/services">Configure Service</Link>
           </Button>
         </div>
       </CardContainer>

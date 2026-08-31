@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import Link from "next/link"
 import {
     User,
     Mail,
@@ -387,11 +388,10 @@ export function LeadDetailsDialog({ open, onOpenChange, lead }: LeadDetailsDialo
                         Close
                     </Button>
                     {!lead.convertedToCustomer && (
-                        <Button onClick={() => {
-                            onOpenChange(false)
-                            window.location.href = `/leads/edit/${lead.id}`
-                        }}>
-                            Edit Lead
+                        <Button asChild>
+                            <Link href={`/leads/edit/${lead.id}`} onClick={() => onOpenChange(false)}>
+                                Edit Lead
+                            </Link>
                         </Button>
                     )}
                 </DialogFooter>

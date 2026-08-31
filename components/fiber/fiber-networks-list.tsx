@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Cable, Eye, Loader2, MapPin, RefreshCw, Search, Signal, Users } from "lucide-react"
 import { fetchFiberNetworkDataset, type FiberNetworkRow } from "@/lib/fiber-network-data"
+import Link from "next/link"
 
 export function FiberNetworksList() {
   const [searchQuery, setSearchQuery] = useState("")
@@ -161,10 +162,10 @@ export function FiberNetworksList() {
                     <TableCell>{getSignalQualityBadge(network.signalQuality)}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon" asChild>
-                        <a href="/fiber/olt">
+                        <Link href="/fiber/olt">
                           <Eye className="h-4 w-4" />
                           <span className="sr-only">View OLT details</span>
-                        </a>
+                        </Link>
                       </Button>
                     </TableCell>
                   </TableRow>

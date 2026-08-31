@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import dynamic from "next/dynamic"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
@@ -3164,10 +3165,10 @@ export function AddCustomerForm() {
 
               <div className="mt-6 flex gap-3">
                 <Button asChild>
-                  <a href={`/customers/${createdCustomer.id}`}>View Customer</a>
+                  <Link href={`/customers/${createdCustomer.id}`}>View Customer</Link>
                 </Button>
                 <Button asChild>
-                  <a href="/customers/all">View All Customers</a>
+                  <Link href="/customers/all">View All Customers</Link>
                 </Button>
                 <Button type="button" variant="outline" onClick={handleAddAnotherCustomer}>
                   Add Another Customer

@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { toast } from "react-hot-toast"
 import { apiRequest } from "@/lib/api"
 import { PaginationControls } from "./PaginationControls"
+import Link from "next/link"
 import {
     Search,
     Mail,
@@ -162,11 +163,13 @@ export function ConvertedLeads() {
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                onClick={() => window.location.href = `/leads/view/${lead.id}`}
+                                                asChild
                                                 className="h-8 w-8 hover:bg-blue-100"
                                                 title="View"
                                             >
-                                                <Search className="h-4 w-4" />
+                                                <Link href={`/leads/view/${lead.id}`}>
+                                                    <Search className="h-4 w-4" />
+                                                </Link>
                                             </Button>
                                         </TableCell>
                                     </TableRow>

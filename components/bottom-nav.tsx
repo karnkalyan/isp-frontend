@@ -3,6 +3,7 @@
 import { BarChart3, CreditCard, LayoutDashboard, Settings, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { usePathname } from "next/navigation"
+import Link from "next/link"
 
 const navItems = [
   {
@@ -42,7 +43,7 @@ export function BottomNav() {
           const isActive = pathname === item.href
 
           return (
-            <a key={item.title} href={item.href} className="flex flex-col items-center justify-center w-full h-full">
+            <Link key={item.title} href={item.href} className="flex flex-col items-center justify-center w-full h-full">
               <Button
                 variant={isActive ? "default" : "ghost"}
                 size="icon"
@@ -52,7 +53,7 @@ export function BottomNav() {
                 <span className="sr-only">{item.title}</span>
               </Button>
               <span className="text-[10px] mt-1">{item.title}</span>
-            </a>
+            </Link>
           )
         })}
       </div>

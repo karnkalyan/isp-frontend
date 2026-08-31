@@ -19,6 +19,7 @@ import {
 } from "lucide-react"
 import { toast } from "react-hot-toast"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import Link from "next/link"
 
 export default function AakashSmsServicePage() {
   const [creditLoading, setCreditLoading] = useState(false)
@@ -149,7 +150,7 @@ export default function AakashSmsServicePage() {
                   </div>
                 </div>
                 <Button variant="outline" asChild>
-                  <a href="/services">Configure Service</a>
+                  <Link href="/services">Configure Service</Link>
                 </Button>
               </div>
             </CardContent>

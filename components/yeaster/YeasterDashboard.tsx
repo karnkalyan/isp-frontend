@@ -17,6 +17,7 @@ import ActiveCalls from "./ActiveCalls"
 import CallDashboard from "./CallDashboard"
 import AddExtensionModal from "./AddExtensionModal"
 import AddTrunkModal from "./AddTrunkModal"
+import Link from "next/link"
 
 interface YeastarStatus {
     configured: boolean
@@ -565,9 +566,9 @@ export default function YeastarDashboard({
                                     size="sm"
                                     variant="outline"
                                     className="border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/20"
-                                    onClick={() => window.location.href = '/services'}
+                                    asChild
                                 >
-                                    Configure Service
+                                    <Link href="/services">Configure Service</Link>
                                 </Button>
                                 <Button
                                     size="sm"
@@ -603,9 +604,9 @@ export default function YeastarDashboard({
                                 size="sm"
                                 variant="outline"
                                 className="mt-3 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/20"
-                                onClick={() => window.location.href = '/services'}
+                                asChild
                             >
-                                Configure Service
+                                <Link href="/services">Configure Service</Link>
                             </Button>
                         </div>
                     </div>
