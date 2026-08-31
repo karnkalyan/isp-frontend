@@ -59,9 +59,9 @@ type LogItem = {
 type TabType = "branches" | "plans" | "packages" | "leads" | "customers" | "olts"
 
 const INTERNET_PLAN_CSV_EXAMPLE = [
-    "Plan Name,Plan Code,Service,NAS Type,Priority,Package Type,Connection Type,Download Speed (Mbps),Upload Speed (Mbps),INT Upload,FIR Download,Local Upload,Local Download,Organization,Allow Rename,FUP Apply,Is FUP Package,Only Renewal,Popular,High Priority,FUP Limit (GB),Apply Framed Pool,Framed Pool Value,Vendor-Specific Profiles,Custom Radius Attributes,Description",
-    '155 Mbps,155 MBPS,155 Mbps,"cisco, juniper, mikrotik, nokia",1,HOME,FTTH,155,155,155,155,155,155,"Arrownet Pvt Ltd (BR-ARROWNET-PVT-LTD), Yatkha (SB-YATKHA), Bahrabise (SB-BAHRABISE), Charikot (BR-CHARIKOT)",FALSE,TRUE,FALSE,FALSE,TRUE,TRUE,0,TRUE,Pool 2 (pool2),JUNIPER:xFTTH-pp0,"ERX-IPv6-Delegated-Pool-Name := v6-default-pd\nFramed-IPv6-Pool := v6-ndra",Ultra High Speed 155 Mbps FTTH Internet',
-    '100 Mbps,100 MBPS,Internet,"mikrotik, juniper",1,HOME,Fiber,100,100,100,100,100,100,All Branches,FALSE,TRUE,FALSE,FALSE,TRUE,FALSE,0,FALSE,,,,Standard 100 Mbps Unlimited Fiber Internet',
+    "Plan Name,Plan Code,Service,NAS Type,Priority,Package Type,Connection Type,Download Speed (Mbps),Upload Speed (Mbps),INT Upload,FIR Download,Local Upload,Local Download,Organization,Branch,Allow Rename,FUP Apply,Is FUP Package,Only Renewal,Popular,High Priority,FUP Limit (GB),Apply Framed Pool,Framed Pool Value,Vendor-Specific Profiles,Custom Radius Attributes,Description",
+    '155 Mbps,155 MBPS,155 Mbps,"cisco, juniper, mikrotik, nokia",1,HOME,FTTH,155,155,155,155,155,155,ARROWNET Pvt. Ltd.,ARROWNET Pvt. Ltd.,FALSE,TRUE,FALSE,FALSE,TRUE,TRUE,0,TRUE,Pool 2 (pool2),JUNIPER:xFTTH-pp0,"ERX-IPv6-Delegated-Pool-Name := v6-default-pd\nFramed-IPv6-Pool := v6-ndra",Ultra High Speed 155 Mbps FTTH Internet',
+    '100 Mbps,100 MBPS,Internet,"mikrotik, juniper",1,HOME,Fiber,100,100,100,100,100,100,ARROWNET Pvt. Ltd.,Arrownet RTC,FALSE,TRUE,FALSE,FALSE,TRUE,FALSE,0,FALSE,,,,Standard 100 Mbps Unlimited Fiber Internet',
 ].join("\n")
 
 /**
@@ -737,7 +737,7 @@ function ImportHubContent() {
                             </div>
 
                             <div className="space-y-6">
-                                <CardContainer title="Download Plan Templates" description="Complete Internet Plan and RADIUS field set">
+                                <CardContainer title="Download Plan Templates" description="Separate Organization & Branch hierarchy with the complete plan field set">
                                     <div className="space-y-3">
                                         <Button
                                             variant="outline"
@@ -747,7 +747,7 @@ function ImportHubContent() {
                                             <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
                                             <div className="text-left">
                                                 <div className="text-xs font-bold">Internet Plans Excel Template (.xlsx)</div>
-                                                <div className="text-[10px] text-muted-foreground">All plan, speed, FUP, pool, vendor and RADIUS fields</div>
+                                                <div className="text-[10px] text-muted-foreground">Parent Organization and child Branch are separate columns</div>
                                             </div>
                                         </Button>
 
@@ -779,7 +779,7 @@ function ImportHubContent() {
                                     <div className="mt-5 p-3.5 bg-muted/40 rounded-lg border border-border text-xs space-y-2">
                                         <p className="font-semibold text-foreground">Plan Configuration Features:</p>
                                         <ul className="list-disc list-inside text-muted-foreground space-y-1 text-[11px]">
-                                            <li><span className="font-semibold text-foreground">Organization:</span> Use one combined Organization column with head branches and sub-branches, including optional codes such as <span className="font-mono text-foreground">Arrownet (BR-ARROWNET), Yatkha (SB-YATKHA)</span>. The importer also remains compatible with a separate optional Branches column.</li>
+                                            <li><span className="font-semibold text-foreground">Organization + Branch:</span> Enter exact names only—no numeric IDs and no <span className="font-mono text-foreground">BR-/SB-</span> codes. <span className="font-mono text-foreground">Organization</span> must have no parent; <span className="font-mono text-foreground">Branch</span> must belong to that Organization. Both may safely have the same name.</li>
                                             <li><span className="font-semibold text-foreground">Custom Radius Attributes:</span> Enter multiple attributes on separate lines (e.g. <span className="font-mono text-foreground">ERX-IPv6-Delegated-Pool-Name := v6-default-pd</span> and <span className="font-mono text-foreground">Framed-IPv6-Pool := v6-ndra</span>). All lines are parsed and sent directly to FreeRADIUS!</li>
                                             <li><span className="font-semibold text-foreground">Multi-NAS RADIUS:</span> Supports <span className="font-mono text-foreground">cisco, juniper, mikrotik, nokia</span>. Generates dynamic vendor profiles (e.g. `JUNIPER:xFTTH-pp0`), IPv6 delegation pools, and QoS overrides automatically.</li>
                                             <li><span className="font-semibold text-foreground">Speeds:</span> Supports Download, Upload, INT Upload, FIR Download, Local Upload, and Local Download in Mbps.</li>
