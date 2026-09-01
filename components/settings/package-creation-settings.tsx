@@ -108,7 +108,9 @@ export function PackageCreationSettings() {
   const [isSyncing, setIsSyncing] = useState(false)
 
   const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 10
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [durationFilter, setDurationFilter] = useState("all")
 
   // Form State
   const [packageName, setPackageName] = useState("")
@@ -564,8 +566,28 @@ export function PackageCreationSettings() {
     }
   }
 
-  const startIdx = (currentPage - 1) * itemsPerPage
-  const paginatedPackages = packages.slice(startIdx, startIdx + itemsPerPage)
+  const filteredPackages = useMemo(() => {
+    return packages.filter((pkg) => {
+      const q = searchQuery.toLowerCase().trim()
+      const name = (pkg.packageName || `${pkg.packagePlanDetails?.planName} - ${pkg.packageDuration}`).toLowerCase()
+      const matchesSearch =
+        !q ||
+        name.includes(q) ||
+        String(pkg.price).includes(q) ||
+        (pkg.packageDuration || "").toLowerCase().includes(q) ||
+        (pkg.packagePlanDetails?.planName || "").toLowerCase().includes(q)
+
+      const matchesDuration =
+        durationFilter === "all" || pkg.packageDuration === durationFilter
+
+      return matchesSearch && matchesDuration
+    })
+  }, [packages, searchQuery, durationFilter])
+
+  const totalPages = Math.max(1, Math.ceil(filteredPackages.length / (itemsPerPage || 10)))
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages)
+  const startIdx = (safeCurrentPage - 1) * itemsPerPage
+  const paginatedPackages = filteredPackages.slice(startIdx, startIdx + itemsPerPage)
 
   return (
     <div className="space-y-6">
@@ -784,19 +806,64 @@ export function PackageCreationSettings() {
       )}
 
       {!isAdding && editingId === null && (
-        <div className="flex justify-between items-center mb-6">
-          <Button onClick={() => setIsAdding(true)} className="bg-primary hover:bg-primary/95 text-white">
-            <Plus className="mr-2 h-4 w-4" /> Config Package Prices
-          </Button>
-          <Button
-            onClick={handleSyncWithAccount}
-            disabled={isSyncing}
-            variant="outline"
-            className="border-slate-200 dark:border-slate-800"
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-            {isSyncing ? "Syncing..." : "Sync with Account"}
-          </Button>
+        <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 mb-4">
+          <div className="flex flex-wrap items-center gap-2 flex-1 max-w-xl">
+            <div className="relative flex-1 min-w-[200px]">
+              <Input
+                placeholder="Search packages by name, plan, price..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value)
+                  setCurrentPage(1)
+                }}
+                className="h-9 text-xs pr-7"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery("")
+                    setCurrentPage(1)
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            <select
+              value={durationFilter}
+              onChange={(e) => {
+                setDurationFilter(e.target.value)
+                setCurrentPage(1)
+              }}
+              className="h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="all">All Durations</option>
+              <option value="1 Month">1 Month</option>
+              <option value="3 Months">3 Months</option>
+              <option value="6 Months">6 Months</option>
+              <option value="12 Months">12 Months</option>
+            </select>
+            <span className="text-xs text-muted-foreground hidden md:inline">
+              ({filteredPackages.length} {filteredPackages.length === 1 ? 'package' : 'packages'})
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setIsAdding(true)} className="bg-primary hover:bg-primary/95 text-white h-9 text-xs">
+              <Plus className="mr-2 h-4 w-4" /> Config Package Prices
+            </Button>
+            <Button
+              onClick={handleSyncWithAccount}
+              disabled={isSyncing}
+              variant="outline"
+              className="border-slate-200 dark:border-slate-800 h-9 text-xs"
+            >
+              <RefreshCw className={`mr-2 h-3.5 w-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+              {isSyncing ? "Syncing..." : "Sync with Account"}
+            </Button>
+          </div>
         </div>
       )}
 
@@ -825,6 +892,12 @@ export function PackageCreationSettings() {
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
                     No packages created yet.
+                  </TableCell>
+                </TableRow>
+              ) : filteredPackages.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
+                    No packages matching &quot;{searchQuery}&quot; found.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -889,10 +962,16 @@ export function PackageCreationSettings() {
       </div>
 
       <Pagination
-        currentPage={currentPage}
-        totalItems={packages.length}
+        currentPage={safeCurrentPage}
+        totalItems={filteredPackages.length}
         itemsPerPage={itemsPerPage}
         onPageChange={setCurrentPage}
+        onItemsPerPageChange={(newSize) => {
+          setItemsPerPage(newSize)
+          setCurrentPage(1)
+        }}
+        showPageSizeSelector={true}
+        pageSizeOptions={[10, 25, 50, 100]}
       />
     </div>
   )
