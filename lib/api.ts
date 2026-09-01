@@ -223,8 +223,31 @@ export async function apiRequest<T = any>(
       payloadStr = `${response.status} ${response.statusText}`;
     }
 
-    // Only notify license expired on 402 or explicit licenseExpired when not an auth failure
-    if (response.status === 402 || (payload && typeof payload === "object" && (payload as any).licenseExpired && response.status !== 401 && response.status !== 403)) {
+    // If licenseExpired or 402 is returned, FIRST attempt session refresh in case it was triggered by missing/expired tenant auth
+    if (response.status === 402 || (payload && typeof payload === "object" && (payload as any).licenseExpired)) {
+      if (!endpoint.includes("/auth/") && !isPublicAuthRequest) {
+        try {
+          const refreshRes = await fetch(`${BASE_URL}/auth/refresh`, {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+          });
+          if (refreshRes.ok) {
+            // Retrying original request with refreshed session!
+            const retryRes = await fetch(url, options);
+            if (retryRes.ok) {
+              const retryContentType = retryRes.headers.get("content-type") || "";
+              if (retryContentType.includes("application/json")) {
+                return (await retryRes.json()) as T;
+              }
+              return null as unknown as T;
+            }
+          }
+        } catch (e) {
+          // ignore error and proceed to notify license expired
+        }
+      }
+
       notifyLicenseExpired(payload, payloadStr);
       throw new Error(payloadStr);
     }
