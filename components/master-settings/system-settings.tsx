@@ -123,6 +123,7 @@ export function SystemSettings() {
     leadBranchValidation: "optional",
     autoGenerateRadius: "false",
     autoGenerateCustomerLogin: "false",
+    auto_update_radius_password: false,
     // NEW: global discount settings for members
     newMemberDiscount: {
       enabled: true,
@@ -260,6 +261,7 @@ export function SystemSettings() {
             leadBranchValidation: data.leadBranchValidation || prev.leadBranchValidation,
             autoGenerateRadius: data.autoGenerateRadius || prev.autoGenerateRadius,
             autoGenerateCustomerLogin: data.autoGenerateCustomerLogin || prev.autoGenerateCustomerLogin,
+            auto_update_radius_password: data.auto_update_radius_password === 'true' || data.auto_update_radius_password === 'Enable' || data.autoUpdateRadiusPassword === 'true',
             newMemberDiscount: data.newMemberDiscount ? JSON.parse(data.newMemberDiscount) : prev.newMemberDiscount,
             renewalDiscount: data.renewalDiscount ? JSON.parse(data.renewalDiscount) : prev.renewalDiscount,
           }))
@@ -1217,6 +1219,24 @@ export function SystemSettings() {
                 type="number"
                 value={settings.backupRetentionDays}
                 onChange={(e) => updateSetting("backupRetentionDays", e.target.value)}
+              />
+            </div>
+
+            <div className="md:col-span-2 p-3 border rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200/60 dark:border-emerald-800/40 flex items-center justify-between mt-2">
+              <div className="space-y-1 mr-4">
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm font-semibold text-emerald-900 dark:text-emerald-300">Auto-Update RADIUS Login Password</Label>
+                  <span className="text-[10px] font-semibold bg-emerald-200/80 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200 px-1.5 py-0.5 rounded">
+                    Active
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Automatically capture & update customer's RADIUS/PPPoE password in database and FreeRADIUS whenever an authentication attempt with a different password is made, accepting the connection.
+                </p>
+              </div>
+              <Switch
+                checked={settings.auto_update_radius_password ?? false}
+                onCheckedChange={(checked) => updateSetting("auto_update_radius_password", checked)}
               />
             </div>
           </div>
