@@ -221,7 +221,7 @@ export function InternetPlansSettings() {
         nasType: r.nasType || "",
         service: r.service || "",
         priority: r.priority || "",
-        vendorProfiles: Array.isArray(r.vendorProfiles) ? r.vendorProfiles : [],
+        vendorProfiles: Array.isArray(r.vendorProfiles) ? r.vendorProfiles.map((vp: any) => ({ vendor: String(vp.vendor || '').toLowerCase(), profile: String(vp.profile || '') })) : [],
         packageType: r.packageType || "",
         allowRename: Boolean(r.allowRename),
         fupApply: r.fupApply !== undefined ? Boolean(r.fupApply) : true,
@@ -370,21 +370,21 @@ export function InternetPlansSettings() {
 
   // NAS Type checkbox toggle
   const toggleNasType = (type: string) => {
-    const current = newPlan.nasType ? newPlan.nasType.split(",").filter(Boolean) : []
-    const isRemoving = current.includes(type)
+    const current = newPlan.nasType ? newPlan.nasType.split(",").map(s => s.trim().toLowerCase()).filter(Boolean) : []
+    const isRemoving = current.includes(type.toLowerCase())
     const updated = isRemoving
-      ? current.filter((t) => t !== type)
-      : [...current, type]
+      ? current.filter((t) => t !== type.toLowerCase())
+      : [...current, type.toLowerCase()]
 
     let vendorProfiles = newPlan.vendorProfiles || []
     if (isRemoving) {
-      vendorProfiles = vendorProfiles.filter(v => v.vendor !== type)
+      vendorProfiles = vendorProfiles.filter(v => v.vendor?.toLowerCase() !== type.toLowerCase())
     } else if (type === "juniper" || type === "nokia") {
       const defaultProfile = type === "nokia"
         ? newPlan.code || `pkg-${newPlan.downloadSpeed || 0}mbps`
         : DEFAULT_VENDOR_PROFILE[type]
-      const exists = vendorProfiles.some(v => v.vendor === type)
-      if (!exists) vendorProfiles = [...vendorProfiles, { vendor: type, profile: defaultProfile }]
+      const exists = vendorProfiles.some(v => v.vendor?.toLowerCase() === type.toLowerCase())
+      if (!exists) vendorProfiles = [...vendorProfiles, { vendor: type.toLowerCase(), profile: defaultProfile }]
     }
 
     setNewPlan({ ...newPlan, nasType: updated.join(","), vendorProfiles })
@@ -490,7 +490,7 @@ export function InternetPlansSettings() {
                   <label key={type} className="flex items-center gap-2 cursor-pointer capitalize">
                     <input
                       type="checkbox"
-                      checked={(newPlan.nasType || "").split(",").includes(type)}
+                      checked={(newPlan.nasType || "").split(",").map(s => s.trim().toLowerCase()).includes(type.toLowerCase())}
                       onChange={() => toggleNasType(type)}
                       className="rounded border-gray-300"
                     />
@@ -823,8 +823,8 @@ export function InternetPlansSettings() {
                     <div key={index} className="grid grid-cols-[150px_1fr_40px] gap-2 p-2 items-center">
                       <SearchableSelect
                         options={NAS_TYPES.map(t => ({ value: t, label: t.toUpperCase() }))}
-                        value={vp.vendor}
-                        onValueChange={(v) => updateVendorProfile(index, "vendor", Array.isArray(v) ? v[0] || "" : v)}
+                        value={vp.vendor?.toLowerCase()}
+                        onValueChange={(v) => updateVendorProfile(index, "vendor", Array.isArray(v) ? (v[0] || "").toLowerCase() : String(v).toLowerCase())}
                         placeholder="Select Vendor"
                       />
                       <Input

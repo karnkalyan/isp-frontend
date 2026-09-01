@@ -170,9 +170,9 @@ export async function apiRequest<T = any>(
     throw new Error(msg);
   }
 
-  // 401 refresh flow
+  // 401/403 auth refresh flow
   const isPublicAuthRequest = ["/auth/login", "/auth/forgot-password", "/auth/reset-password"].some(path => endpoint.includes(path));
-  if (response.status === 401 && !endpoint.includes("/auth/refresh") && !isPublicAuthRequest) {
+  if ((response.status === 401 || (response.status === 403 && !endpoint.includes("/auth/"))) && !endpoint.includes("/auth/refresh") && !isPublicAuthRequest) {
     if (!isRefreshing) {
       isRefreshing = true;
       refreshPromise = fetch(`${BASE_URL}/auth/refresh`, {
@@ -223,12 +223,8 @@ export async function apiRequest<T = any>(
       payloadStr = `${response.status} ${response.statusText}`;
     }
 
-    if (payload && typeof payload === "object" && (payload as any).licenseExpired) {
-      notifyLicenseExpired(payload, payloadStr);
-      return null as unknown as T;
-    }
-
-    if (response.status === 402) {
+    // Only notify license expired on 402 or explicit licenseExpired when not an auth failure
+    if (response.status === 402 || (payload && typeof payload === "object" && (payload as any).licenseExpired && response.status !== 401 && response.status !== 403)) {
       notifyLicenseExpired(payload, payloadStr);
       throw new Error(payloadStr);
     }
