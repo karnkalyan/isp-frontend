@@ -1,9 +1,22 @@
+"use client"
+
+import { useState } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { PageHeader } from "@/components/ui/page-header"
 import { CustomersList } from "@/components/customers/customers-list"
-import { CustomerFilters } from "@/components/customers/customer-filters"
+import {
+  CustomerFilters,
+  CustomerFilterValues,
+  defaultCustomerFilters,
+} from "@/components/customers/customer-filters"
 
 export default function CustomersPage() {
+  const [filters, setFilters] = useState<CustomerFilterValues>(defaultCustomerFilters)
+
+  const handleResetFilters = () => {
+    setFilters(defaultCustomerFilters)
+  }
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -17,8 +30,15 @@ export default function CustomersPage() {
           ]}
         />
 
-        <CustomerFilters />
-        <CustomersList />
+        <CustomerFilters
+          filters={filters}
+          onFilterChange={setFilters}
+          onReset={handleResetFilters}
+        />
+        <CustomersList
+          filters={filters}
+          onResetFilters={handleResetFilters}
+        />
       </div>
     </DashboardLayout>
   )

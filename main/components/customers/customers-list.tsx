@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge"
 import { CardContainer } from "@/components/ui/card-container"
 import { toast } from "react-hot-toast"
 import { apiRequest } from "@/lib/api"
+import { CustomerFilterValues } from "./customer-filters"
 
 // Updated interface to match actual API response
 interface Customer {
@@ -156,7 +157,12 @@ interface CustomersResponse {
   pagination: PaginationInfo
 }
 
-export function CustomersList() {
+export interface CustomersListProps {
+  filters?: CustomerFilterValues
+  onResetFilters?: () => void
+}
+
+export function CustomersList({ filters, onResetFilters }: CustomersListProps = {}) {
   const [selectedCustomers, setSelectedCustomers] = useState<string[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
@@ -169,12 +175,37 @@ export function CustomersList() {
   })
   const router = useRouter()
 
-  const fetchCustomers = async (page: number = 1, limit: number = 10) => {
+  const fetchCustomers = async (
+    page: number = 1,
+    limit: number = 10,
+    currentFilters?: CustomerFilterValues
+  ) => {
     try {
       setLoading(true)
       setError(null)
 
-      const data = await apiRequest<CustomersResponse>(`/customer?page=${page}&limit=${limit}`)
+      const f = currentFilters !== undefined ? currentFilters : filters
+      const params = new URLSearchParams()
+      params.set("page", String(page))
+      params.set("limit", String(limit))
+
+      if (f?.search && f.search.trim()) {
+        params.set("search", f.search.trim())
+      }
+      if (f?.status && f.status !== "all") {
+        params.set("status", f.status)
+      }
+      if (f?.packageId && f.packageId !== "all") {
+        params.set("packageId", f.packageId)
+      }
+      if (f?.branchId && f.branchId !== "all") {
+        params.set("branchId", f.branchId)
+      }
+      if (f?.connectionType && f.connectionType !== "all") {
+        params.set("connectionType", f.connectionType)
+      }
+
+      const data = await apiRequest<CustomersResponse>(`/customer?${params.toString()}`)
 
       if (data && Array.isArray(data.data)) {
         setCustomers(data.data)
@@ -194,9 +225,24 @@ export function CustomersList() {
     }
   }
 
+  const isInitialMount = React.useRef(true)
+
   useEffect(() => {
-    fetchCustomers(pagination.page, pagination.limit)
-  }, [pagination.page])
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      fetchCustomers(pagination.page, pagination.limit, filters)
+      return
+    }
+
+    setPagination((prev) => ({ ...prev, page: 1 }))
+    fetchCustomers(1, pagination.limit, filters)
+  }, [
+    filters?.search,
+    filters?.status,
+    filters?.packageId,
+    filters?.branchId,
+    filters?.connectionType,
+  ])
 
   const toggleSelectAll = () => {
     if (selectedCustomers.length === customers.length) {
@@ -302,12 +348,13 @@ export function CustomersList() {
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
       setPagination(prev => ({ ...prev, page: newPage }))
+      fetchCustomers(newPage, pagination.limit, filters)
     }
   }
 
   const handleLimitChange = (newLimit: number) => {
     setPagination(prev => ({ ...prev, limit: newLimit, page: 1 }))
-    fetchCustomers(1, newLimit)
+    fetchCustomers(1, newLimit, filters)
   }
 
   if (loading) {
@@ -334,16 +381,35 @@ export function CustomersList() {
     )
   }
 
+  const hasActiveFilters = Boolean(
+    filters?.search?.trim() ||
+    (filters?.status && filters.status !== "all") ||
+    (filters?.packageId && filters.packageId !== "all") ||
+    (filters?.branchId && filters.branchId !== "all") ||
+    (filters?.connectionType && filters.connectionType !== "all")
+  )
+
   return (
     <CardContainer title="Customers" description="All registered customers">
       <div className="rounded-md border">
         <div className="relative w-full overflow-auto">
           {customers.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">No customers found</p>
-              <Button variant="outline" size="sm" onClick={() => router.push('/customers/new')} className="mt-2">
-                Add New Customer
-              </Button>
+            <div className="text-center py-12 space-y-3">
+              <p className="text-muted-foreground">
+                {hasActiveFilters
+                  ? "No customers match the current search or filter criteria."
+                  : "No customers found"}
+              </p>
+              <div className="flex items-center justify-center gap-2">
+                {hasActiveFilters && onResetFilters && (
+                  <Button variant="outline" size="sm" onClick={onResetFilters}>
+                    Clear Filters
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" onClick={() => router.push('/customers/new')}>
+                  Add New Customer
+                </Button>
+              </div>
             </div>
           ) : (
             <>
