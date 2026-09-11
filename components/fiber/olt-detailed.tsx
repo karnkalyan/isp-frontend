@@ -865,7 +865,7 @@ export function OLTDetailed() {
   const [isDarkMode, setIsDarkMode] = useState(true)
 
   // Use confirm toast hook
-  const { confirm } = useConfirmToast()
+  const { confirm, ConfirmDialog } = useConfirmToast()
 
   // Master splitters and available ports
   const [masterSplitters, setMasterSplitters] = useState<Array<{
@@ -4620,7 +4620,7 @@ export function OLTDetailed() {
 
                                       if (isConfirmed) {
                                         try {
-                                          await apiRequest(`/splitters/${splitter.id}`, {
+                                          await apiRequest(`/splitters/${splitter.id || splitter.splitterId}`, {
                                             method: 'DELETE'
                                           })
                                           toast.success("Splitter deleted successfully")
@@ -4841,7 +4841,7 @@ export function OLTDetailed() {
 
                                           if (isConfirmed) {
                                             try {
-                                              await apiRequest(`/splitters/${slave.id}`, {
+                                              await apiRequest(`/splitters/${slave.id || slave.splitterId}`, {
                                                 method: 'DELETE'
                                               })
                                               toast.success("Splitter deleted successfully")
@@ -6062,7 +6062,7 @@ export function OLTDetailed() {
 
                                                   if (isConfirmed) {
                                                     try {
-                                                      await apiRequest(`/splitters/${splitter.id}`, {
+                                                      await apiRequest(`/splitters/${splitter.id || splitter.splitterId}`, {
                                                         method: 'DELETE'
                                                       })
                                                       toast.success("Splitter deleted successfully")
@@ -6283,7 +6283,7 @@ export function OLTDetailed() {
 
                                                       if (isConfirmed) {
                                                         try {
-                                                          await apiRequest(`/splitters/${slave.id}`, {
+                                                          await apiRequest(`/splitters/${slave.id || slave.splitterId}`, {
                                                             method: 'DELETE'
                                                           })
                                                           toast.success("Splitter deleted successfully")
@@ -9906,6 +9906,7 @@ Updated: ${formatDate(selectedSplitter.updatedAt)}
         </DialogContent>
       </Dialog>
 
+      <ConfirmDialog />
     </div>
   )
 }

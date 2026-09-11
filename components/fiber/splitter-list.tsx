@@ -238,6 +238,7 @@ export function SplitterList({ splitters, loading, onEdit, onDelete, onRefresh }
           )}
         </Card>
       )}
+      <ConfirmDialog />
     </div>
   )
 }

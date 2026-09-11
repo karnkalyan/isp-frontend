@@ -157,6 +157,7 @@ export function SplitterDashboard() {
           </Tabs>
         </>
       )}
+      <ConfirmDialog />
     </div>
   )
 }
