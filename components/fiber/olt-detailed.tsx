@@ -4624,7 +4624,10 @@ export function OLTDetailed() {
                                             method: 'DELETE'
                                           })
                                           toast.success("Splitter deleted successfully")
+                                          setAllSplitters(prev => prev.filter(s => String(s.id) !== String(splitter.id) && s.splitterId !== splitter.splitterId))
+                                          setSplitters(prev => prev.filter(s => String(s.id) !== String(splitter.id) && s.splitterId !== splitter.splitterId))
                                           await fetchSplitters(splitterPagination.page, "", oltFilter)
+                                          await fetchAllSplittersForHierarchy()
                                         } catch (error: any) {
                                           toast.error(error.message || "Failed to delete splitter")
                                         }
@@ -4842,7 +4845,10 @@ export function OLTDetailed() {
                                                 method: 'DELETE'
                                               })
                                               toast.success("Splitter deleted successfully")
+                                              setAllSplitters(prev => prev.filter(s => String(s.id) !== String(slave.id) && s.splitterId !== slave.splitterId))
+                                              setSplitters(prev => prev.filter(s => String(s.id) !== String(slave.id) && s.splitterId !== slave.splitterId))
                                               await fetchSplitters(splitterPagination.page, "", oltFilter)
+                                              await fetchAllSplittersForHierarchy()
                                             } catch (error: any) {
                                               toast.error(error.message || "Failed to delete splitter")
                                             }
@@ -6060,7 +6066,10 @@ export function OLTDetailed() {
                                                         method: 'DELETE'
                                                       })
                                                       toast.success("Splitter deleted successfully")
+                                                      setAllSplitters(prev => prev.filter(s => String(s.id) !== String(splitter.id) && s.splitterId !== splitter.splitterId))
+                                                      setSplitters(prev => prev.filter(s => String(s.id) !== String(splitter.id) && s.splitterId !== splitter.splitterId))
                                                       await fetchSplitters(splitterPagination.page, "", oltFilter)
+                                                      await fetchAllSplittersForHierarchy()
                                                     } catch (error: any) {
                                                       toast.error(error.message || "Failed to delete splitter")
                                                     }
@@ -6278,7 +6287,10 @@ export function OLTDetailed() {
                                                             method: 'DELETE'
                                                           })
                                                           toast.success("Splitter deleted successfully")
+                                                          setAllSplitters(prev => prev.filter(s => String(s.id) !== String(slave.id) && s.splitterId !== slave.splitterId))
+                                                          setSplitters(prev => prev.filter(s => String(s.id) !== String(slave.id) && s.splitterId !== slave.splitterId))
                                                           await fetchSplitters(splitterPagination.page, "", oltFilter)
+                                                          await fetchAllSplittersForHierarchy()
                                                         } catch (error: any) {
                                                           toast.error(error.message || "Failed to delete splitter")
                                                         }

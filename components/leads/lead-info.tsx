@@ -1061,17 +1061,7 @@ export default function LeadDetailsPage() {
       return;
     }
 
-    const isConfirmed = await confirm({
-      title: "Convert Lead",
-      message: "Convert this lead to a customer?",
-      type: "info",
-      confirmText: "Convert",
-      cancelText: "Cancel"
-    });
-
-    if (!isConfirmed) return;
-
-    setShowConvertDialog(true);
+    router.push(`/customers/new?leadId=${leadId}`);
   };
 
   const handleConvertConfirm = async () => {

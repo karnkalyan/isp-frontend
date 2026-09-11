@@ -20,7 +20,9 @@ import {
 import { Pagination } from "@/components/ui/table"
 import { apiRequest } from "@/lib/api"
 
-// Duration Options as requested
+// Default Duration Options as requested
+const DEFAULT_DURATIONS = ["1 Month", "3 Months", "6 Months", "12 Months"]
+
 const DURATION_OPTIONS: Option[] = [
   { value: "1 Month", label: "1 Month" },
   { value: "3 Months", label: "3 Months" },
@@ -28,7 +30,7 @@ const DURATION_OPTIONS: Option[] = [
   { value: "12 Months", label: "12 Months" },
 ]
 
-const packageBaseName = (value?: string | null) => String(value || "").replace(/\s+-\s+(1|3|6|12)\s+Months?$/i, "").trim()
+const packageBaseName = (value?: string | null) => String(value || "").replace(/\s+-\s+\d+\s+(Months?|Days?|Years?)$/i, "").trim()
 
 const isRecurringItem = (name: string, code: string): boolean => {
   const n = (name || "").toLowerCase()
@@ -118,7 +120,48 @@ export function PackageCreationSettings() {
   const [description, setDescription] = useState("")
   const [isActive, setIsActive] = useState(true)
 
-  // Side-by-side 4 column states
+  // Custom durations state (dynamic duration support)
+  const [customDurations, setCustomDurations] = useState<string[]>([])
+  const [newDurationCount, setNewDurationCount] = useState<string>("15")
+  const [newDurationUnit, setNewDurationUnit] = useState<"Days" | "Months" | "Years">("Months")
+  const [showAddCustomDuration, setShowAddCustomDuration] = useState(false)
+
+  const allFormDurations = useMemo(() => {
+    return [...DEFAULT_DURATIONS, ...customDurations.filter(d => !DEFAULT_DURATIONS.includes(d))]
+  }, [customDurations])
+
+  const handleAddCustomDuration = () => {
+    const count = parseInt(newDurationCount, 10)
+    if (isNaN(count) || count <= 0) {
+      toast.error("Please enter a valid duration number")
+      return
+    }
+    const unitLabel = count === 1 ? newDurationUnit.replace(/s$/, "") : newDurationUnit
+    const durName = `${count} ${unitLabel}`
+
+    if (allFormDurations.includes(durName)) {
+      toast.error(`Duration "${durName}" already exists`)
+      return
+    }
+
+    setDurationPrices(prev => ({ ...prev, [durName]: 0 }))
+    setInitialTotalWithTax(prev => ({ ...prev, [durName]: 0 }))
+    setRenewAmountWithTax(prev => ({ ...prev, [durName]: 0 }))
+    setCustomAddonPrices(prev => ({ ...prev, [durName]: {} }))
+    setDurationAddons(prev => ({ ...prev, [durName]: [] }))
+    setDurationTsc(prev => ({ ...prev, [durName]: false }))
+    setDurationActive(prev => ({ ...prev, [durName]: true }))
+    setDurationOnline(prev => ({ ...prev, [durName]: false }))
+    setCustomDurations(prev => [...prev, durName])
+    setShowAddCustomDuration(false)
+    toast.success(`Added duration option: ${durName}`)
+  }
+
+  const handleRemoveCustomDuration = (dur: string) => {
+    setCustomDurations(prev => prev.filter(d => d !== dur))
+  }
+
+  // Side-by-side duration states
   const [durationPrices, setDurationPrices] = useState<Record<string, number>>({
     "1 Month": 0,
     "3 Months": 0,
@@ -360,6 +403,8 @@ export function PackageCreationSettings() {
   const resetForm = () => {
     setPackageName("")
     setPlanId("")
+    setCustomDurations([])
+    setShowAddCustomDuration(false)
     setDurationPrices({
       "1 Month": 0,
       "3 Months": 0,
@@ -450,6 +495,7 @@ export function PackageCreationSettings() {
     const activeMap: Record<string, boolean> = { "1 Month": false, "3 Months": false, "6 Months": false, "12 Months": false }
     const onlineMap: Record<string, boolean> = { "1 Month": false, "3 Months": false, "6 Months": false, "12 Months": false }
 
+    const extraDurs: string[] = []
     siblingPrices.forEach(sp => {
       const dur = sp.packageDuration || "1 Month"
       let standardDur = dur
@@ -461,6 +507,11 @@ export function PackageCreationSettings() {
         standardDur = "6 Months"
       } else if (dur === "12 Month") {
         standardDur = "12 Months"
+      } else {
+        standardDur = dur
+        if (!DEFAULT_DURATIONS.includes(standardDur) && !extraDurs.includes(standardDur)) {
+          extraDurs.push(standardDur)
+        }
       }
 
       pricesMap[standardDur] = sp.price
@@ -470,6 +521,7 @@ export function PackageCreationSettings() {
       activeMap[standardDur] = sp.isActive !== false
       onlineMap[standardDur] = sp.isOnline === true
 
+      if (!customAddonsMap[standardDur]) customAddonsMap[standardDur] = {}
       const mappedAddonIds: number[] = []
       if (sp.oneTimeCharges) {
         sp.oneTimeCharges.forEach(c => {
@@ -483,6 +535,7 @@ export function PackageCreationSettings() {
       addonsMap[standardDur] = mappedAddonIds
     })
 
+    setCustomDurations(extraDurs)
     setDurationPrices(pricesMap)
     setInitialTotalWithTax(initialTaxMap)
     setRenewAmountWithTax(renewTaxMap)
@@ -622,15 +675,87 @@ export function PackageCreationSettings() {
             </div>
           </div>
 
-          {/* 4 Columns for Durations */}
+          {/* Durations Configuration Section */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+            <div>
+              <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Package Pricing Durations</h4>
+              <p className="text-xs text-muted-foreground">Standard 1, 3, 6, 12 months, or add custom durations (e.g. 15 Months, 45 Days, 2 Years)</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {!showAddCustomDuration ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAddCustomDuration(true)}
+                  className="h-8 text-xs text-primary border-primary/30 hover:bg-primary/5"
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Add Custom Duration
+                </Button>
+              ) : (
+                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-lg border">
+                  <Input
+                    type="number"
+                    min="1"
+                    value={newDurationCount}
+                    onChange={(e) => setNewDurationCount(e.target.value)}
+                    className="h-7 w-20 text-xs"
+                    placeholder="15"
+                  />
+                  <select
+                    value={newDurationUnit}
+                    onChange={(e) => setNewDurationUnit(e.target.value as any)}
+                    className="h-7 rounded-md border border-input bg-background px-2 text-xs shadow-sm"
+                  >
+                    <option value="Days">Days</option>
+                    <option value="Months">Months</option>
+                    <option value="Years">Years</option>
+                  </select>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleAddCustomDuration}
+                    className="h-7 text-xs px-2.5 bg-primary text-white"
+                  >
+                    Add
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowAddCustomDuration(false)}
+                    className="h-7 w-7"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Columns for Durations */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {["1 Month", "3 Months", "6 Months", "12 Months"].map((dur) => {
+            {allFormDurations.map((dur) => {
               const packageCreationAddons = addonCharges.filter(c => c.forPackageCreation)
               return (
                 <div key={dur} className="bg-slate-50 dark:bg-slate-900 border rounded-xl p-4 space-y-4 shadow-sm flex flex-col justify-between">
                   <div className="space-y-3">
-                    <div className="text-center font-bold text-sm text-slate-700 dark:text-slate-300 border-b pb-2 mb-3 uppercase tracking-wider">
-                      {dur}
+                    <div className="flex items-center justify-between border-b pb-2 mb-3">
+                      <span className="font-bold text-sm text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                        {dur}
+                      </span>
+                      {!DEFAULT_DURATIONS.includes(dur) && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveCustomDuration(dur)}
+                          className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50"
+                          title="Remove custom duration"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 rounded-md border bg-white p-2 dark:bg-black/20">
@@ -840,10 +965,9 @@ export function PackageCreationSettings() {
               className="h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
             >
               <option value="all">All Durations</option>
-              <option value="1 Month">1 Month</option>
-              <option value="3 Months">3 Months</option>
-              <option value="6 Months">6 Months</option>
-              <option value="12 Months">12 Months</option>
+              {Array.from(new Set([...DEFAULT_DURATIONS, ...(packages.map(p => p.packageDuration).filter(Boolean) as string[])])).map(d => (
+                <option key={d} value={d}>{d}</option>
+              ))}
             </select>
             <span className="text-xs text-muted-foreground hidden md:inline">
               ({filteredPackages.length} {filteredPackages.length === 1 ? 'package' : 'packages'})

@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useMemo } from "react"
+import { useRouter } from "next/navigation"
 import { CardContainer } from "@/components/ui/card-container"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -447,6 +448,7 @@ export function ActiveLeads({
     onConvertLead,
     onStatusChange
 }: ActiveLeadsProps) {
+    const router = useRouter()
     const { user } = useAuth()
     const [leads, setLeads] = useState<Lead[]>([])
     const [loading, setLoading] = useState(false)
@@ -1030,48 +1032,7 @@ export function ActiveLeads({
             toast.error("Only qualified leads can be converted to customers")
             return
         }
-
-        setConvertingLead(lead)
-        const leadLat = lead.metadata?.latitude || ""
-        const leadLon = lead.metadata?.longitude || ""
-
-        setConversionForm({
-            idNumber: "",
-            streetAddress: lead.address || "",
-            city: lead.district || "",
-            state: lead.province || "",
-            zipCode: "",
-            lat: leadLat ? leadLat.toString() : "",
-            lon: leadLon ? leadLon.toString() : "",
-            deviceName: "",
-            deviceMac: "",
-            assignedPkg: lead.interestedPackageId || "",
-            rechargeable: false,
-            membershipId: lead.memberShipId || "",
-            existingISPId: "",
-            isReferenced: false,
-            referencedById: ""
-        })
-
-        // Reset map state
-        setConvertMapPosition([27.7172, 85.3240])
-        setConvertNearestSplitters([])
-        setConvertServiceAvailable(null)
-        setConvertServiceRadius(0.1)
-
-        if (leadLat && leadLon) {
-            const lat = parseFloat(leadLat.toString())
-            const lng = parseFloat(leadLon.toString())
-            if (!isNaN(lat) && !isNaN(lng)) {
-                setConvertMapPosition([lat, lng])
-                const nearest = findNearestSplitters(lat, lng, convertServiceRadius)
-                setConvertNearestSplitters(nearest)
-                const serviceAvailable = nearest.some(splitter => splitter.distance <= convertServiceRadius)
-                setConvertServiceAvailable(serviceAvailable)
-            }
-        }
-
-        setShowConvertDialog(true)
+        router.push(`/customers/new?leadId=${lead.id}`)
     }
 
     const handleConvertLocationSelect = (lat: number, lng: number) => {

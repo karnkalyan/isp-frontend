@@ -146,7 +146,13 @@ export function LeadActions({ lead, onDelete, onConvert, onFollowUp, users = [] 
                     <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => router.push(`/leads/convert/${lead.id}`)}
+                        onClick={() => {
+                            if (lead.status !== 'qualified') {
+                                toast.error("Only qualified leads can be converted to customers")
+                                return
+                            }
+                            router.push(`/customers/new?leadId=${lead.id}`)
+                        }}
                         className="h-8 w-8 hover:bg-green-100"
                         title="Convert to Customer"
                     >

@@ -2062,7 +2062,8 @@ export function AddCustomerForm() {
 
   useEffect(() => {
     if (typeof window === "undefined") return
-    const leadId = new URLSearchParams(window.location.search).get("leadId")
+    const params = new URLSearchParams(window.location.search)
+    const leadId = params.get("leadId") || params.get("lead_id")
     if (!leadId || selectedLead || loadingLeadDetails) return
 
     const numericLeadId = Number(leadId)
