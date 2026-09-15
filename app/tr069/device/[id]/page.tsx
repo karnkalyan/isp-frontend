@@ -11,7 +11,7 @@ import { TR069DeviceDiagnostics } from "@/components/tr069/device-diagnostics";
 import { TR069DeviceWanConnections } from "@/components/tr069/device-wan-connections";
 import { TR069DeviceLanInfo } from "@/components/tr069/device-lan";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, RefreshCw, Download, RotateCw, UserMinus } from "lucide-react";
+import { ArrowLeft, RefreshCw, Download, RotateCw, UserMinus, Key } from "lucide-react";
 import Link from "next/link";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { PageHeader } from "@/components/ui/page-header";
@@ -30,6 +30,40 @@ export default function TR069DevicePage({ params }: PageProps) {
 
   const [isRebooting, setIsRebooting] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [isSyncingRadius, setIsSyncingRadius] = useState(false);
+
+  const syncRadiusPassword = async () => {
+    try {
+      setIsSyncingRadius(true);
+      const data = await apiRequest<{ success: boolean; message?: string }>(
+        `/tr069-devices/${encodeURIComponent(id)}/sync-radius-password`,
+        { method: "POST" }
+      );
+
+      if (data?.success) {
+        toast({
+          title: "Success",
+          description: data.message || "PPP password synced to CMS Connection User and FreeRADIUS successfully",
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: data?.message || "Failed to sync password to RADIUS",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error("Failed to sync RADIUS password:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to sync password to RADIUS",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncingRadius(false);
+    }
+  };
 
   const rebootDevice = async () => {
     try {
@@ -89,7 +123,7 @@ export default function TR069DevicePage({ params }: PageProps) {
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <PageHeader heading="TR-069 Device" subheading="Device Management" />
+          <PageHeader title="TR-069 Device" description="Device Management" />
           <Button variant="outline" size="sm" asChild>
             <Link href="/tr069">
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -99,6 +133,17 @@ export default function TR069DevicePage({ params }: PageProps) {
         </div>
 
         <div className="flex flex-wrap gap-2 justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={syncRadiusPassword}
+            disabled={isSyncingRadius}
+            className="border-emerald-300 text-emerald-700 bg-emerald-50/60 hover:bg-emerald-100 hover:text-emerald-800"
+          >
+            <Key className={`h-4 w-4 mr-2 ${isSyncingRadius ? 'animate-spin' : ''}`} />
+            {isSyncingRadius ? "Syncing RADIUS..." : "Sync with RADIUS Password"}
+          </Button>
+
           <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh All

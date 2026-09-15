@@ -107,7 +107,9 @@ export function TR069DeviceList() {
   const [totalDevices, setTotalDevices] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
+  const [isSyncingRadius, setIsSyncingRadius] = useState(false)
   const [syncingDevice, setSyncingDevice] = useState<string | null>(null)
+  const [syncingRadiusSerial, setSyncingRadiusSerial] = useState<string | null>(null)
   const [rebootInProgress, setRebootInProgress] = useState<string | null>(null)
 
   // Pagination state
@@ -214,10 +216,16 @@ export function TR069DeviceList() {
     return () => window.removeEventListener("keydown", handleSecretKeyShortcut)
   }, [])
 
-  const syncDevices = async () => {
+  const syncDevices = async (syncRadiusPassword = false) => {
     try {
-      setIsSyncing(true)
-      toast.loading("Syncing with GenieACS (matching devices and usernames)...", { id: "sync" })
+      if (syncRadiusPassword) {
+        setIsSyncingRadius(true)
+        toast.loading("Syncing devices & updating PPP passwords in CMS & FreeRADIUS...", { id: "sync" })
+      } else {
+        setIsSyncing(true)
+        toast.loading("Syncing with GenieACS (matching devices and usernames)...", { id: "sync" })
+      }
+
       const response = await apiRequest<{
         success: boolean
         message: string
@@ -228,25 +236,57 @@ export function TR069DeviceList() {
           matchedBySerial?: number
           matchedByUsername?: number
           relationsCreated?: number
+          passwordsSynced?: number
+          radiusPushed?: number
         }
       }>("/tr069-devices/sync", {
-        method: 'POST'
+        method: 'POST',
+        body: JSON.stringify({ syncRadiusPassword })
       })
+
       if (response.success) {
         const removed = response.stats?.removed ? `, removed ${response.stats.removed} stale` : ""
         const usernameInfo = response.stats?.matchedByUsername
-          ? `, ${response.stats.matchedByUsername} linked by username (${response.stats.relationsCreated || 0} relations created)`
+          ? `, ${response.stats.matchedByUsername} linked by username`
           : ""
-        toast.success(`Synced ${response.stats?.total ?? 0} devices${removed}${usernameInfo}`, { id: "sync", duration: 5000 })
+        const radiusInfo = syncRadiusPassword
+          ? ` (${response.stats?.passwordsSynced ?? 0} passwords synced to CMS, ${response.stats?.radiusPushed ?? 0} pushed to RADIUS)`
+          : ""
+        toast.success(`Synced ${response.stats?.total ?? 0} devices${removed}${usernameInfo}${radiusInfo}`, { id: "sync", duration: 6000 })
         await fetchDevices()
       } else {
         toast.error(response.message || "Sync failed", { id: "sync" })
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Sync error:", err)
-      toast.error("Failed to sync with GenieACS", { id: "sync" })
+      toast.error(err?.message || "Failed to sync with GenieACS", { id: "sync" })
     } finally {
       setIsSyncing(false)
+      setIsSyncingRadius(false)
+    }
+  }
+
+  const syncSingleDeviceRadiusPassword = async (device: Device) => {
+    try {
+      setSyncingRadiusSerial(device.SerialNumber)
+      toast.loading(`Syncing RADIUS password for ${device.username || device.device}...`, { id: "single-radius-sync" })
+      const response = await apiRequest<{
+        success: boolean
+        message?: string
+        data?: any
+      }>(`/tr069-devices/${encodeURIComponent(device.SerialNumber)}/sync-radius-password`, {
+        method: "POST"
+      })
+      if (response.success) {
+        toast.success(response.message || `PPP password synced to CMS & FreeRADIUS!`, { id: "single-radius-sync", duration: 5000 })
+        await fetchDevices()
+      } else {
+        toast.error(response.message || "Failed to sync RADIUS password", { id: "single-radius-sync" })
+      }
+    } catch (error: any) {
+      toast.error(error?.message || `Failed to sync RADIUS password for ${device.device}`, { id: "single-radius-sync" })
+    } finally {
+      setSyncingRadiusSerial(null)
     }
   }
 
@@ -519,13 +559,21 @@ export function TR069DeviceList() {
 
             <div className="flex items-center gap-2">
               <Button
-                onClick={syncDevices}
-                disabled={isSyncing}
+                onClick={() => syncDevices(false)}
+                disabled={isSyncing || isSyncingRadius}
                 variant="outline"
                 className="h-10 gap-2 border-indigo-200 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-50"
               >
                 <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
                 {isSyncing ? "Syncing..." : "Sync from GenieACS"}
+              </Button>
+              <Button
+                onClick={() => syncDevices(true)}
+                disabled={isSyncing || isSyncingRadius}
+                className="h-10 gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-sm font-medium border-0"
+              >
+                <Key className={`h-4 w-4 ${isSyncingRadius ? 'animate-spin' : ''}`} />
+                {isSyncingRadius ? "Syncing with RADIUS..." : "Sync with RADIUS Password"}
               </Button>
               <div className="h-8 w-[1px] bg-slate-200 mx-2 hidden lg:block" />
               <div className="text-right">
@@ -737,12 +785,20 @@ export function TR069DeviceList() {
                                     <Info className="h-4 w-4 mr-2" /> Device Details
                                   </Link>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem
+                                 <DropdownMenuItem
                                   onClick={() => syncDevice(device)}
                                   disabled={syncingDevice === device.SerialNumber}
                                 >
                                   <RefreshCw className={`h-4 w-4 mr-2 ${syncingDevice === device.SerialNumber ? "animate-spin" : ""}`} />
                                   {syncingDevice === device.SerialNumber ? "Syncing Device..." : "Sync This Device"}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => syncSingleDeviceRadiusPassword(device)}
+                                  disabled={syncingRadiusSerial === device.SerialNumber}
+                                  className="text-emerald-700 focus:text-emerald-800 font-medium"
+                                >
+                                  <Key className={`h-4 w-4 mr-2 text-emerald-600 ${syncingRadiusSerial === device.SerialNumber ? "animate-spin" : ""}`} />
+                                  {syncingRadiusSerial === device.SerialNumber ? "Syncing RADIUS..." : "Sync RADIUS Password"}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => refreshOltPower(device)}

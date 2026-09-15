@@ -81,6 +81,8 @@ export interface DeviceInfo {
         publicPort: number;
     };
     supportedDataModelEntries: number;
+    rxPower?: string | number;
+    lastContact?: string;
     parameters: Record<string, any>;
 }
 

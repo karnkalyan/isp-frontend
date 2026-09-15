@@ -10,6 +10,7 @@ import {
   Eye,
   EyeOff,
   RefreshCw,
+  Key,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { CircularProgress } from "@/components/ui/circular-progress";
@@ -28,6 +29,7 @@ export function TR069DeviceDetails({ deviceId }: TR069DeviceDetailsProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [showFullLogs, setShowFullLogs] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isSyncingRadius, setIsSyncingRadius] = useState(false);
   const [oltPowerData, setOltPowerData] = useState<{ oltRxPower: string | null; ontRxPower: string | null; oltName: string | null; found: boolean } | null>(null);
   const [isRefreshingOltPower, setIsRefreshingOltPower] = useState(false);
 
@@ -188,6 +190,29 @@ export function TR069DeviceDetails({ deviceId }: TR069DeviceDetailsProps) {
   const password = getConnectionValue(internetConn, ["X_CMS_Password", "Password"]);
   const maskedPassword =
     password !== "N/A" ? "•".repeat(Math.max(password.length, 6)) : "N/A";
+
+  const handleSyncRadiusPassword = async () => {
+    try {
+      setIsSyncingRadius(true);
+      toast.loading("Syncing PPP password to CMS Connection User & FreeRADIUS...", { id: "radius-pwd-sync" });
+      const res = await apiRequest<any>(`/tr069-devices/${encodeURIComponent(safeDeviceId)}/sync-radius-password`, {
+        method: "POST",
+        body: JSON.stringify({
+          username: username !== "N/A" ? username : undefined,
+          password: password !== "N/A" ? password : undefined
+        })
+      });
+      if (res?.success) {
+        toast.success(res.message || "PPP password synced to CMS Connection User and FreeRADIUS!", { id: "radius-pwd-sync", duration: 5000 });
+      } else {
+        toast.error(res?.error || res?.message || "Failed to sync password to RADIUS", { id: "radius-pwd-sync" });
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to sync password to RADIUS", { id: "radius-pwd-sync" });
+    } finally {
+      setIsSyncingRadius(false);
+    }
+  };
 
   const memoryTotalKB = Number(deviceInfo?.memoryTotal ?? 0);
   const memoryFreeKB = Number(deviceInfo?.memoryFree ?? 0);
@@ -472,6 +497,18 @@ export function TR069DeviceDetails({ deviceId }: TR069DeviceDetailsProps) {
                   >
                     <Copy className="h-3.5 w-3.5" />
                   </button>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleSyncRadiusPassword}
+                    disabled={isSyncingRadius}
+                    className="h-6 text-[11px] px-2 gap-1 border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-800"
+                    title="Sync PPP password to CMS Connection User and FreeRADIUS service"
+                  >
+                    <Key className={`h-3 w-3 ${isSyncingRadius ? "animate-spin" : ""}`} />
+                    {isSyncingRadius ? "Syncing..." : "Sync with RADIUS"}
+                  </Button>
                 </>
               )}
             </div>
