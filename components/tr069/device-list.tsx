@@ -59,6 +59,7 @@ type Device = {
   leadId: number | null
   oltRxPower: string | null
   oltName: string | null
+  matchedBy?: string | null
   lead?: {
     id: number
     firstName: string
@@ -216,13 +217,27 @@ export function TR069DeviceList() {
   const syncDevices = async () => {
     try {
       setIsSyncing(true)
-      toast.loading("Syncing with GenieACS...", { id: "sync" })
-      const response = await apiRequest<{ success: boolean; message: string; count?: number; stats?: { total: number; removed?: number } }>("/tr069-devices/sync", {
+      toast.loading("Syncing with GenieACS (matching devices and usernames)...", { id: "sync" })
+      const response = await apiRequest<{
+        success: boolean
+        message: string
+        count?: number
+        stats?: {
+          total: number
+          removed?: number
+          matchedBySerial?: number
+          matchedByUsername?: number
+          relationsCreated?: number
+        }
+      }>("/tr069-devices/sync", {
         method: 'POST'
       })
       if (response.success) {
         const removed = response.stats?.removed ? `, removed ${response.stats.removed} stale` : ""
-        toast.success(`Synced ${response.stats?.total ?? 0} devices${removed}`, { id: "sync" })
+        const usernameInfo = response.stats?.matchedByUsername
+          ? `, ${response.stats.matchedByUsername} linked by username (${response.stats.relationsCreated || 0} relations created)`
+          : ""
+        toast.success(`Synced ${response.stats?.total ?? 0} devices${removed}${usernameInfo}`, { id: "sync", duration: 5000 })
         await fetchDevices()
       } else {
         toast.error(response.message || "Sync failed", { id: "sync" })
@@ -605,16 +620,23 @@ export function TR069DeviceList() {
                                   <User className="h-4 w-4 text-indigo-600" />
                                 </div>
                                 <div className="space-y-0.5">
-                                  <Link
-                                    href={
-                                      (device.lead.status === 'converted' && device.lead.customers?.[0]?.id)
-                                        ? `/customers/${device.lead.customers[0].id}`
-                                        : `/leads/${device.leadId}`
-                                    }
-                                    className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
-                                  >
-                                    {device.lead.firstName} {device.lead.lastName}
-                                  </Link>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <Link
+                                      href={
+                                        (device.lead.status === 'converted' && device.lead.customers?.[0]?.id)
+                                          ? `/customers/${device.lead.customers[0].id}`
+                                          : `/leads/${device.leadId}`
+                                      }
+                                      className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+                                    >
+                                      {device.lead.firstName} {device.lead.lastName}
+                                    </Link>
+                                    {device.matchedBy === 'username' && (
+                                      <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-emerald-300 text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 font-normal">
+                                        Username Match
+                                      </Badge>
+                                    )}
+                                  </div>
                                   <p className="text-[10px] font-mono text-slate-400 uppercase">{device.lead.status}</p>
                                 </div>
                               </div>
