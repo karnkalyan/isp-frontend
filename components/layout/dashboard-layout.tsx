@@ -27,6 +27,7 @@ const pathPermissionMap: Record<string, string | string[]> = {
   "/fiber/olt": "olt_read",
   "/fiber/ont": "olt_read",
   "/fiber/map": "olt_read",
+  "/fiber/service": "olt_read",
   "/inventory/assigned": "inventory_read",
   "/settings/radius-pools": "settings_read",
   "/inventory": ["inventory_read", "inventory_manage"],
