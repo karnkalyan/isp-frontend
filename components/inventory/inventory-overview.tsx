@@ -20,17 +20,31 @@ import {
     Users,
     Pencil,
     Trash2,
-    Loader2
+    Loader2,
+    ChevronLeft,
+    ChevronRight,
+    ChevronsLeft,
+    ChevronsRight,
+    Layers,
+    UserCheck
 } from "lucide-react"
 import { apiRequest } from "@/lib/api"
 import { toast } from "@/hooks/use-toast"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
 import { AssignDeviceDialog } from "@/components/inventory/assign-device-dialog"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
 import {
     Table,
     TableBody,
@@ -93,6 +107,21 @@ export function InventoryOverview() {
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
     const [assignItem, setAssignItem] = useState<any>(null)
 
+    const [users, setUsers] = useState<any[]>([])
+    const [customers, setCustomers] = useState<any[]>([])
+    const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>("ALL")
+    const [currentPage, setCurrentPage] = useState<number>(1)
+    const [pageSize, setPageSize] = useState<number>(25)
+
+    // Bulk Assignment state
+    const [bulkAssignOpen, setBulkAssignOpen] = useState<boolean>(false)
+    const [bulkAssignTarget, setBulkAssignTarget] = useState<"BRANCH" | "USER" | "CUSTOMER">("BRANCH")
+    const [bulkAssignTargetId, setBulkAssignTargetId] = useState<string>("")
+    const [bulkAssignCustomerSearch, setBulkAssignCustomerSearch] = useState<string>("")
+    const [bulkAssignNote, setBulkAssignNote] = useState<string>("")
+    const [isSubmittingBulkAssign, setIsSubmittingBulkAssign] = useState<boolean>(false)
+    const [searchingCustomers, setSearchingCustomers] = useState<boolean>(false)
+
     // New dialog and history state
     const [bulkTransferOpen, setBulkTransferOpen] = useState(false)
     const [transferBranchId, setTransferBranchId] = useState("")
@@ -138,11 +167,69 @@ export function InventoryOverview() {
         }
     }
 
+    const searchCustomers = async (query: string) => {
+        setSearchingCustomers(true)
+        try {
+            const data = await apiRequest(`/customers?search=${encodeURIComponent(query)}&limit=30`)
+            const list = Array.isArray(data) ? data : (Array.isArray(data?.customers) ? data.customers : (Array.isArray(data?.data) ? data.data : []))
+            setCustomers(list)
+        } catch (e) {
+            console.error("Customer search error:", e)
+        } finally {
+            setSearchingCustomers(false)
+        }
+    }
+
     useEffect(() => {
         fetchInventory()
         apiRequest("/branches").then(data => setBranches(Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [])).catch(() => {})
         apiRequest("/vendors").then(data => setVendors(Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [])).catch(() => {})
+        apiRequest("/users").then(data => setUsers(Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [])).catch(() => {})
     }, [])
+
+    useEffect(() => {
+        if (bulkAssignOpen && bulkAssignTarget === "CUSTOMER" && customers.length === 0) {
+            searchCustomers("")
+        }
+    }, [bulkAssignOpen, bulkAssignTarget])
+
+    const submitBulkAssign = async () => {
+        if (selectedIds.size === 0 || !bulkAssignTargetId) {
+            toast({ title: "Validation Error", description: "Please select a destination target", variant: "destructive" })
+            return
+        }
+        setIsSubmittingBulkAssign(true)
+        try {
+            const payload: any = {
+                itemIds: Array.from(selectedIds),
+                note: bulkAssignNote || `Bulk assignment to ${bulkAssignTarget.toLowerCase()}`
+            }
+            if (bulkAssignTarget === "BRANCH") {
+                payload.toBranchId = Number(bulkAssignTargetId)
+                payload.status = "ASSIGNED_TO_BRANCH"
+            } else if (bulkAssignTarget === "USER") {
+                payload.toUserId = Number(bulkAssignTargetId)
+                payload.status = "ASSIGNED_TO_USER"
+            } else if (bulkAssignTarget === "CUSTOMER") {
+                payload.toCustomerId = Number(bulkAssignTargetId)
+                payload.status = "ASSIGNED_TO_CUSTOMER"
+            }
+
+            await apiRequest("/inventory/bulk-transfer", {
+                method: "POST",
+                body: JSON.stringify(payload)
+            })
+
+            toast({ title: "Success", description: `Successfully assigned ${selectedIds.size} devices to ${bulkAssignTarget.toLowerCase()}!` })
+            setSelectedIds(new Set())
+            setBulkAssignOpen(false)
+            fetchInventory()
+        } catch (err: any) {
+            toast({ title: "Error", description: err.message || "Failed to bulk assign devices", variant: "destructive" })
+        } finally {
+            setIsSubmittingBulkAssign(false)
+        }
+    }
 
     const toggleSelection = (id: number) => {
         const newSet = new Set(selectedIds)
@@ -306,6 +393,54 @@ export function InventoryOverview() {
         }).sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())
     }, [items])
 
+    type TypeBreakdown = {
+        type: string
+        total: number
+        inStock: number
+        branch: number
+        customer: number
+        technician: number
+        faulty: number
+    }
+
+    const typeBreakdowns = React.useMemo<TypeBreakdown[]>(() => {
+        const map = new Map<string, TypeBreakdown>()
+
+        items.forEach(item => {
+            const type = (item.type || "OTHER").toUpperCase().trim()
+            if (!map.has(type)) {
+                map.set(type, {
+                    type,
+                    total: 0,
+                    inStock: 0,
+                    branch: 0,
+                    customer: 0,
+                    technician: 0,
+                    faulty: 0
+                })
+            }
+            const b = map.get(type)!
+            const qty = Number(item.qty || 1)
+            b.total += qty
+
+            if (item.status === "IN_STOCK") {
+                b.inStock += qty
+            } else if (item.status === "ASSIGNED_TO_BRANCH") {
+                b.branch += qty
+            } else if (item.status === "ASSIGNED_TO_CUSTOMER" || item.status === "INSTALLED_AT_CUSTOMER" || item.customerId) {
+                b.customer += qty
+            } else if (item.status === "ASSIGNED_TO_USER" || item.status === "ASSIGNED_TO_ROLE" || item.userId) {
+                b.technician += qty
+            } else if (item.status === "FAULTY") {
+                b.faulty += qty
+            } else {
+                b.inStock += qty
+            }
+        })
+
+        return Array.from(map.values()).sort((a, b) => b.total - a.total)
+    }, [items])
+
     const filteredGroupedItems = groupedItems.filter(group => {
         const search = searchTerm.toLowerCase()
         const matchesSearch = group.records.some(item =>
@@ -316,14 +451,21 @@ export function InventoryOverview() {
             item.user?.name?.toLowerCase().includes(search) ||
             item.branch?.name?.toLowerCase().includes(search)
         )
+        const matchesType = selectedTypeFilter === "ALL" || group.records.some(item => (item.type || "").toUpperCase().trim() === selectedTypeFilter)
         const matchesStatus = statusFilter === "all" || group.records.some(item => {
             if (statusFilter === "customer_assigned") return Boolean(item.customerId) || ["ASSIGNED_TO_CUSTOMER", "INSTALLED_AT_CUSTOMER"].includes(item.status)
             if (statusFilter === "user_assigned") return Boolean(item.userId) || item.status === "ASSIGNED_TO_USER"
             if (statusFilter === "unassigned") return !item.customerId && !item.userId && !item.assignedRoleId && ["IN_STOCK", "RETURNED"].includes(item.status)
             return item.status === statusFilter
         })
-        return matchesSearch && matchesStatus
+        return matchesSearch && matchesStatus && matchesType
     })
+
+    const totalPages = Math.max(1, Math.ceil(filteredGroupedItems.length / pageSize))
+    const paginatedGroupedItems = React.useMemo(() => {
+        const start = (currentPage - 1) * pageSize
+        return filteredGroupedItems.slice(start, start + pageSize)
+    }, [filteredGroupedItems, currentPage, pageSize])
 
     const selectableGroupedItems = filteredGroupedItems.filter(group => group.primary)
 
@@ -378,6 +520,81 @@ export function InventoryOverview() {
                 </div>
             </div>
 
+            {/* Hardware Breakdown by Category Badges Component */}
+            <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                            <Layers className="h-4 w-4 text-primary" />
+                            Hardware Inventory Breakdown
+                        </h3>
+                        <p className="text-xs text-muted-foreground">
+                            Live device totals with assignment breakdown across branches, customers, and field staff.
+                        </p>
+                    </div>
+                    {selectedTypeFilter !== "ALL" && (
+                        <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => { setSelectedTypeFilter("ALL"); setCurrentPage(1); }}
+                            className="text-xs text-primary hover:text-primary/80 self-start sm:self-auto h-7 px-2"
+                        >
+                            Showing {selectedTypeFilter} (Click to show all)
+                        </Button>
+                    )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                    {typeBreakdowns.map((tb) => {
+                        const isSelected = selectedTypeFilter === tb.type
+                        return (
+                            <div
+                                key={tb.type}
+                                onClick={() => {
+                                    setSelectedTypeFilter(isSelected ? "ALL" : tb.type)
+                                    setCurrentPage(1)
+                                }}
+                                className={`cursor-pointer rounded-xl border p-3.5 transition-all shadow-sm ${
+                                    isSelected
+                                        ? "ring-2 ring-primary border-primary bg-primary/5 shadow-md"
+                                        : "bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700"
+                                }`}
+                            >
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2 font-bold text-sm text-foreground">
+                                        <HardDrive className="h-4 w-4 text-indigo-500" />
+                                        <span>{tb.type}</span>
+                                    </div>
+                                    <Badge variant="outline" className="font-mono font-bold text-xs bg-slate-100 dark:bg-slate-800">
+                                        Total {tb.total}
+                                    </Badge>
+                                </div>
+
+                                <div className="flex flex-wrap gap-1.5 pt-1">
+                                    <Badge variant="success" className="text-[11px] font-medium py-0.5">
+                                        {tb.inStock} In Stock
+                                    </Badge>
+                                    <Badge variant="secondary" className="text-[11px] font-medium py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                                        {tb.branch} Branch
+                                    </Badge>
+                                    <Badge className="text-[11px] font-medium py-0.5 bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300">
+                                        {tb.customer} Customer
+                                    </Badge>
+                                    <Badge variant="warning" className="text-[11px] font-medium py-0.5">
+                                        {tb.technician} Technician
+                                    </Badge>
+                                    {tb.faulty > 0 && (
+                                        <Badge variant="destructive" className="text-[11px] font-medium py-0.5">
+                                            {tb.faulty} Faulty
+                                        </Badge>
+                                    )}
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+            </div>
+
             <CardContainer title="Stock Items">
                 <div className="flex flex-col md:flex-row gap-4 mb-6">
                     <div className="relative flex-1">
@@ -386,15 +603,36 @@ export function InventoryOverview() {
                             placeholder="Search by name, serial, or MAC..." 
                             className="pl-10"
                             value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
+                            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                         />
                     </div>
                     <div className="flex max-w-full items-center gap-2 overflow-x-auto pb-1">
                         {selectedIds.size > 0 && (
-                            <Button variant="secondary" onClick={handleBulkTransferClick} className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900 dark:text-indigo-300">
-                                <Users className="h-4 w-4 mr-2" />
-                                Bulk Transfer ({selectedIds.size})
-                            </Button>
+                            <div className="flex items-center gap-2 shrink-0">
+                                <Button 
+                                    variant="default" 
+                                    size="sm"
+                                    onClick={() => {
+                                        setBulkAssignTarget("BRANCH")
+                                        setBulkAssignTargetId("")
+                                        setBulkAssignNote("")
+                                        setBulkAssignOpen(true)
+                                    }} 
+                                    className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5 whitespace-nowrap shadow-sm"
+                                >
+                                    <ArrowRightLeft className="h-4 w-4" />
+                                    Bulk Assign Devices ({selectedIds.size})
+                                </Button>
+                                <Button 
+                                    variant="secondary" 
+                                    size="sm"
+                                    onClick={handleBulkTransferClick} 
+                                    className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900 dark:text-indigo-300 whitespace-nowrap"
+                                >
+                                    <Users className="h-4 w-4 mr-1.5" />
+                                    Branch Transfer ({selectedIds.size})
+                                </Button>
+                            </div>
                         )}
                         <Button 
                             variant={statusFilter === 'all' ? 'default' : 'outline'} 
@@ -466,7 +704,7 @@ export function InventoryOverview() {
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                filteredGroupedItems.map((group) => {
+                                paginatedGroupedItems.map((group) => {
                                     const item = group.primary
                                     return (
                                     <TableRow key={group.key} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
@@ -561,36 +799,36 @@ export function InventoryOverview() {
                                                     >
                                                         <Pencil className="h-4 w-4" /> Edit Item
                                                     </DropdownMenuItem>
-                                                    <DropdownMenuItem 
+                                                    <DropdownMenuItem
                                                         className="gap-2 cursor-pointer"
-                                                        onClick={() => setAssignItem(item)}
+                                                        onClick={() => {
+                                                            setAssignItem(item)
+                                                        }}
                                                     >
-                                                        <User className="h-4 w-4" /> Assign Item
+                                                        <ArrowRightLeft className="h-4 w-4" /> Assign Hardware
                                                     </DropdownMenuItem>
-                                                    <DropdownMenuItem 
+                                                    <DropdownMenuItem
                                                         className="gap-2 cursor-pointer"
+                                                        onClick={() => {
+                                                            fetchItemLogs(item.id)
+                                                            setHistoryItemObj(item)
+                                                            setHistoryOpen(true)
+                                                        }}
+                                                    >
+                                                        <History className="h-4 w-4" /> View History
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem
+                                                        className="gap-2 cursor-pointer text-amber-600 dark:text-amber-500"
                                                         onClick={() => {
                                                             setReturnItemObj(item)
                                                             setReturnDialogOpen(true)
                                                         }}
                                                     >
-                                                        <ArrowRightLeft className="h-4 w-4" /> Return to Stock
+                                                        <CheckCircle2 className="h-4 w-4" /> Return to Stock
                                                     </DropdownMenuItem>
-                                                    <DropdownMenuItem 
-                                                        className="gap-2 cursor-pointer"
-                                                        onClick={() => {
-                                                            setHistoryItemObj(item)
-                                                            setHistoryLogs([])
-                                                            setHistoryOpen(true)
-                                                            fetchItemLogs(item.id)
-                                                        }}
-                                                    >
-                                                        <History className="h-4 w-4" /> View History
-                                                    </DropdownMenuItem>
-
-                                                    <DropdownMenuSeparator />
-                                                    <DropdownMenuItem 
-                                                        className="text-rose-500 gap-2 cursor-pointer"
+                                                    <DropdownMenuItem
+                                                        className="gap-2 cursor-pointer text-rose-600 dark:text-rose-500"
                                                         onClick={() => {
                                                             setFaultyItemObj(item)
                                                             setFaultyDialogOpen(true)
@@ -613,8 +851,216 @@ export function InventoryOverview() {
                             )}
                         </TableBody>
                     </Table>
+
+                    {/* Pagination Controls */}
+                    {filteredGroupedItems.length > 0 && (
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t bg-slate-50/50 dark:bg-slate-900/50">
+                            <div className="text-xs text-muted-foreground">
+                                Showing <span className="font-semibold text-foreground">{(currentPage - 1) * pageSize + 1}</span> to <span className="font-semibold text-foreground">{Math.min(currentPage * pageSize, filteredGroupedItems.length)}</span> of <span className="font-semibold text-foreground">{filteredGroupedItems.length}</span> items
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mr-3">
+                                    <span>Rows:</span>
+                                    <Select value={String(pageSize)} onValueChange={(val) => { setPageSize(Number(val)); setCurrentPage(1); }}>
+                                        <SelectTrigger className="h-8 w-18 text-xs bg-white dark:bg-slate-800">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="10">10</SelectItem>
+                                            <SelectItem value="25">25</SelectItem>
+                                            <SelectItem value="50">50</SelectItem>
+                                            <SelectItem value="100">100</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={() => setCurrentPage(1)} 
+                                    disabled={currentPage === 1} 
+                                    className="h-8 w-8 p-0"
+                                    title="First Page"
+                                >
+                                    <ChevronsLeft className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+                                    disabled={currentPage === 1} 
+                                    className="h-8 w-8 p-0"
+                                    title="Previous Page"
+                                >
+                                    <ChevronLeft className="h-4 w-4" />
+                                </Button>
+                                <span className="text-xs px-2 font-medium">
+                                    Page {currentPage} of {totalPages}
+                                </span>
+                                <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
+                                    disabled={currentPage === totalPages} 
+                                    className="h-8 w-8 p-0"
+                                    title="Next Page"
+                                >
+                                    <ChevronRight className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={() => setCurrentPage(totalPages)} 
+                                    disabled={currentPage === totalPages} 
+                                    className="h-8 w-8 p-0"
+                                    title="Last Page"
+                                >
+                                    <ChevronsRight className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </CardContainer>
+
+            {/* Bulk Assign Devices Dialog */}
+            <Dialog open={bulkAssignOpen} onOpenChange={setBulkAssignOpen}>
+                <DialogContent className="sm:max-w-[550px]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <ArrowRightLeft className="h-5 w-5 text-blue-600" />
+                            Bulk Assign Devices ({selectedIds.size} selected)
+                        </DialogTitle>
+                        <DialogDescription>
+                            Assign selected hardware devices in bulk to a Branch, Staff/Technician, or Customer.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-2">
+                        <div className="space-y-2">
+                            <Label className="text-xs font-semibold">Assignment Destination Type</Label>
+                            <div className="grid grid-cols-3 gap-2">
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={bulkAssignTarget === "BRANCH" ? "default" : "outline"}
+                                    onClick={() => { setBulkAssignTarget("BRANCH"); setBulkAssignTargetId(""); }}
+                                    className="gap-1.5 text-xs"
+                                >
+                                    <Building2 className="h-4 w-4" />
+                                    Branch
+                                </Button>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={bulkAssignTarget === "USER" ? "default" : "outline"}
+                                    onClick={() => { setBulkAssignTarget("USER"); setBulkAssignTargetId(""); }}
+                                    className="gap-1.5 text-xs"
+                                >
+                                    <UserCheck className="h-4 w-4" />
+                                    Staff / Tech
+                                </Button>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={bulkAssignTarget === "CUSTOMER" ? "default" : "outline"}
+                                    onClick={() => { setBulkAssignTarget("CUSTOMER"); setBulkAssignTargetId(""); }}
+                                    className="gap-1.5 text-xs"
+                                >
+                                    <Users className="h-4 w-4" />
+                                    Customer
+                                </Button>
+                            </div>
+                        </div>
+
+                        {bulkAssignTarget === "BRANCH" && (
+                            <div className="space-y-2">
+                                <Label htmlFor="bulk-assign-branch" className="text-xs font-semibold">Select Destination Branch</Label>
+                                <Select value={bulkAssignTargetId} onValueChange={setBulkAssignTargetId}>
+                                    <SelectTrigger id="bulk-assign-branch">
+                                        <SelectValue placeholder="Choose branch..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {branches.map(b => (
+                                            <SelectItem key={b.id} value={String(b.id)}>
+                                                {b.name} {b.code ? `(${b.code})` : ""}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
+
+                        {bulkAssignTarget === "USER" && (
+                            <div className="space-y-2">
+                                <Label htmlFor="bulk-assign-user" className="text-xs font-semibold">Select Staff / Technician</Label>
+                                <Select value={bulkAssignTargetId} onValueChange={setBulkAssignTargetId}>
+                                    <SelectTrigger id="bulk-assign-user">
+                                        <SelectValue placeholder="Choose staff / technician..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {users.map(u => (
+                                            <SelectItem key={u.id} value={String(u.id)}>
+                                                {u.name} {u.role?.name ? `(${u.role.name})` : ""}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
+
+                        {bulkAssignTarget === "CUSTOMER" && (
+                            <div className="space-y-2">
+                                <Label htmlFor="bulk-assign-customer" className="text-xs font-semibold">Search & Select Customer</Label>
+                                <div className="space-y-2">
+                                    <Input
+                                        placeholder="Type customer name, code or phone to search..."
+                                        value={bulkAssignCustomerSearch}
+                                        onChange={(e) => {
+                                            setBulkAssignCustomerSearch(e.target.value)
+                                            searchCustomers(e.target.value)
+                                        }}
+                                        className="h-9 text-xs"
+                                    />
+                                    <Select value={bulkAssignTargetId} onValueChange={setBulkAssignTargetId}>
+                                        <SelectTrigger id="bulk-assign-customer">
+                                            <SelectValue placeholder={searchingCustomers ? "Searching..." : "Select customer..."} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {customers.map(c => (
+                                                <SelectItem key={c.id} value={String(c.id)}>
+                                                    {c.customerUniqueId || c.id} - {c.lead?.firstName || c.name || "Customer"} {c.lead?.lastName || ""} ({c.lead?.phoneNumber || "No Phone"})
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="space-y-2">
+                            <Label htmlFor="bulk-assign-note" className="text-xs font-semibold">Assignment Remarks / Notes</Label>
+                            <Textarea
+                                id="bulk-assign-note"
+                                placeholder="Optional note for assignment audit log..."
+                                value={bulkAssignNote}
+                                onChange={(e) => setBulkAssignNote(e.target.value)}
+                                rows={2}
+                                className="text-xs"
+                            />
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" size="sm" onClick={() => setBulkAssignOpen(false)} disabled={isSubmittingBulkAssign}>
+                            Cancel
+                        </Button>
+                        <Button size="sm" onClick={submitBulkAssign} disabled={isSubmittingBulkAssign || !bulkAssignTargetId} className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
+                            {isSubmittingBulkAssign ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRightLeft className="h-4 w-4" />}
+                            Confirm Bulk Assignment
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Edit Inventory Item */}
             <Dialog open={!!editingItem} onOpenChange={(open) => { if (!open) setEditingItem(null) }}>

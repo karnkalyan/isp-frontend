@@ -210,6 +210,35 @@ function ImportHubContent() {
         setLogs([])
     }
 
+    // Dynamically locate real header row in spreadsheets (supporting title banners like Arrownet report)
+    const parseWorksheetRows = (worksheet: XLSX.WorkSheet): any[] => {
+        const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][]
+        if (!rawRows || rawRows.length === 0) return []
+
+        let headerRowIndex = 0
+        const headerKeywords = [
+            "username", "customer", "first name", "name", "expiration", "remaining days",
+            "expiry", "phone", "mobile", "address", "organization", "branch", "package",
+            "plan", "period", "lead", "registered on", "olt", "splitter", "service", "nas"
+        ]
+
+        for (let i = 0; i < Math.min(rawRows.length, 25); i++) {
+            const row = rawRows[i]
+            if (Array.isArray(row) && row.length > 0) {
+                const matches = row.filter(cell => {
+                    const str = String(cell || "").toLowerCase().trim()
+                    return headerKeywords.some(kw => str.includes(kw))
+                })
+                if (matches.length >= 2 || row.some(cell => String(cell || "").toLowerCase().trim() === "username")) {
+                    headerRowIndex = i
+                    break
+                }
+            }
+        }
+
+        return XLSX.utils.sheet_to_json(worksheet, { range: headerRowIndex, defval: "" })
+    }
+
     // Process and parse file (XLSX, XLS, CSV, JSON)
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
@@ -240,7 +269,7 @@ function ImportHubContent() {
                     const workbook = XLSX.read(data, { type: "array" })
                     const firstSheetName = workbook.SheetNames[0]
                     const worksheet = workbook.Sheets[firstSheetName]
-                    const jsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" })
+                    const jsonRows = parseWorksheetRows(worksheet)
                     setParsedRows(jsonRows)
                     toast.success(`Loaded ${jsonRows.length} rows from ${file.name}`)
                 } catch (err: any) {
@@ -269,7 +298,7 @@ function ImportHubContent() {
                 const workbook = XLSX.read(rawText.trim(), { type: "string" })
                 const firstSheetName = workbook.SheetNames[0]
                 const worksheet = workbook.Sheets[firstSheetName]
-                const jsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" })
+                const jsonRows = parseWorksheetRows(worksheet)
                 setParsedRows(jsonRows)
                 toast.success(`Parsed ${jsonRows.length} CSV rows`)
             }
@@ -287,6 +316,43 @@ function ImportHubContent() {
             toast.error("Failed to download template")
         }
     }
+
+    // Download Arrownet-specific template (supporting arrownetorg.xlsx columns)
+    const handleDownloadArrownetTemplate = (format: "xlsx" | "csv") => {
+        const headers = [
+            "Username", "Name", "Customer Code", "Mobile", "Address",
+            "Organization", "Branch", "Expiration", "Remaining Days",
+            "Package", "Period", "Registered On"
+        ]
+        const sampleRow = {
+            Username: "akash",
+            Name: "Akash Shrestha",
+            "Customer Code": "32497",
+            Mobile: "9801191325",
+            Address: "Thimi",
+            Organization: "ARROWNET Pvt. Ltd.",
+            Branch: "ARROWNET Pvt. Ltd.",
+            Expiration: "15th Jul 2030",
+            "Remaining Days": "1405",
+            Package: "155 Mbps",
+            Period: "1",
+            "Registered On": "3rd Dec 2013"
+        }
+        const ws = XLSX.utils.json_to_sheet([sampleRow], { header: headers })
+        const wb = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(wb, ws, "Sheet1")
+        if (format === "xlsx") {
+            XLSX.writeFile(wb, "arrownet_customers_template.xlsx")
+        } else {
+            XLSX.writeFile(wb, "arrownet_customers_template.csv")
+        }
+    }
+
+    const isArrownetFormat = useMemo(() => {
+        if (!parsedRows || parsedRows.length === 0) return false
+        const first = parsedRows[0]
+        return Boolean(first && ("Expiration" in first || "expiration" in first || "Remaining Days" in first || "Customer Code" in first))
+    }, [parsedRows])
 
     const [importProgress, setImportProgress] = useState<{ current: number; total: number; percent: number; batch: number; totalBatches: number } | null>(null)
 
@@ -1498,6 +1564,18 @@ function ImportHubContent() {
                                             </div>
                                         </div>
 
+                                        {isArrownetFormat && (
+                                            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3.5 text-xs flex items-center gap-2.5 text-emerald-800 dark:text-emerald-200">
+                                                <Sparkles className="h-4 w-4 text-emerald-600 shrink-0" />
+                                                <div>
+                                                    <p className="font-semibold text-emerald-900 dark:text-emerald-100">Arrownet Customers Format Detected</p>
+                                                    <p className="text-[11px] text-emerald-700 dark:text-emerald-300 mt-0.5">
+                                                        Supports ordinal dates (e.g. 15th Jul 2030), converts duration (1, 3, 12) to months, derives missing plan start date from expiry, splits names into first/middle/last, and treats missing email as optional in the database.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+
                                         <div className="flex items-center justify-between pt-2">
                                             <p className="text-xs font-medium text-muted-foreground">
                                                 {parsedRows.length > 0 ? `✅ ${parsedRows.length} customers ready for import` : "No customers loaded yet"}
@@ -1553,6 +1631,33 @@ function ImportHubContent() {
                                                 <div className="text-[10px] text-muted-foreground">Programmatic JSON payload</div>
                                             </div>
                                         </Button>
+
+                                        <div className="pt-3 border-t border-border">
+                                            <p className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                                                <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                                                Arrownet Report Format:
+                                            </p>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="gap-2 text-xs border-amber-500/30 hover:bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                                                    onClick={() => handleDownloadArrownetTemplate("xlsx")}
+                                                >
+                                                    <FileSpreadsheet className="h-3.5 w-3.5 text-amber-600" />
+                                                    Arrownet (.xlsx)
+                                                </Button>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="gap-2 text-xs border-amber-500/30 hover:bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                                                    onClick={() => handleDownloadArrownetTemplate("csv")}
+                                                >
+                                                    <FileText className="h-3.5 w-3.5 text-amber-600" />
+                                                    Arrownet (.csv)
+                                                </Button>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <div className="mt-5 p-3.5 bg-muted/40 rounded-lg border border-border text-xs space-y-2">
