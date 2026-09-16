@@ -28,6 +28,7 @@ import {
   UserPlus,
   Building,
   RefreshCw,
+  Globe,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -314,11 +315,16 @@ const menuCategories: MenuCategory[] = [
           { title: "Nepurix Accounting", href: "/nepurix", permission: "services_read" },
           { title: "Radius Service", href: "/radius", permission: "services_read" },
           { title: "eSewa Transactions", href: "/services/esewa", permission: "services_read" },
-          { title: "External Payment", href: "/externalpayment", permission: "services_read" },
           { title: "Aakash SMS Setup", href: "/services/aakashsms", permission: "services_read" },
           { title: "Yeastar PBX", href: "/yeaster", permission: "nav_yeastar" },
           { title: "Asterisk PBX", href: "/asterisk", permission: "asterisk_read" },
         ],
+      },
+      {
+        title: "External Payment API Requests",
+        icon: Globe,
+        href: "/externalpayment",
+        permission: "services_read",
       },
     ],
   },
@@ -336,6 +342,12 @@ const menuCategories: MenuCategory[] = [
           { title: "Renewal", href: "/finance/renew", permission: "billing_read_self" },
           { title: "Branch Requests", href: "/finance/requests", permission: "billing_read" },
         ],
+      },
+      {
+        title: "External Payment Requests",
+        icon: Globe,
+        href: "/externalpayment",
+        permission: "billing_read",
       },
     ],
   },

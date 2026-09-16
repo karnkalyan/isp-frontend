@@ -15,7 +15,9 @@ import {
   Clock,
   ShieldCheck,
   AlertCircle,
-  FileDown
+  FileDown,
+  Eye,
+  Globe
 } from "lucide-react"
 import { apiRequest } from "@/lib/api"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
@@ -25,6 +27,7 @@ import { Badge } from "@/components/ui/badge"
 import { CardContainer } from "@/components/ui/card-container"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import toast from "react-hot-toast"
 
 const money = (value: number) =>
@@ -40,6 +43,7 @@ export default function ExternalPaymentPage() {
   const [status, setStatus] = useState("ALL")
   const [page, setPage] = useState(1)
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 })
+  const [selectedRequest, setSelectedRequest] = useState<any | null>(null)
 
   // Quick Push / Recharge Tester state
   const [rechargeUsername, setRechargeUsername] = useState("")
@@ -279,11 +283,16 @@ export default function ExternalPaymentPage() {
                       <th className="p-3">Reference</th>
                       <th className="p-3 text-right">Amount</th>
                       <th className="p-3 text-center">Status</th>
+                      <th className="p-3 text-center">Request Info</th>
                     </tr>
                   </thead>
                   <tbody>
                     {transactions.map((item) => (
-                      <tr key={item.id} className="border-b hover:bg-muted/20 align-top">
+                      <tr
+                        key={item.id}
+                        className="border-b hover:bg-muted/20 align-top cursor-pointer"
+                        onClick={() => setSelectedRequest(item)}
+                      >
                         <td className="p-3 whitespace-nowrap text-xs text-muted-foreground">
                           {formatDate(item.paidAt || item.createdAt)}
                         </td>
@@ -320,6 +329,20 @@ export default function ExternalPaymentPage() {
                             {item.status}
                           </Badge>
                         </td>
+                        <td className="p-3 text-center">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-xs flex items-center gap-1 mx-auto"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setSelectedRequest(item)
+                            }}
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            View
+                          </Button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -354,6 +377,149 @@ export default function ExternalPaymentPage() {
                 </Button>
               </div>
             </CardContainer>
+
+            {/* Complete Request Information Dialog */}
+            <Dialog open={Boolean(selectedRequest)} onOpenChange={(open) => !open && setSelectedRequest(null)}>
+              <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-lg">
+                    <Globe className="h-5 w-5 text-primary" />
+                    External API Request Details
+                  </DialogTitle>
+                  <DialogDescription>
+                    Full payload, customer verification, and provisioning status for this incoming request.
+                  </DialogDescription>
+                </DialogHeader>
+
+                {selectedRequest && (
+                  <div className="space-y-4 text-sm mt-2">
+                    {/* Status & Amount Banner */}
+                    <div className="flex flex-wrap items-center justify-between p-3 rounded-lg border bg-muted/40 gap-2">
+                      <div>
+                        <div className="text-xs text-muted-foreground">Status</div>
+                        <Badge
+                          variant={
+                            selectedRequest.status === "COMPLETED"
+                              ? "default"
+                              : selectedRequest.status === "FAILED"
+                              ? "destructive"
+                              : "secondary"
+                          }
+                          className="mt-1"
+                        >
+                          {selectedRequest.status}
+                        </Badge>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">Amount</div>
+                        <div className="font-bold text-base text-primary">
+                          {money(selectedRequest.amount)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">Payment Mode</div>
+                        <div className="font-semibold">{selectedRequest.paymentMode}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">Duration</div>
+                        <div className="font-medium">{selectedRequest.packageDuration || "1 month"}</div>
+                      </div>
+                    </div>
+
+                    {/* Error Banner if Failed */}
+                    {selectedRequest.status === "FAILED" && (
+                      <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-md text-xs space-y-1">
+                        <div className="font-semibold text-red-900 dark:text-red-200 flex items-center gap-1.5">
+                          <AlertCircle className="h-4 w-4" /> Request Processing Failure
+                        </div>
+                        <p className="text-red-800 dark:text-red-300 font-mono">
+                          {selectedRequest.packageDetails?.error || "Payment execution could not be completed"}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Customer Information Grid */}
+                    <div className="p-3 border rounded-lg space-y-2">
+                      <div className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1.5">
+                        <UserCheck className="h-3.5 w-3.5" /> Customer Identity
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                        <div>
+                          <span className="text-muted-foreground">Name:</span>
+                          <div className="font-medium">{selectedRequest.customerName}</div>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">PPPoE Username:</span>
+                          <div className="font-mono font-medium text-primary">@{selectedRequest.username}</div>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Customer ID:</span>
+                          <div className="font-mono">{selectedRequest.customerUniqueId}</div>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Phone:</span>
+                          <div>{selectedRequest.customerPhone || "—"}</div>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Email:</span>
+                          <div>{selectedRequest.customerEmail || "—"}</div>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Request Lookup ID:</span>
+                          <div className="font-mono text-muted-foreground">{selectedRequest.requestId || "—"}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Transaction & System Tracking Codes */}
+                    <div className="p-3 border rounded-lg space-y-2">
+                      <div className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1.5">
+                        <Code2 className="h-3.5 w-3.5" /> Transaction & Audit Codes
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
+                        <div className="p-2 bg-muted rounded">
+                          <span className="text-muted-foreground text-[10px] block">TRANSACTION CODE</span>
+                          <span>{selectedRequest.transactionCode || "—"}</span>
+                        </div>
+                        <div className="p-2 bg-muted rounded">
+                          <span className="text-muted-foreground text-[10px] block">REFERENCE CODE</span>
+                          <span>{selectedRequest.referenceCode || "—"}</span>
+                        </div>
+                        <div className="p-2 bg-muted rounded">
+                          <span className="text-muted-foreground text-[10px] block">INTERNAL ORDER ID</span>
+                          <span>{selectedRequest.orderId || "—"}</span>
+                        </div>
+                        <div className="p-2 bg-muted rounded">
+                          <span className="text-muted-foreground text-[10px] block">TIMESTAMP (PAID / CREATED)</span>
+                          <span>{formatDate(selectedRequest.paidAt || selectedRequest.createdAt)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Raw JSON Payload Details */}
+                    {selectedRequest.packageDetails && (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-muted-foreground">Raw Package & Execution Details:</span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 text-xs"
+                            onClick={() => copyToClipboard(JSON.stringify(selectedRequest, null, 2), "req-json")}
+                          >
+                            {copiedKey === "req-json" ? <Check className="h-3 w-3 mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
+                            Copy All JSON
+                          </Button>
+                        </div>
+                        <pre className="p-3 bg-zinc-950 text-zinc-100 rounded-md text-xs font-mono overflow-x-auto max-h-48">
+                          {JSON.stringify(selectedRequest.packageDetails, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           {/* TAB 2: INSTANT RECHARGE / PUSH TESTER */}
