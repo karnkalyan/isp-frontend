@@ -181,6 +181,8 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
   const [callNotes, setCallNotes] = useState<Record<string, string>>({})
   const [savingNote, setSavingNote] = useState<Record<string, boolean>>({})
 
+  const [activePBX, setActivePBX] = useState<"yeastar" | "asterisk">("yeastar")
+
   // Synchronize incoming notes
   useEffect(() => {
     if (callData?.data?.calllist) {
@@ -210,9 +212,17 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
     const note = callNotes[callid] || ""
     try {
       setSavingNote(prev => ({ ...prev, [callid]: true }))
-      await apiRequest("/yeaster/calls/active/note", {
+      const endpoint = activePBX === "asterisk" ? "/asterisk/calls/active/note" : "/yeaster/calls/active/note"
+      await apiRequest(endpoint, {
         method: "POST",
         body: JSON.stringify({ callid, note })
+      }).catch(async (e) => {
+        // Fallback to alternate PBX if primary fails
+        const fallback = activePBX === "asterisk" ? "/yeaster/calls/active/note" : "/asterisk/calls/active/note"
+        await apiRequest(fallback, {
+          method: "POST",
+          body: JSON.stringify({ callid, note })
+        })
       })
       toast.success("Note saved successfully")
       
@@ -295,14 +305,47 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
       window.setTimeout(() => fetchCallData(true), 1500)
     }
 
+    const handleAsteriskCallEvent = (event: any) => {
+      const payload = event?.data || event
+      const caller = String(payload?.caller || payload?.from || payload?.CallerIDNum || '')
+      const called = String(payload?.called || payload?.to || payload?.Exten || '')
+      const channel = String(payload?.channel || '')
+
+      if (!assignedExtension) return
+      const isForMe = caller === assignedExtension || called === assignedExtension || channel.includes(`/${assignedExtension}`)
+      if (!isForMe) return
+
+      setActivePBX("asterisk")
+      onOpenChange(true)
+      window.setTimeout(() => fetchCallData(true), 1200)
+    }
+
     const unsubscribeStatus = on("yeastar.call.status", handleCallEvent)
     const unsubscribeEvent = on("yeastar.event", handleCallEvent)
     const unsubscribeCdr = on("yeastar.newcdr", handleCallEvent)
+
+    // Asterisk event listeners
+    const unsubscribeAstCall = on("asterisk.call.start", handleAsteriskCallEvent)
+    const unsubscribeAstAnswer = on("asterisk.call.answered", handleAsteriskCallEvent)
+    const unsubscribeAstEnd = on("asterisk.call.end", (event: any) => {
+      handleAsteriskCallEvent(event)
+      window.setTimeout(() => fetchCallData(true), 800)
+    })
+    const unsubscribeAstGeneric = on("asterisk.event", (event: any) => {
+      const evName = String(event?.eventType || event?.Event || '').toLowerCase()
+      if (['newchannel', 'newstate', 'hangup', 'bridge'].includes(evName)) {
+        handleAsteriskCallEvent(event)
+      }
+    })
 
     return () => {
       unsubscribeStatus()
       unsubscribeEvent()
       unsubscribeCdr()
+      unsubscribeAstCall()
+      unsubscribeAstAnswer()
+      unsubscribeAstEnd()
+      unsubscribeAstGeneric()
     }
   }, [on, onOpenChange, assignedExtension])
 
@@ -409,10 +452,49 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
         setLoading(true)
       }
       
-      const data = await apiRequest<InquiryResponse>("/yeaster/calls/my-extension", {
-        method: "GET",
-        suppressToast: true,
-      })
+      let data: InquiryResponse | null = null
+      let foundPBX: "yeastar" | "asterisk" = "yeastar"
+
+      // Try primary or previously detected PBX first
+      if (activePBX === "asterisk") {
+        try {
+          data = await apiRequest<InquiryResponse>("/asterisk/calls/my-extension", {
+            method: "GET",
+            suppressToast: true,
+          })
+          if (data?.data?.calllist?.length) {
+            foundPBX = "asterisk"
+          }
+        } catch (e) {}
+      }
+
+      if (!data?.data?.calllist?.length) {
+        try {
+          data = await apiRequest<InquiryResponse>("/yeaster/calls/my-extension", {
+            method: "GET",
+            suppressToast: true,
+          })
+          if (data?.data?.calllist?.length) {
+            foundPBX = "yeastar"
+          }
+        } catch (e) {}
+      }
+
+      // If Yeastar returned nothing or failed, try Asterisk
+      if (!data?.data?.calllist?.length && foundPBX !== "asterisk") {
+        try {
+          const astData = await apiRequest<InquiryResponse>("/asterisk/calls/my-extension", {
+            method: "GET",
+            suppressToast: true,
+          })
+          if (astData?.data?.calllist?.length) {
+            data = astData
+            foundPBX = "asterisk"
+          }
+        } catch (e) {}
+      }
+
+      setActivePBX(foundPBX)
       
       if (data?.data?.calllist) {
         // Filter out transferred calls from the response
@@ -482,18 +564,45 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
   const fetchExtensionList = async () => {
     try {
       setFetchingExtensions(true)
-      const data = await apiRequest<ExtensionListResponse>("/yeaster/extensions/db", {
-        method: "GET",
-        suppressToast: true,
-      })
-      if (data.success) {
-        const extensions = Array.isArray(data.data) ? data.data : (data.data.extlist || [])
-        setExtensionList(extensions.map((extension) => ({
-          ...extension,
-          number: extension.number || extension.extensionNumber || "",
-          username: extension.username || extension.extensionName || extension.extensionNumber || ""
-        })))
+      let extensions: Extension[] = []
+
+      // 1. Try Yeastar extensions first
+      try {
+        const data = await apiRequest<ExtensionListResponse>("/yeaster/extensions/db", {
+          method: "GET",
+          suppressToast: true,
+        })
+        if (data.success) {
+          const list = Array.isArray(data.data) ? data.data : (data.data.extlist || [])
+          extensions = list.map((extension) => ({
+            ...extension,
+            number: extension.number || extension.extensionNumber || "",
+            username: extension.username || extension.extensionName || extension.extensionNumber || ""
+          }))
+        }
+      } catch (e) {}
+
+      // 2. Fallback to Asterisk extensions if Yeastar returned 0 extensions
+      if (extensions.length === 0) {
+        try {
+          const astData = await apiRequest<any>("/asterisk/extensions/db", {
+            method: "GET",
+            suppressToast: true,
+          })
+          if (astData.success && Array.isArray(astData.data)) {
+            extensions = astData.data.map((extension: any) => ({
+              number: extension.extensionNumber || extension.number || "",
+              extensionNumber: extension.extensionNumber || extension.number || "",
+              status: extension.status || "Registered",
+              type: extension.extensionType || "PJSIP",
+              username: extension.extensionName || extension.extensionNumber || "",
+              extensionName: extension.extensionName || extension.extensionNumber || ""
+            }))
+          }
+        } catch (e) {}
       }
+
+      setExtensionList(extensions)
     } catch (error: any) {
       console.error("Failed to fetch extension list:", error)
     } finally {
@@ -630,14 +739,33 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
     }
 
     try {
-      await apiRequest(`/yeaster/calls/make`, {
+      const endpoint = activePBX === "asterisk" ? "/asterisk/calls/make" : "/yeaster/calls/make"
+      const payload = activePBX === "asterisk"
+        ? {
+            extension: assignedExtension,
+            destination: phoneNumber,
+            autoanswer: "yes"
+          }
+        : {
+            extension: assignedExtension,
+            caller: assignedExtension,
+            callee: phoneNumber,
+            number: phoneNumber,
+            autoanswer: "yes",
+          }
+
+      await apiRequest(endpoint, {
         method: 'POST',
-        body: JSON.stringify({
-          extension: assignedExtension,
-          caller: assignedExtension,
-          callee: phoneNumber,
-          number: phoneNumber,
-          autoanswer: "yes",
+        body: JSON.stringify(payload)
+      }).catch(async (err) => {
+        // Fallback to alternate PBX if call fails
+        const fallbackEndpoint = activePBX === "asterisk" ? "/yeaster/calls/make" : "/asterisk/calls/make"
+        const fallbackPayload = activePBX === "asterisk"
+          ? { extension: assignedExtension, caller: assignedExtension, callee: phoneNumber, number: phoneNumber, autoanswer: "yes" }
+          : { extension: assignedExtension, destination: phoneNumber, autoanswer: "yes" }
+        return await apiRequest(fallbackEndpoint, {
+          method: 'POST',
+          body: JSON.stringify(fallbackPayload)
         })
       })
       
@@ -660,13 +788,20 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
         extnumber: assignedExtension
       }
       
-      const response: any = await apiRequest("/yeaster/calls/accept-inbound", {
+      const endpoint = activePBX === "asterisk" ? "/asterisk/calls/accept-inbound" : "/yeaster/calls/accept-inbound"
+      const response: any = await apiRequest(endpoint, {
         method: "POST",
         body: JSON.stringify(acceptPayload)
+      }).catch(async () => {
+        const fallback = activePBX === "asterisk" ? "/yeaster/calls/accept-inbound" : "/asterisk/calls/accept-inbound"
+        return await apiRequest(fallback, {
+          method: "POST",
+          body: JSON.stringify(acceptPayload)
+        })
       })
       
       if (response?.remoteAnswered === false) {
-        toast.error(response.message || "PBX accepted the inbound route, but the extension is still ringing. Enable uaCSTA to answer from the dashboard.")
+        toast.error(response.message || "PBX accepted the inbound route, but the extension is still ringing.")
       } else {
         toast.success("Call received successfully!")
       }
@@ -738,12 +873,22 @@ export function InquiryDialog({ open, onOpenChange, onCallsCountChange }: Inquir
       
       const transferPayload = {
         channelid: currentCallForTransfer.channelId,
-        number: selectedTransferExtension
+        channel: currentCallForTransfer.channelId,
+        number: selectedTransferExtension,
+        target: selectedTransferExtension,
+        extension: selectedTransferExtension
       }
       
-      await apiRequest("/yeaster/calls/transfer", {
+      const endpoint = activePBX === "asterisk" ? "/asterisk/calls/transfer" : "/yeaster/calls/transfer"
+      await apiRequest(endpoint, {
         method: "POST",
         body: JSON.stringify(transferPayload)
+      }).catch(async () => {
+        const fallback = activePBX === "asterisk" ? "/yeaster/calls/transfer" : "/asterisk/calls/transfer"
+        return await apiRequest(fallback, {
+          method: "POST",
+          body: JSON.stringify(transferPayload)
+        })
       })
       
       toast.success(`Call transferred to extension ${selectedTransferExtension}`)
