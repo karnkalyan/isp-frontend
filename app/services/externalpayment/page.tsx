@@ -14,7 +14,8 @@ import {
   UserCheck,
   Clock,
   ShieldCheck,
-  AlertCircle
+  AlertCircle,
+  FileDown
 } from "lucide-react"
 import { apiRequest } from "@/lib/api"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
@@ -189,6 +190,17 @@ export default function ExternalPaymentPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <a
+              href="/docs/External_Payment_API_Documentation.pdf"
+              download="External_Payment_API_Documentation.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Button variant="default" className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white">
+                <FileDown className="h-4 w-4" />
+                Download PDF Docs
+              </Button>
+            </a>
             <Button
               variant="outline"
               onClick={() => {
@@ -551,6 +563,31 @@ export default function ExternalPaymentPage() {
           <TabsContent value="docs" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
               <div className="md:col-span-5 space-y-4">
+                <CardContainer title="Official PDF Documentation" description="Download complete integration guide">
+                  <div className="space-y-3">
+                    <p className="text-xs text-muted-foreground">
+                      Contains API endpoints, headers, authentication guides, request/response examples, error codes, and billing integration details.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        className="w-full flex items-center justify-center gap-2"
+                        onClick={() => {
+                          const link = document.createElement("a");
+                          link.href = "/docs/External_Payment_API_Documentation.pdf";
+                          link.download = "External_Payment_API_Documentation.pdf";
+                          link.target = "_blank";
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                        }}
+                      >
+                        <FileDown className="h-4 w-4" />
+                        Download PDF Specification
+                      </Button>
+                    </div>
+                  </div>
+                </CardContainer>
+
                 <CardContainer title="API Credentials" description="Use these credentials in external systems">
                   <div className="space-y-3 text-sm">
                     <div>
