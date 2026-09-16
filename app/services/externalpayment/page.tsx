@@ -59,6 +59,13 @@ export default function ExternalPaymentPage() {
   const [config, setConfig] = useState<any>(null)
   const [configLoading, setConfigLoading] = useState(false)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
+  const [origin, setOrigin] = useState("")
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setOrigin(window.location.origin)
+    }
+  }, [])
 
   const copyToClipboard = (text: string, key: string) => {
     navigator.clipboard.writeText(text)
@@ -813,7 +820,7 @@ export default function ExternalPaymentPage() {
                           className="h-7 text-xs"
                           onClick={() =>
                             copyToClipboard(
-                              `curl -X POST "http://localhost:3200/api/externalpayment/payment" \\
+                              `curl -X POST "${origin || "https://cms.arrownet.com.np"}/api/externalpayment/payment" \\
   -H "Content-Type: application/json" \\
   -u "${config?.username || "external_isp_1"}:External@ISP#1!2025" \\
   -d '{
@@ -830,7 +837,7 @@ export default function ExternalPaymentPage() {
                         </Button>
                       </div>
                       <pre className="p-3 bg-zinc-950 text-zinc-100 rounded-md text-xs font-mono overflow-x-auto">
-{`curl -X POST "http://localhost:3200/api/externalpayment/payment" \\
+{`curl -X POST "${origin || "https://cms.arrownet.com.np"}/api/externalpayment/payment" \\
   -H "Content-Type: application/json" \\
   -u "${config?.username || "external_isp_1"}:<password>" \\
   -d '{
@@ -854,7 +861,7 @@ export default function ExternalPaymentPage() {
                           className="h-7 text-xs"
                           onClick={() =>
                             copyToClipboard(
-                              `curl -X GET "http://localhost:3200/api/externalpayment/inquiry/karnkalyan" \\
+                              `curl -X GET "${origin || "https://cms.arrownet.com.np"}/api/externalpayment/inquiry/karnkalyan" \\
   -u "${config?.username || "external_isp_1"}:External@ISP#1!2025"`,
                               "curl-inquiry"
                             )
@@ -865,7 +872,7 @@ export default function ExternalPaymentPage() {
                         </Button>
                       </div>
                       <pre className="p-3 bg-zinc-950 text-zinc-100 rounded-md text-xs font-mono overflow-x-auto">
-{`curl -X GET "http://localhost:3200/api/externalpayment/inquiry/karnkalyan" \\
+{`curl -X GET "${origin || "https://cms.arrownet.com.np"}/api/externalpayment/inquiry/karnkalyan" \\
   -u "${config?.username || "external_isp_1"}:<password>"`}
                       </pre>
                     </div>
@@ -883,7 +890,7 @@ export default function ExternalPaymentPage() {
                           className="h-7 text-xs"
                           onClick={() =>
                             copyToClipboard(
-                              `curl -X POST "http://localhost:3200/api/externalpayment/access-token" \\
+                              `curl -X POST "${origin || "https://cms.arrownet.com.np"}/api/externalpayment/access-token" \\
   -H "Content-Type: application/json" \\
   -d '{
     "grant_type": "password",
@@ -899,7 +906,7 @@ export default function ExternalPaymentPage() {
                         </Button>
                       </div>
                       <pre className="p-3 bg-zinc-950 text-zinc-100 rounded-md text-xs font-mono overflow-x-auto">
-{`curl -X POST "http://localhost:3200/api/externalpayment/access-token" \\
+{`curl -X POST "${origin || "https://cms.arrownet.com.np"}/api/externalpayment/access-token" \\
   -H "Content-Type: application/json" \\
   -d '{
     "grant_type": "password",

@@ -166,7 +166,7 @@ export function UsageChart() {
                 transition={{ duration: 0.3 }}
                 className={`h-[300px] mt-4 ${isDarkMode ? "bg-[#1e293b]" : "bg-gray-50"} p-4 rounded-lg`}
               >
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <AreaChart data={getChartData()} margin={{ top: 20, right: 0, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id={`downloadGradient-${activeTab}`} x1="0" y1="0" x2="0" y2="1">

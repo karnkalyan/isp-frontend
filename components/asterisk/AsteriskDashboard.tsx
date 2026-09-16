@@ -120,6 +120,18 @@ export default function AsteriskDashboard({ ispId }: AsteriskDashboardProps) {
     } catch (error: any) {
       console.error("❌ Error fetching Asterisk status:", error)
       setServerDown(true)
+      setStatus({
+        service: "asterisk",
+        configured: false,
+        isActive: false,
+        amiConnected: false,
+        ariConnected: false,
+        listenerActive: false,
+        controlConnected: false,
+        controlEngine: "Offline",
+        lastUpdated: new Date().toISOString(),
+        error: error.message || "Failed to connect to Asterisk service"
+      })
       toast.error("Failed to fetch Asterisk status. Verify backend connection.")
     } finally {
       setLoading(false)
