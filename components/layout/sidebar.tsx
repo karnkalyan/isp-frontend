@@ -343,12 +343,6 @@ const menuCategories: MenuCategory[] = [
           { title: "Branch Requests", href: "/finance/requests", permission: "billing_read" },
         ],
       },
-      {
-        title: "External Payment Requests",
-        icon: Globe,
-        href: "/externalpayment",
-        permission: "billing_read",
-      },
     ],
   },
   {
