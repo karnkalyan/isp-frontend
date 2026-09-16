@@ -314,6 +314,7 @@ const menuCategories: MenuCategory[] = [
           { title: "Nepurix Accounting", href: "/nepurix", permission: "services_read" },
           { title: "Radius Service", href: "/radius", permission: "services_read" },
           { title: "eSewa Transactions", href: "/services/esewa", permission: "services_read" },
+          { title: "External Payment", href: "/services/externalpayment", permission: "services_read" },
           { title: "Aakash SMS Setup", href: "/services/aakashsms", permission: "services_read" },
           { title: "Yeastar PBX", href: "/yeaster", permission: "nav_yeastar" },
           { title: "Asterisk PBX", href: "/asterisk", permission: "asterisk_read" },

@@ -615,6 +615,51 @@ export const ServicesAPI = {
         );
     },
 
+    // External Payment Operations
+    async processExternalPayment(paymentData: any) {
+        return apiRequest<{ success: boolean; data: any }>('/services/externalpayment/payment', {
+            method: 'POST',
+            body: JSON.stringify(paymentData)
+        });
+    },
+
+    async verifyExternalPayment(transactionId: string) {
+        return apiRequest<{ success: boolean; data: any }>(
+            `/services/externalpayment/payment/verify/${transactionId}`
+        );
+    },
+
+    async getExternalPaymentConfig() {
+        return apiRequest<any>('/settings/externalpayment/config');
+    },
+
+    async saveExternalPaymentConfig(config: any) {
+        return apiRequest<any>('/settings/externalpayment/config', {
+            method: 'PUT',
+            body: JSON.stringify(config)
+        });
+    },
+
+    async getExternalPaymentTransactions(params?: { page?: number; limit?: number; status?: string; search?: string }) {
+        const query = new URLSearchParams();
+        if (params?.page) query.set('page', String(params.page));
+        if (params?.limit) query.set('limit', String(params.limit));
+        if (params?.status && params.status !== 'ALL') query.set('status', params.status);
+        if (params?.search) query.set('search', params.search);
+        return apiRequest<any>(`/externalpayment/transactions?${query.toString()}`);
+    },
+
+    async testPushRecharge(data: any) {
+        return apiRequest<any>('/externalpayment/test-recharge', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    },
+
+    async externalPaymentInquiry(requestId: string) {
+        return apiRequest<any>(`/externalpayment/inquiry/${encodeURIComponent(requestId)}`);
+    },
+
     // Health Check
     async getServicesHealth() {
         return apiRequest<{
