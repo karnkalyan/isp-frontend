@@ -85,6 +85,23 @@ interface AsteriskDashboardProps {
   ispId: number
 }
 
+function cleanPBXVersion(v?: string): string {
+  if (!v) return "Asterisk";
+  if (v.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(v);
+      for (const [k, val] of Object.entries(parsed)) {
+        if (k.toLowerCase().includes("asterisk")) return `${k}: ${val}`.split("\n")[0];
+        if (typeof val === "string" && val.toLowerCase().includes("asterisk")) return val.split("\n")[0];
+      }
+    } catch {}
+  }
+  const first = v.split("\n")[0].replace(/--END COMMAND--/g, "").trim();
+  const m = first.match(/Asterisk\s+([^\s]+)\s+built\s+by\s+([^\s@]+)/i);
+  if (m) return `Asterisk ${m[1]} (${m[2]})`;
+  return first || "Asterisk";
+}
+
 export default function AsteriskDashboard({ ispId }: AsteriskDashboardProps) {
   const [status, setStatus] = useState<AsteriskStatus | null>(null)
   const [extensions, setExtensions] = useState<Extension[]>([])
@@ -111,10 +128,10 @@ export default function AsteriskDashboard({ ispId }: AsteriskDashboardProps) {
   const hasSetUpListeners = useRef(false)
 
   // Fetch Asterisk Service Status
-  const fetchStatus = useCallback(async () => {
+  const fetchStatus = useCallback(async (force = false) => {
     try {
       setLoading(true)
-      const data = await apiRequest<AsteriskStatus>('/asterisk/status')
+      const data = await apiRequest<AsteriskStatus>(`/asterisk/status${force ? '?force=true' : ''}`)
       setStatus(data)
       setServerDown(false)
     } catch (error: any) {
@@ -165,7 +182,7 @@ export default function AsteriskDashboard({ ispId }: AsteriskDashboardProps) {
   const handleRefreshAll = async () => {
     setLoading(true)
     await Promise.all([
-      fetchStatus(),
+      fetchStatus(true),
       fetchExtensions(),
       fetchTrunks()
     ])
@@ -454,8 +471,8 @@ export default function AsteriskDashboard({ ispId }: AsteriskDashboardProps) {
                 <Globe className="h-4 w-4 text-blue-500" />
                 <span className="text-sm font-medium">PBX Version</span>
               </div>
-              <Badge variant="outline" className="font-mono text-xs">
-                {status?.version || "Asterisk"}
+              <Badge variant="outline" className="font-mono text-xs max-w-[220px] truncate" title={status?.version}>
+                {cleanPBXVersion(status?.version)}
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground">Channel Tech: <b>{status?.capabilities?.channelTech || "Auto"}</b></p>

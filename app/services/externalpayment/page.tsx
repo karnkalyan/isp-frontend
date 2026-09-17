@@ -822,10 +822,10 @@ export default function ExternalPaymentPage() {
                             copyToClipboard(
                               `curl -X POST "${origin || "https://cms.arrownet.com.np"}/api/externalpayment/payment" \\
   -H "Content-Type: application/json" \\
-  -u "${config?.username || "external_isp_1"}:External@ISP#1!2025" \\
+  -u "${config?.username || (config?.ispId ? `external_isp_${config.ispId}` : "ext_gateway")}:<password>" \\
   -d '{
     "username": "karnkalyan",
-    "payment_mode": "EXTERNAL",
+    "payment_mode": "${config?.defaultPaymentMode || "EXTERNAL"}",
     "duration": "1 month"
   }'`,
                               "curl-payment"
@@ -839,10 +839,10 @@ export default function ExternalPaymentPage() {
                       <pre className="p-3 bg-zinc-950 text-zinc-100 rounded-md text-xs font-mono overflow-x-auto">
 {`curl -X POST "${origin || "https://cms.arrownet.com.np"}/api/externalpayment/payment" \\
   -H "Content-Type: application/json" \\
-  -u "${config?.username || "external_isp_1"}:<password>" \\
+  -u "${config?.username || (config?.ispId ? `external_isp_${config.ispId}` : "ext_gateway")}:<password>" \\
   -d '{
     "username": "karnkalyan",
-    "payment_mode": "EXTERNAL",
+    "payment_mode": "${config?.defaultPaymentMode || "EXTERNAL"}",
     "duration": "1 month"
   }'`}
                       </pre>

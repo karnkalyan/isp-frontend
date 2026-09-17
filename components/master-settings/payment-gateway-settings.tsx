@@ -136,15 +136,18 @@ function ExternalPaymentSettingsCard() {
 
   const handleGenerateCredentials = () => {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"
-    let rndUser = "ext_"
-    for (let i = 0; i < 6; i++) rndUser += chars.charAt(Math.floor(Math.random() * chars.length))
-    let rndPass = "Ext#"
-    for (let i = 0; i < 10; i++) rndPass += chars.charAt(Math.floor(Math.random() * chars.length))
-    rndPass += "!2026"
+    const ispNum = config.ispId || 1
+    let rnd = ""
+    for (let i = 0; i < 6; i++) rnd += chars.charAt(Math.floor(Math.random() * chars.length))
+    const rndUser = `ext_isp${ispNum}_${rnd}`
+
+    let rndPass = `Ext#ISP${ispNum}!`
+    for (let i = 0; i < 8; i++) rndPass += chars.charAt(Math.floor(Math.random() * chars.length))
+    rndPass += "2026"
 
     setConfig((prev: any) => ({ ...prev, username: rndUser }))
     setNewPassword(rndPass)
-    toast.success("New credentials generated! Click Save to apply.")
+    toast.success(`New credentials generated for ISP ${ispNum}! Click Save to apply.`)
   }
 
   const handleSave = async () => {
@@ -288,17 +291,41 @@ function ExternalPaymentSettingsCard() {
         </div>
 
         {config.username && (
-          <div className="rounded-lg bg-slate-50 dark:bg-slate-900 border p-4 space-y-2">
+          <div className="rounded-lg bg-slate-50 dark:bg-slate-900 border p-4 space-y-3">
             <div className="text-xs font-semibold text-muted-foreground uppercase">Integration Reference cURL:</div>
-            <pre className="p-3 bg-zinc-950 text-zinc-100 rounded-md text-xs font-mono overflow-x-auto">
-{`curl -X POST "https://cms.kisan.net.np/api/externalpayment/payment" \\
-  -u "${config.username}:${newPassword || '<password>'}" \\
+            {config.authMethod === 'BEARER' ? (
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-muted-foreground">Step 1: Obtain Bearer Token via Login:</div>
+                <pre className="p-3 bg-zinc-950 text-zinc-100 rounded-md text-xs font-mono overflow-x-auto">
+{`curl -X POST "${(typeof window !== 'undefined' && window.location.origin) ? window.location.origin : 'https://cms.arrownet.com.np'}/api/externalpayment/login" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "username": "${config.username}",
+    "password": "${newPassword || '<password>'}"
+  }'`}
+                </pre>
+                <div className="text-xs font-medium text-muted-foreground pt-1">Step 2: Push Renewal using Bearer Token:</div>
+                <pre className="p-3 bg-zinc-950 text-zinc-100 rounded-md text-xs font-mono overflow-x-auto">
+{`curl -X POST "${(typeof window !== 'undefined' && window.location.origin) ? window.location.origin : 'https://cms.arrownet.com.np'}/api/externalpayment/payment" \\
+  -H "Authorization: Bearer <access_token>" \\
   -H "Content-Type: application/json" \\
   -d '{
     "username": "karnkalyan",
     "payment_mode": "${config.defaultPaymentMode || "EXTERNAL"}"
   }'`}
-            </pre>
+                </pre>
+              </div>
+            ) : (
+              <pre className="p-3 bg-zinc-950 text-zinc-100 rounded-md text-xs font-mono overflow-x-auto">
+{`curl -X POST "${(typeof window !== 'undefined' && window.location.origin) ? window.location.origin : 'https://cms.arrownet.com.np'}/api/externalpayment/payment" \\
+  -u "${config.username || 'ext_gateway'}:${newPassword || '<password>'}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "username": "karnkalyan",
+    "payment_mode": "${config.defaultPaymentMode || "EXTERNAL"}"
+  }'`}
+              </pre>
+            )}
             <p className="text-[11px] text-muted-foreground">
               External callers can simply pass <code>username</code> and <code>payment_mode</code>. The user&apos;s active subscribed package (e.g. 75Mbps - 12 Months) will be automatically renewed upon payment!
             </p>
