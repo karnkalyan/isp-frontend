@@ -121,6 +121,8 @@ export function SystemSettings() {
     customerIdNamePartLength: 5,
     showLicenseTab: true,
     leadBranchValidation: "optional",
+    allowDuplicateLeadPhone: "false",
+    allowDuplicateLeadEmail: "false",
     autoGenerateRadius: "false",
     autoGenerateCustomerLogin: "false",
     auto_update_radius_password: false,
@@ -259,6 +261,8 @@ export function SystemSettings() {
             customerIdNamePartLength: parseInt(data.customerIdNamePartLength || '5'),
             showLicenseTab: data.showLicenseTab !== 'false',
             leadBranchValidation: data.leadBranchValidation || prev.leadBranchValidation,
+            allowDuplicateLeadPhone: data.allowDuplicateLeadPhone || prev.allowDuplicateLeadPhone,
+            allowDuplicateLeadEmail: data.allowDuplicateLeadEmail || prev.allowDuplicateLeadEmail,
             autoGenerateRadius: data.autoGenerateRadius || prev.autoGenerateRadius,
             autoGenerateCustomerLogin: data.autoGenerateCustomerLogin || prev.autoGenerateCustomerLogin,
             auto_update_radius_password: data.auto_update_radius_password === 'true' || data.auto_update_radius_password === 'Enable' || data.autoUpdateRadiusPassword === 'true',
@@ -1309,6 +1313,28 @@ export function SystemSettings() {
               <Switch
                 checked={settings.autoGenerateCustomerLogin === "true"}
                 onCheckedChange={(checked) => updateSetting("autoGenerateCustomerLogin", checked.toString())}
+              />
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <Label className="text-base">Allow Duplicate Phone in Leads</Label>
+                <p className="text-xs text-muted-foreground">Permit multiple leads to have the same phone number</p>
+              </div>
+              <Switch
+                checked={settings.allowDuplicateLeadPhone === "true"}
+                onCheckedChange={(checked) => updateSetting("allowDuplicateLeadPhone", checked.toString())}
+              />
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <Label className="text-base">Allow Duplicate Email in Leads</Label>
+                <p className="text-xs text-muted-foreground">Permit multiple leads to have the same email address</p>
+              </div>
+              <Switch
+                checked={settings.allowDuplicateLeadEmail === "true"}
+                onCheckedChange={(checked) => updateSetting("allowDuplicateLeadEmail", checked.toString())}
               />
             </div>
           </div>

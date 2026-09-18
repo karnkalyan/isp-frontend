@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "react-hot-toast";
-import { Wifi, WifiOff, Save, RefreshCw, Signal, Shield, Lock, Download, Upload, Activity } from "lucide-react";
+import { Wifi, WifiOff, Save, RefreshCw, Signal, Shield, Lock, Download, Upload, Activity, Eye, EyeOff } from "lucide-react";
 import { SSID } from "@/types/tr069";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { apiRequest } from "@/lib/api";
@@ -24,6 +24,7 @@ export function TR069DeviceWifi({ deviceId }: TR069DeviceWifiProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [settings, setSettings] = useState({
     enabled: false,
+    broadcastEnabled: true,
     ssid: "",
     password: "",
     security: "",
@@ -32,6 +33,7 @@ export function TR069DeviceWifi({ deviceId }: TR069DeviceWifiProps) {
     mode: "",
     txPower: "",
   });
+  const [showPassword, setShowPassword] = useState(false);
 
   const [stats, setStats] = useState({
     bytesReceived: 0,
@@ -86,20 +88,29 @@ export function TR069DeviceWifi({ deviceId }: TR069DeviceWifiProps) {
 
       let password = selectedSSID.keyPassphrase || "";
       if (!password) {
-        password = params["X_CMS_KeyPassphrase"] ||
+        password = params["PreSharedKey.1.KeyPassphrase"] ||
+          params["KeyPassphrase"] ||
+          params["X_CMS_KeyPassphrase"] ||
           params["X_CT-COM_KeyPassphrase"] ||
           params["PreSharedKey"] ||
-          "********";
+          "";
       }
+
+      const rawAdv = selectedSSID.ssidAdvertisementEnabled !== undefined
+        ? selectedSSID.ssidAdvertisementEnabled
+        : params["SSIDAdvertisementEnabled"] !== undefined
+          ? (params["SSIDAdvertisementEnabled"] === true || params["SSIDAdvertisementEnabled"] === 'true' || params["SSIDAdvertisementEnabled"] === 1 || params["SSIDAdvertisementEnabled"] === '1')
+          : true;
 
       const security = mapSecurity(selectedSSID.beaconType, params);
 
       setSettings({
         enabled: selectedSSID.enable === true,
+        broadcastEnabled: rawAdv,
         ssid: selectedSSID.ssid || "",
         password: password,
         security: security,
-        channel: selectedSSID.channel?.toString() || "auto",
+        channel: selectedSSID.channel?.toString() || params["Channel"]?.toString() || "auto",
         bandwidth: params["X_ALU_COM_ChannelBandWidthExtend"] ||
           params["X_CT-COM_ChannelWidth"]?.toString() ||
           "Auto",
@@ -182,8 +193,8 @@ export function TR069DeviceWifi({ deviceId }: TR069DeviceWifiProps) {
       // Toggle the enabled state
       const newEnabledState = !settings.enabled;
 
-      // Extract instance number from instance string (e.g., "LANDevice.1.WLANConfiguration.1" -> "1")
-      const instanceMatch = selectedSSID.instance.match(/WLANConfiguration\.(\d+)/);
+      // Extract instance number from instance string (e.g., "LANDevice.1.WLANConfiguration.1" -> "1" or "WiFi.SSID.1" -> "1")
+      const instanceMatch = selectedSSID.instance.match(/(?:WLANConfiguration|SSID|AccessPoint)\.(\d+)/);
       if (!instanceMatch) {
         toast.error("Invalid SSID instance");
         return;
@@ -235,14 +246,65 @@ export function TR069DeviceWifi({ deviceId }: TR069DeviceWifiProps) {
     }
   };
 
+  const handleToggleBroadcast = async () => {
+    if (!selectedSSID) return;
+
+    try {
+      setIsSaving(true);
+      const newBroadcastState = !settings.broadcastEnabled;
+
+      const instanceMatch = selectedSSID.instance.match(/(?:WLANConfiguration|SSID|AccessPoint)\.(\d+)/);
+      if (!instanceMatch) {
+        toast.error("Invalid SSID instance");
+        return;
+      }
+
+      const instanceNumber = instanceMatch[1];
+      toast.success(`Please wait operation is in progress of ${newBroadcastState ? 'enabling' : 'disabling'} SSID broadcast`);
+
+      const response = await apiRequest<{ success: boolean; message?: string }>(
+        `/services/genieacs/devices/${deviceId}/ssid-operations`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ssidIndex: instanceNumber,
+            operation: newBroadcastState,
+            action: 'broadcast'
+          })
+        }
+      );
+
+      if (response.success) {
+        toast.success(`SSID broadcast ${newBroadcastState ? 'enabled' : 'disabled'} successfully`);
+        setSettings(prev => ({ ...prev, broadcastEnabled: newBroadcastState }));
+        setSsidList(prev => prev.map(ssid =>
+          ssid.instance === selectedSSID.instance
+            ? { ...ssid, ssidAdvertisementEnabled: newBroadcastState }
+            : ssid
+        ));
+        setSelectedSSID(prev => prev ? { ...prev, ssidAdvertisementEnabled: newBroadcastState } : null);
+      } else {
+        toast.error(response.message || `Failed to ${newBroadcastState ? 'enable' : 'disable'} SSID broadcast`);
+      }
+    } catch (error) {
+      console.error("Error toggling SSID broadcast:", error);
+      toast.error("Error updating SSID broadcast");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!selectedSSID) return;
 
     try {
       setIsSaving(true);
 
-      // Extract the SSID index from the instance string (e.g., "WLANConfiguration.1" -> "1")
-      const instanceMatch = selectedSSID.instance.match(/WLANConfiguration\.(\d+)/);
+      // Extract the SSID index from the instance string
+      const instanceMatch = selectedSSID.instance.match(/(?:WLANConfiguration|SSID|AccessPoint)\.(\d+)/);
       if (!instanceMatch) {
         toast.error("Invalid SSID instance");
         return;
@@ -253,8 +315,8 @@ export function TR069DeviceWifi({ deviceId }: TR069DeviceWifiProps) {
       const payload = {
         ssidIndex,
         ssidName: settings.ssid,
-        // Only send password if it's changed and not masked
-        password: settings.password && settings.password !== "********"
+        // Only send password if it's not empty and not masked
+        password: settings.password && settings.password.trim() !== "" && settings.password !== "********"
           ? settings.password
           : undefined
       };
@@ -384,8 +446,20 @@ export function TR069DeviceWifi({ deviceId }: TR069DeviceWifiProps) {
                   <h3 className="font-medium">{selectedSSID.ssid || "Unnamed Network"}</h3>
                   <p className="text-xs text-muted-foreground">BSSID: {selectedSSID.bssid || "N/A"}</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1">
+                <div className="flex items-center gap-4">
+                  {/* Broadcast SSID Toggle */}
+                  <div className="flex items-center gap-2" title="Broadcast SSID (Hide/Show)">
+                    <Label className="text-xs text-muted-foreground">Broadcast</Label>
+                    <Switch
+                      checked={settings.broadcastEnabled}
+                      onCheckedChange={handleToggleBroadcast}
+                      disabled={isSaving || !settings.enabled}
+                    />
+                  </div>
+
+                  {/* SSID Enable/Disable Toggle */}
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground">{settings.enabled ? 'Enabled' : 'Disabled'}</Label>
                     {settings.enabled ? (
                       <Wifi className="h-4 w-4 text-green-500" />
                     ) : (
@@ -413,14 +487,33 @@ export function TR069DeviceWifi({ deviceId }: TR069DeviceWifiProps) {
 
                 <div className="space-y-2">
                   <Label>Password</Label>
-                  <Input
-                    type="password"
-                    value={settings.password}
-                    onChange={(e) => setSettings({ ...settings, password: e.target.value })}
-                    disabled={isSaving}
-                    className={!settings.enabled ? "bg-muted" : ""}
-                    placeholder={settings.enabled ? "Enter new password to change" : ""}
-                  />
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      value={settings.password}
+                      onChange={(e) => setSettings({ ...settings, password: e.target.value })}
+                      disabled={isSaving}
+                      className={`pr-10 ${!settings.enabled ? "bg-muted" : ""}`}
+                      placeholder={settings.enabled ? "Enter new password to change" : ""}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent text-muted-foreground hover:text-foreground"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      disabled={isSaving}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                      <span className="sr-only">
+                        {showPassword ? "Hide password" : "Show password"}
+                      </span>
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -505,7 +598,7 @@ export function TR069DeviceWifi({ deviceId }: TR069DeviceWifiProps) {
                         ))}
                       </Pie>
                       <Tooltip
-                        formatter={(value: number) => formatBytes(value)}
+                        formatter={(value: any) => formatBytes(Number(value) || 0)}
                         contentStyle={{
                           backgroundColor: "hsl(var(--background))",
                           border: "1px solid hsl(var(--border))",
@@ -554,7 +647,7 @@ export function TR069DeviceWifi({ deviceId }: TR069DeviceWifiProps) {
                         ))}
                       </Pie>
                       <Tooltip
-                        formatter={(value: number) => formatNumber(value)}
+                        formatter={(value: any) => formatNumber(Number(value) || 0)}
                         contentStyle={{
                           backgroundColor: "hsl(var(--background))",
                           border: "1px solid hsl(var(--border))",

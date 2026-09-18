@@ -100,6 +100,7 @@ export interface SSID {
     instance: string;
     ssid: string;
     enable: boolean;
+    ssidAdvertisementEnabled?: boolean;
     status: string;
     channel: number;
     radioEnabled: boolean;
