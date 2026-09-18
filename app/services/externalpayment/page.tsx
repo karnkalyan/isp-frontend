@@ -45,6 +45,13 @@ export default function ExternalPaymentPage() {
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 })
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null)
 
+  // Failed Logs state
+  const [failedLogs, setFailedLogs] = useState<any[]>([])
+  const [failedLoading, setFailedLoading] = useState(false)
+  const [failedSearch, setFailedSearch] = useState("")
+  const [failedPage, setFailedPage] = useState(1)
+  const [failedPagination, setFailedPagination] = useState({ total: 0, totalPages: 1 })
+
   // Quick Push / Recharge Tester state
   const [rechargeUsername, setRechargeUsername] = useState("")
   const [rechargePaymentMode, setRechargePaymentMode] = useState("EXTERNAL")
@@ -104,9 +111,32 @@ export default function ExternalPaymentPage() {
     }
   }, [])
 
+  // Load Failed Logs
+  const loadFailedLogs = useCallback(async () => {
+    setFailedLoading(true)
+    try {
+      const query = new URLSearchParams({ page: String(failedPage), limit: "25", status: "FAILED" })
+      if (failedSearch.trim()) query.set("search", failedSearch.trim())
+      const response = await apiRequest<any>(`/externalpayment/transactions?${query}`)
+      setFailedLogs(response.transactions || [])
+      setFailedPagination(response.pagination || { total: 0, totalPages: 1 })
+    } catch (error: any) {
+      setFailedLogs([])
+      toast.error(error.message || "Failed to load failed payment logs")
+    } finally {
+      setFailedLoading(false)
+    }
+  }, [failedPage, failedSearch])
+
   useEffect(() => {
     loadTransactions()
   }, [loadTransactions])
+
+  useEffect(() => {
+    if (activeTab === "failed-logs") {
+      loadFailedLogs()
+    }
+  }, [activeTab, loadFailedLogs])
 
   useEffect(() => {
     loadConfig()
@@ -216,11 +246,12 @@ export default function ExternalPaymentPage() {
               variant="outline"
               onClick={() => {
                 loadTransactions()
+                loadFailedLogs()
                 loadConfig()
               }}
-              disabled={loading}
+              disabled={loading || failedLoading}
             >
-              <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              <RefreshCw className={`mr-2 h-4 w-4 ${loading || failedLoading ? "animate-spin" : ""}`} />
               Refresh
             </Button>
           </div>
@@ -228,10 +259,14 @@ export default function ExternalPaymentPage() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 max-w-md">
+          <TabsList className="grid w-full grid-cols-4 max-w-xl">
             <TabsTrigger value="transactions" className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
               Transactions
+            </TabsTrigger>
+            <TabsTrigger value="failed-logs" className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-red-500" />
+              Failed Logs
             </TabsTrigger>
             <TabsTrigger value="tester" className="flex items-center gap-2">
               <Zap className="h-4 w-4 text-amber-500" />
@@ -384,150 +419,285 @@ export default function ExternalPaymentPage() {
                 </Button>
               </div>
             </CardContainer>
+          </TabsContent>
 
-            {/* Complete Request Information Dialog */}
-            <Dialog open={Boolean(selectedRequest)} onOpenChange={(open) => !open && setSelectedRequest(null)}>
-              <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2 text-lg">
-                    <Globe className="h-5 w-5 text-primary" />
-                    External API Request Details
-                  </DialogTitle>
-                  <DialogDescription>
-                    Full payload, customer verification, and provisioning status for this incoming request.
-                  </DialogDescription>
-                </DialogHeader>
+          {/* TAB: FAILED LOGS TABLE */}
+          <TabsContent value="failed-logs" className="space-y-4">
+            <CardContainer
+              title="Failed Payment & Inquiry Logs"
+              description={`${failedPagination.total} failed event(s) recorded (e.g. no user found, bad request, payment errors)`}
+            >
+              <div className="mb-4 flex flex-col gap-3 md:flex-row">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    value={failedSearch}
+                    onChange={(event) => {
+                      setFailedSearch(event.target.value)
+                      setFailedPage(1)
+                    }}
+                    placeholder="Search failed username, identifier, or error..."
+                    className="pl-9"
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={loadFailedLogs}
+                  disabled={failedLoading}
+                >
+                  <RefreshCw className={`mr-2 h-4 w-4 ${failedLoading ? "animate-spin" : ""}`} />
+                  Refresh Logs
+                </Button>
+              </div>
 
-                {selectedRequest && (
-                  <div className="space-y-4 text-sm mt-2">
-                    {/* Status & Amount Banner */}
-                    <div className="flex flex-wrap items-center justify-between p-3 rounded-lg border bg-muted/40 gap-2">
-                      <div>
-                        <div className="text-xs text-muted-foreground">Status</div>
-                        <Badge
-                          variant={
-                            selectedRequest.status === "COMPLETED"
-                              ? "default"
-                              : selectedRequest.status === "FAILED"
-                              ? "destructive"
-                              : "secondary"
-                          }
-                          className="mt-1"
+              <div className="overflow-x-auto rounded-md border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/40 text-left text-muted-foreground">
+                      <th className="p-3">Date</th>
+                      <th className="p-3">Identifier / Username</th>
+                      <th className="p-3">Failure Reason</th>
+                      <th className="p-3">Mode</th>
+                      <th className="p-3 text-right">Amount</th>
+                      <th className="p-3 text-center">Status</th>
+                      <th className="p-3 text-center">Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {failedLogs.map((item) => {
+                      const reason = item.packageDetails?.reason || item.packageDetails?.error || "Failed request"
+                      const isNoUser = reason.toLowerCase().includes("no user") || reason.toLowerCase().includes("not found")
+                      return (
+                        <tr
+                          key={item.id}
+                          className="border-b hover:bg-muted/20 align-top cursor-pointer"
+                          onClick={() => setSelectedRequest(item)}
                         >
-                          {selectedRequest.status}
-                        </Badge>
-                      </div>
-                      <div>
-                        <div className="text-xs text-muted-foreground">Amount</div>
-                        <div className="font-bold text-base text-primary">
-                          {money(selectedRequest.amount)}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-muted-foreground">Payment Mode</div>
-                        <div className="font-semibold">{selectedRequest.paymentMode}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-muted-foreground">Duration</div>
-                        <div className="font-medium">{selectedRequest.packageDuration || "1 month"}</div>
-                      </div>
-                    </div>
-
-                    {/* Error Banner if Failed */}
-                    {selectedRequest.status === "FAILED" && (
-                      <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-md text-xs space-y-1">
-                        <div className="font-semibold text-red-900 dark:text-red-200 flex items-center gap-1.5">
-                          <AlertCircle className="h-4 w-4" /> Request Processing Failure
-                        </div>
-                        <p className="text-red-800 dark:text-red-300 font-mono">
-                          {selectedRequest.packageDetails?.error || "Payment execution could not be completed"}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Customer Information Grid */}
-                    <div className="p-3 border rounded-lg space-y-2">
-                      <div className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1.5">
-                        <UserCheck className="h-3.5 w-3.5" /> Customer Identity
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-                        <div>
-                          <span className="text-muted-foreground">Name:</span>
-                          <div className="font-medium">{selectedRequest.customerName}</div>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">PPPoE Username:</span>
-                          <div className="font-mono font-medium text-primary">@{selectedRequest.username}</div>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Customer ID:</span>
-                          <div className="font-mono">{selectedRequest.customerUniqueId}</div>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Phone:</span>
-                          <div>{selectedRequest.customerPhone || "—"}</div>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Email:</span>
-                          <div>{selectedRequest.customerEmail || "—"}</div>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Request Lookup ID:</span>
-                          <div className="font-mono text-muted-foreground">{selectedRequest.requestId || "—"}</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Transaction & System Tracking Codes */}
-                    <div className="p-3 border rounded-lg space-y-2">
-                      <div className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1.5">
-                        <Code2 className="h-3.5 w-3.5" /> Transaction & Audit Codes
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
-                        <div className="p-2 bg-muted rounded">
-                          <span className="text-muted-foreground text-[10px] block">TRANSACTION CODE</span>
-                          <span>{selectedRequest.transactionCode || "—"}</span>
-                        </div>
-                        <div className="p-2 bg-muted rounded">
-                          <span className="text-muted-foreground text-[10px] block">REFERENCE CODE</span>
-                          <span>{selectedRequest.referenceCode || "—"}</span>
-                        </div>
-                        <div className="p-2 bg-muted rounded">
-                          <span className="text-muted-foreground text-[10px] block">INTERNAL ORDER ID</span>
-                          <span>{selectedRequest.orderId || "—"}</span>
-                        </div>
-                        <div className="p-2 bg-muted rounded">
-                          <span className="text-muted-foreground text-[10px] block">TIMESTAMP (PAID / CREATED)</span>
-                          <span>{formatDate(selectedRequest.paidAt || selectedRequest.createdAt)}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Raw JSON Payload Details */}
-                    {selectedRequest.packageDetails && (
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-muted-foreground">Raw Package & Execution Details:</span>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 text-xs"
-                            onClick={() => copyToClipboard(JSON.stringify(selectedRequest, null, 2), "req-json")}
-                          >
-                            {copiedKey === "req-json" ? <Check className="h-3 w-3 mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
-                            Copy All JSON
-                          </Button>
-                        </div>
-                        <pre className="p-3 bg-zinc-950 text-zinc-100 rounded-md text-xs font-mono overflow-x-auto max-h-48">
-                          {JSON.stringify(selectedRequest.packageDetails, null, 2)}
-                        </pre>
-                      </div>
-                    )}
+                          <td className="p-3 whitespace-nowrap text-xs text-muted-foreground">
+                            {formatDate(item.createdAt)}
+                          </td>
+                          <td className="p-3">
+                            <div className="font-medium font-mono text-primary">
+                              @{item.username || item.requestId || "Unknown"}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Lookup ID: {item.requestId || "—"}
+                            </div>
+                          </td>
+                          <td className="p-3">
+                            <Badge
+                              variant={isNoUser ? "destructive" : "secondary"}
+                              className="text-xs font-medium"
+                            >
+                              {reason}
+                            </Badge>
+                          </td>
+                          <td className="p-3 font-medium">
+                            <Badge variant="outline" className="text-xs font-semibold">
+                              {item.paymentMode}
+                            </Badge>
+                          </td>
+                          <td className="p-3 text-right font-medium">
+                            {item.amount > 0 ? money(item.amount) : "—"}
+                          </td>
+                          <td className="p-3 text-center">
+                            <Badge variant="destructive" className="text-xs">
+                              FAILED
+                            </Badge>
+                          </td>
+                          <td className="p-3 text-center">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 px-2 text-xs text-primary hover:underline"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setSelectedRequest(item)
+                              }}
+                            >
+                              <Eye className="h-3.5 w-3.5 mr-1" />
+                              View
+                            </Button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+                {!failedLoading && failedLogs.length === 0 && (
+                  <div className="py-12 text-center text-muted-foreground">
+                    No failed logs found. All external payments and inquiries processed without errors.
                   </div>
                 )}
-              </DialogContent>
-            </Dialog>
+              </div>
+
+              {/* Pagination */}
+              <div className="mt-4 flex items-center justify-between">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={failedPage <= 1 || failedLoading}
+                  onClick={() => setFailedPage((v) => v - 1)}
+                >
+                  Previous
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  Page {failedPage} of {Math.max(1, failedPagination.totalPages)}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={failedPage >= failedPagination.totalPages || failedLoading}
+                  onClick={() => setFailedPage((v) => v + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            </CardContainer>
           </TabsContent>
+
+          {/* Complete Request Information Dialog (Shared) */}
+          <Dialog open={Boolean(selectedRequest)} onOpenChange={(open) => !open && setSelectedRequest(null)}>
+            <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-lg">
+                  <Globe className="h-5 w-5 text-primary" />
+                  External API Request Details
+                </DialogTitle>
+                <DialogDescription>
+                  Full payload, customer verification, and provisioning status for this incoming request.
+                </DialogDescription>
+              </DialogHeader>
+
+              {selectedRequest && (
+                <div className="space-y-4 text-sm mt-2">
+                  {/* Status & Amount Banner */}
+                  <div className="flex flex-wrap items-center justify-between p-3 rounded-lg border bg-muted/40 gap-2">
+                    <div>
+                      <div className="text-xs text-muted-foreground">Status</div>
+                      <Badge
+                        variant={
+                          selectedRequest.status === "COMPLETED"
+                            ? "default"
+                            : selectedRequest.status === "FAILED"
+                            ? "destructive"
+                            : "secondary"
+                        }
+                        className="mt-1"
+                      >
+                        {selectedRequest.status}
+                      </Badge>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Amount</div>
+                      <div className="font-bold text-base text-primary">
+                        {money(selectedRequest.amount)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Payment Mode</div>
+                      <div className="font-semibold">{selectedRequest.paymentMode}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Duration</div>
+                      <div className="font-medium">{selectedRequest.packageDuration || "1 month"}</div>
+                    </div>
+                  </div>
+
+                  {/* Error Banner if Failed */}
+                  {selectedRequest.status === "FAILED" && (
+                    <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-md text-xs space-y-1">
+                      <div className="font-semibold text-red-900 dark:text-red-200 flex items-center gap-1.5">
+                        <AlertCircle className="h-4 w-4" /> Request Processing Failure
+                      </div>
+                      <p className="text-red-800 dark:text-red-300 font-mono">
+                        {selectedRequest.packageDetails?.reason || selectedRequest.packageDetails?.error || "Payment execution could not be completed"}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Customer Information Grid */}
+                  <div className="p-3 border rounded-lg space-y-2">
+                    <div className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1.5">
+                      <UserCheck className="h-3.5 w-3.5" /> Customer Identity
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                      <div>
+                        <span className="text-muted-foreground">Name:</span>
+                        <div className="font-medium">{selectedRequest.customerName || "No user found"}</div>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Identifier / Username:</span>
+                        <div className="font-mono font-medium text-primary">@{selectedRequest.username || selectedRequest.requestId}</div>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Customer ID:</span>
+                        <div className="font-mono">{selectedRequest.customerUniqueId || "—"}</div>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Phone:</span>
+                        <div>{selectedRequest.customerPhone || "—"}</div>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Email:</span>
+                        <div>{selectedRequest.customerEmail || "—"}</div>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Request Lookup ID:</span>
+                        <div className="font-mono text-muted-foreground">{selectedRequest.requestId || "—"}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Transaction & System Tracking Codes */}
+                  <div className="p-3 border rounded-lg space-y-2">
+                    <div className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1.5">
+                      <Code2 className="h-3.5 w-3.5" /> Transaction & Audit Codes
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
+                      <div className="p-2 bg-muted rounded">
+                        <span className="text-muted-foreground text-[10px] block">TRANSACTION CODE</span>
+                        <span>{selectedRequest.transactionCode || "—"}</span>
+                      </div>
+                      <div className="p-2 bg-muted rounded">
+                        <span className="text-muted-foreground text-[10px] block">REFERENCE CODE</span>
+                        <span>{selectedRequest.referenceCode || "—"}</span>
+                      </div>
+                      <div className="p-2 bg-muted rounded">
+                        <span className="text-muted-foreground text-[10px] block">INTERNAL ORDER ID</span>
+                        <span>{selectedRequest.orderId || "—"}</span>
+                      </div>
+                      <div className="p-2 bg-muted rounded">
+                        <span className="text-muted-foreground text-[10px] block">TIMESTAMP (PAID / CREATED)</span>
+                        <span>{formatDate(selectedRequest.paidAt || selectedRequest.createdAt)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Raw JSON Payload Details */}
+                  {selectedRequest.packageDetails && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-muted-foreground">Raw Package & Execution Details:</span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 text-xs"
+                          onClick={() => copyToClipboard(JSON.stringify(selectedRequest, null, 2), "req-json")}
+                        >
+                          {copiedKey === "req-json" ? <Check className="h-3 w-3 mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
+                          Copy All JSON
+                        </Button>
+                      </div>
+                      <pre className="p-3 bg-zinc-950 text-zinc-100 rounded-md text-xs font-mono overflow-x-auto max-h-48">
+                        {JSON.stringify(selectedRequest.packageDetails, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
 
           {/* TAB 2: INSTANT RECHARGE / PUSH TESTER */}
           <TabsContent value="tester" className="space-y-6">
