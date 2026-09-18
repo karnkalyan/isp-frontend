@@ -1956,12 +1956,13 @@ export function AddCustomerForm() {
         return
       }
 
-      // Check lead status
-      if (lead.status === "converted" || lead.convertedToCustomer === true) {
+      // Check lead status - only block if an active (non-deleted) customer exists
+      const hasActiveCustomer = lead.customers?.some((c: any) => !c.isDeleted && c.status !== "deleted")
+      if ((lead.status === "converted" || lead.convertedToCustomer === true) && hasActiveCustomer) {
         toast.error(
           <div className="flex flex-col gap-1">
             <span className="font-semibold">Lead Already Converted</span>
-            <span className="text-sm">This lead has already been converted to a customer and cannot be processed further.</span>
+            <span className="text-sm">This lead has already been converted to an active customer and cannot be processed further.</span>
             {lead.convertedAt && (
               <span className="text-xs mt-1">Converted on: {new Date(lead.convertedAt).toLocaleDateString()}</span>
             )}
@@ -1973,7 +1974,7 @@ export function AddCustomerForm() {
         return
       }
 
-      if (lead.status !== "qualified") {
+      if (lead.status !== "qualified" && hasActiveCustomer) {
         toast.error(
           <div className="flex flex-col gap-1">
             <span className="font-semibold">Lead Not Qualified</span>
