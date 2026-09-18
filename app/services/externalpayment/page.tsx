@@ -53,6 +53,7 @@ export default function ExternalPaymentPage() {
   const [failedPagination, setFailedPagination] = useState({ total: 0, totalPages: 1 })
 
   // Quick Push / Recharge Tester state
+  const [identifierType, setIdentifierType] = useState("all")
   const [rechargeUsername, setRechargeUsername] = useState("")
   const [rechargePaymentMode, setRechargePaymentMode] = useState("EXTERNAL")
   const [rechargeDuration, setRechargeDuration] = useState("1 month")
@@ -81,15 +82,36 @@ export default function ExternalPaymentPage() {
     setTimeout(() => setCopiedKey(null), 2000)
   }
 
+  const getIdentifierPlaceholder = () => {
+    switch (identifierType) {
+      case "email":
+        return "e.g. user@gmail.com"
+      case "subscriber_user":
+        return "e.g. nettv_subscriber_101 or PPPoE username"
+      case "phone":
+        return "e.g. 9801234567 (Primary phone)"
+      case "secondary_phone":
+        return "e.g. 9841234567 (Secondary contact number)"
+      case "customer_id":
+        return "e.g. CUST-1001 or numeric ID"
+      case "username":
+        return "e.g. karnkalyan (PPPoE / Account username)"
+      default:
+        return "Username, email, subscriber user, phone, secondary number, or CUST-xxxx"
+    }
+  }
+
   // Load Transactions
   const loadTransactions = useCallback(async () => {
     setLoading(true)
     try {
       const query = new URLSearchParams({ page: String(page), limit: "25", status })
       if (search.trim()) query.set("search", search.trim())
-      const response = await apiRequest<any>(`/externalpayment/transactions?${query}`)
-      setTransactions(response.transactions || [])
-      setPagination(response.pagination || { total: 0, totalPages: 1 })
+      const res = await apiRequest<any>(`/externalpayment/transactions?${query.toString()}`)
+      if (res && res.transactions) {
+        setTransactions(res.transactions)
+        setPagination(res.pagination || { total: 0, totalPages: 1 })
+      }
     } catch (error: any) {
       setTransactions([])
       toast.error(error.message || "Failed to load external payment transactions")
@@ -117,9 +139,11 @@ export default function ExternalPaymentPage() {
     try {
       const query = new URLSearchParams({ page: String(failedPage), limit: "25", status: "FAILED" })
       if (failedSearch.trim()) query.set("search", failedSearch.trim())
-      const response = await apiRequest<any>(`/externalpayment/transactions?${query}`)
-      setFailedLogs(response.transactions || [])
-      setFailedPagination(response.pagination || { total: 0, totalPages: 1 })
+      const res = await apiRequest<any>(`/externalpayment/transactions?${query.toString()}`)
+      if (res && res.transactions) {
+        setFailedLogs(res.transactions)
+        setFailedPagination(res.pagination || { total: 0, totalPages: 1 })
+      }
     } catch (error: any) {
       setFailedLogs([])
       toast.error(error.message || "Failed to load failed payment logs")
@@ -145,7 +169,7 @@ export default function ExternalPaymentPage() {
   // Customer Lookup
   const handleLookup = async () => {
     if (!rechargeUsername.trim()) {
-      toast.error("Enter a username, phone, or customer ID to search")
+      toast.error("Enter a customer identifier to search")
       return
     }
 
@@ -153,8 +177,13 @@ export default function ExternalPaymentPage() {
     setCustomerContext(null)
     setLastPushResult(null)
     try {
+      const query = new URLSearchParams()
+      if (identifierType && identifierType !== "all") {
+        query.set("lookup_type", identifierType)
+      }
+      const queryString = query.toString() ? `?${query.toString()}` : ""
       const res = await apiRequest<any>(
-        `/externalpayment/inquiry/${encodeURIComponent(rechargeUsername.trim())}`
+        `/externalpayment/inquiry/${encodeURIComponent(rechargeUsername.trim())}${queryString}`
       )
       if (res.response_code === 0) {
         setCustomerContext(res)
@@ -178,17 +207,35 @@ export default function ExternalPaymentPage() {
   // Execute Direct Push Recharge
   const handlePushRecharge = async () => {
     if (!rechargeUsername.trim()) {
-      toast.error("Username or customer identifier required")
+      toast.error("Customer identifier required")
       return
     }
 
     setPushLoading(true)
     try {
+      const val = rechargeUsername.trim()
       const payload: any = {
-        username: rechargeUsername.trim(),
+        identifier: val,
+        username: val,
+        lookup_type: identifierType,
         payment_mode: rechargePaymentMode,
         duration: rechargeDuration
       }
+
+      if (identifierType === "email") {
+        payload.email = val
+      } else if (identifierType === "phone") {
+        payload.phone = val
+        payload.phoneNumber = val
+      } else if (identifierType === "secondary_phone") {
+        payload.secondary_number = val
+        payload.secondaryNumber = val
+        payload.secondaryPhone = val
+      } else if (identifierType === "subscriber_user") {
+        payload.subscriber_user = val
+        payload.subscriberUser = val
+      }
+
       if (rechargeAmount && !isNaN(Number(rechargeAmount))) {
         payload.amount = Number(rechargeAmount)
       }
@@ -635,12 +682,20 @@ export default function ExternalPaymentPage() {
                         <div className="font-mono">{selectedRequest.customerUniqueId || "—"}</div>
                       </div>
                       <div>
-                        <span className="text-muted-foreground">Phone:</span>
+                        <span className="text-muted-foreground">Primary Phone:</span>
                         <div>{selectedRequest.customerPhone || "—"}</div>
                       </div>
                       <div>
+                        <span className="text-muted-foreground">Secondary Phone:</span>
+                        <div>{selectedRequest.customerSecondaryPhone || selectedRequest.packageDetails?.payload?.secondary_number || selectedRequest.packageDetails?.payload?.secondaryNumber || selectedRequest.packageDetails?.payload?.secondaryPhone || "—"}</div>
+                      </div>
+                      <div>
                         <span className="text-muted-foreground">Email:</span>
-                        <div>{selectedRequest.customerEmail || "—"}</div>
+                        <div>{selectedRequest.customerEmail || selectedRequest.packageDetails?.payload?.email || "—"}</div>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Lookup Type:</span>
+                        <div className="font-medium capitalize">{selectedRequest.packageDetails?.lookupType || "Auto / All"}</div>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Request Lookup ID:</span>
@@ -709,31 +764,63 @@ export default function ExternalPaymentPage() {
                   description="Push payment & activate subscription for any user without searching first."
                 >
                   <div className="space-y-4">
-                    {/* Username or Identifier */}
+                    {/* Identifier Type & Value */}
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Customer Username / ID / Phone</label>
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="e.g. karnkalyan or CUST-1001 or 9800000000"
-                          value={rechargeUsername}
-                          onChange={(e) => setRechargeUsername(e.target.value)}
-                        />
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          onClick={handleLookup}
-                          disabled={lookupLoading}
-                        >
-                          {lookupLoading ? (
-                            <RefreshCw className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Search className="h-4 w-4" />
-                          )}
-                          <span className="ml-1 hidden sm:inline">Inquiry</span>
-                        </Button>
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium">Search / Identifier By</label>
+                        <span className="text-xs text-muted-foreground">Select option or use Auto-Detect</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <div className="sm:col-span-1">
+                          <Select
+                            value={identifierType}
+                            onValueChange={setIdentifierType}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">Auto / All</SelectItem>
+                              <SelectItem value="username">Username</SelectItem>
+                              <SelectItem value="email">Email</SelectItem>
+                              <SelectItem value="subscriber_user">Subscriber User</SelectItem>
+                              <SelectItem value="phone">Primary Phone</SelectItem>
+                              <SelectItem value="secondary_phone">Secondary Phone</SelectItem>
+                              <SelectItem value="customer_id">Customer ID</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="sm:col-span-2 flex gap-2">
+                          <Input
+                            placeholder={getIdentifierPlaceholder()}
+                            value={rechargeUsername}
+                            onChange={(e) => setRechargeUsername(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault()
+                                handleLookup()
+                              }
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={handleLookup}
+                            disabled={lookupLoading}
+                          >
+                            {lookupLoading ? (
+                              <RefreshCw className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Search className="h-4 w-4" />
+                            )}
+                            <span className="ml-1 hidden sm:inline">Inquiry</span>
+                          </Button>
+                        </div>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Matches PPPoE username (e.g. karnkalyan), customer unique ID, mobile number, or email.
+                        {identifierType === "all"
+                          ? "Matches PPPoE username, customer unique ID, email, subscriber user, primary phone, or secondary phone number."
+                          : `Filter specifically by customer's ${identifierType.replace("_", " ")}.`}
                       </p>
                     </div>
 
@@ -836,7 +923,7 @@ export default function ExternalPaymentPage() {
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         <div className="p-2 border rounded">
                           <span className="text-muted-foreground">Current Plan</span>
-                          <div className="font-medium">{customerContext.current_package?.name || "—"}</div>
+                          <div className="font-medium truncate">{customerContext.current_package?.name || "—"}</div>
                         </div>
                         <div className="p-2 border rounded">
                           <span className="text-muted-foreground">Expires On</span>
@@ -845,12 +932,24 @@ export default function ExternalPaymentPage() {
                           </div>
                         </div>
                         <div className="p-2 border rounded">
-                          <span className="text-muted-foreground">Phone</span>
+                          <span className="text-muted-foreground">Primary Phone</span>
                           <div className="font-medium">{customerContext.customer.phone || "—"}</div>
                         </div>
                         <div className="p-2 border rounded">
+                          <span className="text-muted-foreground">Secondary Phone</span>
+                          <div className="font-medium">{customerContext.customer.secondary_phone || "—"}</div>
+                        </div>
+                        <div className="p-2 border rounded">
+                          <span className="text-muted-foreground">Email</span>
+                          <div className="font-medium truncate">{customerContext.customer.email || "—"}</div>
+                        </div>
+                        <div className="p-2 border rounded">
+                          <span className="text-muted-foreground">Subscriber User</span>
+                          <div className="font-medium font-mono truncate">{customerContext.customer.subscriber_username || customerContext.customer.username || "—"}</div>
+                        </div>
+                        <div className="p-2 border rounded col-span-2 flex justify-between items-center">
                           <span className="text-muted-foreground">Default Rate</span>
-                          <div className="font-medium text-emerald-600">
+                          <div className="font-medium text-emerald-600 font-semibold text-sm">
                             {money(customerContext.current_package?.amount || 0)}
                           </div>
                         </div>
@@ -995,6 +1094,7 @@ export default function ExternalPaymentPage() {
   -u "${config?.username || (config?.ispId ? `external_isp_${config.ispId}` : "ext_gateway")}:<password>" \\
   -d '{
     "username": "karnkalyan",
+    "lookup_type": "all",
     "payment_mode": "${config?.defaultPaymentMode || "EXTERNAL"}",
     "duration": "1 month"
   }'`,
@@ -1006,12 +1106,16 @@ export default function ExternalPaymentPage() {
                           Copy cURL
                         </Button>
                       </div>
+                      <p className="text-[11px] text-muted-foreground mb-1.5">
+                        Accepts <code className="text-primary font-mono font-semibold">username</code>, <code className="text-primary font-mono font-semibold">email</code>, <code className="text-primary font-mono font-semibold">phone</code>, <code className="text-primary font-mono font-semibold">secondary_number</code>, <code className="text-primary font-mono font-semibold">subscriber_user</code>, or <code className="text-primary font-mono font-semibold">identifier</code>.
+                      </p>
                       <pre className="p-3 bg-zinc-950 text-zinc-100 rounded-md text-xs font-mono overflow-x-auto">
 {`curl -X POST "${origin || "https://cms.arrownet.com.np"}/api/externalpayment/payment" \\
   -H "Content-Type: application/json" \\
   -u "${config?.username || (config?.ispId ? `external_isp_${config.ispId}` : "ext_gateway")}:<password>" \\
   -d '{
     "username": "karnkalyan",
+    "lookup_type": "all",
     "payment_mode": "${config?.defaultPaymentMode || "EXTERNAL"}",
     "duration": "1 month"
   }'`}
@@ -1023,7 +1127,7 @@ export default function ExternalPaymentPage() {
                       <div className="flex items-center justify-between mb-1.5">
                         <div className="flex items-center gap-2">
                           <Badge variant="secondary" className="text-xs">GET</Badge>
-                          <span className="text-xs font-mono font-semibold">/api/externalpayment/inquiry/:username</span>
+                          <span className="text-xs font-mono font-semibold">/api/externalpayment/inquiry/:identifier</span>
                         </div>
                         <Button
                           size="sm"
@@ -1031,7 +1135,7 @@ export default function ExternalPaymentPage() {
                           className="h-7 text-xs"
                           onClick={() =>
                             copyToClipboard(
-                              `curl -X GET "${origin || "https://cms.arrownet.com.np"}/api/externalpayment/inquiry/karnkalyan" \\
+                              `curl -X GET "${origin || "https://cms.arrownet.com.np"}/api/externalpayment/inquiry/karnkalyan?lookup_type=all" \\
   -u "${config?.username || "external_isp_1"}:External@ISP#1!2025"`,
                               "curl-inquiry"
                             )
@@ -1041,8 +1145,11 @@ export default function ExternalPaymentPage() {
                           Copy cURL
                         </Button>
                       </div>
+                      <p className="text-[11px] text-muted-foreground mb-1.5">
+                        Inquiry parameter matches PPPoE username, subscriber user, customer email, primary phone, secondary phone, or customer unique ID.
+                      </p>
                       <pre className="p-3 bg-zinc-950 text-zinc-100 rounded-md text-xs font-mono overflow-x-auto">
-{`curl -X GET "${origin || "https://cms.arrownet.com.np"}/api/externalpayment/inquiry/karnkalyan" \\
+{`curl -X GET "${origin || "https://cms.arrownet.com.np"}/api/externalpayment/inquiry/karnkalyan?lookup_type=all" \\
   -u "${config?.username || "external_isp_1"}:<password>"`}
                       </pre>
                     </div>
