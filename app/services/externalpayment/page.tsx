@@ -837,10 +837,13 @@ export default function ExternalPaymentPage() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="EXTERNAL">EXTERNAL (Gateway)</SelectItem>
-                            <SelectItem value="CASH">CASH</SelectItem>
-                            <SelectItem value="ONLINE">ONLINE</SelectItem>
                             <SelectItem value="ESEWA">ESEWA</SelectItem>
+                            <SelectItem value="KHALTI">KHALTI</SelectItem>
+                            <SelectItem value="FONEPAY">FONEPAY</SelectItem>
+                            <SelectItem value="CONNECTIPS">CONNECTIPS</SelectItem>
+                            <SelectItem value="CASH">CASH</SelectItem>
                             <SelectItem value="BANK_TRANSFER">BANK TRANSFER</SelectItem>
+                            <SelectItem value="ONLINE">ONLINE</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
