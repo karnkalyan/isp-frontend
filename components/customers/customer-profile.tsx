@@ -233,8 +233,10 @@ interface Customer {
   leadId?: number
   membershipId: number | null
   branchId: number | null
+  subBranchId?: number | null
   ispId: number
   isRechargeable: boolean
+  isFree?: boolean
   installedById: number | null
   oltId: number | null
   splitterId: number | null
@@ -551,8 +553,11 @@ function unwrapCustomerNettvList(value: any, depth = 0): any[] {
 
 interface PackageOption {
   id: number
+  planId: number
   packageName: string
   price: number
+  initialTotalWithTax?: number | null
+  renewAmountWithTax?: number | null
   packageDuration: string
   packagePlanDetails: {
     planName: string
@@ -1418,6 +1423,12 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [packages, setPackages] = useState<PackageOption[]>([])
+  const [renewPlanId, setRenewPlanId] = useState("")
+  const [renewPackageId, setRenewPackageId] = useState("")
+  const [renewReceipt, setRenewReceipt] = useState("")
+  const [renewPaymentMethodId, setRenewPaymentMethodId] = useState("")
+  const [renewFiscalYearId, setRenewFiscalYearId] = useState("")
+  const [renewPaymentMethods, setRenewPaymentMethods] = useState<any[]>([])
 
   // Removed duplicate state definition
 
@@ -2797,13 +2808,15 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   useEffect(() => {
     const fetchPackages = async () => {
       try {
-        const data = await apiRequest<PackageOption[]>('/package-price?active=true')
+        const data = await apiRequest<PackageOption[]>(`/package-price?active=true&customerId=${customer?.id}`)
         if (data) {
           setPackages(data)
           if (data.length > 0 && customer) {
-            setSelectedPackage(customer.subscribedPkgId.toString())
             const current = data.find(pkg => String(pkg.id) === String(customer.subscribedPkgId))
+            setSelectedPackage(current ? String(current.id) : "")
             setSelectedPlanName(current?.packagePlanDetails?.planName || "")
+            setRenewPlanId(current ? String(current.planId) : "")
+            setRenewPackageId(current ? String(current.id) : "")
           }
         }
       } catch (error) {
@@ -2811,7 +2824,19 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       }
     }
     if (customer) fetchPackages()
-  }, [customer])
+  }, [customer?.id, customer?.subscribedPkgId, customer?.branchId, customer?.subBranchId])
+
+  useEffect(() => {
+    if (!renewPackageOpen) return
+    Promise.all([
+      apiRequest<any[]>("/billing/fiscal-years"),
+      apiRequest<any[]>("/billing/payment-methods?enabled=true")
+    ]).then(([years, methods]) => {
+      setRenewFiscalYearId(String((years || []).find(year => year.isActive)?.id || ""))
+      setRenewPaymentMethods(methods || [])
+      setRenewPaymentMethodId(String((methods || []).find(method => method.isDefault)?.id || methods?.[0]?.id || ""))
+    }).catch(() => toast.error("Failed to load billing options"))
+  }, [renewPackageOpen])
 
   useEffect(() => {
     if (customer?.customerUniqueId) {
@@ -3018,12 +3043,25 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   }
 
   const handleRenewPackage = async () => {
+    const pkg = packages.find(item => String(item.id) === renewPackageId && String(item.planId) === renewPlanId)
+    if (!pkg) return toast.error("Select a plan and period")
+    if (!renewFiscalYearId) return toast.error("No active fiscal year is available")
+    if (!renewPaymentMethodId) return toast.error("Select a payment method")
     try {
       setRenewLoading(true)
 
-      const response = await apiRequest("/customer/subscribe", {
+      await apiRequest("/billing/renew", {
         method: 'POST',
-        body: JSON.stringify({ customerId: parseInt(customerId), createOrder: true }),
+        body: JSON.stringify({
+          customerId: Number(customerId),
+          packageId: pkg.id,
+          invoiceId: renewReceipt.trim(),
+          fiscalYearId: Number(renewFiscalYearId),
+          paymentMethodId: Number(renewPaymentMethodId),
+          amount: customer?.isFree ? 0 : customer?.isRechargeable
+            ? (pkg.renewAmountWithTax ?? pkg.price)
+            : (pkg.initialTotalWithTax ?? pkg.price)
+        }),
         headers: {
           'Content-Type': 'application/json',
         }
@@ -3037,6 +3075,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       }
 
       setRenewPackageOpen(false)
+      setRenewReceipt("")
     } catch (error: any) {
       console.error("Error renewing package:", error)
       toast.error(error.message || "Failed to renew package")
@@ -3819,37 +3858,79 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
       </Dialog>
 
       <Dialog open={renewPackageOpen} onOpenChange={setRenewPackageOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-md">
+        <DialogContent className="w-[95vw] sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Renew Package</DialogTitle>
+            <DialogTitle>Renew {customer?.customerUniqueId}</DialogTitle>
             <DialogDescription>
-              Renew the current package for this customer. This will create a new order and extend the subscription.
+              Choose a package and period for this customer.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-              <div className="flex items-center gap-2">
-                <Package className="h-5 w-5 text-blue-500" />
-                <div>
-                  <div className="font-medium">Current Package</div>
-                  <div className="text-sm text-muted-foreground">
-                    {customer?.subscribedPkg?.packageName} - {formatPrice(customer?.subscribedPkg?.price || 0)}
-                  </div>
-                </div>
+          <div className="grid gap-4 py-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Package</Label>
+              <Select value={renewPlanId} onValueChange={value => { setRenewPlanId(value); setRenewPackageId("") }}>
+                <SelectTrigger><SelectValue placeholder="Select package" /></SelectTrigger>
+                <SelectContent>
+                  {packages.filter((pkg, index, list) => list.findIndex(item => item.planId === pkg.planId) === index).map(pkg => (
+                    <SelectItem key={pkg.planId} value={String(pkg.planId)}>{pkg.packagePlanDetails?.planName || pkg.packageName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Period</Label>
+              <Select value={renewPackageId} onValueChange={setRenewPackageId} disabled={!renewPlanId}>
+                <SelectTrigger><SelectValue placeholder="Select period" /></SelectTrigger>
+                <SelectContent>
+                  {packages.filter(pkg => String(pkg.planId) === renewPlanId).map(pkg => (
+                    <SelectItem key={pkg.id} value={String(pkg.id)}>{pkg.packageDuration || "1 Month"}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Payment Mode</Label>
+              <Select value={renewPaymentMethodId} onValueChange={setRenewPaymentMethodId}>
+                <SelectTrigger><SelectValue placeholder="Select payment mode" /></SelectTrigger>
+                <SelectContent>{renewPaymentMethods.map(method => <SelectItem key={method.id} value={String(method.id)}>{method.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="renew-receipt">Receipt Number</Label>
+              <Input id="renew-receipt" value={renewReceipt} onChange={event => setRenewReceipt(event.target.value)} placeholder="Enter receipt number" />
+            </div>
+            <div className="rounded-lg border bg-muted/40 p-3">
+              <div className="text-sm text-muted-foreground">Total Price</div>
+              <div className="text-xl font-semibold">
+                {formatPrice((() => {
+                  const pkg = packages.find(item => String(item.id) === renewPackageId)
+                  return customer?.isFree ? 0 : customer?.isRechargeable
+                    ? (pkg?.renewAmountWithTax ?? pkg?.price ?? 0)
+                    : (pkg?.initialTotalWithTax ?? pkg?.price ?? 0)
+                })())}
               </div>
             </div>
-            <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="h-5 w-5 text-amber-500" />
-                <div className="text-sm">
-                  A new order will be created and the subscription will be extended based on the package duration.
-                </div>
+            <div className="rounded-lg border bg-muted/40 p-3">
+              <div className="text-sm text-muted-foreground">Estimated Expiry Date</div>
+              <div className="text-lg font-semibold">
+                {(() => {
+                  const pkg = packages.find(item => String(item.id) === renewPackageId)
+                  if (!pkg) return "Select a period"
+                  const currentEnd = latestSubscription?.planEnd ? new Date(latestSubscription.planEnd) : new Date()
+                  const date = currentEnd > new Date() ? currentEnd : new Date()
+                  const duration = String(pkg.packageDuration || "1 month").toLowerCase()
+                  const count = Number(duration.match(/\d+/)?.[0] || 1)
+                  if (/day/.test(duration)) date.setDate(date.getDate() + count)
+                  else if (/year/.test(duration)) date.setFullYear(date.getFullYear() + count)
+                  else date.setMonth(date.getMonth() + count)
+                  return formatDate(date.toISOString())
+                })()}
               </div>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRenewPackageOpen(false)}>Cancel</Button>
-            <Button onClick={handleRenewPackage} disabled={renewLoading} className="bg-gradient-to-r from-green-500 to-emerald-600">
+            <Button onClick={handleRenewPackage} disabled={renewLoading || !renewPackageId}>
               {renewLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Renew Package
             </Button>
