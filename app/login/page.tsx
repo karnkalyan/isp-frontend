@@ -1,4 +1,5 @@
 import { LoginForm } from "@/components/auth/login-form"
+import { LoginBranding } from "@/components/auth/login-branding"
 import type { Metadata } from "next"
 import { Suspense } from "react"
 
@@ -46,31 +47,8 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* SimulISP branding */}
-      <div className="mb-8 text-center relative z-10">
-        <div className="flex items-center justify-center gap-3 mb-2">
-          <div className="size-12 rounded-full bg-gradient-to-br from-green-500 to-teal-600 flex items-center justify-center shadow-lg">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="size-6 text-white"
-            >
-              <path d="M6 9a6 6 0 0 1 6-6" />
-              <path d="M3 9a9 9 0 0 1 9-9" />
-              <circle cx="12" cy="9" r="3" />
-              <path d="m12 12 0 12" />
-            </svg>
-          </div>
-          <h1 className="text-4xl font-bold text-foreground tracking-tight">
-            <span className="text-primary">Radius Manager</span>
-          </h1>
-        </div>
-      </div>
+      {/* Dynamic ISP Branding */}
+      <LoginBranding />
 
       {/* Login form */}
       <div className="relative z-10">
