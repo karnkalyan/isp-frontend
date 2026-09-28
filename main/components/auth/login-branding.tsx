@@ -25,17 +25,19 @@ function resolveAssetUrl(assetPath?: string | null): string {
     return assetPath
   }
 
-  const cleanPath = assetPath.startsWith("/") ? assetPath : `/${assetPath}`
+  let cleanPath = assetPath.startsWith("/") ? assetPath : `/${assetPath}`
+
+  // Always ensure /uploads/ routes through /api/uploads/ for Next.js rewrites and Nginx proxy
+  if (cleanPath.startsWith("/uploads/")) {
+    cleanPath = `/api${cleanPath}`
+  }
+
   if (typeof window === "undefined") return cleanPath
 
   const hostname = window.location.hostname
-  const baseUrl =
-    hostname !== "localhost" && hostname !== "127.0.0.1" && !hostname.startsWith("192.168.")
-      ? ""
-      : `http://${hostname}:3200`
-
-  if (cleanPath.startsWith("/uploads/")) {
-    return `${baseUrl}${cleanPath}`
+  const isLocal = hostname === "localhost" || hostname === "127.0.0.1" || hostname.startsWith("192.168.")
+  if (isLocal) {
+    return `http://${hostname}:3200${cleanPath}`
   }
 
   return cleanPath
@@ -102,6 +104,35 @@ export function LoginBranding() {
 
     fetchBranding()
   }, [])
+
+  // Dynamically update Favicon with ISP logo
+  useEffect(() => {
+    if (!ispData) return
+
+    const branding = ispData.sidebarBranding
+    const faviconPath =
+      branding?.sidebarLogoCollapsedLightUrl ||
+      branding?.sidebarLogoCollapsedDarkUrl ||
+      branding?.sidebarLogoExpandedLightUrl ||
+      branding?.sidebarLogoExpandedDarkUrl ||
+      ispData.logoUrl
+
+    if (faviconPath) {
+      const fullFaviconUrl = resolveAssetUrl(faviconPath)
+      if (fullFaviconUrl && typeof document !== "undefined") {
+        const existingIcons = document.querySelectorAll("link[rel*='icon']")
+        existingIcons.forEach((el) => {
+          (el as HTMLLinkElement).href = fullFaviconUrl
+        })
+        if (existingIcons.length === 0) {
+          const newIcon = document.createElement("link")
+          newIcon.rel = "shortcut icon"
+          newIcon.href = fullFaviconUrl
+          document.head.appendChild(newIcon)
+        }
+      }
+    }
+  }, [ispData])
 
   const companyName = ispData?.companyName || ispData?.name || ispData?.displayName || "Radius Manager"
 

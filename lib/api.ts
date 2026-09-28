@@ -63,10 +63,13 @@ export function buildApiAssetUrl(assetPath?: string | null): string {
     return assetPath;
   }
 
-  const cleanPath = assetPath.startsWith("/") ? assetPath : `/${assetPath}`;
-  const baseUrl = getDynamicBaseUrl().replace(/\/+$/, "");
-
+  let cleanPath = assetPath.startsWith("/") ? assetPath : `/${assetPath}`;
   if (cleanPath.startsWith("/uploads/")) {
+    cleanPath = `/api${cleanPath}`;
+  }
+
+  const baseUrl = getDynamicBaseUrl().replace(/\/+$/, "");
+  if (baseUrl && !baseUrl.startsWith("/")) {
     return `${baseUrl}${cleanPath}`;
   }
 
