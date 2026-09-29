@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { SearchableSelect, type Option } from "@/components/ui/searchable-select"
 import { Textarea } from "@/components/ui/textarea"
 import { AlertTriangle, Loader2, UserCheck } from "lucide-react"
 import toast from "react-hot-toast"
@@ -105,6 +106,30 @@ export function AssignDeviceDialog({ open, onOpenChange, item, onSuccess }: Assi
       return isBranchAdmin && matchesBranch
     }) || null
   }, [users, selectedBranchId])
+
+  // Options for searchable branch selector
+  const branchOptions = useMemo<Option[]>(() => {
+    return [
+      { value: "all", label: "All Branches (Global)" },
+      ...branches.map((b: any) => ({
+        value: String(b.id),
+        label: `${b.name} ${b.code ? `(${b.code})` : ""}`.trim()
+      }))
+    ]
+  }, [branches])
+
+  // Options for searchable user selector
+  const userOptions = useMemo<Option[]>(() => {
+    return filteredUsers.map((u: any) => {
+      const isBranchAdmin = String(u.role?.name || u.role || "").toLowerCase().includes("branch admin")
+      const roleSuffix = u.role?.name ? ` (${u.role.name})` : ""
+      const star = isBranchAdmin ? " ★" : ""
+      return {
+        value: String(u.id),
+        label: `${u.name || u.email}${roleSuffix}${star}`
+      }
+    })
+  }, [filteredUsers])
 
   // When branch changes, auto-select the branch admin
   const handleBranchChange = (branchIdVal: string) => {
@@ -241,19 +266,14 @@ export function AssignDeviceDialog({ open, onOpenChange, item, onSuccess }: Assi
           {/* Assign Branch Selector */}
           <div className="space-y-2">
             <Label>Assign Branch</Label>
-            <Select value={selectedBranchId} onValueChange={handleBranchChange} disabled={loading || isAssignedToCustomer}>
-              <SelectTrigger>
-                <SelectValue placeholder={loading ? "Loading branches..." : "Choose a branch..."} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Branches (Global)</SelectItem>
-                {branches.map((branch: any) => (
-                  <SelectItem key={branch.id} value={branch.id.toString()}>
-                    {branch.name} {branch.code ? `(${branch.code})` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              options={branchOptions}
+              value={selectedBranchId}
+              onValueChange={(val) => handleBranchChange(String(val || "all"))}
+              placeholder={loading ? "Loading branches..." : "Choose a branch..."}
+              emptyMessage="No matching branches found."
+              disabled={loading || isAssignedToCustomer}
+            />
             {currentBranchAdmin && (
               <p className="text-xs text-muted-foreground">
                 Branch Admin: <span className="font-semibold text-foreground">{currentBranchAdmin.name}</span> (Auto-selected below)
@@ -271,27 +291,14 @@ export function AssignDeviceDialog({ open, onOpenChange, item, onSuccess }: Assi
                 </span>
               )}
             </div>
-            <Select value={selectedId} onValueChange={setSelectedId} disabled={loading || isAssignedToCustomer}>
-              <SelectTrigger>
-                <SelectValue placeholder={loading ? "Loading users..." : "Choose a staff user..."} />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredUsers.length === 0 ? (
-                  <div className="p-2 text-xs text-center text-muted-foreground">
-                    No staff users found in this branch
-                  </div>
-                ) : (
-                  filteredUsers.map((user: any) => {
-                    const isBranchAdmin = String(user.role?.name || "").toLowerCase().includes("branch admin")
-                    return (
-                      <SelectItem key={user.id} value={user.id.toString()}>
-                        {user.name || user.email} {user.role?.name ? `(${user.role.name})` : ""} {isBranchAdmin ? "★" : ""}
-                      </SelectItem>
-                    )
-                  })
-                )}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              options={userOptions}
+              value={selectedId}
+              onValueChange={(val) => setSelectedId(String(val || ""))}
+              placeholder={loading ? "Loading users..." : "Choose a staff user..."}
+              emptyMessage={filteredUsers.length === 0 ? "No staff users found in this branch" : "No matching staff users found."}
+              disabled={loading || isAssignedToCustomer}
+            />
           </div>
 
           {item && item.availableQty > 1 && (

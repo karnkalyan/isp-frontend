@@ -79,7 +79,7 @@ export function BranchHierarchySelector({
   useEffect(() => {
     const allRelevantIds = new Set<string>([
       ...selectedBranchIds.map(String),
-      ...(primaryBranchId ? [String(primaryBranchId)] : []),
+      ...(primaryBranchId && primaryBranchId !== "none" ? [String(primaryBranchId)] : []),
     ])
 
     const neededMainBranchIds = new Set<string>(activeMainBranchIds)
@@ -153,8 +153,8 @@ export function BranchHierarchySelector({
     // Remove main branch and all its sub-branches, except primary branch if it happens to be here
     onChange(
       selectedBranchIds.filter((id) => {
-        if (id === sId) return id === primaryBranchId
-        if (subIds.has(id)) return id === primaryBranchId
+        if (id === sId) return Boolean(primaryBranchId && primaryBranchId !== "none" && id === primaryBranchId)
+        if (subIds.has(id)) return Boolean(primaryBranchId && primaryBranchId !== "none" && id === primaryBranchId)
         return true
       })
     )
@@ -168,7 +168,7 @@ export function BranchHierarchySelector({
         onChange([...selectedBranchIds, sId])
       }
     } else {
-      if (sId !== primaryBranchId) {
+      if (!primaryBranchId || primaryBranchId === "none" || sId !== primaryBranchId) {
         onChange(selectedBranchIds.filter((id) => id !== sId))
       }
     }
@@ -182,7 +182,7 @@ export function BranchHierarchySelector({
         onChange([...selectedBranchIds, sId])
       }
     } else {
-      if (sId !== primaryBranchId) {
+      if (!primaryBranchId || primaryBranchId === "none" || sId !== primaryBranchId) {
         onChange(selectedBranchIds.filter((id) => id !== sId))
       }
     }
@@ -203,7 +203,7 @@ export function BranchHierarchySelector({
     const subIds = new Set(subs.map((s) => String(s.value)))
     onChange(
       selectedBranchIds.filter((id) => {
-        if (subIds.has(id) && id !== primaryBranchId) return false
+        if (subIds.has(id) && (!primaryBranchId || primaryBranchId === "none" || id !== primaryBranchId)) return false
         return true
       })
     )

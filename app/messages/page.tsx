@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { apiRequest } from "@/lib/api"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import {
@@ -339,6 +339,29 @@ export default function MessagesPage() {
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
   }, [messages, selectedUserId, conversations, myId, isCustomerUser])
 
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
+    // Timeout gives DOM time to layout newly rendered messages
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior, block: "end" })
+    }, 50)
+  }
+
+  // Scroll to bottom when conversation changes or initializes
+  useEffect(() => {
+    if (selectedUserId || isCustomerUser) {
+      scrollToBottom("auto")
+    }
+  }, [selectedUserId, isCustomerUser])
+
+  // Auto-scroll when new messages arrive or are added to current chat
+  useEffect(() => {
+    if (currentChatMessages.length > 0) {
+      scrollToBottom("smooth")
+    }
+  }, [currentChatMessages.length, currentChatMessages[currentChatMessages.length - 1]?.id])
+
   const handleSend = async () => {
     if ((!selectedUserId && !isCustomerUser) || !content.trim()) return
     try {
@@ -348,6 +371,7 @@ export default function MessagesPage() {
       })
       setContent("")
       fetchMessages()
+      scrollToBottom("smooth")
     } catch (error) {
       toast({ title: "Error", description: "Failed to send message", variant: "destructive" })
     }
@@ -592,6 +616,7 @@ export default function MessagesPage() {
                         </div>
                       )
                     })}
+                    <div ref={messagesEndRef} className="h-1 w-full" />
                   </div>
                 )}
               </ScrollArea>

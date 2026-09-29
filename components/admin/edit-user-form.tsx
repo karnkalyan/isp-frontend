@@ -62,11 +62,19 @@ export function EditUserForm({ user, roles, departments, branches, onComplete, o
 
   const handleSelectChange = (name: keyof typeof formData, value: string) => {
     setFormData(prev => ({ ...prev, [name]: value }))
-    if (name === "branchId" && value) {
-      setBranchIds(prev => (prev.includes(value) ? prev : [...prev, value]))
+    if (name === "branchId") {
+      if (value && value !== "none") {
+        setBranchIds(prev => (prev.includes(value) ? prev : [...prev, value]))
+      }
     }
     if (errors[name as string]) setErrors(prev => ({ ...prev, [name as string]: "" }))
   }
+
+  const isGlobalRole = React.useMemo(() => {
+    const roleObj = roles.find(r => r.value === formData.role)
+    const roleName = String(roleObj?.label || "").toLowerCase()
+    return roleName.includes("global") || roleName.includes("admin")
+  }, [roles, formData.role])
 
   // Format branches hierarchically for primary branch dropdown
   const hierarchicalPrimaryOptions = React.useMemo(() => {
@@ -147,9 +155,13 @@ export function EditUserForm({ user, roles, departments, branches, onComplete, o
     data.append("roleId", formData.role)
     data.append("status", formData.status || "")
     data.append("departmentId", formData.department || "")
-    if (formData.branchId) data.append("branchId", formData.branchId)
+    if (formData.branchId && formData.branchId !== "none") {
+      data.append("branchId", formData.branchId)
+    } else {
+      data.append("branchId", "")
+    }
     data.append("yeastarExt", formData.yeastarExt.trim())
-    data.append("branchIds", JSON.stringify(branchIds.filter(id => id !== formData.branchId)))
+    data.append("branchIds", JSON.stringify(branchIds.filter(id => id !== formData.branchId && id !== "none")))
     if (logoFile) data.append("profilePicture", logoFile)
   
     try {
@@ -260,15 +272,38 @@ export function EditUserForm({ user, roles, departments, branches, onComplete, o
         </div>
 
         <div className="space-y-2">
-          <Label>Primary Branch</Label>
+          <div className="flex items-center justify-between">
+            <Label>
+              Primary Branch
+              {isGlobalRole && (
+                <span className="text-xs font-normal text-muted-foreground ml-1.5">
+                  (Optional - Global Access)
+                </span>
+              )}
+            </Label>
+            {formData.branchId && formData.branchId !== "none" && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => handleSelectChange("branchId", "none")}
+                className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
+              >
+                Clear / Deselect
+              </Button>
+            )}
+          </div>
           <Select
-            value={formData.branchId}
+            value={formData.branchId || "none"}
             onValueChange={(value) => handleSelectChange("branchId", value)}
           >
             <SelectTrigger>
               <SelectValue placeholder="Select primary branch" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="none" className="font-semibold text-primary">
+                No Primary Branch (Global / All Branches)
+              </SelectItem>
               {hierarchicalPrimaryOptions.map((branch) => (
                 <SelectItem key={branch.value} value={branch.value}>
                   <span className={branch.isSub ? "text-muted-foreground pl-2" : "font-medium"}>
@@ -299,7 +334,7 @@ export function EditUserForm({ user, roles, departments, branches, onComplete, o
           branches={branches}
           selectedBranchIds={branchIds}
           onChange={setBranchIds}
-          primaryBranchId={formData.branchId}
+          primaryBranchId={formData.branchId === "none" ? undefined : formData.branchId}
         />
       </div>
 

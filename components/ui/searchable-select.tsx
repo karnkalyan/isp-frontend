@@ -176,7 +176,7 @@ export function SearchableSelect({
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start">
+      <PopoverContent className="p-0 w-[--radix-popover-trigger-width] z-[150]" align="start">
         <Command shouldFilter={false}>
           <CommandInput
             placeholder={`Search ${placeholder.toLowerCase()}...`}

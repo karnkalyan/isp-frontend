@@ -73,9 +73,11 @@ export function AddUserForm({ onSubmit, onCancel, roles, departments, branches }
 
   const handleSelectChange = (name: keyof typeof formData, value: string) => {
     setFormData((prev) => ({ ...prev, [name]: value }))
-    if (name === "branchId" && value) {
-      // Also ensure the primary branch is in branchIds so it reflects in the hierarchy
-      setBranchIds((prev) => (prev.includes(value) ? prev : [...prev, value]))
+    if (name === "branchId") {
+      if (value && value !== "none") {
+        // Also ensure the primary branch is in branchIds so it reflects in the hierarchy
+        setBranchIds((prev) => (prev.includes(value) ? prev : [...prev, value]))
+      }
     }
     if (errors[name]) {
       setErrors((prev) => {
@@ -127,6 +129,12 @@ export function AddUserForm({ onSubmit, onCancel, roles, departments, branches }
     return items
   }, [branches])
 
+  const isGlobalRole = useMemo(() => {
+    const roleObj = roles.find((r) => r.value === formData.roleId)
+    const roleName = String(roleObj?.label || "").toLowerCase()
+    return roleName.includes("global") || roleName.includes("admin")
+  }, [roles, formData.roleId])
+
   // Frontend validation (still good to have for immediate feedback)
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
@@ -167,13 +175,15 @@ export function AddUserForm({ onSubmit, onCancel, roles, departments, branches }
       if (formData.departmentId) {
         data.append("departmentId", formData.departmentId);
       }
-      if (formData.branchId) {
+      if (formData.branchId && formData.branchId !== "none") {
         data.append("branchId", formData.branchId);
+      } else {
+        data.append("branchId", "");
       }
       if (formData.yeastarExt.trim()) {
         data.append("yeastarExt", formData.yeastarExt.trim());
       }
-      data.append("branchIds", JSON.stringify(branchIds.filter((id) => id !== formData.branchId)));
+      data.append("branchIds", JSON.stringify(branchIds.filter((id) => id !== formData.branchId && id !== "none")));
       if (profilePictureFile) {
         data.append("profilePicture", profilePictureFile);
       }
@@ -328,12 +338,35 @@ export function AddUserForm({ onSubmit, onCancel, roles, departments, branches }
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="add-primary-branch">Primary Branch</Label>
-          <Select value={formData.branchId} onValueChange={(val) => handleSelectChange("branchId", val)}>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="add-primary-branch">
+              Primary Branch
+              {isGlobalRole && (
+                <span className="text-xs font-normal text-muted-foreground ml-1.5">
+                  (Optional - Global Access)
+                </span>
+              )}
+            </Label>
+            {formData.branchId && formData.branchId !== "none" && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => handleSelectChange("branchId", "none")}
+                className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
+              >
+                Clear / Deselect
+              </Button>
+            )}
+          </div>
+          <Select value={formData.branchId || "none"} onValueChange={(val) => handleSelectChange("branchId", val)}>
             <SelectTrigger id="add-primary-branch">
               <SelectValue placeholder="Select primary branch" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="none" className="font-semibold text-primary">
+                No Primary Branch (Global / All Branches)
+              </SelectItem>
               {hierarchicalPrimaryOptions.map((branch) => (
                 <SelectItem key={branch.value} value={branch.value}>
                   <span className={branch.isSub ? "text-muted-foreground pl-2" : "font-medium"}>
@@ -364,7 +397,7 @@ export function AddUserForm({ onSubmit, onCancel, roles, departments, branches }
           branches={branches}
           selectedBranchIds={branchIds}
           onChange={setBranchIds}
-          primaryBranchId={formData.branchId}
+          primaryBranchId={formData.branchId === "none" ? undefined : formData.branchId}
           disabled={isSubmitting}
         />
       </div>
