@@ -2281,7 +2281,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
               if (deleted) {
                 toast.success("Unregistered ONT from previous OLT", { id: "olt-change-progress" })
               } else {
-                toast.info("Previous OLT registration cleared / not found", { id: "olt-change-progress" })
+                toast("Previous OLT registration cleared / not found", { id: "olt-change-progress" })
               }
             } catch (delErr: any) {
               console.warn("Delete ONT from previous OLT warning:", delErr)

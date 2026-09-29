@@ -154,6 +154,8 @@ export function InventoryOverview() {
     const [savingEdit, setSavingEdit] = useState(false)
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
     const [deleteItemObj, setDeleteItemObj] = useState<any>(null)
+    const [branchBreakdownModal, setBranchBreakdownModal] = useState<any>(null)
+    const [breakdownTypeSearch, setBreakdownTypeSearch] = useState("")
 
     const fetchInventory = async () => {
         setLoading(true)
@@ -393,8 +395,9 @@ export function InventoryOverview() {
         }).sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())
     }, [items])
 
-    type TypeBreakdown = {
-        type: string
+    type BranchQuantity = {
+        branchId: number | null
+        branchName: string
         total: number
         inStock: number
         branch: number
@@ -403,8 +406,28 @@ export function InventoryOverview() {
         faulty: number
     }
 
+    type TypeBreakdown = {
+        type: string
+        total: number
+        inStock: number
+        branch: number
+        customer: number
+        technician: number
+        faulty: number
+        branchBreakdown: BranchQuantity[]
+    }
+
     const typeBreakdowns = React.useMemo<TypeBreakdown[]>(() => {
-        const map = new Map<string, TypeBreakdown>()
+        const map = new Map<string, {
+            type: string
+            total: number
+            inStock: number
+            branch: number
+            customer: number
+            technician: number
+            faulty: number
+            branchMap: Map<string, BranchQuantity>
+        }>()
 
         items.forEach(item => {
             const type = (item.type || "OTHER").toUpperCase().trim()
@@ -416,30 +439,69 @@ export function InventoryOverview() {
                     branch: 0,
                     customer: 0,
                     technician: 0,
-                    faulty: 0
+                    faulty: 0,
+                    branchMap: new Map()
                 })
             }
             const b = map.get(type)!
             const qty = Number(item.qty || 1)
             b.total += qty
 
+            // Branch info for this item
+            const bId = item.branchId || (item.branch?.id ? item.branch.id : null)
+            const bName = item.branch?.name || (bId ? branches.find((br: any) => br.id === bId)?.name : null) || "Main Office / HQ"
+            const bKey = String(bId || bName)
+
+            if (!b.branchMap.has(bKey)) {
+                b.branchMap.set(bKey, {
+                    branchId: bId,
+                    branchName: bName,
+                    total: 0,
+                    inStock: 0,
+                    branch: 0,
+                    customer: 0,
+                    technician: 0,
+                    faulty: 0
+                })
+            }
+            const branchEntry = b.branchMap.get(bKey)!
+            branchEntry.total += qty
+
+            const userRoleName = String(item.user?.role?.name || item.user?.role || "").toLowerCase()
+            const isBranchAdmin = userRoleName.includes("branch admin") || userRoleName.includes("branch_admin")
+
             if (item.status === "IN_STOCK") {
                 b.inStock += qty
-            } else if (item.status === "ASSIGNED_TO_BRANCH") {
+                branchEntry.inStock += qty
+            } else if (item.status === "ASSIGNED_TO_BRANCH" || (item.status === "ASSIGNED_TO_USER" && isBranchAdmin)) {
                 b.branch += qty
+                branchEntry.branch += qty
             } else if (item.status === "ASSIGNED_TO_CUSTOMER" || item.status === "INSTALLED_AT_CUSTOMER" || item.customerId) {
                 b.customer += qty
+                branchEntry.customer += qty
             } else if (item.status === "ASSIGNED_TO_USER" || item.status === "ASSIGNED_TO_ROLE" || item.userId) {
                 b.technician += qty
+                branchEntry.technician += qty
             } else if (item.status === "FAULTY") {
                 b.faulty += qty
+                branchEntry.faulty += qty
             } else {
                 b.inStock += qty
+                branchEntry.inStock += qty
             }
         })
 
-        return Array.from(map.values()).sort((a, b) => b.total - a.total)
-    }, [items])
+        return Array.from(map.values()).map(tb => ({
+            type: tb.type,
+            total: tb.total,
+            inStock: tb.inStock,
+            branch: tb.branch,
+            customer: tb.customer,
+            technician: tb.technician,
+            faulty: tb.faulty,
+            branchBreakdown: Array.from(tb.branchMap.values()).sort((x, y) => y.total - x.total)
+        })).sort((a, b) => b.total - a.total)
+    }, [items, branches])
 
     const filteredGroupedItems = groupedItems.filter(group => {
         const search = searchTerm.toLowerCase()
@@ -520,80 +582,242 @@ export function InventoryOverview() {
                 </div>
             </div>
 
-            {/* Hardware Breakdown by Category Badges Component */}
+            {/* Hardware Breakdown Component as a Filterable Table */}
             <div className="space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                         <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
                             <Layers className="h-4 w-4 text-primary" />
                             Hardware Inventory Breakdown
                         </h3>
                         <p className="text-xs text-muted-foreground">
-                            Live device totals with assignment breakdown across branches, customers, and field staff.
+                            Live device totals with assignment breakdown across branches, customers, and field staff. Click on any Total to see branch-wise distribution.
                         </p>
                     </div>
-                    {selectedTypeFilter !== "ALL" && (
-                        <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => { setSelectedTypeFilter("ALL"); setCurrentPage(1); }}
-                            className="text-xs text-primary hover:text-primary/80 self-start sm:self-auto h-7 px-2"
-                        >
-                            Showing {selectedTypeFilter} (Click to show all)
-                        </Button>
-                    )}
+                    <div className="flex items-center gap-2">
+                        <div className="relative">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                            <Input
+                                placeholder="Search device type..."
+                                value={breakdownTypeSearch}
+                                onChange={(e) => setBreakdownTypeSearch(e.target.value)}
+                                className="h-8 w-44 pl-8 text-xs bg-background"
+                            />
+                        </div>
+                        {selectedTypeFilter !== "ALL" && (
+                            <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => { setSelectedTypeFilter("ALL"); setCurrentPage(1); }}
+                                className="text-xs h-8 px-2.5 text-primary border-primary/30"
+                            >
+                                Showing {selectedTypeFilter} (Reset)
+                            </Button>
+                        )}
+                    </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                    {typeBreakdowns.map((tb) => {
-                        const isSelected = selectedTypeFilter === tb.type
-                        return (
-                            <div
-                                key={tb.type}
-                                onClick={() => {
-                                    setSelectedTypeFilter(isSelected ? "ALL" : tb.type)
-                                    setCurrentPage(1)
-                                }}
-                                className={`cursor-pointer rounded-xl border p-3.5 transition-all shadow-sm ${
-                                    isSelected
-                                        ? "ring-2 ring-primary border-primary bg-primary/5 shadow-md"
-                                        : "bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700"
-                                }`}
-                            >
-                                <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center gap-2 font-bold text-sm text-foreground">
-                                        <HardDrive className="h-4 w-4 text-indigo-500" />
-                                        <span>{tb.type}</span>
-                                    </div>
-                                    <Badge variant="outline" className="font-mono font-bold text-xs bg-slate-100 dark:bg-slate-800">
-                                        Total {tb.total}
-                                    </Badge>
-                                </div>
-
-                                <div className="flex flex-wrap gap-1.5 pt-1">
-                                    <Badge variant="success" className="text-[11px] font-medium py-0.5">
-                                        {tb.inStock} In Stock
-                                    </Badge>
-                                    <Badge variant="secondary" className="text-[11px] font-medium py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
-                                        {tb.branch} Branch
-                                    </Badge>
-                                    <Badge className="text-[11px] font-medium py-0.5 bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300">
-                                        {tb.customer} Customer
-                                    </Badge>
-                                    <Badge variant="warning" className="text-[11px] font-medium py-0.5">
-                                        {tb.technician} Technician
-                                    </Badge>
-                                    {tb.faulty > 0 && (
-                                        <Badge variant="destructive" className="text-[11px] font-medium py-0.5">
-                                            {tb.faulty} Faulty
-                                        </Badge>
-                                    )}
-                                </div>
-                            </div>
-                        )
-                    })}
+                <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+                    <Table>
+                        <TableHeader className="bg-muted/50">
+                            <TableRow>
+                                <TableHead className="w-[180px]">Device Type</TableHead>
+                                <TableHead className="text-center font-bold">Total Qty (Click for Branches)</TableHead>
+                                <TableHead className="text-center">In Stock</TableHead>
+                                <TableHead className="text-center">Branch Assigned</TableHead>
+                                <TableHead className="text-center">Customer Assigned</TableHead>
+                                <TableHead className="text-center">Field Staff / Tech</TableHead>
+                                <TableHead className="text-center">Faulty</TableHead>
+                                <TableHead className="text-right">Filter</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {typeBreakdowns
+                                .filter(tb => !breakdownTypeSearch.trim() || tb.type.toLowerCase().includes(breakdownTypeSearch.toLowerCase().trim()))
+                                .map((tb) => {
+                                    const isSelected = selectedTypeFilter === tb.type
+                                    return (
+                                        <TableRow 
+                                            key={tb.type}
+                                            className={`transition-colors cursor-pointer ${
+                                                isSelected ? "bg-primary/10 hover:bg-primary/15 font-medium" : "hover:bg-muted/40"
+                                            }`}
+                                            onClick={() => {
+                                                setSelectedTypeFilter(isSelected ? "ALL" : tb.type)
+                                                setCurrentPage(1)
+                                            }}
+                                        >
+                                            <TableCell className="font-semibold text-sm">
+                                                <div className="flex items-center gap-2">
+                                                    <HardDrive className="h-4 w-4 text-indigo-500 shrink-0" />
+                                                    <span>{tb.type}</span>
+                                                    {isSelected && (
+                                                        <Badge variant="outline" className="text-[10px] h-4 px-1 border-primary text-primary">
+                                                            Active
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-center" onClick={(e) => {
+                                                e.stopPropagation()
+                                                setBranchBreakdownModal(tb)
+                                            }}>
+                                                <button 
+                                                    type="button"
+                                                    title="Click to view branch quantities"
+                                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-mono font-bold text-xs bg-slate-100 hover:bg-primary/20 dark:bg-slate-800 dark:hover:bg-primary/30 transition-all border border-slate-200 dark:border-slate-700 shadow-sm"
+                                                >
+                                                    <Building2 className="h-3 w-3 text-primary" />
+                                                    <span>{tb.total}</span>
+                                                    <span className="text-[10px] text-muted-foreground font-normal">→ view branches</span>
+                                                </button>
+                                            </TableCell>
+                                            <TableCell className="text-center">
+                                                <Badge variant="success" className="text-xs font-semibold py-0.5 px-2">
+                                                    {tb.inStock}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-center">
+                                                <Badge variant="secondary" className="text-xs font-semibold py-0.5 px-2 bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                                                    {tb.branch}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-center">
+                                                <Badge className="text-xs font-semibold py-0.5 px-2 bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300">
+                                                    {tb.customer}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-center">
+                                                <Badge variant="warning" className="text-xs font-semibold py-0.5 px-2">
+                                                    {tb.technician}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-center">
+                                                {tb.faulty > 0 ? (
+                                                    <Badge variant="destructive" className="text-xs font-semibold py-0.5 px-2">
+                                                        {tb.faulty}
+                                                    </Badge>
+                                                ) : (
+                                                    <span className="text-xs text-muted-foreground font-mono">0</span>
+                                                )}
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <Button
+                                                    variant={isSelected ? "default" : "outline"}
+                                                    size="sm"
+                                                    className="h-7 text-xs px-2.5"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        setSelectedTypeFilter(isSelected ? "ALL" : tb.type)
+                                                        setCurrentPage(1)
+                                                    }}
+                                                >
+                                                    {isSelected ? "Filtered" : "Filter"}
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    )
+                                })}
+                            {typeBreakdowns.length === 0 && (
+                                <TableRow>
+                                    <TableCell colSpan={8} className="text-center py-6 text-muted-foreground text-xs">
+                                        No inventory devices found.
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
                 </div>
             </div>
+
+            {/* Branch Breakdown Modal */}
+            <Dialog open={!!branchBreakdownModal} onOpenChange={(open) => !open && setBranchBreakdownModal(null)}>
+                <DialogContent className="sm:max-w-[720px] max-h-[85vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Building2 className="h-5 w-5 text-primary" />
+                            Branch Quantities for {branchBreakdownModal?.type}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Detailed distribution of {branchBreakdownModal?.total} total {branchBreakdownModal?.type} device(s) across branches.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="py-2">
+                        <div className="rounded-lg border overflow-hidden">
+                            <Table>
+                                <TableHeader className="bg-muted/50">
+                                    <TableRow>
+                                        <TableHead>Branch Name</TableHead>
+                                        <TableHead className="text-center font-bold">Total</TableHead>
+                                        <TableHead className="text-center">In Stock</TableHead>
+                                        <TableHead className="text-center">Branch Assigned</TableHead>
+                                        <TableHead className="text-center">Customer Assigned</TableHead>
+                                        <TableHead className="text-center">Field Staff / Tech</TableHead>
+                                        <TableHead className="text-center">Faulty</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {branchBreakdownModal?.branchBreakdown?.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={7} className="text-center py-4 text-xs text-muted-foreground">
+                                                No branch details recorded
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        branchBreakdownModal?.branchBreakdown?.map((bb: any) => (
+                                            <TableRow key={bb.branchId || bb.branchName}>
+                                                <TableCell className="font-medium text-sm flex items-center gap-2">
+                                                    <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                                                    {bb.branchName}
+                                                </TableCell>
+                                                <TableCell className="text-center font-bold font-mono text-sm">
+                                                    {bb.total}
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <Badge variant="success" className="text-xs">
+                                                        {bb.inStock}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                                                        {bb.branch}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <Badge className="text-xs bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300">
+                                                        {bb.customer}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <Badge variant="warning" className="text-xs">
+                                                        {bb.technician}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    {bb.faulty > 0 ? (
+                                                        <Badge variant="destructive" className="text-xs">
+                                                            {bb.faulty}
+                                                        </Badge>
+                                                    ) : (
+                                                        <span className="text-xs text-muted-foreground font-mono">0</span>
+                                                    )}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setBranchBreakdownModal(null)}>
+                            Close
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             <CardContainer title="Stock Items">
                 <div className="flex flex-col md:flex-row gap-4 mb-6">

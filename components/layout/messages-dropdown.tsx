@@ -181,7 +181,14 @@ export function MessagesDropdown({ className }: MessagesDropdownProps) {
                 </Avatar>
                 <div className="flex-1 space-y-0.5 min-w-0">
                   <div className="flex items-center justify-between">
-                    <p className={cn("text-sm truncate", thread.unreadCount > 0 && "font-semibold")}>{message.sender?.name}</p>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <p className={cn("text-sm truncate", thread.unreadCount > 0 && "font-semibold")}>{message.sender?.name}</p>
+                      {(message.sender?.customer?.branch?.name || message.sender?.branch?.name || message.branch?.name) && (
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium shrink-0">
+                          ({message.sender?.customer?.branch?.name || message.sender?.branch?.name || message.branch?.name})
+                        </span>
+                      )}
+                    </div>
                     <span className="flex items-center text-xs text-muted-foreground whitespace-nowrap ml-1">
                       {thread.unreadCount > 0 ? (
                         <span className="flex items-center">

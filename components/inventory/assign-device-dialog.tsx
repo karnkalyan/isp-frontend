@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { apiRequest } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -34,6 +34,8 @@ interface AssignDeviceDialogProps {
 
 export function AssignDeviceDialog({ open, onOpenChange, item, onSuccess }: AssignDeviceDialogProps) {
   const [users, setUsers] = useState<any[]>([])
+  const [branches, setBranches] = useState<any[]>([])
+  const [selectedBranchId, setSelectedBranchId] = useState<string>("all")
   const [selectedId, setSelectedId] = useState("")
   const [note, setNote] = useState("")
   const [qtyToAssign, setQtyToAssign] = useState("1")
@@ -44,36 +46,101 @@ export function AssignDeviceDialog({ open, onOpenChange, item, onSuccess }: Assi
   useEffect(() => {
     if (open && item) {
       setQtyToAssign("1")
+      if (item.branchId) {
+        setSelectedBranchId(String(item.branchId))
+      } else {
+        setSelectedBranchId("all")
+      }
     }
   }, [open, item])
 
   useEffect(() => {
     if (!open) return
 
-    const loadUsers = async () => {
+    const loadData = async () => {
       setLoading(true)
       try {
-        const userData = await apiRequest("/users")
-        setUsers(Array.isArray(userData) ? userData : [])
+        const [userData, branchData] = await Promise.all([
+          apiRequest("/users"),
+          apiRequest("/branches")
+        ])
+
+        // Only include staff users - strictly filter out customer accounts
+        const staffUsers = (Array.isArray(userData) ? userData : []).filter((u: any) => {
+          const roleName = String(u.role?.name || u.role || "").toLowerCase()
+          return !roleName.includes("customer") && !u.customerId
+        })
+        setUsers(staffUsers)
+
+        const activeBranches = (Array.isArray(branchData) ? branchData : []).filter((b: any) => b.isActive !== false)
+        setBranches(activeBranches)
       } catch (err) {
-        console.error("Failed to load users for inventory assignment:", err)
+        console.error("Failed to load users/branches for inventory assignment:", err)
       } finally {
         setLoading(false)
       }
     }
 
-    loadUsers()
+    loadData()
   }, [open])
+
+  // Filter staff users based on selected branch
+  const filteredUsers = useMemo(() => {
+    if (selectedBranchId === "all") return users
+    const bId = Number(selectedBranchId)
+    return users.filter((u: any) => 
+      u.branchId === bId || 
+      u.userBranches?.some((ub: any) => ub.branchId === bId)
+    )
+  }, [users, selectedBranchId])
+
+  // Find the branch admin for the currently selected branch
+  const currentBranchAdmin = useMemo(() => {
+    if (selectedBranchId === "all") return null
+    const bId = Number(selectedBranchId)
+    return users.find((u: any) => {
+      const roleName = String(u.role?.name || u.role || "").toLowerCase()
+      const isBranchAdmin = roleName.includes("branch admin") || roleName.includes("branch_admin")
+      const matchesBranch = u.branchId === bId || u.userBranches?.some((ub: any) => ub.branchId === bId)
+      return isBranchAdmin && matchesBranch
+    }) || null
+  }, [users, selectedBranchId])
+
+  // When branch changes, auto-select the branch admin
+  const handleBranchChange = (branchIdVal: string) => {
+    setSelectedBranchId(branchIdVal)
+    if (branchIdVal === "all") {
+      setSelectedId("")
+      return
+    }
+    const bId = Number(branchIdVal)
+    const admin = users.find((u: any) => {
+      const roleName = String(u.role?.name || u.role || "").toLowerCase()
+      const isBranchAdmin = roleName.includes("branch admin") || roleName.includes("branch_admin")
+      const matchesBranch = u.branchId === bId || u.userBranches?.some((ub: any) => ub.branchId === bId)
+      return isBranchAdmin && matchesBranch
+    })
+    if (admin) {
+      setSelectedId(String(admin.id))
+    } else {
+      // Fallback to first user in branch if no explicit branch admin role exists
+      const firstBranchUser = users.find((u: any) => 
+        u.branchId === bId || u.userBranches?.some((ub: any) => ub.branchId === bId)
+      )
+      setSelectedId(firstBranchUser ? String(firstBranchUser.id) : "")
+    }
+  }
 
   const resetForm = () => {
     setSelectedId("")
+    setSelectedBranchId("all")
     setNote("")
     setQtyToAssign("1")
   }
 
   const handleSubmit = async () => {
-    if (!selectedId) {
-      toast.error("Please select a user")
+    if (!selectedId && selectedBranchId === "all") {
+      toast.error("Please select a branch or user to assign")
       return
     }
 
@@ -95,8 +162,11 @@ export function AssignDeviceDialog({ open, onOpenChange, item, onSuccess }: Assi
       await apiRequest(`/inventory/${item.id}/assign`, {
         method: "PUT",
         body: JSON.stringify({
-          userId: Number(selectedId),
-          note: note || "Assigned to user",
+          userId: selectedId ? Number(selectedId) : undefined,
+          branchId: selectedBranchId !== "all" ? Number(selectedBranchId) : undefined,
+          note: note || (currentBranchAdmin && selectedId === String(currentBranchAdmin.id) 
+            ? `Assigned to Branch Admin (${currentBranchAdmin.name})` 
+            : "Assigned to staff user"),
           qty: parsedQty,
         }),
       })
@@ -123,7 +193,7 @@ export function AssignDeviceDialog({ open, onOpenChange, item, onSuccess }: Assi
             Assign Item
           </DialogTitle>
           <DialogDescription>
-            Assign <span className="font-semibold text-foreground">{item?.name || item?.serialNumber || "item"}</span> to a staff user.
+            Assign <span className="font-semibold text-foreground">{item?.name || item?.serialNumber || "item"}</span> to a branch or staff user.
           </DialogDescription>
         </DialogHeader>
 
@@ -131,7 +201,7 @@ export function AssignDeviceDialog({ open, onOpenChange, item, onSuccess }: Assi
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              This hardware is already assigned to a customer. Return it to stock, branch, or staff before assigning it again.
+              This hardware is currently assigned to customer <span className="font-semibold">{item?.customer?.name || item?.customer?.customerUniqueId || "Unknown"}</span>. Direct inventory assignment to customers is disabled. Return it to stock before reassigning.
             </AlertDescription>
           </Alert>
         )}
@@ -152,22 +222,74 @@ export function AssignDeviceDialog({ open, onOpenChange, item, onSuccess }: Assi
               <span className="text-muted-foreground">Status:</span>
               <span className="font-medium">{item.status?.replace(/_/g, " ")}</span>
             </div>
+            {item.branch && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Current Branch:</span>
+                <span className="font-medium">{item.branch.name}</span>
+              </div>
+            )}
+            {item.customer && (
+              <div className="flex justify-between text-purple-600 dark:text-purple-400">
+                <span>Assigned Customer:</span>
+                <span className="font-medium">{item.customer.name} ({item.customer.customerUniqueId})</span>
+              </div>
+            )}
           </div>
         )}
 
         <div className="space-y-4 py-2">
+          {/* Assign Branch Selector */}
           <div className="space-y-2">
-            <Label>Select User</Label>
-            <Select value={selectedId} onValueChange={setSelectedId} disabled={loading || isAssignedToCustomer}>
+            <Label>Assign Branch</Label>
+            <Select value={selectedBranchId} onValueChange={handleBranchChange} disabled={loading || isAssignedToCustomer}>
               <SelectTrigger>
-                <SelectValue placeholder={loading ? "Loading users..." : "Choose a user..."} />
+                <SelectValue placeholder={loading ? "Loading branches..." : "Choose a branch..."} />
               </SelectTrigger>
               <SelectContent>
-                {users.map((user: any) => (
-                  <SelectItem key={user.id} value={user.id.toString()}>
-                    {user.name || user.email} {user.role?.name ? `- ${user.role.name}` : ""}
+                <SelectItem value="all">All Branches (Global)</SelectItem>
+                {branches.map((branch: any) => (
+                  <SelectItem key={branch.id} value={branch.id.toString()}>
+                    {branch.name} {branch.code ? `(${branch.code})` : ""}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+            {currentBranchAdmin && (
+              <p className="text-xs text-muted-foreground">
+                Branch Admin: <span className="font-semibold text-foreground">{currentBranchAdmin.name}</span> (Auto-selected below)
+              </p>
+            )}
+          </div>
+
+          {/* Select User Dropdown */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Select User</Label>
+              {selectedBranchId !== "all" && (
+                <span className="text-[11px] text-muted-foreground">
+                  Filtered by selected branch
+                </span>
+              )}
+            </div>
+            <Select value={selectedId} onValueChange={setSelectedId} disabled={loading || isAssignedToCustomer}>
+              <SelectTrigger>
+                <SelectValue placeholder={loading ? "Loading users..." : "Choose a staff user..."} />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredUsers.length === 0 ? (
+                  <div className="p-2 text-xs text-center text-muted-foreground">
+                    No staff users found in this branch
+                  </div>
+                ) : (
+                  filteredUsers.map((user: any) => {
+                    const isBranchAdmin = String(user.role?.name || "").toLowerCase().includes("branch admin")
+                    return (
+                      <SelectItem key={user.id} value={user.id.toString()}>
+                        {user.name || user.email} {user.role?.name ? `(${user.role.name})` : ""} {isBranchAdmin ? "★" : ""}
+                      </SelectItem>
+                    )
+                  })
+                )}
               </SelectContent>
             </Select>
           </div>
