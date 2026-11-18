@@ -2816,10 +2816,14 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           setPackages(data)
           if (data.length > 0 && customer) {
             const current = data.find(pkg => String(pkg.id) === String(customer.subscribedPkgId))
+            const upgraded = customer.isRechargeable && (current as any)?.upgradePackageId
+              ? data.find(pkg => String(pkg.id) === String((current as any).upgradePackageId))
+              : null
+            const renewTarget = upgraded || current
             setSelectedPackage(current ? String(current.id) : "")
             setSelectedPlanName(current?.packagePlanDetails?.planName || "")
-            setRenewPlanId(current ? String(current.planId) : "")
-            setRenewPackageId(current ? String(current.id) : "")
+            setRenewPlanId(renewTarget ? String(renewTarget.planId) : "")
+            setRenewPackageId(renewTarget ? String(renewTarget.id) : "")
           }
         }
       } catch (error) {
@@ -3889,6 +3893,19 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
               Choose a package and period for this customer.
             </DialogDescription>
           </DialogHeader>
+          {(() => {
+            const current = packages.find(pkg => String(pkg.id) === String(customer?.subscribedPkgId))
+            const upgraded = customer?.isRechargeable && (current as any)?.upgradePackageId
+              ? packages.find(pkg => String(pkg.id) === String((current as any).upgradePackageId))
+              : null
+            if (!upgraded) return null
+            return (
+              <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-800 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200">
+                <span className="font-semibold">Package Upgrade on Next Recharge:</span>{" "}
+                {current?.packageName || current?.packagePlanDetails?.planName} → {upgraded.packageName || upgraded.packagePlanDetails?.planName}
+              </div>
+            )
+          })()}
           <div className="grid gap-4 py-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Package</Label>

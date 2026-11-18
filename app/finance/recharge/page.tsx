@@ -88,11 +88,14 @@ export default function RechargePage() {
     setSelectedCustomer(cust)
     setCustomers([])
     
-    // Find customer's active package if any and pre-select it
+    // Find customer's active package if any and pre-select it (or its scheduled upgrade package for next recharge)
     if (cust.subscribedPkgId) {
-      const pkg = packages.find(p => p.id === cust.subscribedPkgId)
-      if (pkg) {
-        setSelectedPackage(pkg)
+      const currentPkg = packages.find(p => p.id === cust.subscribedPkgId)
+      if (currentPkg) {
+        const upgradedPkg = cust.isRechargeable && currentPkg.upgradePackageId
+          ? packages.find(p => p.id === currentPkg.upgradePackageId && p.isActive !== false)
+          : null
+        setSelectedPackage(upgradedPkg || currentPkg)
       }
     }
   }
@@ -248,6 +251,21 @@ export default function RechargePage() {
               <CardContainer title="2. Payment & Plan Details" description="Select the renewal package and input invoice number">
                 <form onSubmit={handleRecharge} className="space-y-5">
                   {isAdvancePayment && <div className="flex items-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3"><Badge className="bg-blue-600 text-white">PAY IN ADVANCE</Badge><span className="text-sm text-blue-200">The new duration starts after the current expiry date.</span></div>}
+                  {(() => {
+                    const currentPkg = packages.find(p => p.id === selectedCustomer?.subscribedPkgId)
+                    const upgradedPkg = selectedCustomer?.isRechargeable && currentPkg?.upgradePackageId
+                      ? packages.find(p => p.id === currentPkg.upgradePackageId && p.isActive !== false)
+                      : null
+                    if (!upgradedPkg) return null
+                    return (
+                      <div className="flex items-center gap-2 rounded-lg border border-indigo-500/30 bg-indigo-500/10 p-3">
+                        <Badge className="bg-indigo-600 text-white">UPGRADE ON RECHARGE</Badge>
+                        <span className="text-sm text-indigo-200">
+                          {currentPkg?.packageName || currentPkg?.packagePlanDetails?.planName} → {upgradedPkg.packageName || upgradedPkg.packagePlanDetails?.planName}
+                        </span>
+                      </div>
+                    )
+                  })()}
                   <div className="space-y-2">
                     <Label htmlFor="package" className="text-slate-300">Package Plan</Label>
                     <Select

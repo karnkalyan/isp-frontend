@@ -91,6 +91,20 @@ export type PackagePrice = {
   isActive: boolean
   isOnline: boolean
   isTrial: boolean
+  initialTotalWithTax?: number | null
+  renewAmountWithTax?: number | null
+  upgradePackageId?: number | null
+  upgradePackage?: {
+    id: number
+    packageName: string
+    packageDuration: string | null
+    price: number
+    initialTotalWithTax?: number | null
+    renewAmountWithTax?: number | null
+    planId: number
+    isActive?: boolean
+    isDeleted?: boolean
+  } | null
   packagePlanDetails: {
     planName: string
     downSpeed: number
@@ -152,6 +166,7 @@ export function PackageCreationSettings() {
     setDurationTsc(prev => ({ ...prev, [durName]: false }))
     setDurationActive(prev => ({ ...prev, [durName]: true }))
     setDurationOnline(prev => ({ ...prev, [durName]: false }))
+    setUpgradePackageIds(prev => ({ ...prev, [durName]: "" }))
     setCustomDurations(prev => [...prev, durName])
     setShowAddCustomDuration(false)
     toast.success(`Added duration option: ${durName}`)
@@ -181,6 +196,13 @@ export function PackageCreationSettings() {
     "3 Months": 0,
     "6 Months": 0,
     "12 Months": 0
+  })
+
+  const [upgradePackageIds, setUpgradePackageIds] = useState<Record<string, string>>({
+    "1 Month": "",
+    "3 Months": "",
+    "6 Months": "",
+    "12 Months": ""
   })
 
   const [customAddonPrices, setCustomAddonPrices] = useState<Record<string, Record<number, number>>>({
@@ -443,6 +465,7 @@ export function PackageCreationSettings() {
     })
     setDurationActive({ "1 Month": true, "3 Months": true, "6 Months": true, "12 Months": true })
     setDurationOnline({ "1 Month": false, "3 Months": false, "6 Months": false, "12 Months": false })
+    setUpgradePackageIds({ "1 Month": "", "3 Months": "", "6 Months": "", "12 Months": "" })
     setDescription("")
     setIsActive(true)
     setEditingId(null)
@@ -494,6 +517,7 @@ export function PackageCreationSettings() {
     }
     const activeMap: Record<string, boolean> = { "1 Month": false, "3 Months": false, "6 Months": false, "12 Months": false }
     const onlineMap: Record<string, boolean> = { "1 Month": false, "3 Months": false, "6 Months": false, "12 Months": false }
+    const upgradeMap: Record<string, string> = { "1 Month": "", "3 Months": "", "6 Months": "", "12 Months": "" }
 
     const extraDurs: string[] = []
     siblingPrices.forEach(sp => {
@@ -520,6 +544,7 @@ export function PackageCreationSettings() {
       tscMap[standardDur] = (sp as any).isTscApplicable || false
       activeMap[standardDur] = sp.isActive !== false
       onlineMap[standardDur] = sp.isOnline === true
+      upgradeMap[standardDur] = sp.upgradePackageId ? String(sp.upgradePackageId) : ""
 
       if (!customAddonsMap[standardDur]) customAddonsMap[standardDur] = {}
       const mappedAddonIds: number[] = []
@@ -544,6 +569,7 @@ export function PackageCreationSettings() {
     setDurationTsc(tscMap)
     setDurationActive(activeMap)
     setDurationOnline(onlineMap)
+    setUpgradePackageIds(upgradeMap)
     setIsAdding(false)
   }
 
@@ -577,6 +603,7 @@ export function PackageCreationSettings() {
           isTscApplicable: durationTsc[dur] || false,
           isActive: durationActive[dur] !== false,
           isOnline: durationOnline[dur] === true,
+          upgradePackageId: upgradePackageIds[dur] ? Number(upgradePackageIds[dur]) : null,
           oneTimeCharges: mappedOneTimeCharges
         })
       }
@@ -825,6 +852,27 @@ export function PackageCreationSettings() {
                       />
                     </div>
 
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium">Upgrade Package (Next Recharge)</label>
+                      <SearchableSelect
+                        options={[
+                          { value: "", label: "No Upgrade (Keep Same)" },
+                          ...packages
+                            .filter(p => p.isActive && !(String(p.planId) === String(planId) && p.packageDuration === dur))
+                            .map(p => ({
+                              value: String(p.id),
+                              label: `${p.packageName || `${p.packagePlanDetails?.planName} - ${p.packageDuration}`} (Renew: Rs. ${p.renewAmountWithTax ?? p.price})`
+                            }))
+                        ]}
+                        value={upgradePackageIds[dur] || ""}
+                        onValueChange={(v) => setUpgradePackageIds(prev => ({ ...prev, [dur]: (v as string) || "" }))}
+                        placeholder="Select upgrade package..."
+                      />
+                      <p className="text-[10px] text-muted-foreground">
+                        Shown on next recharge without changing current active subscription.
+                      </p>
+                    </div>
+
                     <div className="mt-4 space-y-2">
                       <label className="text-xs font-medium block text-slate-500">Package Items</label>
                       <div className="max-h-48 overflow-y-auto space-y-1 border rounded-md p-1.5 bg-white dark:bg-black/20">
@@ -907,8 +955,12 @@ export function PackageCreationSettings() {
                       }, 0)}</span>
                     </div>
                     <div className="flex justify-between pt-1 border-t font-bold text-slate-800 dark:text-slate-200">
-                      <span>Est. Total (Tax 13%):</span>
-                      <span>Rs. {getDurationTotal(dur)}</span>
+                      <span>Initial Total (W/ Tax):</span>
+                      <span>Rs. {initialTotalWithTax[dur] || getDurationTotal(dur)}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-emerald-700 dark:text-emerald-400">
+                      <span>Renewal Total (W/ Tax):</span>
+                      <span>Rs. {renewAmountWithTax[dur] || getDurationTotal(dur)}</span>
                     </div>
                   </div>
                 </div>
@@ -1000,7 +1052,8 @@ export function PackageCreationSettings() {
                 <TableHead>Duration</TableHead>
                 <TableHead>Base Price</TableHead>
                 <TableHead>Addons</TableHead>
-                <TableHead>Total Est.</TableHead>
+                <TableHead>Initial Total</TableHead>
+                <TableHead>Renewal Total</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -1008,30 +1061,46 @@ export function PackageCreationSettings() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-6">
+                  <TableCell colSpan={8} className="text-center py-6">
                     <span className="text-sm text-muted-foreground animate-pulse">Loading Packages...</span>
                   </TableCell>
                 </TableRow>
               ) : packages.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-6 text-muted-foreground">
                     No packages created yet.
                   </TableCell>
                 </TableRow>
               ) : filteredPackages.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-6 text-muted-foreground">
                     No packages matching &quot;{searchQuery}&quot; found.
                   </TableCell>
                 </TableRow>
               ) : (
                 paginatedPackages.map((pkg) => {
-                  const addonSum = (pkg.oneTimeCharges || []).reduce((s, a) => s + a.amount, 0)
-                  const withTax = Math.round((pkg.price + addonSum) * 1.13 * 100) / 100
+                  const addons = pkg.oneTimeCharges || []
+                  const addonSum = addons.reduce((s, a) => s + a.amount, 0)
+                  const recurringSum = addons.filter(a => a.isRenewal).reduce((s, a) => s + a.amount, 0)
+                  const computedInitial = Math.round((pkg.price + (addons.length > 0 ? addonSum : 0)) * 1.13 * 100) / 100
+                  const computedRenewal = Math.round((recurringSum > 0 ? recurringSum : pkg.price) * 1.13 * 100) / 100
+                  const initialTotal = (pkg as any).initialTotalWithTax !== null && (pkg as any).initialTotalWithTax !== undefined
+                    ? (pkg as any).initialTotalWithTax
+                    : computedInitial
+                  const renewalTotal = (pkg as any).renewAmountWithTax !== null && (pkg as any).renewAmountWithTax !== undefined
+                    ? (pkg as any).renewAmountWithTax
+                    : computedRenewal
                   return (
                     <TableRow key={pkg.id}>
                       <TableCell className="font-semibold text-slate-800 dark:text-slate-200">
-                        {pkg.packageName || `${pkg.packagePlanDetails?.planName} - ${pkg.packageDuration}`}
+                        <div>{pkg.packageName || `${pkg.packagePlanDetails?.planName} - ${pkg.packageDuration}`}</div>
+                        {pkg.upgradePackage && (
+                          <div className="mt-1">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 rounded-full">
+                              Next Recharge → {pkg.upgradePackage.packageName || `${pkg.packagePlanDetails?.planName} - ${pkg.upgradePackage.packageDuration}`}
+                            </span>
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell>{pkg.packageDuration || "—"}</TableCell>
                       <TableCell>
@@ -1059,7 +1128,10 @@ export function PackageCreationSettings() {
                         )}
                       </TableCell>
                       <TableCell className="font-bold text-slate-900 dark:text-slate-100">
-                        Rs. {withTax}
+                        Rs. {initialTotal}
+                      </TableCell>
+                      <TableCell className="font-bold text-emerald-700 dark:text-emerald-400">
+                        Rs. {renewalTotal}
                       </TableCell>
                       <TableCell>
                         <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium ${pkg.isActive ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"}`}>
