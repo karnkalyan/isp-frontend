@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Plus, Pencil, Trash2, Save, X, Zap, Download, Upload, Infinity, RefreshCw, PlusCircle, MinusCircle } from "lucide-react"
+import { Plus, Pencil, Trash2, Save, X, Zap, Download, Upload, Infinity, RefreshCw, PlusCircle, MinusCircle, LayoutList, Columns, Eye, ChevronDown, Search, TrendingUp } from "lucide-react"
 import { toast } from "react-hot-toast"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -46,6 +46,8 @@ export type InternetPlan = {
   maxDiscountCount: number
   highPriority: boolean
   branchIds: number[]
+  isActive?: boolean
+  upgradePlanIds?: number[]
 }
 
 export type ISPType = {
@@ -113,6 +115,8 @@ const DEFAULT_PLAN: Omit<InternetPlan, "id"> = {
   maxDiscountCount: 0,
   highPriority: false,
   branchIds: [],
+  isActive: true,
+  upgradePlanIds: [],
 }
 
 export function InternetPlansSettings() {
@@ -125,6 +129,42 @@ export function InternetPlansSettings() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [newPlan, setNewPlan] = useState(DEFAULT_PLAN)
   const [isResyncing, setIsResyncing] = useState(false)
+  const [viewMode, setViewMode] = useState<"current" | "classic">("current")
+
+  // Classic view filters & UI state
+  const [classicSearch, setClassicSearch] = useState("")
+  const [classicBranchFilter, setClassicBranchFilter] = useState("all")
+  const [classicFupFilter, setClassicFupFilter] = useState("all")
+  const [classicRenewFilter, setClassicRenewFilter] = useState("all")
+  const [classicStatusFilter, setClassicStatusFilter] = useState("all")
+  const [classicPkgTypeFilter, setClassicPkgTypeFilter] = useState("all")
+  const [classicServiceFilter, setClassicServiceFilter] = useState("all")
+  const [openActionPlanId, setOpenActionPlanId] = useState<string | null>(null)
+  const [showColumnSetup, setShowColumnSetup] = useState(false)
+  const [classicColumns, setClassicColumns] = useState<Record<string, boolean>>({
+    service: true,
+    packageType: true,
+    intlUp: true,
+    intlDown: true,
+    localUp: true,
+    localDown: true,
+    organizations: true,
+    branches: true,
+    description: true,
+    commission: true,
+    isFup: true,
+    iptv: true,
+    allowRenew: true,
+    onlineGw: true,
+    status: true,
+  })
+
+  // Manage Upgrade Plans Modal state
+  const [upgradeModalPlan, setUpgradeModalPlan] = useState<InternetPlan | null>(null)
+  const [selectedUpgradePlanIds, setSelectedUpgradePlanIds] = useState<number[]>([])
+  const [upgradeModalTab, setUpgradeModalTab] = useState<"upgrade" | "online">("upgrade")
+  const [upgradePlanSearch, setUpgradePlanSearch] = useState("")
+  const [savingUpgradePlans, setSavingUpgradePlans] = useState(false)
 
   // Load ISP types
   useEffect(() => {
@@ -236,6 +276,8 @@ export function InternetPlansSettings() {
         maxDiscountCount: Number(r.maxDiscountCount ?? 0),
         highPriority: Boolean(r.highPriority),
         branchIds: Array.isArray(r.branches) ? r.branches.map((b: any) => b.branchId || b.branch?.id) : [],
+        isActive: r.isActive !== false,
+        upgradePlanIds: Array.isArray(r.upgradePlanIds) ? r.upgradePlanIds.map(Number).filter((id: number) => Number.isInteger(id) && id > 0) : [],
       }))
       setInternetPlans(mapped)
     } catch (err) {
@@ -449,21 +491,156 @@ export function InternetPlansSettings() {
     }
   }
 
+  const openUpgradeModal = (plan: InternetPlan) => {
+    setUpgradeModalPlan(plan)
+    setSelectedUpgradePlanIds(Array.isArray(plan.upgradePlanIds) ? plan.upgradePlanIds : [])
+    setUpgradeModalTab("upgrade")
+    setUpgradePlanSearch("")
+    setOpenActionPlanId(null)
+  }
+
+  const toggleUpgradePlanId = (targetId: number) => {
+    setSelectedUpgradePlanIds(prev =>
+      prev.includes(targetId) ? prev.filter(id => id !== targetId) : [...prev, targetId]
+    )
+  }
+
+  const handleSaveUpgradePlans = async () => {
+    if (!upgradeModalPlan) return
+    try {
+      setSavingUpgradePlans(true)
+      await apiRequest(`/pkgplan/${upgradeModalPlan.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ upgradePlanIds: selectedUpgradePlanIds })
+      })
+      toast.success(`Upgrade plans updated for ${upgradeModalPlan.name}`)
+      setUpgradeModalPlan(null)
+      pkgplans()
+    } catch (err: any) {
+      console.error("Failed to save upgrade plans:", err)
+      toast.error(err?.message || "Failed to save upgrade plans")
+    } finally {
+      setSavingUpgradePlans(false)
+    }
+  }
+
+  const filteredClassicPlans = useMemo(() => {
+    const q = classicSearch.trim().toLowerCase()
+    return internetPlans.filter((plan) => {
+      if (q) {
+        const matchesKeyword =
+          plan.name.toLowerCase().includes(q) ||
+          plan.code.toLowerCase().includes(q) ||
+          (plan.description || "").toLowerCase().includes(q) ||
+          (plan.packageType || "").toLowerCase().includes(q)
+        if (!matchesKeyword) return false
+      }
+      if (classicBranchFilter !== "all") {
+        if (!plan.branchIds.includes(Number(classicBranchFilter))) return false
+      }
+      if (classicFupFilter === "yes" && !plan.isFupPackage && !plan.fupApply) return false
+      if (classicFupFilter === "no" && (plan.isFupPackage || plan.fupApply)) return false
+      if (classicRenewFilter === "yes" && !plan.onlyRenewal) return false
+      if (classicRenewFilter === "no" && plan.onlyRenewal) return false
+      if (classicStatusFilter === "active" && plan.isActive === false) return false
+      if (classicStatusFilter === "inactive" && plan.isActive !== false) return false
+      if (classicPkgTypeFilter !== "all" && (plan.packageType || "").toUpperCase() !== classicPkgTypeFilter) return false
+      if (classicServiceFilter !== "all") {
+        const connName = ispTypes.find(t => t.id === plan.connectionType)?.name || plan.service || ""
+        if (connName !== classicServiceFilter) return false
+      }
+      return true
+    })
+  }, [
+    internetPlans, classicSearch, classicBranchFilter, classicFupFilter,
+    classicRenewFilter, classicStatusFilter, classicPkgTypeFilter, classicServiceFilter, ispTypes
+  ])
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        {!isAdding && !editingId && (
-          <Button onClick={() => setIsAdding(true)} className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white">
-            <Plus className="mr-2 h-4 w-4" /> Add Internet Plan
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <div className="flex items-center gap-2">
+          {!isAdding && !editingId && (
+            <Button
+              onClick={() => setIsAdding(true)}
+              className={
+                viewMode === "classic"
+                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                  : "bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white"
+              }
+            >
+              <Plus className="mr-2 h-4 w-4" /> {viewMode === "classic" ? "Add" : "Add Internet Plan"}
+            </Button>
+          )}
+          <Button
+            onClick={handleResync}
+            className="bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 text-white"
+            disabled={isResyncing}
+          >
+            <RefreshCw className="mr-2 h-4 w-4 animate-spin-slow" /> {isResyncing ? "Resyncing..." : "Resync Plans"}
           </Button>
-        )}
-        <Button
-          onClick={handleResync}
-          className="bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 text-white"
-          disabled={isResyncing}
-        >
-          <RefreshCw className="mr-2 h-4 w-4 animate-spin-slow" /> {isResyncing ? "Resyncing..." : "Resync Plans"}
-        </Button>
+        </div>
+
+        <div className="flex items-center gap-2 relative">
+          <Button
+            type="button"
+            variant={viewMode === "classic" ? "default" : "outline"}
+            onClick={() => setViewMode(prev => (prev === "current" ? "classic" : "current"))}
+            className={viewMode === "classic" ? "bg-slate-800 hover:bg-slate-900 text-white" : ""}
+          >
+            <LayoutList className="mr-2 h-4 w-4" />
+            {viewMode === "classic" ? "Current View" : "Classic View"}
+          </Button>
+
+          {viewMode === "classic" && (
+            <div className="relative">
+              <Button
+                type="button"
+                onClick={() => setShowColumnSetup(prev => !prev)}
+                className="bg-blue-700 hover:bg-blue-800 text-white"
+              >
+                <Columns className="mr-2 h-4 w-4" /> Column Setup
+              </Button>
+              {showColumnSetup && (
+                <div className="absolute right-0 mt-2 w-56 rounded-lg border bg-popover p-3 shadow-lg z-40 space-y-1.5 text-xs">
+                  <div className="font-semibold border-b pb-1 mb-1 flex items-center justify-between">
+                    <span>Visible Columns</span>
+                    <button type="button" onClick={() => setShowColumnSetup(false)} className="text-muted-foreground hover:text-foreground">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  {[
+                    ["service", "Service"],
+                    ["packageType", "Package Type"],
+                    ["intlUp", "Intl Up (Mbps)"],
+                    ["intlDown", "Intl Down (Mbps)"],
+                    ["localUp", "Local Up (Mbps)"],
+                    ["localDown", "Local Down (Mbps)"],
+                    ["organizations", "Organizations"],
+                    ["branches", "Branches"],
+                    ["description", "Description"],
+                    ["commission", "Commission%"],
+                    ["isFup", "Is FUP?"],
+                    ["iptv", "IPTV Enable"],
+                    ["allowRenew", "Allow Renew"],
+                    ["onlineGw", "List on Online GW"],
+                    ["status", "Status"],
+                  ].map(([key, label]) => (
+                    <label key={key} className="flex items-center gap-2 cursor-pointer py-0.5">
+                      <input
+                        type="checkbox"
+                        checked={classicColumns[key] !== false}
+                        onChange={(e) => setClassicColumns(prev => ({ ...prev, [key]: e.target.checked }))}
+                        className="rounded border-slate-400"
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {(isAdding || editingId) && (
@@ -956,78 +1133,519 @@ export function InternetPlansSettings() {
         </div>
       )}
 
-      {/* Plans Table */}
-      <div className="rounded-md border overflow-hidden">
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[200px]">Name</TableHead>
-                <TableHead className="w-[120px]">Type</TableHead>
-                <TableHead className="w-[150px]">Connection</TableHead>
-                <TableHead className="w-[150px]">Speed</TableHead>
-                <TableHead className="w-[100px]">Data Limit</TableHead>
-                <TableHead className="w-[120px]">Organizations</TableHead>
-                <TableHead className="w-[100px] text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {internetPlans.length === 0 ? (
+      {/* Plans Table: Current View vs Classic View */}
+      {viewMode === "current" ? (
+        <div className="rounded-md border overflow-hidden">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
-                    No internet plans found. Add one above.
-                  </TableCell>
+                  <TableHead className="w-[200px]">Name</TableHead>
+                  <TableHead className="w-[120px]">Type</TableHead>
+                  <TableHead className="w-[150px]">Connection</TableHead>
+                  <TableHead className="w-[150px]">Speed</TableHead>
+                  <TableHead className="w-[100px]">Data Limit</TableHead>
+                  <TableHead className="w-[120px]">Organizations</TableHead>
+                  <TableHead className="w-[140px] text-right">Actions</TableHead>
                 </TableRow>
-              ) : (
-                internetPlans.map((plan) => (
-                  <TableRow key={plan.id}>
-                    <TableCell>
-                      <div className="flex flex-col">
-                        <span className="font-medium">{plan.name}</span>
-                        <span className="text-xs text-muted-foreground">{plan.code}</span>
-                        {plan.packageType && (
-                          <span className="text-xs mt-0.5 inline-block px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded w-fit">{plan.packageType}</span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-xs">{plan.nasType || "—"}</span>
-                    </TableCell>
-                    <TableCell>
-                      {ispTypes.find(t => t.id === plan.connectionType)?.name || "(unknown)"}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center">
-                        <Zap className="h-4 w-4 mr-1 text-amber-500" />
-                        <span>{plan.downloadSpeed}/{plan.uploadSpeed} Mbps</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>{formatDataLimit(plan.dataLimit)}</TableCell>
-                    <TableCell>
-                      <span className="text-xs text-muted-foreground">
-                        {plan.branchIds.length > 0
-                          ? plan.branchIds.map(bid => branches.find(b => b.id === bid)?.name || bid).join(", ")
-                          : "All"
-                        }
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end space-x-1">
-                        <Button variant="ghost" size="icon" onClick={() => handleEdit(plan.id)} className="h-8 w-8">
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(plan.id)} className="h-8 w-8 text-destructive hover:text-destructive/90">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+              </TableHeader>
+              <TableBody>
+                {internetPlans.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
+                      No internet plans found. Add one above.
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : (
+                  internetPlans.map((plan) => (
+                    <TableRow key={plan.id}>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{plan.name}</span>
+                          <span className="text-xs text-muted-foreground">{plan.code}</span>
+                          {plan.packageType && (
+                            <span className="text-xs mt-0.5 inline-block px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded w-fit">{plan.packageType}</span>
+                          )}
+                          {plan.upgradePlanIds && plan.upgradePlanIds.length > 0 && (
+                            <span className="text-[10px] mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded w-fit">
+                              <TrendingUp className="h-3 w-3" />
+                              Upgrades ({plan.upgradePlanIds.length}): {plan.upgradePlanIds.map(uid => internetPlans.find(p => Number(p.id) === uid)?.name || uid).join(", ")}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-xs">{plan.nasType || "—"}</span>
+                      </TableCell>
+                      <TableCell>
+                        {ispTypes.find(t => t.id === plan.connectionType)?.name || "(unknown)"}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center">
+                          <Zap className="h-4 w-4 mr-1 text-amber-500" />
+                          <span>{plan.downloadSpeed}/{plan.uploadSpeed} Mbps</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>{formatDataLimit(plan.dataLimit)}</TableCell>
+                      <TableCell>
+                        <span className="text-xs text-muted-foreground">
+                          {plan.branchIds.length > 0
+                            ? plan.branchIds.map(bid => branches.find(b => b.id === bid)?.name || bid).join(", ")
+                            : "All"
+                          }
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end space-x-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openUpgradeModal(plan)}
+                            className="h-8 px-2 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/50"
+                            title="Manage Upgrade Plans"
+                          >
+                            <TrendingUp className="h-3.5 w-3.5 mr-1" /> Upg. Plan
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleEdit(plan.id)} className="h-8 w-8">
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleDelete(plan.id)} className="h-8 w-8 text-destructive hover:text-destructive/90">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="space-y-4">
+          {/* Classic View Filter Bar */}
+          <div className="rounded-xl border bg-card p-3 shadow-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                value={classicSearch}
+                onChange={(e) => setClassicSearch(e.target.value)}
+                placeholder="Any Keyword"
+                className="h-9 w-44 text-xs"
+              />
+              <select
+                value={classicBranchFilter}
+                onChange={(e) => setClassicBranchFilter(e.target.value)}
+                className="h-9 rounded-md border border-input bg-background px-2.5 text-xs"
+              >
+                <option value="all">All Branches</option>
+                {branches.map(b => (
+                  <option key={b.id} value={String(b.id)}>{b.name}</option>
+                ))}
+              </select>
+              <select
+                value={classicFupFilter}
+                onChange={(e) => setClassicFupFilter(e.target.value)}
+                className="h-9 rounded-md border border-input bg-background px-2.5 text-xs"
+              >
+                <option value="all">FUP Yes/No</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+              <select
+                value={classicRenewFilter}
+                onChange={(e) => setClassicRenewFilter(e.target.value)}
+                className="h-9 rounded-md border border-input bg-background px-2.5 text-xs"
+              >
+                <option value="all">Allow Renew Yes/No</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+              <select
+                value={classicStatusFilter}
+                onChange={(e) => setClassicStatusFilter(e.target.value)}
+                className="h-9 rounded-md border border-input bg-background px-2.5 text-xs"
+              >
+                <option value="all">Choose Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+              <select
+                value={classicPkgTypeFilter}
+                onChange={(e) => setClassicPkgTypeFilter(e.target.value)}
+                className="h-9 rounded-md border border-input bg-background px-2.5 text-xs"
+              >
+                <option value="all">All Package Types</option>
+                {PACKAGE_TYPES.map(pt => (
+                  <option key={pt} value={pt}>{pt}</option>
+                ))}
+              </select>
+              <select
+                value={classicServiceFilter}
+                onChange={(e) => setClassicServiceFilter(e.target.value)}
+                className="h-9 rounded-md border border-input bg-background px-2.5 text-xs"
+              >
+                <option value="all">All Services</option>
+                {Array.from(new Set(ispTypes.map(t => t.name))).map(name => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+              <Button
+                type="button"
+                className="h-9 bg-blue-700 hover:bg-blue-800 text-white text-xs px-4"
+              >
+                <Search className="h-3.5 w-3.5 mr-1.5" /> Search
+              </Button>
+            </div>
+          </div>
+
+          {/* Classic View Table */}
+          <div className="rounded-xl border bg-card overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <Table className="text-xs">
+                <TableHeader className="bg-slate-50 dark:bg-slate-900">
+                  <TableRow>
+                    <TableHead className="w-10">SN</TableHead>
+                    {classicColumns.service && <TableHead>Service</TableHead>}
+                    {classicColumns.packageType && <TableHead>Package Type</TableHead>}
+                    <TableHead>Package Name</TableHead>
+                    {classicColumns.intlUp && <TableHead>Intl Up (Mbps)</TableHead>}
+                    {classicColumns.intlDown && <TableHead>Intl Down (Mbps)</TableHead>}
+                    {classicColumns.localUp && <TableHead>Local Up (Mbps)</TableHead>}
+                    {classicColumns.localDown && <TableHead>Local Down (Mbps)</TableHead>}
+                    {classicColumns.organizations && <TableHead>Organizations</TableHead>}
+                    {classicColumns.branches && <TableHead>Branches</TableHead>}
+                    {classicColumns.description && <TableHead>Description</TableHead>}
+                    {classicColumns.commission && <TableHead>Commission%</TableHead>}
+                    {classicColumns.isFup && <TableHead>Is FUP?</TableHead>}
+                    {classicColumns.iptv && <TableHead>IPTV Enable</TableHead>}
+                    {classicColumns.allowRenew && <TableHead>Allow Renew</TableHead>}
+                    {classicColumns.onlineGw && <TableHead>List on Online GW</TableHead>}
+                    {classicColumns.status && <TableHead>Status</TableHead>}
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredClassicPlans.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={18} className="text-center py-8 text-muted-foreground">
+                        No internet plans found.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredClassicPlans.map((plan, idx) => {
+                      const serviceName = ispTypes.find(t => t.id === plan.connectionType)?.name || plan.service || "FTTH-Internet"
+                      const isActive = plan.isActive !== false
+                      const isFup = Boolean(plan.isFupPackage || plan.fupApply)
+                      return (
+                        <TableRow key={plan.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-900/50">
+                          <TableCell>{idx + 1}</TableCell>
+                          {classicColumns.service && <TableCell>{serviceName}</TableCell>}
+                          {classicColumns.packageType && <TableCell>{plan.packageType || "HOME"}</TableCell>}
+                          <TableCell className="font-semibold">
+                            <div>{plan.name}</div>
+                            {plan.upgradePlanIds && plan.upgradePlanIds.length > 0 && (
+                              <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-medium text-indigo-600 dark:text-indigo-400">
+                                → {plan.upgradePlanIds.map(uid => internetPlans.find(p => Number(p.id) === uid)?.name || uid).join(", ")}
+                              </span>
+                            )}
+                          </TableCell>
+                          {classicColumns.intlUp && <TableCell>{plan.intUpload || plan.uploadSpeed}</TableCell>}
+                          {classicColumns.intlDown && <TableCell>{plan.firDownload || plan.downloadSpeed}</TableCell>}
+                          {classicColumns.localUp && <TableCell>{plan.localUpload || plan.uploadSpeed}</TableCell>}
+                          {classicColumns.localDown && <TableCell>{plan.localDownload || plan.downloadSpeed}</TableCell>}
+                          {classicColumns.organizations && (
+                            <TableCell>
+                              <div className="inline-flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEdit(plan.id)}
+                                  className="px-2 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-medium"
+                                >
+                                  Manage
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => toast.success(ispInfo?.companyName || "All Organizations")}
+                                  className="p-1 rounded bg-cyan-500 hover:bg-cyan-600 text-white"
+                                  title="View Organizations"
+                                >
+                                  <Eye className="h-3 w-3" />
+                                </button>
+                              </div>
+                            </TableCell>
+                          )}
+                          {classicColumns.branches && (
+                            <TableCell>
+                              <div className="inline-flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEdit(plan.id)}
+                                  className="px-2 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-medium"
+                                >
+                                  Manage
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const bNames = plan.branchIds.length > 0
+                                      ? plan.branchIds.map(bid => branches.find(b => b.id === bid)?.name || bid).join(", ")
+                                      : "All Branches"
+                                    toast.success(bNames)
+                                  }}
+                                  className="p-1 rounded bg-cyan-500 hover:bg-cyan-600 text-white"
+                                  title="View Branches"
+                                >
+                                  <Eye className="h-3 w-3" />
+                                </button>
+                              </div>
+                            </TableCell>
+                          )}
+                          {classicColumns.description && (
+                            <TableCell className="max-w-[140px] truncate text-muted-foreground">
+                              {plan.description || ""}
+                            </TableCell>
+                          )}
+                          {classicColumns.commission && (
+                            <TableCell>
+                              <div className="inline-flex items-center gap-1">
+                                <span>0%</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleEdit(plan.id)}
+                                  className="px-1.5 py-0.5 rounded bg-emerald-500 hover:bg-emerald-600 text-white text-[10px]"
+                                >
+                                  Edit
+                                </button>
+                              </div>
+                            </TableCell>
+                          )}
+                          {classicColumns.isFup && (
+                            <TableCell>
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-semibold text-white ${isFup ? "bg-emerald-500" : "bg-blue-700"}`}>
+                                {isFup ? "Yes" : "No"}
+                              </span>
+                            </TableCell>
+                          )}
+                          {classicColumns.iptv && (
+                            <TableCell>
+                              <span className="px-2 py-0.5 rounded text-[10px] font-semibold text-white bg-blue-700">
+                                No
+                              </span>
+                            </TableCell>
+                          )}
+                          {classicColumns.allowRenew && (
+                            <TableCell>
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-semibold text-white ${plan.onlyRenewal ? "bg-emerald-500" : "bg-red-500"}`}>
+                                {plan.onlyRenewal ? "Yes" : "No"}
+                              </span>
+                            </TableCell>
+                          )}
+                          {classicColumns.onlineGw && (
+                            <TableCell>
+                              <span className="px-2 py-0.5 rounded text-[10px] font-semibold text-white bg-red-500">
+                                No
+                              </span>
+                            </TableCell>
+                          )}
+                          {classicColumns.status && (
+                            <TableCell>
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-semibold text-white ${isActive ? "bg-emerald-500" : "bg-red-500"}`}>
+                                {isActive ? "Active" : "Inactive"}
+                              </span>
+                            </TableCell>
+                          )}
+                          <TableCell className="text-right relative">
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => openUpgradeModal(plan)}
+                                className="px-2 py-1 rounded bg-amber-400 hover:bg-amber-500 text-white text-[11px] font-medium"
+                                title="Upgrade Plan / Charges"
+                              >
+                                Charges
+                              </button>
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onClick={() => setOpenActionPlanId(prev => (prev === plan.id ? null : plan.id))}
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded bg-blue-700 hover:bg-blue-800 text-white text-[11px] font-medium"
+                                >
+                                  Actions <ChevronDown className="h-3 w-3" />
+                                </button>
+                                {openActionPlanId === plan.id && (
+                                  <div className="absolute right-0 mt-1 w-40 rounded-md border bg-popover shadow-lg z-50 py-1 text-left text-xs">
+                                    <button
+                                      type="button"
+                                      onClick={() => { setOpenActionPlanId(null); handleEdit(plan.id) }}
+                                      className="w-full px-3 py-1.5 hover:bg-accent flex items-center gap-2"
+                                    >
+                                      <Pencil className="h-3.5 w-3.5" /> Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => { setOpenActionPlanId(null); handleDelete(plan.id) }}
+                                      className="w-full px-3 py-1.5 hover:bg-accent text-red-600 flex items-center gap-2"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" /> Delete
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => openUpgradeModal(plan)}
+                                      className="w-full px-3 py-1.5 hover:bg-accent font-medium text-indigo-600 dark:text-indigo-400 flex items-center gap-2"
+                                    >
+                                      <TrendingUp className="h-3.5 w-3.5" /> Upg. Plan
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => { setOpenActionPlanId(null); toast.success(`Max Discount: ${plan.maxDiscountPercentage}%`) }}
+                                      className="w-full px-3 py-1.5 hover:bg-accent flex items-center gap-2"
+                                    >
+                                      Referral Points
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => { setOpenActionPlanId(null); handleEdit(plan.id) }}
+                                      className="w-full px-3 py-1.5 hover:bg-accent flex items-center gap-2"
+                                    >
+                                      <Eye className="h-3.5 w-3.5" /> View
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Upgrade Plans Modal (matching Classic View reference) */}
+      {upgradeModalPlan && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-5xl rounded-lg bg-background shadow-2xl border overflow-hidden">
+            <div className="flex items-center justify-between bg-blue-700 px-5 py-3 text-white">
+              <h3 className="text-base font-semibold">
+                Manage Upgrade Plans For {upgradeModalPlan.name}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setUpgradeModalPlan(null)}
+                className="rounded p-1 hover:bg-blue-800"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Tabs */}
+              <div className="flex items-center justify-between border-b pb-2 gap-3 flex-wrap">
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setUpgradeModalTab("upgrade")}
+                    className={`px-4 py-1.5 text-xs font-semibold rounded-t ${
+                      upgradeModalTab === "upgrade"
+                        ? "bg-blue-700 text-white"
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                    }`}
+                  >
+                    Upgrade Plans
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUpgradeModalTab("online")}
+                    className={`px-4 py-1.5 text-xs font-semibold rounded-t ${
+                      upgradeModalTab === "online"
+                        ? "bg-blue-700 text-white"
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                    }`}
+                  >
+                    Online API Payment
+                  </button>
+                </div>
+
+                <Input
+                  value={upgradePlanSearch}
+                  onChange={(e) => setUpgradePlanSearch(e.target.value)}
+                  placeholder="Search plans..."
+                  className="h-8 w-56 text-xs"
+                />
+              </div>
+
+              {upgradeModalTab === "upgrade" ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-[120px_1fr] items-center gap-3 text-xs border-b pb-3">
+                    <span className="font-medium text-muted-foreground">Package</span>
+                    <span className="font-semibold">
+                      Selected Packages ({selectedUpgradePlanIds.length} {selectedUpgradePlanIds.length === 1 ? "plan" : "plans"})
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-[120px_1fr] items-start gap-3 text-xs">
+                    <span className="font-medium text-muted-foreground pt-1">Select Plans</span>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-3 gap-y-2 max-h-[50vh] overflow-y-auto pr-1">
+                      {internetPlans
+                        .filter(p => p.id !== upgradeModalPlan.id)
+                        .filter(p => !upgradePlanSearch.trim() || p.name.toLowerCase().includes(upgradePlanSearch.trim().toLowerCase()))
+                        .map((targetPlan) => {
+                          const numericId = Number(targetPlan.id)
+                          const checked = selectedUpgradePlanIds.includes(numericId)
+                          return (
+                            <label
+                              key={targetPlan.id}
+                              className="flex items-center gap-1.5 cursor-pointer select-none hover:text-primary"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleUpgradePlanId(numericId)}
+                                className="rounded border-slate-400 text-blue-700 focus:ring-blue-600"
+                              />
+                              <span className="truncate" title={targetPlan.name}>{targetPlan.name}</span>
+                            </label>
+                          )
+                        })}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="py-6 text-sm text-muted-foreground space-y-2">
+                  <p>
+                    All online payment gateways (<strong>eSewa</strong>, <strong>External Payment</strong>) and internal recharge screens
+                    (<strong>Finance Recharge</strong>, <strong>Subscriber Renewal</strong>) will automatically display packages from the
+                    selected upgrade plans when a subscriber renews.
+                  </p>
+                  <p className="text-xs">
+                    Subscribers remain on their current active plan and subscription until they complete their next recharge.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 border-t pt-3">
+                <Button type="button" variant="outline" size="sm" onClick={() => setUpgradeModalPlan(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={savingUpgradePlans}
+                  onClick={handleSaveUpgradePlans}
+                  className="bg-blue-700 hover:bg-blue-800 text-white"
+                >
+                  <Save className="mr-1.5 h-3.5 w-3.5" />
+                  {savingUpgradePlans ? "Saving..." : "Save Upgrade Plans"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -93,18 +93,6 @@ export type PackagePrice = {
   isTrial: boolean
   initialTotalWithTax?: number | null
   renewAmountWithTax?: number | null
-  upgradePackageId?: number | null
-  upgradePackage?: {
-    id: number
-    packageName: string
-    packageDuration: string | null
-    price: number
-    initialTotalWithTax?: number | null
-    renewAmountWithTax?: number | null
-    planId: number
-    isActive?: boolean
-    isDeleted?: boolean
-  } | null
   packagePlanDetails: {
     planName: string
     downSpeed: number
@@ -166,7 +154,6 @@ export function PackageCreationSettings() {
     setDurationTsc(prev => ({ ...prev, [durName]: false }))
     setDurationActive(prev => ({ ...prev, [durName]: true }))
     setDurationOnline(prev => ({ ...prev, [durName]: false }))
-    setUpgradePackageIds(prev => ({ ...prev, [durName]: "" }))
     setCustomDurations(prev => [...prev, durName])
     setShowAddCustomDuration(false)
     toast.success(`Added duration option: ${durName}`)
@@ -196,13 +183,6 @@ export function PackageCreationSettings() {
     "3 Months": 0,
     "6 Months": 0,
     "12 Months": 0
-  })
-
-  const [upgradePackageIds, setUpgradePackageIds] = useState<Record<string, string>>({
-    "1 Month": "",
-    "3 Months": "",
-    "6 Months": "",
-    "12 Months": ""
   })
 
   const [customAddonPrices, setCustomAddonPrices] = useState<Record<string, Record<number, number>>>({
@@ -465,7 +445,6 @@ export function PackageCreationSettings() {
     })
     setDurationActive({ "1 Month": true, "3 Months": true, "6 Months": true, "12 Months": true })
     setDurationOnline({ "1 Month": false, "3 Months": false, "6 Months": false, "12 Months": false })
-    setUpgradePackageIds({ "1 Month": "", "3 Months": "", "6 Months": "", "12 Months": "" })
     setDescription("")
     setIsActive(true)
     setEditingId(null)
@@ -517,7 +496,6 @@ export function PackageCreationSettings() {
     }
     const activeMap: Record<string, boolean> = { "1 Month": false, "3 Months": false, "6 Months": false, "12 Months": false }
     const onlineMap: Record<string, boolean> = { "1 Month": false, "3 Months": false, "6 Months": false, "12 Months": false }
-    const upgradeMap: Record<string, string> = { "1 Month": "", "3 Months": "", "6 Months": "", "12 Months": "" }
 
     const extraDurs: string[] = []
     siblingPrices.forEach(sp => {
@@ -544,7 +522,6 @@ export function PackageCreationSettings() {
       tscMap[standardDur] = (sp as any).isTscApplicable || false
       activeMap[standardDur] = sp.isActive !== false
       onlineMap[standardDur] = sp.isOnline === true
-      upgradeMap[standardDur] = sp.upgradePackageId ? String(sp.upgradePackageId) : ""
 
       if (!customAddonsMap[standardDur]) customAddonsMap[standardDur] = {}
       const mappedAddonIds: number[] = []
@@ -569,7 +546,6 @@ export function PackageCreationSettings() {
     setDurationTsc(tscMap)
     setDurationActive(activeMap)
     setDurationOnline(onlineMap)
-    setUpgradePackageIds(upgradeMap)
     setIsAdding(false)
   }
 
@@ -603,7 +579,6 @@ export function PackageCreationSettings() {
           isTscApplicable: durationTsc[dur] || false,
           isActive: durationActive[dur] !== false,
           isOnline: durationOnline[dur] === true,
-          upgradePackageId: upgradePackageIds[dur] ? Number(upgradePackageIds[dur]) : null,
           oneTimeCharges: mappedOneTimeCharges
         })
       }
@@ -852,27 +827,6 @@ export function PackageCreationSettings() {
                       />
                     </div>
 
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium">Upgrade Package (Next Recharge)</label>
-                      <SearchableSelect
-                        options={[
-                          { value: "", label: "No Upgrade (Keep Same)" },
-                          ...packages
-                            .filter(p => p.isActive && !(String(p.planId) === String(planId) && p.packageDuration === dur))
-                            .map(p => ({
-                              value: String(p.id),
-                              label: `${p.packageName || `${p.packagePlanDetails?.planName} - ${p.packageDuration}`} (Renew: Rs. ${p.renewAmountWithTax ?? p.price})`
-                            }))
-                        ]}
-                        value={upgradePackageIds[dur] || ""}
-                        onValueChange={(v) => setUpgradePackageIds(prev => ({ ...prev, [dur]: (v as string) || "" }))}
-                        placeholder="Select upgrade package..."
-                      />
-                      <p className="text-[10px] text-muted-foreground">
-                        Shown on next recharge without changing current active subscription.
-                      </p>
-                    </div>
-
                     <div className="mt-4 space-y-2">
                       <label className="text-xs font-medium block text-slate-500">Package Items</label>
                       <div className="max-h-48 overflow-y-auto space-y-1 border rounded-md p-1.5 bg-white dark:bg-black/20">
@@ -1093,14 +1047,7 @@ export function PackageCreationSettings() {
                   return (
                     <TableRow key={pkg.id}>
                       <TableCell className="font-semibold text-slate-800 dark:text-slate-200">
-                        <div>{pkg.packageName || `${pkg.packagePlanDetails?.planName} - ${pkg.packageDuration}`}</div>
-                        {pkg.upgradePackage && (
-                          <div className="mt-1">
-                            <span className="inline-flex items-center gap-1 text-[10px] font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 rounded-full">
-                              Next Recharge → {pkg.upgradePackage.packageName || `${pkg.packagePlanDetails?.planName} - ${pkg.upgradePackage.packageDuration}`}
-                            </span>
-                          </div>
-                        )}
+                        {pkg.packageName || `${pkg.packagePlanDetails?.planName} - ${pkg.packageDuration}`}
                       </TableCell>
                       <TableCell>{pkg.packageDuration || "—"}</TableCell>
                       <TableCell>

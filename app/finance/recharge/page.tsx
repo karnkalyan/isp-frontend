@@ -23,6 +23,7 @@ export default function RechargePage() {
   
   const [packages, setPackages] = useState<any[]>([])
   const [selectedPackage, setSelectedPackage] = useState<any>(null)
+  const [showAllPlans, setShowAllPlans] = useState(false)
   const [invoiceId, setInvoiceId] = useState("")
   const [fiscalYears, setFiscalYears] = useState<any[]>([])
   const [fiscalYearId, setFiscalYearId] = useState("")
@@ -88,14 +89,24 @@ export default function RechargePage() {
     setSelectedCustomer(cust)
     setCustomers([])
     
-    // Find customer's active package if any and pre-select it (or its scheduled upgrade package for next recharge)
+    // Find customer's active package if any and pre-select it (or upgraded plan package if plan upgrade is configured)
+    setShowAllPlans(false)
     if (cust.subscribedPkgId) {
       const currentPkg = packages.find(p => p.id === cust.subscribedPkgId)
       if (currentPkg) {
-        const upgradedPkg = cust.isRechargeable && currentPkg.upgradePackageId
-          ? packages.find(p => p.id === currentPkg.upgradePackageId && p.isActive !== false)
-          : null
-        setSelectedPackage(upgradedPkg || currentPkg)
+        const upgradePlanIds: number[] = Array.isArray(currentPkg.packagePlanDetails?.upgradePlanIds)
+          ? currentPkg.packagePlanDetails.upgradePlanIds.map(Number).filter((id: number) => id > 0 && id !== currentPkg.planId)
+          : []
+        const upgradedCandidates = cust.isRechargeable && upgradePlanIds.length > 0
+          ? packages.filter(p => !p.isTrial && upgradePlanIds.includes(Number(p.planId)))
+          : []
+        if (upgradedCandidates.length > 0) {
+          const durNorm = String(currentPkg.packageDuration || "").trim().toLowerCase()
+          const matched = upgradedCandidates.find(p => String(p.packageDuration || "").trim().toLowerCase() === durNorm)
+          setSelectedPackage(matched || upgradedCandidates[0])
+        } else {
+          setSelectedPackage(currentPkg)
+        }
       }
     }
   }
@@ -253,37 +264,59 @@ export default function RechargePage() {
                   {isAdvancePayment && <div className="flex items-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3"><Badge className="bg-blue-600 text-white">PAY IN ADVANCE</Badge><span className="text-sm text-blue-200">The new duration starts after the current expiry date.</span></div>}
                   {(() => {
                     const currentPkg = packages.find(p => p.id === selectedCustomer?.subscribedPkgId)
-                    const upgradedPkg = selectedCustomer?.isRechargeable && currentPkg?.upgradePackageId
-                      ? packages.find(p => p.id === currentPkg.upgradePackageId && p.isActive !== false)
-                      : null
-                    if (!upgradedPkg) return null
+                    const upgradePlanIds: number[] = Array.isArray(currentPkg?.packagePlanDetails?.upgradePlanIds)
+                      ? currentPkg.packagePlanDetails.upgradePlanIds.map(Number).filter((id: number) => id > 0 && id !== currentPkg?.planId)
+                      : []
+                    const upgradedPackages = selectedCustomer?.isRechargeable && upgradePlanIds.length > 0
+                      ? packages.filter(p => !p.isTrial && upgradePlanIds.includes(Number(p.planId)))
+                      : []
+                    const upgradedPlanNames = Array.from(new Set(upgradedPackages.map(p => p.packagePlanDetails?.planName).filter(Boolean)))
+                    const visiblePackages = (!showAllPlans && upgradedPackages.length > 0)
+                      ? upgradedPackages
+                      : packages.filter((pkg) => !pkg.isTrial)
+
                     return (
-                      <div className="flex items-center gap-2 rounded-lg border border-indigo-500/30 bg-indigo-500/10 p-3">
-                        <Badge className="bg-indigo-600 text-white">UPGRADE ON RECHARGE</Badge>
-                        <span className="text-sm text-indigo-200">
-                          {currentPkg?.packageName || currentPkg?.packagePlanDetails?.planName} → {upgradedPkg.packageName || upgradedPkg.packagePlanDetails?.planName}
-                        </span>
-                      </div>
+                      <>
+                        {upgradedPackages.length > 0 && (
+                          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-indigo-500/30 bg-indigo-500/10 p-3">
+                            <div className="flex items-center gap-2">
+                              <Badge className="bg-indigo-600 text-white">PLAN UPGRADE ON RECHARGE</Badge>
+                              <span className="text-sm text-indigo-200">
+                                {currentPkg?.packagePlanDetails?.planName} → {upgradedPlanNames.join(", ")}
+                              </span>
+                            </div>
+                            <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={showAllPlans}
+                                onChange={(e) => setShowAllPlans(e.target.checked)}
+                                className="rounded border-slate-600"
+                              />
+                              Show all plans
+                            </label>
+                          </div>
+                        )}
+                        <div className="space-y-2">
+                          <Label htmlFor="package" className="text-slate-300">Package Plan</Label>
+                          <Select
+                            value={selectedPackage ? String(selectedPackage.id) : ""}
+                            onValueChange={(val) => setSelectedPackage(packages.find(p => String(p.id) === val))}
+                          >
+                            <SelectTrigger className="bg-slate-900 border-slate-800 text-white">
+                              <SelectValue placeholder="Choose a package plan..." />
+                            </SelectTrigger>
+                            <SelectContent className="bg-slate-900 border-slate-800 text-white">
+                              {visiblePackages.map((pkg) => (
+                                <SelectItem key={pkg.id} value={String(pkg.id)}>
+                                  {getPackageOptionLabel(pkg)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </>
                     )
                   })()}
-                  <div className="space-y-2">
-                    <Label htmlFor="package" className="text-slate-300">Package Plan</Label>
-                    <Select
-                      value={selectedPackage ? String(selectedPackage.id) : ""}
-                      onValueChange={(val) => setSelectedPackage(packages.find(p => String(p.id) === val))}
-                    >
-                      <SelectTrigger className="bg-slate-900 border-slate-800 text-white">
-                        <SelectValue placeholder="Choose a package plan..." />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-900 border-slate-800 text-white">
-                        {packages.filter((pkg) => !pkg.isTrial).map((pkg) => (
-                          <SelectItem key={pkg.id} value={String(pkg.id)}>
-                            {getPackageOptionLabel(pkg)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">

@@ -2816,10 +2816,17 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           setPackages(data)
           if (data.length > 0 && customer) {
             const current = data.find(pkg => String(pkg.id) === String(customer.subscribedPkgId))
-            const upgraded = customer.isRechargeable && (current as any)?.upgradePackageId
-              ? data.find(pkg => String(pkg.id) === String((current as any).upgradePackageId))
-              : null
-            const renewTarget = upgraded || current
+            const rawUpgradePlanIds = (current as any)?.packagePlanDetails?.upgradePlanIds
+            const upgradePlanIds: number[] = Array.isArray(rawUpgradePlanIds)
+              ? rawUpgradePlanIds.map(Number).filter((id: number) => id > 0 && id !== current?.planId)
+              : []
+            const upgradedCandidates = customer.isRechargeable && upgradePlanIds.length > 0
+              ? data.filter(pkg => upgradePlanIds.includes(Number(pkg.planId)))
+              : []
+            const durNorm = String(current?.packageDuration || "").trim().toLowerCase()
+            const renewTarget = upgradedCandidates.length > 0
+              ? (upgradedCandidates.find(pkg => String(pkg.packageDuration || "").trim().toLowerCase() === durNorm) || upgradedCandidates[0])
+              : current
             setSelectedPackage(current ? String(current.id) : "")
             setSelectedPlanName(current?.packagePlanDetails?.planName || "")
             setRenewPlanId(renewTarget ? String(renewTarget.planId) : "")
@@ -3895,14 +3902,19 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           </DialogHeader>
           {(() => {
             const current = packages.find(pkg => String(pkg.id) === String(customer?.subscribedPkgId))
-            const upgraded = customer?.isRechargeable && (current as any)?.upgradePackageId
-              ? packages.find(pkg => String(pkg.id) === String((current as any).upgradePackageId))
-              : null
-            if (!upgraded) return null
+            const rawUpgradePlanIds = (current as any)?.packagePlanDetails?.upgradePlanIds
+            const upgradePlanIds: number[] = Array.isArray(rawUpgradePlanIds)
+              ? rawUpgradePlanIds.map(Number).filter((id: number) => id > 0 && id !== current?.planId)
+              : []
+            const upgradedPlans = customer?.isRechargeable && upgradePlanIds.length > 0
+              ? packages.filter(pkg => upgradePlanIds.includes(Number(pkg.planId)))
+              : []
+            const upgradedPlanNames = Array.from(new Set(upgradedPlans.map(p => p.packagePlanDetails?.planName || p.packageName).filter(Boolean)))
+            if (upgradedPlanNames.length === 0) return null
             return (
               <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-800 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200">
-                <span className="font-semibold">Package Upgrade on Next Recharge:</span>{" "}
-                {current?.packageName || current?.packagePlanDetails?.planName} → {upgraded.packageName || upgraded.packagePlanDetails?.planName}
+                <span className="font-semibold">Plan Upgrade on Next Recharge:</span>{" "}
+                {current?.packagePlanDetails?.planName || current?.packageName} → {upgradedPlanNames.join(", ")}
               </div>
             )
           })()}
