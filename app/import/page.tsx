@@ -778,7 +778,7 @@ function ImportHubContent() {
                                                     <Server className="h-5 w-5 text-indigo-600 shrink-0" />
                                                     <div>
                                                         <p className="text-sm font-semibold text-foreground">Sync to FreeRADIUS</p>
-                                                        <p className="text-xs text-muted-foreground">Create radgroupcheck & radgroupreply</p>
+                                                        <p className="text-xs text-muted-foreground">Create radgroupreply rate-limit &amp; pool attributes</p>
                                                     </div>
                                                 </div>
                                                 <Switch checked={syncRadius} onCheckedChange={setSyncRadius} />
@@ -1234,17 +1234,8 @@ function ImportHubContent() {
                                             </div>
                                         )}
 
-                                        <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-lg flex items-center justify-between">
-                                            <div className="flex items-center gap-3">
-                                                <Server className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-foreground">Sync to FreeRADIUS Database</p>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        Creates group check (Auth-Type := Accept) & group reply (Mikrotik-Rate-Limit: 100M/100M)
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <Switch checked={syncRadius} onCheckedChange={setSyncRadius} />
+                                        <div className="bg-muted/40 border p-3 rounded-lg text-xs text-muted-foreground">
+                                            FreeRADIUS group attributes are managed by Internet Plans only (Package &amp; Tariff import updates billing/package tiers without pushing to FreeRADIUS).
                                         </div>
 
                                         <div className="flex items-center justify-between pt-2">
