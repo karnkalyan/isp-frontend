@@ -284,7 +284,14 @@ export function InternetPlansSettings() {
         highPriority: Boolean(r.highPriority),
         branchIds: Array.isArray(r.branches) ? r.branches.map((b: any) => b.branchId || b.branch?.id) : [],
         isActive: r.isActive !== false,
-        upgradePlanIds: Array.isArray(r.upgradePlanIds) ? r.upgradePlanIds.map(Number).filter((id: number) => Number.isInteger(id) && id > 0) : [],
+        upgradePlanIds: (() => {
+          const rawUpg = typeof r.upgradePlanIds === "string"
+            ? (() => { try { return JSON.parse(r.upgradePlanIds) } catch { return [] } })()
+            : r.upgradePlanIds
+          return Array.isArray(rawUpg)
+            ? rawUpg.map(Number).filter((id: number) => Number.isInteger(id) && id > 0)
+            : []
+        })(),
       }))
       setInternetPlans(mapped)
     } catch (err) {
@@ -498,12 +505,21 @@ export function InternetPlansSettings() {
     }
   }
 
-  const openUpgradeModal = (plan: InternetPlan) => {
+  const openUpgradeModal = async (plan: InternetPlan) => {
     setUpgradeModalPlan(plan)
-    setSelectedUpgradePlanIds(Array.isArray(plan.upgradePlanIds) ? plan.upgradePlanIds : [])
+    setSelectedUpgradePlanIds(Array.isArray(plan.upgradePlanIds) ? plan.upgradePlanIds.map(Number) : [])
     setUpgradeModalTab("upgrade")
     setUpgradePlanSearch("")
     setOpenActionPlanId(null)
+    try {
+      const fresh = await apiRequest<any>(`/pkgplan/${plan.id}`, { suppressToast: true })
+      const rawUpg = typeof fresh?.upgradePlanIds === "string"
+        ? (() => { try { return JSON.parse(fresh.upgradePlanIds) } catch { return [] } })()
+        : fresh?.upgradePlanIds
+      if (Array.isArray(rawUpg)) {
+        setSelectedUpgradePlanIds(rawUpg.map(Number).filter((id: number) => Number.isInteger(id) && id > 0))
+      }
+    } catch {}
   }
 
   const toggleUpgradePlanId = (targetId: number) => {
@@ -1781,6 +1797,11 @@ export function InternetPlansSettings() {
                     <span className="font-medium text-muted-foreground">Package</span>
                     <span className="font-semibold">
                       Selected Packages ({selectedUpgradePlanIds.length} {selectedUpgradePlanIds.length === 1 ? "plan" : "plans"})
+                      {selectedUpgradePlanIds.length > 0 && (
+                        <span className="ml-2 font-normal text-indigo-600 dark:text-indigo-400">
+                          ({selectedUpgradePlanIds.map(id => internetPlans.find(p => Number(p.id) === id)?.name || `#${id}`).join(", ")})
+                        </span>
+                      )}
                     </span>
                   </div>
 
