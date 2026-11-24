@@ -50,7 +50,7 @@ export function CreateCustomInvoiceModal({
     if (!open) return
     if (fixedCustomerId) setCustomerId(String(fixedCustomerId))
     Promise.all([
-      apiRequest<any[]>("/one-time-charges").catch(() => []),
+      apiRequest<any[]>("/extra-charges").catch(() => []),
       apiRequest<any[]>("/billing/fiscal-years").catch(() => []),
       apiRequest<any[]>("/billing/payment-methods?enabled=true").catch(() => []),
       ...(fixedCustomerId ? [] : [apiRequest<any>("/customer?limit=50").catch(() => [])])
@@ -66,6 +66,21 @@ export function CreateCustomInvoiceModal({
       }
     })
   }, [open, fixedCustomerId])
+
+  useEffect(() => {
+    if (!open || fixedCustomerId) return
+    const q = customerSearch.trim()
+    const timer = setTimeout(() => {
+      const endpoint = q ? `/customer?search=${encodeURIComponent(q)}&limit=50` : "/customer?limit=50"
+      apiRequest<any>(endpoint, { suppressToast: true })
+        .then((custRes) => {
+          const list = Array.isArray(custRes) ? custRes : (custRes?.data || [])
+          setCustomers(list)
+        })
+        .catch(() => {})
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [open, fixedCustomerId, customerSearch])
 
   const addItem = () => {
     setItems(prev => [...prev, { itemName: "", quantity: "1", unitPrice: "", referenceId: "", isTaxable: true }])
@@ -167,15 +182,25 @@ export function CreateCustomInvoiceModal({
                       .filter(c => {
                         const q = customerSearch.trim().toLowerCase()
                         if (!q) return true
-                        const name = `${c.lead?.firstName || ""} ${c.lead?.lastName || ""} ${c.customerUniqueId || ""}`.toLowerCase()
+                        const first = c.firstName || c.lead?.firstName || ""
+                        const last = c.lastName || c.lead?.lastName || ""
+                        const phone = c.phoneNumber || c.lead?.phoneNumber || ""
+                        const name = `${first} ${last} ${c.customerUniqueId || ""} ${phone}`.toLowerCase()
                         return name.includes(q)
                       })
                       .slice(0, 50)
-                      .map(c => (
-                        <SelectItem key={c.id} value={String(c.id)}>
-                          {c.customerUniqueId || `CUST-${c.id}`} — {c.lead?.firstName || ""} {c.lead?.lastName || ""}
-                        </SelectItem>
-                      ))}
+                      .map(c => {
+                        const fullName = [c.firstName || c.lead?.firstName, c.middleName || c.lead?.middleName, c.lastName || c.lead?.lastName]
+                          .filter(Boolean)
+                          .join(" ")
+                          .trim()
+                        const phone = c.phoneNumber || c.lead?.phoneNumber
+                        return (
+                          <SelectItem key={c.id} value={String(c.id)}>
+                            {c.customerUniqueId || `CUST-${c.id}`}{fullName ? ` — ${fullName}` : ""}{phone ? ` (${phone})` : ""}
+                          </SelectItem>
+                        )
+                      })}
                   </SelectContent>
                 </Select>
               </div>

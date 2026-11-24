@@ -160,14 +160,15 @@ export default function SecureSettingsPage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="flex items-center gap-1.5">
-                    <Mail className="h-3.5 w-3.5" /> Backup Recipient Email
+                    <Mail className="h-3.5 w-3.5" /> Backup Recipient Emails
                   </Label>
                   <Input
-                    type="email"
+                    type="text"
                     value={schedule.email}
                     onChange={(e) => setSchedule(prev => ({ ...prev, email: e.target.value }))}
-                    placeholder="admin@yourdomain.com"
+                    placeholder="admin@yourdomain.com, backup@yourdomain.com"
                   />
+                  <p className="text-[11px] text-muted-foreground">Separate multiple email addresses with commas.</p>
                 </div>
               </div>
 
