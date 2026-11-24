@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useMemo, Suspense } from "react"
+import React, { useState, useEffect, useMemo, useRef, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { PageHeader } from "@/components/ui/page-header"
@@ -43,7 +43,8 @@ import {
     Network,
     Calculator,
     Check,
-    Eye
+    Eye,
+    XCircle
 } from "lucide-react"
 import { apiRequest, getApiUrl } from "@/lib/api"
 import { toast } from "react-hot-toast"
@@ -132,6 +133,9 @@ function ImportHubContent() {
     const [rawText, setRawText] = useState("")
     const [parsedRows, setParsedRows] = useState<any[]>([])
     const [loading, setLoading] = useState(false)
+    const [cancelling, setCancelling] = useState(false)
+    const cancelImportRef = useRef(false)
+    const abortControllerRef = useRef<AbortController | null>(null)
     const [logs, setLogs] = useState<LogItem[]>([])
     const [logFilter, setLogFilter] = useState<"all" | "success" | "skipped" | "failed">("all")
     const [logSearch, setLogSearch] = useState("")
@@ -364,6 +368,8 @@ function ImportHubContent() {
         }
 
         setLoading(true)
+        setCancelling(false)
+        cancelImportRef.current = false
         setLogs([])
         setImportProgress(null)
 
@@ -385,6 +391,8 @@ function ImportHubContent() {
             const accumulatedLogs: any[] = []
 
             for (let b = 0; b < totalBatches; b++) {
+                if (cancelImportRef.current) break
+
                 const batchItems = parsedRows.slice(b * BATCH_SIZE, (b + 1) * BATCH_SIZE)
                 const currentCount = Math.min((b + 1) * BATCH_SIZE, totalRows)
                 const percent = Math.round((currentCount / totalRows) * 100)
@@ -404,10 +412,15 @@ function ImportHubContent() {
                     targetPlanId: activeTab === "packages" && selectedTargetPlanId ? Number(selectedTargetPlanId) : undefined
                 }
 
+                const controller = new AbortController()
+                abortControllerRef.current = controller
+
                 try {
                     const response = await apiRequest<any>(endpoint, {
                         method: "POST",
-                        body: JSON.stringify(payload)
+                        body: JSON.stringify(payload),
+                        signal: controller.signal,
+                        suppressToast: true
                     })
 
                     if (response?.logs && Array.isArray(response.logs)) {
@@ -423,6 +436,9 @@ function ImportHubContent() {
                     overallFailed += response?.failedCount || 0
                     overallSkipped += response?.skippedCount || 0
                 } catch (batchErr: any) {
+                    if (cancelImportRef.current || batchErr?.name === "AbortError") {
+                        break
+                    }
                     console.error(`Batch ${b + 1} failed:`, batchErr)
                     const errorMsg = batchErr.message || "Failed to process batch"
                     batchItems.forEach((item, itemIdx) => {
@@ -438,17 +454,32 @@ function ImportHubContent() {
                 }
             }
 
-            if (overallFailed === 0) {
+            if (cancelImportRef.current) {
+                toast(`Import cancelled (${overallSuccess} succeeded, ${overallFailed} failed, ${overallSkipped} skipped so far).`)
+            } else if (overallFailed === 0) {
                 toast.success(`Import complete! ${overallSuccess} processed successfully.`)
             } else {
                 toast.error(`Import completed: ${overallSuccess} succeeded, ${overallFailed} failed, ${overallSkipped} skipped.`)
             }
         } catch (err: any) {
-            toast.error(err.message || "Failed to process import")
+            if (!cancelImportRef.current) {
+                toast.error(err.message || "Failed to process import")
+            }
         } finally {
+            abortControllerRef.current = null
+            setCancelling(false)
             setLoading(false)
             setImportProgress(null)
         }
+    }
+
+    const handleCancelImport = () => {
+        if (!loading) return
+        cancelImportRef.current = true
+        setCancelling(true)
+        try {
+            abortControllerRef.current?.abort()
+        } catch {}
     }
 
     // Filtered logs
@@ -482,6 +513,25 @@ function ImportHubContent() {
             .join("\n")
         navigator.clipboard.writeText(text)
         toast.success("Logs copied to clipboard")
+    }
+
+    const downloadImportLogs = (format: "csv" | "xlsx") => {
+        if (!logs || logs.length === 0) {
+            toast.error("No import logs available to download")
+            return
+        }
+        const rows = logs.map((l) => ({
+            "Row #": l.rowNumber,
+            "Name": l.name,
+            "Status": String(l.status || "").toUpperCase(),
+            "Message": l.message
+        }))
+        const ws = XLSX.utils.json_to_sheet(rows)
+        const wb = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(wb, ws, "Import Logs")
+        const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")
+        XLSX.writeFile(wb, `import-logs-${activeTab}-${stamp}.${format}`)
+        toast.success(`Downloaded ${logs.length} log(s) as ${format.toUpperCase()}`)
     }
 
     return (
@@ -1874,12 +1924,25 @@ function ImportHubContent() {
                             {/* Live Batch Progress Bar */}
                             {importProgress && (
                                 <div className="p-4 rounded-xl bg-primary/10 border border-primary/20 space-y-2">
-                                    <div className="flex items-center justify-between text-xs font-semibold">
+                                    <div className="flex items-center justify-between gap-2 text-xs font-semibold">
                                         <span className="flex items-center gap-2 text-primary">
                                             <Loader2 className="h-4 w-4 animate-spin" />
                                             Processing Batch {importProgress.batch} of {importProgress.totalBatches} ({importProgress.current} / {importProgress.total} items)...
                                         </span>
-                                        <span className="text-primary font-bold">{importProgress.percent}%</span>
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-primary font-bold">{importProgress.percent}%</span>
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="destructive"
+                                                onClick={handleCancelImport}
+                                                disabled={cancelling}
+                                                className="h-7 px-2.5 text-xs gap-1"
+                                            >
+                                                <XCircle className="h-3.5 w-3.5" />
+                                                {cancelling ? "Cancelling..." : "Cancel Import"}
+                                            </Button>
+                                        </div>
                                     </div>
                                     <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
                                         <div
@@ -1953,7 +2016,7 @@ function ImportHubContent() {
                                     </Button>
                                 </div>
 
-                                <div className="flex gap-2 w-full sm:w-auto">
+                                <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                                     <div className="relative w-full sm:w-64">
                                         <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
                                         <Input
@@ -1971,6 +2034,24 @@ function ImportHubContent() {
                                     >
                                         <Copy className="h-3.5 w-3.5" />
                                         Copy Logs
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => downloadImportLogs("csv")}
+                                        className="h-8 gap-1.5 text-xs shrink-0"
+                                    >
+                                        <Download className="h-3.5 w-3.5" />
+                                        CSV
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => downloadImportLogs("xlsx")}
+                                        className="h-8 gap-1.5 text-xs shrink-0"
+                                    >
+                                        <FileSpreadsheet className="h-3.5 w-3.5" />
+                                        Excel
                                     </Button>
                                 </div>
                             </div>
