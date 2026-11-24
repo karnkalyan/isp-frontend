@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { Plus, Pencil, Trash2, Save, X, Loader, RefreshCw } from "lucide-react"
+import { Plus, Pencil, Trash2, Save, X, Loader, RefreshCw, Eye } from "lucide-react"
 import { toast } from "react-hot-toast"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -42,6 +42,7 @@ export function ExtraChargesSettings() {
   const [extraCharges, setExtraCharges] = useState<ExtraCharge[]>([])
   const [isAdding, setIsAdding] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [packagesModalCharge, setPackagesModalCharge] = useState<ExtraCharge | null>(null)
   const [packageOptions, setPackageOptions] = useState<Option[]>([])
   const [isApiCalling, setIsApiCalling] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
@@ -428,10 +429,21 @@ export function ExtraChargesSettings() {
                     </TableCell>
                     <TableCell>{charge.isRenewal ? "Yes" : "No"}</TableCell>
                     <TableCell>
-                      {charge.applicablePackages.length > 0
-                        // FIX #3: Use p.id to correctly look up the package name.
-                        ? charge.applicablePackages.map(p => packageMap.get(p.id)).filter(Boolean).join(', ')
-                        : "No Packages Selected"}
+                      {charge.applicablePackages.length > 0 ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setPackagesModalCharge(charge)}
+                          className="h-7 px-2 text-xs gap-1.5"
+                          title="View applicable packages"
+                        >
+                          <Eye className="h-3.5 w-3.5 text-primary" />
+                          <span>{charge.applicablePackages.length} {charge.applicablePackages.length === 1 ? "Package" : "Packages"}</span>
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">No Packages Selected</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end space-x-1">
@@ -457,6 +469,41 @@ export function ExtraChargesSettings() {
           </Table>
         </div>
       </div>
+      {/* Applicable Packages Modal */}
+      {packagesModalCharge && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-lg bg-background shadow-2xl border overflow-hidden">
+            <div className="flex items-center justify-between border-b px-5 py-3">
+              <div>
+                <h3 className="text-sm font-semibold">Applicable Packages — {packagesModalCharge.name}</h3>
+                <p className="text-xs text-muted-foreground">{packagesModalCharge.applicablePackages.length} package(s) linked</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPackagesModalCharge(null)}
+                className="rounded p-1 hover:bg-muted"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="p-5 max-h-[60vh] overflow-y-auto space-y-1.5 text-xs">
+              {packagesModalCharge.applicablePackages.map((p) => {
+                const label = packageMap.get(p.id) || `Package #${p.id}`
+                return (
+                  <div key={p.id} className="rounded border px-3 py-2 bg-muted/20 font-medium">
+                    {label}
+                  </div>
+                )
+              })}
+            </div>
+            <div className="flex justify-end border-t px-5 py-3">
+              <Button type="button" size="sm" variant="outline" onClick={() => setPackagesModalCharge(null)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

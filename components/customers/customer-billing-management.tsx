@@ -50,7 +50,7 @@ export function CustomerBillingManagement({ customer, refreshCustomer, controlsO
     const [showExtendDialog, setShowExtendDialog] = useState(false)
     const [extendDays, setExtendDays] = useState("3")
     const [extendToDate, setExtendToDate] = useState("")
-    const [extendType, setExtendType] = useState<"grace" | "compensation" | "admin_extension">("grace")
+    const [extendType, setExtendType] = useState<"grace" | "compensation" | "admin_extension" | "admin_set_expiry">("grace")
     const [configuredGraceDays, setConfiguredGraceDays] = useState(3)
 
     const latestSub = customer.customerSubscriptions?.[0]
@@ -76,10 +76,15 @@ export function CustomerBillingManagement({ customer, refreshCustomer, controlsO
             .catch(() => setConfiguredGraceDays(3))
     }, [])
 
-    const openExtendDialog = (type: "grace" | "compensation" | "admin_extension") => {
+    const openExtendDialog = (type: "grace" | "compensation" | "admin_extension" | "admin_set_expiry") => {
         setExtendType(type)
-        setExtendDays(type === "grace" ? String(configuredGraceDays) : "3")
-        setExtendToDate("")
+        if (type === "admin_set_expiry") {
+            setExtendDays("0")
+            setExtendToDate(latestSub?.planEnd ? new Date(latestSub.planEnd).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10))
+        } else {
+            setExtendDays(type === "grace" ? String(configuredGraceDays) : "3")
+            setExtendToDate("")
+        }
         setShowExtendDialog(true)
     }
 
@@ -171,9 +176,13 @@ export function CustomerBillingManagement({ customer, refreshCustomer, controlsO
                         <Dialog open={showExtendDialog} onOpenChange={setShowExtendDialog}>
                             <DialogContent>
                                 <DialogHeader>
-                                    <DialogTitle>Extend Subscription</DialogTitle>
+                                    <DialogTitle>
+                                        {extendType === "admin_set_expiry" ? "Set Subscription Expiration Date" : "Extend Subscription"}
+                                    </DialogTitle>
                                     <DialogDescription>
-                                        Manually extend the customer's plan end date.
+                                        {extendType === "admin_set_expiry"
+                                            ? "Enter number of days (+/-) or pick a specific expiration date from the calendar."
+                                            : "Adjust the subscription expiration date."}
                                     </DialogDescription>
                                 </DialogHeader>
                                 <div className="space-y-4 py-4">
@@ -199,18 +208,21 @@ export function CustomerBillingManagement({ customer, refreshCustomer, controlsO
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-2">
-                                            <Label>Days to Add</Label>
+                                            <Label>{extendType === "admin_set_expiry" ? "Days Offset (+/-)" : "Days to Add"}</Label>
                                             <Input 
                                                 type="number" 
                                                 value={extendDays} 
-                                                onChange={(e) => setExtendDays(e.target.value)}
+                                                onChange={(e) => {
+                                                    setExtendDays(e.target.value)
+                                                    if (extendType === "admin_set_expiry") setExtendToDate("")
+                                                }}
                                                 placeholder="e.g. 3"
                                                 readOnly={extendType === "grace"}
                                             />
                                             {extendType === "grace" && <p className="text-xs text-muted-foreground">Fixed by System Setup.</p>}
                                         </div>
                                         {extendType !== "grace" && <div className="space-y-2">
-                                            <Label>Or Pick Specific Date</Label>
+                                            <Label>{extendType === "admin_set_expiry" ? "Specific Expiry Date" : "Or Pick Specific Date"}</Label>
                                             <Input 
                                                 type="date" 
                                                 value={extendToDate} 
@@ -227,6 +239,7 @@ export function CustomerBillingManagement({ customer, refreshCustomer, controlsO
                         </Dialog>
                         {new Date(latestSub.planEnd) <= new Date() && Number(latestSub.graceDaysBalance || 0) === 0 && <Button variant="outline" className="h-20 flex-col gap-2 border-dashed" onClick={() => openExtendDialog("grace")}><Clock className="h-5 w-5 text-amber-500" />Grace Period</Button>}
                         <Button variant="outline" className="h-20 flex-col gap-2 border-dashed" onClick={() => openExtendDialog("compensation")}><CalendarDays className="h-5 w-5 text-emerald-500" />Extend Subscription</Button>
+                        {isGlobalAdmin && <Button variant="outline" className="h-20 flex-col gap-2 border-dashed border-indigo-400" onClick={() => openExtendDialog("admin_set_expiry")}><Calendar className="h-5 w-5 text-indigo-500" />Set Expiry Date</Button>}
                     </div>
                 </CardContainer>
 

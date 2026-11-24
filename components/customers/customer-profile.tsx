@@ -1426,7 +1426,12 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const [renewPlanId, setRenewPlanId] = useState("")
   const [renewPackageId, setRenewPackageId] = useState("")
   const [renewReceipt, setRenewReceipt] = useState("")
+  const [renewInvoiceType, setRenewInvoiceType] = useState<"cash" | "credit">("cash")
   const [renewPaymentMethodId, setRenewPaymentMethodId] = useState("")
+  const [payOrderTarget, setPayOrderTarget] = useState<any | null>(null)
+  const [payOrderMethodId, setPayOrderMethodId] = useState("")
+  const [payOrderReceipt, setPayOrderReceipt] = useState("")
+  const [payOrderLoading, setPayOrderLoading] = useState(false)
   const [renewFiscalYearId, setRenewFiscalYearId] = useState("")
   const [renewPaymentMethods, setRenewPaymentMethods] = useState<any[]>([])
   const [renewDiscountType, setRenewDiscountType] = useState<"percentage" | "flat">("flat")
@@ -3063,7 +3068,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
     const pkg = packages.find(item => String(item.id) === renewPackageId && String(item.planId) === renewPlanId)
     if (!pkg) return toast.error("Select a plan and period")
     if (!renewFiscalYearId) return toast.error("No active fiscal year is available")
-    if (!renewPaymentMethodId) return toast.error("Select a payment method")
+    if (renewInvoiceType === "cash" && !renewPaymentMethodId) return toast.error("Select a payment method")
     try {
       setRenewLoading(true)
       const baseAmount = customer?.isFree ? 0 : customer?.isRechargeable
@@ -3086,9 +3091,10 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         body: JSON.stringify({
           customerId: Number(customerId),
           packageId: pkg.id,
-          invoiceId: renewReceipt.trim(),
+          invoiceType: renewInvoiceType,
+          invoiceId: renewInvoiceType === "cash" ? renewReceipt.trim() : "",
           fiscalYearId: Number(renewFiscalYearId),
-          paymentMethodId: Number(renewPaymentMethodId),
+          paymentMethodId: renewInvoiceType === "cash" ? Number(renewPaymentMethodId) : undefined,
           amount: finalAmount,
           discountType: renewDiscountType,
           discountValue: parsedDiscount > 0 ? parsedDiscount : 0,
@@ -3941,17 +3947,42 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Payment Mode</Label>
-              <Select value={renewPaymentMethodId} onValueChange={setRenewPaymentMethodId}>
-                <SelectTrigger><SelectValue placeholder="Select payment mode" /></SelectTrigger>
-                <SelectContent>{renewPaymentMethods.map(method => <SelectItem key={method.id} value={String(method.id)}>{method.name}</SelectItem>)}</SelectContent>
-              </Select>
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Invoice Type</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={renewInvoiceType === "cash" ? "default" : "outline"}
+                  onClick={() => setRenewInvoiceType("cash")}
+                >
+                  Cash
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={renewInvoiceType === "credit" ? "default" : "outline"}
+                  onClick={() => setRenewInvoiceType("credit")}
+                >
+                  Credit
+                </Button>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="renew-receipt">Receipt Number</Label>
-              <Input id="renew-receipt" value={renewReceipt} onChange={event => setRenewReceipt(event.target.value)} placeholder="Enter receipt number" />
-            </div>
+            {renewInvoiceType === "cash" && (
+              <>
+                <div className="space-y-2">
+                  <Label>Payment Mode</Label>
+                  <Select value={renewPaymentMethodId} onValueChange={setRenewPaymentMethodId}>
+                    <SelectTrigger><SelectValue placeholder="Select payment mode" /></SelectTrigger>
+                    <SelectContent>{renewPaymentMethods.map(method => <SelectItem key={method.id} value={String(method.id)}>{method.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="renew-receipt">Receipt Number</Label>
+                  <Input id="renew-receipt" value={renewReceipt} onChange={event => setRenewReceipt(event.target.value)} placeholder="Enter receipt number" />
+                </div>
+              </>
+            )}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="renew-discount">Discount</Label>
@@ -4056,6 +4087,69 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         </DialogContent>
       </Dialog>
 
+      <Dialog open={Boolean(payOrderTarget)} onOpenChange={(open) => { if (!open) setPayOrderTarget(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Pay Invoice #{payOrderTarget?.invoiceId || payOrderTarget?.id}</DialogTitle>
+            <DialogDescription>
+              Amount due: NPR {Number(payOrderTarget?.totalAmount || 0).toLocaleString()}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Payment Mode</Label>
+              <Select value={payOrderMethodId} onValueChange={setPayOrderMethodId}>
+                <SelectTrigger><SelectValue placeholder="Select payment mode" /></SelectTrigger>
+                <SelectContent>
+                  {renewPaymentMethods.map(m => (
+                    <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Receipt Number (Optional)</Label>
+              <Input
+                value={payOrderReceipt}
+                onChange={(e) => setPayOrderReceipt(e.target.value)}
+                placeholder="Enter receipt number"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPayOrderTarget(null)}>Cancel</Button>
+            <Button
+              disabled={payOrderLoading || !payOrderMethodId}
+              onClick={async () => {
+                if (!payOrderTarget) return
+                try {
+                  setPayOrderLoading(true)
+                  await apiRequest(`/billing/pay-order/${payOrderTarget.id}`, {
+                    method: "POST",
+                    body: JSON.stringify({
+                      paymentMethodId: Number(payOrderMethodId),
+                      invoiceId: payOrderReceipt.trim() || undefined,
+                      fiscalYearId: renewFiscalYearId ? Number(renewFiscalYearId) : undefined,
+                      amount: Number(payOrderTarget.totalAmount || 0)
+                    })
+                  })
+                  toast.success("Invoice marked as paid")
+                  setPayOrderTarget(null)
+                  const updatedCustomer = await apiRequest<Customer>(`/customer/${customerId}`)
+                  if (updatedCustomer) setCustomer(updatedCustomer)
+                } catch (err: any) {
+                  toast.error(err?.message || "Failed to pay invoice")
+                } finally {
+                  setPayOrderLoading(false)
+                }
+              }}
+            >
+              {payOrderLoading ? "Processing..." : "Confirm Payment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <ConfirmDialog
         open={deleteCustomerOpen}
         onOpenChange={setDeleteCustomerOpen}
@@ -4066,6 +4160,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         variant="destructive"
         onConfirm={confirmDeleteCustomer}
       />
+
+      
 
       <ConfirmDialog
         open={returnHardwareOpen}
@@ -5099,8 +5195,33 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
                               <FileText className="h-4 w-4 text-muted-foreground" />
                               <span className="font-medium">Order #{order.id}</span>
                               <Badge variant={order.isPaid ? "default" : "secondary"} className={order.isPaid ? "bg-green-500" : "bg-amber-500"}>
-                                {order.isPaid ? "Paid" : "Pending"}
+                                {order.isPaid ? "Paid" : "Credit / Unpaid"}
                               </Badge>
+                              {!order.isPaid && (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 px-2 text-xs border-emerald-600 text-emerald-700 hover:bg-emerald-50"
+                                  onClick={async () => {
+                                    setPayOrderTarget(order)
+                                    setPayOrderReceipt("")
+                                    try {
+                                      const [years, methods] = await Promise.all([
+                                        apiRequest<any[]>("/billing/fiscal-years"),
+                                        apiRequest<any[]>("/billing/payment-methods?enabled=true")
+                                      ])
+                                      setRenewFiscalYearId(String((years || []).find(y => y.isActive)?.id || ""))
+                                      setRenewPaymentMethods(methods || [])
+                                      setPayOrderMethodId(String((methods || []).find(m => m.isDefault)?.id || methods?.[0]?.id || ""))
+                                    } catch {
+                                      toast.error("Failed to load payment methods")
+                                    }
+                                  }}
+                                >
+                                  Pay Invoice
+                                </Button>
+                              )}
                               <Badge variant="outline" className={order.isActive ? "border-green-500 text-green-500" : "border-red-500 text-red-500"}>
                                 {order.isActive ? "Active" : "Inactive"}
                               </Badge>
@@ -5626,7 +5747,9 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
             onSaveSuccess={fetchCustomerData}
           />
 
-          <ConfirmDialog
+          
+
+      <ConfirmDialog
             open={deleteDeviceOpen}
             onOpenChange={(open) => {
               setDeleteDeviceOpen(open)
@@ -5640,7 +5763,9 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
             onConfirm={confirmDeleteDevice}
           />
 
-          <ConfirmDialog
+          
+
+      <ConfirmDialog
             open={Boolean(rebootDevice)}
             onOpenChange={(open) => { if (!open && !rebootingSerial) setRebootDevice(null) }}
             title="Reboot ACS device?"

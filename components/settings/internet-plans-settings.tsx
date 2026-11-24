@@ -64,6 +64,7 @@ type BranchItem = {
   id: number
   name: string
   code: string
+  parentId?: number | null
 }
 
 type RadiusPool = {
@@ -165,6 +166,7 @@ export function InternetPlansSettings() {
   const [upgradeModalTab, setUpgradeModalTab] = useState<"upgrade" | "online">("upgrade")
   const [upgradePlanSearch, setUpgradePlanSearch] = useState("")
   const [savingUpgradePlans, setSavingUpgradePlans] = useState(false)
+  const [branchesModalPlan, setBranchesModalPlan] = useState<InternetPlan | null>(null)
 
   // Load ISP types
   useEffect(() => {
@@ -196,7 +198,7 @@ export function InternetPlansSettings() {
       try {
         const raw = await apiRequest("/branches")
         if (Array.isArray(raw)) {
-          setBranches(raw.map((b: any) => ({ id: b.id, name: b.name, code: b.code })))
+          setBranches(raw.map((b: any) => ({ id: b.id, name: b.name, code: b.code, parentId: b.parentId ?? null })))
         }
       } catch (err) {
         console.error("Failed to load branches", err)
@@ -1188,12 +1190,19 @@ export function InternetPlansSettings() {
                       </TableCell>
                       <TableCell>{formatDataLimit(plan.dataLimit)}</TableCell>
                       <TableCell>
-                        <span className="text-xs text-muted-foreground">
-                          {plan.branchIds.length > 0
-                            ? plan.branchIds.map(bid => branches.find(b => b.id === bid)?.name || bid).join(", ")
-                            : "All"
-                          }
-                        </span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setBranchesModalPlan(plan)}
+                          className="h-7 px-2 text-xs gap-1.5"
+                          title="View assigned organizations & branches"
+                        >
+                          <Eye className="h-3.5 w-3.5 text-primary" />
+                          <span>
+                            {plan.branchIds.length > 0 ? `${plan.branchIds.length} Assigned` : "All"}
+                          </span>
+                        </Button>
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end space-x-1">
@@ -1642,6 +1651,74 @@ export function InternetPlansSettings() {
                   {savingUpgradePlans ? "Saving..." : "Save Upgrade Plans"}
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Organizations & Branches Hierarchy Modal */}
+      {branchesModalPlan && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-lg rounded-lg bg-background shadow-2xl border overflow-hidden">
+            <div className="flex items-center justify-between border-b px-5 py-3">
+              <div>
+                <h3 className="text-sm font-semibold">Organizations &amp; Branches — {branchesModalPlan.name}</h3>
+                <p className="text-xs text-muted-foreground">{ispInfo?.companyName || "Organization"}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBranchesModalPlan(null)}
+                className="rounded p-1 hover:bg-muted"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="p-5 max-h-[60vh] overflow-y-auto space-y-3 text-xs">
+              {branchesModalPlan.branchIds.length === 0 ? (
+                <p className="text-muted-foreground">Assigned to all organizations and branches.</p>
+              ) : (() => {
+                const assignedSet = new Set(branchesModalPlan.branchIds)
+                const parentBranches = branches.filter(b => !b.parentId)
+                const orphanAssigned = branches.filter(b => b.parentId && assignedSet.has(b.id) && !branches.some(p => p.id === b.parentId))
+                return (
+                  <div className="space-y-2.5">
+                    {parentBranches.map(parent => {
+                      const children = branches.filter(b => b.parentId === parent.id && assignedSet.has(b.id))
+                      const parentAssigned = assignedSet.has(parent.id)
+                      if (!parentAssigned && children.length === 0) return null
+                      return (
+                        <div key={parent.id} className="rounded-md border p-2.5 bg-muted/20">
+                          <div className="font-semibold flex items-center justify-between">
+                            <span>{parent.name}</span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${parentAssigned ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300" : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"}`}>
+                              {parentAssigned ? "Parent Assigned" : "Parent"}
+                            </span>
+                          </div>
+                          {children.length > 0 && (
+                            <div className="mt-2 pl-3 border-l space-y-1">
+                              {children.map(child => (
+                                <div key={child.id} className="flex items-center justify-between text-muted-foreground">
+                                  <span>↳ {child.name}</span>
+                                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400">Assigned</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                    {orphanAssigned.map(b => (
+                      <div key={b.id} className="rounded-md border p-2 bg-muted/20 font-medium">
+                        {b.name}
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+            </div>
+            <div className="flex justify-end border-t px-5 py-3">
+              <Button type="button" size="sm" variant="outline" onClick={() => setBranchesModalPlan(null)}>
+                Close
+              </Button>
             </div>
           </div>
         </div>

@@ -42,10 +42,13 @@ export interface AuthUser {
 interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
+  impersonating: boolean;
   setUser: (user: AuthUser | null) => void;
   refreshUser: () => Promise<void>;
   hasPermission: (permission: string) => boolean;
   logout: () => Promise<void>;
+  switchUser: (targetUserId: number) => Promise<void>;
+  revertToAdmin: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -53,6 +56,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUserState] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [impersonating, setImpersonating] = useState(false);
 
   const setUser = useCallback((u: AuthUser | null) => {
     setUserState(u);
@@ -75,9 +79,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshUser = useCallback(async () => {
     try {
-      const data = await apiRequest<{ user: AuthUser }>("/auth/me");
+      const data = await apiRequest<{ user: AuthUser; impersonating?: boolean }>("/auth/me");
       if (data?.user) {
         setUser(data.user);
+        setImpersonating(Boolean(data.impersonating));
       }
     } catch (err) {
       // If /me fails (401), user is not authenticated
@@ -113,6 +118,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [setUser]);
 
+  const switchUser = useCallback(async (targetUserId: number) => {
+    const res = await apiRequest<{ user: AuthUser }>("/auth/switch-user", {
+      method: "POST",
+      body: JSON.stringify({ targetUserId })
+    });
+    if (res?.user) {
+      setUser(res.user);
+      setImpersonating(true);
+      if (typeof window !== "undefined") {
+        window.location.href = "/dashboard";
+      }
+    }
+  }, [setUser]);
+
+  const revertToAdmin = useCallback(async () => {
+    const res = await apiRequest<{ user: AuthUser }>("/auth/switch-user", {
+      method: "POST",
+      body: JSON.stringify({ revertToAdmin: true })
+    });
+    if (res?.user) {
+      setUser(res.user);
+      setImpersonating(false);
+      if (typeof window !== "undefined") {
+        window.location.href = "/dashboard";
+      }
+    }
+  }, [setUser]);
+
   // On mount: try storage first, then validate via /me
   useEffect(() => {
     const isPublicAuthPage = typeof window !== "undefined" && ["/login", "/forgot-password", "/reset-password"].some(
@@ -139,7 +172,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, setUser, refreshUser, hasPermission, logout }}
+      value={{ user, loading, impersonating, setUser, refreshUser, hasPermission, logout, switchUser, revertToAdmin }}
     >
       {children}
     </AuthContext.Provider>
