@@ -46,9 +46,9 @@ export function UserNav() {
     if (usersList.length === 0) {
       try {
         setLoadingUsers(true)
-        const res = await apiRequest<any>("/users")
+        const res = await apiRequest<any>("/users?excludeCustomers=true")
         const list = Array.isArray(res) ? res : (res?.data || res?.users || [])
-        setUsersList(list)
+        setUsersList(list.filter((u: any) => String(u?.role?.name || u?.role || "").toLowerCase() !== "customer" && !u?.customerId))
       } catch (err: any) {
         toast.error(err?.message || "Failed to load users")
       } finally {
