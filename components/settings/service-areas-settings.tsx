@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Plus, Pencil, Trash2, Save, X, RefreshCw } from "lucide-react"
+import { useState, useEffect, useMemo } from "react"
+import { Plus, Pencil, Trash2, Save, X, RefreshCw, Search } from "lucide-react"
 import { toast } from "react-hot-toast"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -62,10 +62,24 @@ export function ServiceAreasSettings() {
   const [isResyncing, setIsResyncing] = useState(false)
 
   const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 10
+  const [pageSize, setPageSize] = useState(10)
+  const [searchQuery, setSearchQuery] = useState("")
 
-  const start = (currentPage - 1) * itemsPerPage
-  const paginated = prices.slice(start, start + itemsPerPage)
+  const filteredPrices = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return prices
+    return prices.filter(pkg =>
+      (pkg.packageName || "").toLowerCase().includes(q) ||
+      (pkg.packagePlanDetails?.planName || "").toLowerCase().includes(q) ||
+      (pkg.packageDuration || "").toLowerCase().includes(q) ||
+      (pkg.referenceId || "").toLowerCase().includes(q)
+    )
+  }, [prices, searchQuery])
+
+  const totalPages = Math.max(1, Math.ceil(filteredPrices.length / pageSize))
+  const safeCurrentPage = Math.min(currentPage, totalPages)
+  const start = (safeCurrentPage - 1) * pageSize
+  const paginated = filteredPrices.slice(start, start + pageSize)
 
   const [formData, setFormData] = useState<FormData>({
     planId: 0,
@@ -285,18 +299,32 @@ export function ServiceAreasSettings() {
       )}
 
       {!isAdding && editingId === null && (
-        <div className="flex justify-between items-center mb-4">
-          <Button onClick={() => { resetForm(); setIsAdding(true) }}>
-            <Plus className="mr-2 h-4 w-4" /> Add Package Price
-          </Button>
-          <Button
-            onClick={handleResync}
-            className="bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 text-white"
-            disabled={isResyncing}
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${isResyncing ? 'animate-spin' : ''}`} />
-            {isResyncing ? "Syncing..." : "Sync with Account"}
-          </Button>
+        <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
+          <div className="flex items-center gap-2">
+            <Button onClick={() => { resetForm(); setIsAdding(true) }}>
+              <Plus className="mr-2 h-4 w-4" /> Add Package Price
+            </Button>
+            <Button
+              onClick={handleResync}
+              className="bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 text-white"
+              disabled={isResyncing}
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${isResyncing ? 'animate-spin' : ''}`} />
+              {isResyncing ? "Syncing..." : "Sync with Account"}
+            </Button>
+          </div>
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+                setCurrentPage(1)
+              }}
+              placeholder="Search package prices..."
+              className="pl-9 h-9"
+            />
+          </div>
         </div>
       )}
 
@@ -351,10 +379,16 @@ export function ServiceAreasSettings() {
       </div>
 
       <Pagination
-        totalItems={prices.length}
-        itemsPerPage={itemsPerPage}
-        currentPage={currentPage}
+        totalItems={filteredPrices.length}
+        itemsPerPage={pageSize}
+        currentPage={safeCurrentPage}
         onPageChange={setCurrentPage}
+        onItemsPerPageChange={(size) => {
+          setPageSize(size)
+          setCurrentPage(1)
+        }}
+        showPageSizeSelector={true}
+        pageSizeOptions={[10, 25, 50, 100]}
       />
     </div>
   )

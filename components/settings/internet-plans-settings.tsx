@@ -6,10 +6,11 @@ import { toast } from "react-hot-toast"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { SearchableSelect, type Option } from "@/components/ui/searchable-select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Pagination } from "@/components/ui/table"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { apiRequest } from "@/lib/api"
 
 export type InternetPlan = {
@@ -131,6 +132,10 @@ export function InternetPlansSettings() {
   const [newPlan, setNewPlan] = useState(DEFAULT_PLAN)
   const [isResyncing, setIsResyncing] = useState(false)
   const [viewMode, setViewMode] = useState<"current" | "classic">("current")
+  const [currentSearch, setCurrentSearch] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [orgSearch, setOrgSearch] = useState("")
 
   // Classic view filters & UI state
   const [classicSearch, setClassicSearch] = useState("")
@@ -558,6 +563,34 @@ export function InternetPlansSettings() {
     classicRenewFilter, classicStatusFilter, classicPkgTypeFilter, classicServiceFilter, ispTypes
   ])
 
+  const filteredCurrentPlans = useMemo(() => {
+    const q = currentSearch.trim().toLowerCase()
+    if (!q) return internetPlans
+    return internetPlans.filter((plan) => {
+      const connName = ispTypes.find(t => t.id === plan.connectionType)?.name || ""
+      return (
+        (plan.name || "").toLowerCase().includes(q) ||
+        (plan.code || "").toLowerCase().includes(q) ||
+        (plan.nasType || "").toLowerCase().includes(q) ||
+        (plan.packageType || "").toLowerCase().includes(q) ||
+        connName.toLowerCase().includes(q) ||
+        `${plan.downloadSpeed}/${plan.uploadSpeed}`.includes(q)
+      )
+    })
+  }, [internetPlans, currentSearch, ispTypes])
+
+  const activeTotal = viewMode === "classic" ? filteredClassicPlans.length : filteredCurrentPlans.length
+  const totalPages = Math.max(1, Math.ceil(activeTotal / pageSize))
+  const safeCurrentPage = Math.min(currentPage, totalPages)
+  const paginatedCurrentPlans = useMemo(() => {
+    const start = (safeCurrentPage - 1) * pageSize
+    return filteredCurrentPlans.slice(start, start + pageSize)
+  }, [filteredCurrentPlans, safeCurrentPage, pageSize])
+  const paginatedClassicPlans = useMemo(() => {
+    const start = (safeCurrentPage - 1) * pageSize
+    return filteredClassicPlans.slice(start, start + pageSize)
+  }, [filteredClassicPlans, safeCurrentPage, pageSize])
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap justify-between items-center gap-2">
@@ -587,7 +620,10 @@ export function InternetPlansSettings() {
           <Button
             type="button"
             variant={viewMode === "classic" ? "default" : "outline"}
-            onClick={() => setViewMode(prev => (prev === "current" ? "classic" : "current"))}
+            onClick={() => {
+              setViewMode(prev => (prev === "current" ? "classic" : "current"))
+              setCurrentPage(1)
+            }}
             className={viewMode === "classic" ? "bg-slate-800 hover:bg-slate-900 text-white" : ""}
           >
             <LayoutList className="mr-2 h-4 w-4" />
@@ -645,11 +681,15 @@ export function InternetPlansSettings() {
         </div>
       </div>
 
-      {(isAdding || editingId) && (
-        <div className="bg-card border rounded-md p-4 mb-6">
-          <h3 className="text-lg font-medium mb-4">
-            {editingId ? "Edit Internet Plan" : "Add New Internet Plan"}
-          </h3>
+      <Dialog open={isAdding || Boolean(editingId)} onOpenChange={(open) => { if (!open) handleCancel() }}>
+        <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingId ? "Edit Internet Plan" : "Add New Internet Plan"}</DialogTitle>
+            <DialogDescription>
+              Configure speed tiers, RADIUS pool &amp; attributes, and assign parent organizations and child branches.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="pt-2">
 
           {/* ===== ROW 1: Service & NAS Type ===== */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
@@ -843,41 +883,144 @@ export function InternetPlansSettings() {
             </div>
           </div>
 
-          {/* ===== Organization (Branches) ===== */}
+          {/* ===== Organization (Parent Organizations & Child Branches) ===== */}
           <div className="space-y-2 mb-4">
-            <Label>Organization</Label>
-            <div className="border rounded-md p-3 bg-muted/30">
-              <div className="flex flex-wrap gap-3">
-                {/* ISP as organization */}
-                {ispInfo && (
-                  <label className="flex items-center gap-2 cursor-pointer text-sm bg-background px-3 py-1.5 rounded-md border">
-                    <input
-                      type="checkbox"
-                      checked={true}
-                      disabled
-                      className="rounded border-gray-300"
-                    />
-                    <span className="font-medium">{ispInfo.companyName}</span>
-                    <span className="text-xs text-muted-foreground">(ISP)</span>
-                  </label>
-                )}
-                {/* Branches */}
-                {branches.map((branch) => (
-                  <label key={branch.id} className="flex items-center gap-2 cursor-pointer text-sm bg-background px-3 py-1.5 rounded-md border hover:bg-accent transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={newPlan.branchIds.includes(branch.id)}
-                      onChange={() => toggleBranch(branch.id)}
-                      className="rounded border-gray-300"
-                    />
-                    <span>{branch.name}</span>
-                    <span className="text-xs text-muted-foreground">({branch.code})</span>
-                  </label>
-                ))}
-                {branches.length === 0 && !ispInfo && (
-                  <span className="text-sm text-muted-foreground">No branches available</span>
-                )}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Label>Organizations &amp; Branches</Label>
+              <div className="flex items-center gap-2">
+                <div className="relative w-56">
+                  <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    value={orgSearch}
+                    onChange={(e) => setOrgSearch(e.target.value)}
+                    placeholder="Filter organizations / branches..."
+                    className="h-7 pl-8 text-xs"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setNewPlan({ ...newPlan, branchIds: branches.map(b => b.id) })}
+                >
+                  Select All
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setNewPlan({ ...newPlan, branchIds: [] })}
+                >
+                  Clear
+                </Button>
               </div>
+            </div>
+            <div className="border rounded-md p-3 bg-muted/30 max-h-72 overflow-y-auto space-y-3">
+              {ispInfo && (
+                <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2 text-xs">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={true} disabled className="rounded border-gray-300" />
+                    <span className="font-semibold">{ispInfo.companyName}</span>
+                    <span className="text-muted-foreground">(ISP)</span>
+                  </label>
+                  <span className="text-[11px] text-muted-foreground">
+                    {newPlan.branchIds.length} selected
+                  </span>
+                </div>
+              )}
+
+              {(() => {
+                const q = orgSearch.trim().toLowerCase()
+                const parentBranches = branches.filter(b => !b.parentId)
+                const orphanBranches = branches.filter(b => b.parentId && !branches.some(p => p.id === b.parentId))
+
+                const toggleGroup = (parent: BranchItem, children: BranchItem[]) => {
+                  const groupIds = [parent.id, ...children.map(c => c.id)]
+                  const allSelected = groupIds.every(id => newPlan.branchIds.includes(id))
+                  const updated = allSelected
+                    ? newPlan.branchIds.filter(id => !groupIds.includes(id))
+                    : Array.from(new Set([...newPlan.branchIds, ...groupIds]))
+                  setNewPlan({ ...newPlan, branchIds: updated })
+                }
+
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                    {parentBranches.map((parent) => {
+                      const allChildren = branches.filter(b => b.parentId === parent.id)
+                      const visibleChildren = q
+                        ? allChildren.filter(c => c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q))
+                        : allChildren
+                      const parentMatches = !q || parent.name.toLowerCase().includes(q) || parent.code.toLowerCase().includes(q)
+                      if (!parentMatches && visibleChildren.length === 0) return null
+                      const childrenToRender = parentMatches && q ? allChildren : visibleChildren
+                      const groupIds = [parent.id, ...allChildren.map(c => c.id)]
+                      const allGroupSelected = groupIds.every(id => newPlan.branchIds.includes(id))
+
+                      return (
+                        <div key={parent.id} className="rounded-md border bg-background p-2.5 space-y-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <label className="flex items-start gap-2 cursor-pointer text-xs font-semibold">
+                              <input
+                                type="checkbox"
+                                checked={newPlan.branchIds.includes(parent.id)}
+                                onChange={() => toggleBranch(parent.id)}
+                                className="mt-0.5 rounded border-gray-300"
+                              />
+                              <span>
+                                {parent.name}{" "}
+                                <span className="font-normal text-muted-foreground">({parent.code})</span>
+                              </span>
+                            </label>
+                            {allChildren.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => toggleGroup(parent, allChildren)}
+                                className="shrink-0 text-[10px] px-1.5 py-0.5 rounded border hover:bg-accent text-primary"
+                              >
+                                {allGroupSelected ? "Unselect Group" : "Select Group"}
+                              </button>
+                            )}
+                          </div>
+                          {childrenToRender.length > 0 && (
+                            <div className="pl-4 border-l space-y-1.5">
+                              {childrenToRender.map((child) => (
+                                <label key={child.id} className="flex items-center gap-2 cursor-pointer text-xs text-muted-foreground hover:text-foreground">
+                                  <input
+                                    type="checkbox"
+                                    checked={newPlan.branchIds.includes(child.id)}
+                                    onChange={() => toggleBranch(child.id)}
+                                    className="rounded border-gray-300"
+                                  />
+                                  <span>↳ {child.name} <span className="text-[10px]">({child.code})</span></span>
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                    {orphanBranches
+                      .filter(b => !q || b.name.toLowerCase().includes(q) || b.code.toLowerCase().includes(q))
+                      .map((branch) => (
+                        <label key={branch.id} className="flex items-center gap-2 cursor-pointer text-xs bg-background px-3 py-2 rounded-md border hover:bg-accent">
+                          <input
+                            type="checkbox"
+                            checked={newPlan.branchIds.includes(branch.id)}
+                            onChange={() => toggleBranch(branch.id)}
+                            className="rounded border-gray-300"
+                          />
+                          <span>{branch.name} <span className="text-muted-foreground">({branch.code})</span></span>
+                        </label>
+                      ))}
+                  </div>
+                )
+              })()}
+
+              {branches.length === 0 && !ispInfo && (
+                <span className="text-sm text-muted-foreground">No branches available</span>
+              )}
             </div>
           </div>
 
@@ -1132,12 +1275,31 @@ export function InternetPlansSettings() {
               <Save className="mr-2 h-4 w-4" /> {editingId ? "Update" : "Add"} Internet Plan
             </Button>
           </div>
-        </div>
-      )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Plans Table: Current View vs Classic View */}
       {viewMode === "current" ? (
-        <div className="rounded-md border overflow-hidden">
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="relative w-full sm:w-80">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={currentSearch}
+                onChange={(e) => {
+                  setCurrentSearch(e.target.value)
+                  setCurrentPage(1)
+                }}
+                placeholder="Search plans by name, code, NAS, speed..."
+                className="pl-9 h-9"
+              />
+            </div>
+            <span className="text-xs text-muted-foreground">
+              Showing {paginatedCurrentPlans.length} of {filteredCurrentPlans.length} plans
+            </span>
+          </div>
+          <div className="rounded-md border overflow-hidden">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -1152,14 +1314,14 @@ export function InternetPlansSettings() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {internetPlans.length === 0 ? (
+                {paginatedCurrentPlans.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
-                      No internet plans found. Add one above.
+                      No internet plans found.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  internetPlans.map((plan) => (
+                  paginatedCurrentPlans.map((plan) => (
                     <TableRow key={plan.id}>
                       <TableCell>
                         <div className="flex flex-col">
@@ -1229,6 +1391,19 @@ export function InternetPlansSettings() {
               </TableBody>
             </Table>
           </div>
+          </div>
+          <Pagination
+            currentPage={safeCurrentPage}
+            totalItems={filteredCurrentPlans.length}
+            itemsPerPage={pageSize}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={(size) => {
+              setPageSize(size)
+              setCurrentPage(1)
+            }}
+            showPageSizeSelector={true}
+            pageSizeOptions={[10, 25, 50, 100]}
+          />
         </div>
       ) : (
         <div className="space-y-4">
@@ -1341,13 +1516,14 @@ export function InternetPlansSettings() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredClassicPlans.map((plan, idx) => {
+                    paginatedClassicPlans.map((plan, idx) => {
                       const serviceName = ispTypes.find(t => t.id === plan.connectionType)?.name || plan.service || "FTTH-Internet"
                       const isActive = plan.isActive !== false
                       const isFup = Boolean(plan.isFupPackage || plan.fupApply)
                       return (
+
                         <TableRow key={plan.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-900/50">
-                          <TableCell>{idx + 1}</TableCell>
+                          <TableCell>{(safeCurrentPage - 1) * pageSize + idx + 1}</TableCell>
                           {classicColumns.service && <TableCell>{serviceName}</TableCell>}
                           {classicColumns.packageType && <TableCell>{plan.packageType || "HOME"}</TableCell>}
                           <TableCell className="font-semibold">
@@ -1531,6 +1707,18 @@ export function InternetPlansSettings() {
               </Table>
             </div>
           </div>
+          <Pagination
+            currentPage={safeCurrentPage}
+            totalItems={filteredClassicPlans.length}
+            itemsPerPage={pageSize}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={(size) => {
+              setPageSize(size)
+              setCurrentPage(1)
+            }}
+            showPageSizeSelector={true}
+            pageSizeOptions={[10, 25, 50, 100]}
+          />
         </div>
       )}
 
@@ -1606,6 +1794,7 @@ export function InternetPlansSettings() {
                           const numericId = Number(targetPlan.id)
                           const checked = selectedUpgradePlanIds.includes(numericId)
                           return (
+
                             <label
                               key={targetPlan.id}
                               className="flex items-center gap-1.5 cursor-pointer select-none hover:text-primary"
@@ -1680,12 +1869,14 @@ export function InternetPlansSettings() {
                 const parentBranches = branches.filter(b => !b.parentId)
                 const orphanAssigned = branches.filter(b => b.parentId && assignedSet.has(b.id) && !branches.some(p => p.id === b.parentId))
                 return (
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                     {parentBranches.map(parent => {
                       const children = branches.filter(b => b.parentId === parent.id && assignedSet.has(b.id))
                       const parentAssigned = assignedSet.has(parent.id)
                       if (!parentAssigned && children.length === 0) return null
                       return (
+
                         <div key={parent.id} className="rounded-md border p-2.5 bg-muted/20">
                           <div className="font-semibold flex items-center justify-between">
                             <span>{parent.name}</span>

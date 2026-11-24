@@ -1,12 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Plus, Pencil, Trash2, Save, X, Wifi, Network, Globe, Cable, Radio } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { Plus, Pencil, Trash2, Save, X, Wifi, Network, Globe, Cable, Radio, Search } from "lucide-react"
 import { toast } from "react-hot-toast"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { SearchableSelect, type Option } from "@/components/ui/searchable-select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Pagination } from "@/components/ui/table"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
@@ -55,6 +55,26 @@ export function ISPTypesSettings() {
   const [isAdding, setIsAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [reloadCounter, setReloadCounter] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
+  const filteredTypes = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return ispTypes
+    return ispTypes.filter(t =>
+      (t.name || "").toLowerCase().includes(q) ||
+      (t.code || "").toLowerCase().includes(q) ||
+      (t.description || "").toLowerCase().includes(q)
+    )
+  }, [ispTypes, searchQuery])
+
+  const totalPages = Math.max(1, Math.ceil(filteredTypes.length / pageSize))
+  const safeCurrentPage = Math.min(currentPage, totalPages)
+  const paginatedTypes = useMemo(() => {
+    const start = (safeCurrentPage - 1) * pageSize
+    return filteredTypes.slice(start, start + pageSize)
+  }, [filteredTypes, safeCurrentPage, pageSize])
 
 
   const [newIspType, setNewIspType] = useState<Omit<(typeof ispTypes)[0], "id"> & { isEnabled: boolean }>({
@@ -321,13 +341,27 @@ const handleAdd = async () => {
       )}
 
       {!isAdding && !editingId && (
-        <Button
-          onClick={() => setIsAdding(true)}
-          className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white"
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Add Connection Type
-        </Button>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Button
+            onClick={() => setIsAdding(true)}
+            className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add Connection Type
+          </Button>
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+                setCurrentPage(1)
+              }}
+              placeholder="Search connection types..."
+              className="pl-9 h-9"
+            />
+          </div>
+        </div>
       )}
 
       <div className="rounded-md border overflow-hidden">
@@ -343,14 +377,14 @@ const handleAdd = async () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {ispTypes.length === 0 ? (
+              {paginatedTypes.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
-                    No Connection types found. Add your first Connection type.
+                    No Connection types found.
                   </TableCell>
                 </TableRow>
               ) : (
-                ispTypes.map((type) => (
+                paginatedTypes.map((type) => (
                   <TableRow key={type.id}>
                     <TableCell>
                       <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10">
@@ -384,6 +418,19 @@ const handleAdd = async () => {
           </Table>
         </div>
       </div>
+
+      <Pagination
+        currentPage={safeCurrentPage}
+        totalItems={filteredTypes.length}
+        itemsPerPage={pageSize}
+        onPageChange={setCurrentPage}
+        onItemsPerPageChange={(size) => {
+          setPageSize(size)
+          setCurrentPage(1)
+        }}
+        showPageSizeSelector={true}
+        pageSizeOptions={[10, 25, 50, 100]}
+      />
     </div>
   )
 }

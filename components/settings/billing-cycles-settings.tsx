@@ -1,11 +1,11 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { Plus, Pencil, Trash2, Save, X, Loader, RefreshCw, Eye } from "lucide-react"
+import { Plus, Pencil, Trash2, Save, X, Loader, RefreshCw, Eye, Search } from "lucide-react"
 import { toast } from "react-hot-toast"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Pagination } from "@/components/ui/table"
 import { Label } from "@/components/ui/label"
 import { SearchableSelect, type Option } from "@/components/ui/searchable-select"
 import { apiRequest } from "@/lib/api"
@@ -49,6 +49,9 @@ export function ExtraChargesSettings() {
   const [isApiCalling, setIsApiCalling] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   const initialItems: FormItem = {
     name: "",
@@ -78,6 +81,23 @@ export function ExtraChargesSettings() {
   const packageMap = useMemo(() => {
     return new Map(packageOptions.map(opt => [Number(opt.value), opt.label]));
   }, [packageOptions]);
+
+  const filteredCharges = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return extraCharges
+    return extraCharges.filter(c =>
+      (c.name || "").toLowerCase().includes(q) ||
+      (c.code || "").toLowerCase().includes(q) ||
+      (c.description || "").toLowerCase().includes(q)
+    )
+  }, [extraCharges, searchQuery])
+
+  const totalPages = Math.max(1, Math.ceil(filteredCharges.length / pageSize))
+  const safeCurrentPage = Math.min(currentPage, totalPages)
+  const paginatedCharges = useMemo(() => {
+    const start = (safeCurrentPage - 1) * pageSize
+    return filteredCharges.slice(start, start + pageSize)
+  }, [filteredCharges, safeCurrentPage, pageSize])
 
   // Fetches all extra charges from the API
   const fetchExtraCharges = async () => {
@@ -373,22 +393,36 @@ export function ExtraChargesSettings() {
       )}
 
       {!isAdding && !editingId && (
-        <div className="flex justify-between items-center mb-6">
-          <Button
-            onClick={() => setIsAdding(true)}
-            className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white"
-          >
-            <Plus className="mr-2 h-4 w-4" /> Add New Item
-          </Button>
+        <div className="flex flex-wrap justify-between items-center gap-2 mb-6">
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => setIsAdding(true)}
+              className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white"
+            >
+              <Plus className="mr-2 h-4 w-4" /> Add New Item
+            </Button>
 
-          <Button
-            onClick={handleSyncWithTshul}
-            disabled={isSyncing}
-            variant="outline"
-            className="border-slate-200 dark:border-slate-800"
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} /> Sync with Account
-          </Button>
+            <Button
+              onClick={handleSyncWithTshul}
+              disabled={isSyncing}
+              variant="outline"
+              className="border-slate-200 dark:border-slate-800"
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} /> Sync with Account
+            </Button>
+          </div>
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+                setCurrentPage(1)
+              }}
+              placeholder="Search addon items by name or code..."
+              className="pl-9 h-9"
+            />
+          </div>
         </div>
       )}
 
@@ -413,14 +447,14 @@ export function ExtraChargesSettings() {
                     <Loader className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
                   </TableCell>
                 </TableRow>
-              ) : extraCharges.length === 0 ? (
+              ) : paginatedCharges.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
                     No extra charges found.
                   </TableCell>
                 </TableRow>
               ) : (
-                extraCharges.map((charge) => (
+                paginatedCharges.map((charge) => (
                   <TableRow key={charge.id}>
                     <TableCell>
                       <div className="flex flex-col">
@@ -491,6 +525,18 @@ export function ExtraChargesSettings() {
           </Table>
         </div>
       </div>
+      <Pagination
+        currentPage={safeCurrentPage}
+        totalItems={filteredCharges.length}
+        itemsPerPage={pageSize}
+        onPageChange={setCurrentPage}
+        onItemsPerPageChange={(size) => {
+          setPageSize(size)
+          setCurrentPage(1)
+        }}
+        showPageSizeSelector={true}
+        pageSizeOptions={[10, 25, 50, 100]}
+      />
       {/* Applicable Packages Modal */}
       {packagesModalCharge && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
