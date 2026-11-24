@@ -10,7 +10,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { CustomerInvoices } from "@/components/customers/customer-invoices"
 import { CustomerTickets } from "@/components/customers/customer-tickets"
 import { Progress } from "@/components/ui/progress"
-import toast from "react-hot-toast"
+import { toast } from "react-hot-toast"
+import { CreateCustomInvoiceModal } from "@/components/finance/create-custom-invoice-modal"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   User,
@@ -1432,6 +1433,7 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
   const [payOrderMethodId, setPayOrderMethodId] = useState("")
   const [payOrderReceipt, setPayOrderReceipt] = useState("")
   const [payOrderLoading, setPayOrderLoading] = useState(false)
+  const [createInvoiceOpen, setCreateInvoiceOpen] = useState(false)
   const [renewFiscalYearId, setRenewFiscalYearId] = useState("")
   const [renewPaymentMethods, setRenewPaymentMethods] = useState<any[]>([])
   const [renewDiscountType, setRenewDiscountType] = useState<"percentage" | "flat">("flat")
@@ -4150,6 +4152,17 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         </DialogContent>
       </Dialog>
 
+      <CreateCustomInvoiceModal
+        open={createInvoiceOpen}
+        onOpenChange={setCreateInvoiceOpen}
+        fixedCustomerId={Number(customerId)}
+        fixedCustomerName={customer?.fullName || customer?.customerUniqueId || undefined}
+        onCreated={async () => {
+          const updatedCustomer = await apiRequest<Customer>(`/customer/${customerId}`)
+          if (updatedCustomer) setCustomer(updatedCustomer)
+        }}
+      />
+
       <ConfirmDialog
         open={deleteCustomerOpen}
         onOpenChange={setDeleteCustomerOpen}
@@ -4160,6 +4173,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         variant="destructive"
         onConfirm={confirmDeleteCustomer}
       />
+
+      
 
       
 
@@ -4355,6 +4370,9 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
         )}
         <Button size="sm" className="h-9 bg-gradient-to-r from-green-500 to-emerald-600 text-white border-0 shadow-sm hover:shadow-md transition-all" onClick={() => setRenewPackageOpen(true)}>
           <RefreshCw className="mr-2 h-4 w-4" /> Renew Package
+        </Button>
+        <Button size="sm" variant="outline" className="h-9" onClick={() => setCreateInvoiceOpen(true)}>
+          <FileText className="mr-2 h-4 w-4" /> Create Invoice
         </Button>
         <Button size="sm" variant="outline" className="h-9" onClick={syncAcsDevice} disabled={acsSyncing}>
           {acsSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />} Sync ACS
@@ -5749,6 +5767,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
 
           
 
+      
+
       <ConfirmDialog
             open={deleteDeviceOpen}
             onOpenChange={(open) => {
@@ -5764,6 +5784,8 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
           />
 
           
+
+      
 
       <ConfirmDialog
             open={Boolean(rebootDevice)}

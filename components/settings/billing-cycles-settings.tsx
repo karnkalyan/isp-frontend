@@ -20,6 +20,7 @@ type ExtraCharge = {
   amount: number | null
   forPackageCreation: boolean
   isRenewal: boolean
+  isDropWireDynamic?: boolean
   description: string | null
   // FIX #1: The API sends 'id', not 'packageId'.
   applicablePackages: { id: number }[]
@@ -34,6 +35,7 @@ type FormItem = {
   amount: number
   forPackageCreation: boolean
   isRenewal: boolean
+  isDropWireDynamic?: boolean
   description: string
   applicablePackageIds: number[]
 }
@@ -165,6 +167,7 @@ export function ExtraChargesSettings() {
       isTscApplicable: charge.isTscApplicable || false,
       forPackageCreation: charge.forPackageCreation || false,
       isRenewal: charge.isRenewal || false,
+      isDropWireDynamic: charge.isDropWireDynamic || false,
       description: charge.description || "",
       applicablePackageIds: charge.applicablePackages.map(p => p.id),
     })
@@ -280,6 +283,20 @@ export function ExtraChargesSettings() {
                   setItems((prev) => ({ ...prev, isTaxable: v === "true" }))
                 }
                 placeholder="Select taxable status"
+              />
+            </div>
+            <div>
+              <Label htmlFor="isDropWireDynamic">Drop Wire Primary (Dynamic/m)</Label>
+              <SearchableSelect
+                options={[
+                  { value: "false", label: "False (Fixed)" },
+                  { value: "true", label: "True (Rate × Meters)" },
+                ]}
+                value={String(Boolean(items.isDropWireDynamic))}
+                onValueChange={(v) =>
+                  setItems((prev) => ({ ...prev, isDropWireDynamic: v === "true" }))
+                }
+                placeholder="Select dynamic drop wire"
               />
             </div>
             <div>
@@ -412,6 +429,11 @@ export function ExtraChargesSettings() {
                           {charge.forPackageCreation && (
                             <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">
                               Package Creation Only
+                            </span>
+                          )}
+                          {charge.isDropWireDynamic && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                              Drop Wire Dynamic/m
                             </span>
                           )}
                         </div>

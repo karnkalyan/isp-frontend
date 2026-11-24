@@ -1,10 +1,17 @@
+"use client"
+
+import { useState } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { PageHeader } from "@/components/ui/page-header"
 import { InvoicesList } from "@/components/finance/invoices-list"
 import { InvoiceFilters } from "@/components/finance/invoice-filters"
 import { InvoiceSummary } from "@/components/finance/invoice-summary"
+import { CreateCustomInvoiceModal } from "@/components/finance/create-custom-invoice-modal"
 
 export default function InvoicesPage() {
+  const [createOpen, setCreateOpen] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -12,7 +19,7 @@ export default function InvoicesPage() {
           title="Invoices & Statements"
           description="Manage customer invoices and payment records"
           actions={[
-            { label: "Create Invoice", href: "#" },
+            { label: "Create Invoice", onClick: () => setCreateOpen(true) },
             { label: "Batch Generate", href: "#" },
             { label: "Export", href: "#" },
           ]}
@@ -20,7 +27,12 @@ export default function InvoicesPage() {
 
         <InvoiceSummary />
         <InvoiceFilters />
-        <InvoicesList />
+        <InvoicesList key={refreshKey} />
+        <CreateCustomInvoiceModal
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          onCreated={() => setRefreshKey(k => k + 1)}
+        />
       </div>
     </DashboardLayout>
   )

@@ -1677,6 +1677,7 @@ export function AddCustomerForm() {
   const [serviceDetails, setServiceDetails] = useState({
     connectionType: "fiber", // fiber, wireless, infra_share
     subscribedPkgId: "",
+    dropWireMeters: "",
   })
   useEffect(() => {
     const selected = packages.find(pkg => String(pkg.id) === serviceDetails.subscribedPkgId)
@@ -2802,6 +2803,7 @@ export function AddCustomerForm() {
       formData.append("serviceConnection", JSON.stringify(serviceConnection))
 
       if (serviceDetails.subscribedPkgId) formData.append("subscribedPkgId", serviceDetails.subscribedPkgId)
+      if (serviceDetails.dropWireMeters) formData.append("dropWireMeters", serviceDetails.dropWireMeters)
 
       if (referenceDetails.membershipId) formData.append("membershipId", referenceDetails.membershipId)
       if (referenceDetails.installedById) formData.append("installedById", referenceDetails.installedById)
@@ -3048,6 +3050,7 @@ export function AddCustomerForm() {
     setServiceDetails({
       connectionType: "fiber",
       subscribedPkgId: "",
+    dropWireMeters: "",
     })
     setProvisionDetails({
       oltId: "",
@@ -4340,6 +4343,26 @@ export function AddCustomerForm() {
                         disabled={!selectedServicePlanId || loading.packages}
                       />
                       {errors.subscribedPkgId && <p className="text-sm text-red-500">{errors.subscribedPkgId}</p>}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="dropWireMeters">Total Used Drop Wire</Label>
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">meter</Badge>
+                      </div>
+                      <Input
+                        id="dropWireMeters"
+                        type="number"
+                        min={0}
+                        step="1"
+                        placeholder="e.g. 200"
+                        value={serviceDetails.dropWireMeters}
+                        onChange={(e) => handleServiceChange("dropWireMeters", e.target.value)}
+                      />
+                      <p className="text-[11px] text-muted-foreground">
+                        Optional drop wire length in meters. Used if Dynamic Drop Wire is enabled on the package addon.
+                      </p>
                     </div>
                   </div>
 
