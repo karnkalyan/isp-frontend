@@ -25,6 +25,7 @@ export function TruncateDatabaseModal({
     packages: true,
     billing: true,
     ticketsTasks: true,
+    messages: true,
     radius: true,
   })
 
@@ -74,10 +75,11 @@ export function TruncateDatabaseModal({
             {[
               { key: "customers" as const, label: "Customers & Subscriptions", desc: "Customers, subscriptions, PPPoE connections" },
               { key: "leads" as const, label: "Leads", desc: "All leads and follow-up records" },
-              { key: "packages" as const, label: "Plans & Packages", desc: "Internet plans, package prices, branch links" },
-              { key: "billing" as const, label: "Invoices, Recharges & Ranges", desc: "Orders, invoices, eSewa payments, invoice ranges" },
+              { key: "packages" as const, label: "Plans & Packages", desc: "Internet plans, package prices, package_plan_branches" },
+              { key: "billing" as const, label: "Invoices, Recharges & Ranges", desc: "Orders, invoices, eSewa & ExternalPayment, invoice ranges" },
               { key: "ticketsTasks" as const, label: "Tickets & Tasks", desc: "Support tickets and staff tasks" },
-              { key: "radius" as const, label: "FreeRADIUS Subscribers & Groups", desc: "Clears radcheck/radreply/radacct/groups (keeps NAS)" },
+              { key: "messages" as const, label: "Messages & Chats", desc: "All subscriber & staff chat messages" },
+              { key: "radius" as const, label: "FreeRADIUS Subscribers & Groups", desc: "Clears radcheck/radreply/radusergroup/groups (keeps NAS)" },
             ].map(item => (
               <label
                 key={item.key}
