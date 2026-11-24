@@ -70,7 +70,7 @@ export default function SecureSettingsPage() {
       const blob = await res.blob()
       const disposition = res.headers.get("content-disposition") || ""
       const match = disposition.match(/filename="([^"]+)"/)
-      const filename = match?.[1] || `isp-backup-${new Date().toISOString().slice(0, 10)}.sql`
+      const filename = match?.[1] || `isp-backup-${new Date().toISOString().slice(0, 10)}.sql.zip`
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
@@ -194,7 +194,7 @@ export default function SecureSettingsPage() {
                 <Badge variant="destructive" className="text-[10px] uppercase">Caution</Badge>
               </div>
               <p className="text-xs text-muted-foreground">
-                Requires master confirmation password. Preserves users, services, system settings, and NAS.
+                Requires master confirmation password. Preserves users, services, system settings, and NAS. Download or email a DB backup before truncating, as truncated data cannot be recovered afterward.
               </p>
             </div>
             <Button type="button" variant="destructive" onClick={() => setTruncateOpen(true)} className="gap-2">
