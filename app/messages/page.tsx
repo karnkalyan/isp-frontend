@@ -387,6 +387,7 @@ export default function MessagesPage() {
   const selectedUserIsCust = !isCustomerUser && isCustomer(selectedUser)
   const selectedBranchName = selectedUserIsCust ? getCustomerBranch(selectedUser, selectedConv?.lastMessage) : null
   const selectedCustId = selectedUserIsCust ? getCustomerUniqueId(selectedUser) : null
+  const selectedCustomerDbId = selectedUserIsCust ? (selectedUser?.customer?.id || selectedUser?.customerId || null) : null
   const selectedPhone = selectedUserIsCust ? getCustomerPhone(selectedUser) : null
   const selectedAddress = selectedUserIsCust ? getCustomerAddress(selectedUser) : null
 
@@ -556,12 +557,19 @@ export default function MessagesPage() {
 
                 {!isCustomerUser && (
                   <div className="flex items-center gap-2">
-                    {selectedUserIsCust && selectedCustId && (
+                    {selectedUserIsCust && (selectedCustomerDbId || selectedCustId) && (
                       <Button
                         variant="outline"
                         size="sm"
                         className="h-8 text-xs gap-1.5"
-                        onClick={() => window.open(`/customers?search=${encodeURIComponent(selectedCustId)}`, '_blank')}
+                        onClick={() =>
+                          window.open(
+                            selectedCustomerDbId
+                              ? `/customers/${selectedCustomerDbId}`
+                              : `/customers?search=${encodeURIComponent(selectedCustId || "")}`,
+                            "_blank"
+                          )
+                        }
                       >
                         <ExternalLink className="h-3.5 w-3.5" />
                         Customer Profile

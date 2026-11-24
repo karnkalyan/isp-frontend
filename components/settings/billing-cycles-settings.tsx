@@ -471,8 +471,8 @@ export function ExtraChargesSettings() {
       </div>
       {/* Applicable Packages Modal */}
       {packagesModalCharge && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-lg bg-background shadow-2xl border overflow-hidden">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-4xl rounded-xl bg-background shadow-2xl border overflow-hidden">
             <div className="flex items-center justify-between border-b px-5 py-3">
               <div>
                 <h3 className="text-sm font-semibold">Applicable Packages — {packagesModalCharge.name}</h3>
@@ -486,7 +486,7 @@ export function ExtraChargesSettings() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="p-5 max-h-[60vh] overflow-y-auto space-y-1.5 text-xs">
+            <div className="p-5 max-h-[60vh] overflow-y-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs">
               {packagesModalCharge.applicablePackages.map((p) => {
                 const label = packageMap.get(p.id) || `Package #${p.id}`
                 return (

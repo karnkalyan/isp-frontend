@@ -1536,7 +1536,7 @@ export function InternetPlansSettings() {
 
       {/* Manage Upgrade Plans Modal (matching Classic View reference) */}
       {upgradeModalPlan && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="w-full max-w-5xl rounded-lg bg-background shadow-2xl border overflow-hidden">
             <div className="flex items-center justify-between bg-blue-700 px-5 py-3 text-white">
               <h3 className="text-base font-semibold">
@@ -1657,8 +1657,8 @@ export function InternetPlansSettings() {
       )}
       {/* Organizations & Branches Hierarchy Modal */}
       {branchesModalPlan && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-lg rounded-lg bg-background shadow-2xl border overflow-hidden">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-4xl rounded-xl bg-background shadow-2xl border overflow-hidden">
             <div className="flex items-center justify-between border-b px-5 py-3">
               <div>
                 <h3 className="text-sm font-semibold">Organizations &amp; Branches — {branchesModalPlan.name}</h3>
@@ -1680,7 +1680,7 @@ export function InternetPlansSettings() {
                 const parentBranches = branches.filter(b => !b.parentId)
                 const orphanAssigned = branches.filter(b => b.parentId && assignedSet.has(b.id) && !branches.some(p => p.id === b.parentId))
                 return (
-                  <div className="space-y-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                     {parentBranches.map(parent => {
                       const children = branches.filter(b => b.parentId === parent.id && assignedSet.has(b.id))
                       const parentAssigned = assignedSet.has(parent.id)

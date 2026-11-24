@@ -127,7 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(res.user);
       setImpersonating(true);
       if (typeof window !== "undefined") {
-        window.location.href = "/dashboard";
+        window.location.href = "/dashboard/overview";
       }
     }
   }, [setUser]);
@@ -141,7 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(res.user);
       setImpersonating(false);
       if (typeof window !== "undefined") {
-        window.location.href = "/dashboard";
+        window.location.href = "/dashboard/overview";
       }
     }
   }, [setUser]);

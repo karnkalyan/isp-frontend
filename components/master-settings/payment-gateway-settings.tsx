@@ -73,6 +73,9 @@ export function PaymentGatewaySettings() {
       {/* External Payment Gateway (Our Provided Inbound API) */}
       <ExternalPaymentSettingsCard />
 
+      {/* Khalti ePayment v2 Configuration */}
+      <KhaltiSettingsCard />
+
       {/* eSewa Payment Configuration */}
       <CardContainer title="eSewa Payment Configuration" description="Configure token payment and ePay v2 independently, then generate the Base64 credentials supplied to eSewa.">
         <div className="space-y-5">
@@ -331,6 +334,129 @@ function ExternalPaymentSettingsCard() {
             </p>
           </div>
         )}
+      </div>
+    </CardContainer>
+  )
+}
+
+function KhaltiSettingsCard() {
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [secretKey, setSecretKey] = useState("")
+  const [config, setConfig] = useState({
+    epayEnabled: true,
+    env: "production",
+    websiteUrl: "",
+    returnUrl: "",
+    secretKeyConfigured: false,
+    serviceEnabled: false
+  })
+
+  useEffect(() => {
+    apiRequest<typeof config>("/settings/khalti/config")
+      .then(setConfig)
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      await apiRequest("/settings/khalti/config", {
+        method: "PUT",
+        body: JSON.stringify({
+          epayEnabled: config.epayEnabled,
+          env: config.env,
+          websiteUrl: config.websiteUrl,
+          returnUrl: config.returnUrl,
+          secretKey: secretKey.trim() || undefined
+        })
+      })
+      setConfig(prev => ({
+        ...prev,
+        secretKeyConfigured: prev.secretKeyConfigured || Boolean(secretKey.trim()),
+        serviceEnabled: config.epayEnabled
+      }))
+      setSecretKey("")
+      toast.success("Khalti configuration saved")
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to save Khalti configuration")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) return null
+
+  return (
+    <CardContainer
+      title="Khalti ePayment v2 Configuration"
+      description="Configure Khalti ePayment v2 (https://docs.khalti.com/khalti-epayment/) for web and mobile recharge."
+    >
+      <div className="space-y-4">
+        <div className="flex items-center justify-between rounded-lg border p-4">
+          <div>
+            <Label>Enable Khalti ePayment v2</Label>
+            <p className="text-xs text-muted-foreground">Allows web &amp; mobile subscriber renewals via Khalti</p>
+          </div>
+          <Switch
+            checked={config.epayEnabled}
+            onCheckedChange={(epayEnabled) => setConfig(prev => ({ ...prev, epayEnabled }))}
+          />
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label>Environment</Label>
+            <select
+              value={config.env}
+              onChange={(e) => setConfig(prev => ({ ...prev, env: e.target.value }))}
+              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="production">Production (khalti.com)</option>
+              <option value="sandbox">Sandbox (dev.khalti.com)</option>
+            </select>
+          </div>
+          <div className="space-y-2">
+            <Label>Khalti Secret Key (Live / Test)</Label>
+            <Input
+              type="password"
+              autoComplete="new-password"
+              value={secretKey}
+              onChange={(e) => setSecretKey(e.target.value)}
+              placeholder={config.secretKeyConfigured ? "Configured - leave blank to keep" : "live_secret_key_..."}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Website URL</Label>
+            <Input
+              value={config.websiteUrl}
+              onChange={(e) => setConfig(prev => ({ ...prev, websiteUrl: e.target.value }))}
+              placeholder="https://cms.arrownet.com.np"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Return URL</Label>
+            <Input
+              value={config.returnUrl}
+              onChange={(e) => setConfig(prev => ({ ...prev, returnUrl: e.target.value }))}
+              placeholder="https://cms.arrownet.com.np/payment/khalti/callback"
+            />
+          </div>
+        </div>
+
+        <div className="rounded-lg bg-slate-50 dark:bg-slate-900 border p-3 text-xs space-y-1">
+          <div className="font-semibold text-muted-foreground uppercase">Web &amp; Mobile API Endpoints</div>
+          <div className="font-mono">POST /khalti/epay/initiate &nbsp;|&nbsp; POST /api/khalti/epay/initiate</div>
+          <div className="font-mono">POST /khalti/epay/complete &nbsp;|&nbsp; POST /api/khalti/epay/complete</div>
+        </div>
+
+        <div className="flex justify-end">
+          <Button onClick={save} disabled={saving} className="gap-2">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Save Khalti Configuration
+          </Button>
+        </div>
       </div>
     </CardContainer>
   )

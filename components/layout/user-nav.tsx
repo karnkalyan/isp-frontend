@@ -18,6 +18,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { useAuth } from "@/contexts/AuthContext"
 import { Badge } from "@/components/ui/badge"
 
@@ -81,6 +88,7 @@ export function UserNav() {
   const branchName = user.branch?.name || null
 
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button className="relative h-8 w-8 rounded-full focus:outline-none" aria-label="User menu">
@@ -131,72 +139,77 @@ export function UserNav() {
           <span>Log out</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
+    </DropdownMenu>
 
-      {switchOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-lg bg-background border shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between border-b px-4 py-3">
-              <div>
-                <h3 className="text-sm font-semibold">Switch User Account</h3>
-                <p className="text-xs text-muted-foreground">Log in as another user immediately without credentials</p>
-              </div>
-              <button type="button" onClick={() => setSwitchOpen(false)} className="rounded p-1 hover:bg-muted">
-                <X className="h-4 w-4" />
-              </button>
+      <Dialog open={switchOpen} onOpenChange={setSwitchOpen}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Switch User Account</DialogTitle>
+            <DialogDescription>
+              Log in as another staff/admin user immediately without entering credentials.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                placeholder="Search by name, email, or role..."
+                className="pl-9 h-9 text-sm"
+              />
             </div>
-            <div className="p-4 space-y-3">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  value={userSearch}
-                  onChange={(e) => setUserSearch(e.target.value)}
-                  placeholder="Search by name, email, or role..."
-                  className="pl-8 h-8 text-xs"
-                />
-              </div>
-              <div className="max-h-72 overflow-y-auto space-y-1.5">
-                {loadingUsers ? (
-                  <p className="text-xs text-muted-foreground py-4 text-center">Loading users...</p>
-                ) : (
-                  usersList
-                    .filter((u) => Number(u.id) !== Number(user.id))
-                    .filter((u) => {
-                      const q = userSearch.trim().toLowerCase()
-                      if (!q) return true
-                      return (
-                        String(u.name || "").toLowerCase().includes(q) ||
-                        String(u.email || "").toLowerCase().includes(q) ||
-                        String(u.role?.name || "").toLowerCase().includes(q)
-                      )
-                    })
-                    .map((u) => (
-                      <div
-                        key={u.id}
-                        className="flex items-center justify-between rounded-md border px-3 py-2 text-xs hover:bg-muted/40"
-                      >
-                        <div className="min-w-0 pr-2">
-                          <div className="font-medium truncate">{u.name || u.email}</div>
-                          <div className="text-[11px] text-muted-foreground truncate">
-                            {u.email} • {u.role?.name || "User"}
-                          </div>
-                        </div>
-                        <Button
-                          type="button"
-                          size="sm"
-                          disabled={switching}
-                          onClick={() => handleSwitchTo(u.id)}
-                          className="h-7 px-2.5 text-xs shrink-0"
-                        >
-                          Switch
-                        </Button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 max-h-[55vh] overflow-y-auto pr-1">
+              {loadingUsers ? (
+                <p className="text-xs text-muted-foreground py-6 text-center md:col-span-2">Loading users...</p>
+              ) : (() => {
+                const filtered = usersList
+                  .filter((u) => Number(u.id) !== Number(user.id))
+                  .filter((u) => {
+                    const roleStr = String(u.role?.name || u.role || "").toLowerCase()
+                    if (roleStr.includes("customer") || roleStr.includes("subscriber")) return false
+                    if (u.customer || u.customerId) return false
+                    return true
+                  })
+                  .filter((u) => {
+                    const q = userSearch.trim().toLowerCase()
+                    if (!q) return true
+                    return (
+                      String(u.name || "").toLowerCase().includes(q) ||
+                      String(u.email || "").toLowerCase().includes(q) ||
+                      String(u.role?.name || "").toLowerCase().includes(q)
+                    )
+                  })
+                if (filtered.length === 0) {
+                  return <p className="text-xs text-muted-foreground py-6 text-center md:col-span-2">No matching users found.</p>
+                }
+                return filtered.map((u) => (
+                  <div
+                    key={u.id}
+                    className="flex items-center justify-between rounded-lg border px-3 py-2.5 text-xs hover:bg-muted/40 transition-colors"
+                  >
+                    <div className="min-w-0 pr-2">
+                      <div className="font-semibold text-sm truncate">{u.name || u.email}</div>
+                      <div className="text-[11px] text-muted-foreground truncate">
+                        {u.email} • <span className="font-medium text-primary">{u.role?.name || "User"}</span>
                       </div>
-                    ))
-                )}
-              </div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={switching}
+                      onClick={() => handleSwitchTo(u.id)}
+                      className="h-8 px-3 text-xs shrink-0"
+                    >
+                      Switch
+                    </Button>
+                  </div>
+                ))
+              })()}
             </div>
           </div>
-        </div>
-      )}
-    </DropdownMenu>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

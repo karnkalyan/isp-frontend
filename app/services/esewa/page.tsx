@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { RefreshCw, Search, WalletCards } from "lucide-react"
 import { apiRequest } from "@/lib/api"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
@@ -15,6 +16,7 @@ const money = (value: number) => new Intl.NumberFormat("en-NP", { style: "curren
 const formatDate = (value?: string | null) => value ? new Date(value).toLocaleString() : "—"
 
 export default function EsewaTransactionsPage() {
+  const router = useRouter()
   const [transactions, setTransactions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
@@ -45,7 +47,19 @@ export default function EsewaTransactionsPage() {
     <div className="space-y-6 p-4 md:p-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div><h1 className="flex items-center gap-2 text-2xl font-bold"><WalletCards className="h-6 w-6 text-[#60bb46]" />eSewa Transactions</h1><p className="text-sm text-muted-foreground">Token API and ePay payment history for this ISP.</p></div>
-        <Button variant="outline" onClick={load} disabled={loading}><RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh</Button>
+        <div className="flex items-center gap-2">
+          <Select value="esewa" onValueChange={(val) => router.push(`/services/${val}`)}>
+            <SelectTrigger className="w-44">
+              <SelectValue placeholder="Choose Gateway" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="esewa">eSewa Gateway</SelectItem>
+              <SelectItem value="khalti">Khalti Gateway</SelectItem>
+              <SelectItem value="externalpayment">External Payment</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" onClick={load} disabled={loading}><RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh</Button>
+        </div>
       </div>
       <CardContainer title="Payment Transactions" description={`${pagination.total} transaction(s)`}>
         <div className="mb-4 flex flex-col gap-3 md:flex-row">
