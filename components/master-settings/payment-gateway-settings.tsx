@@ -362,18 +362,23 @@ function KhaltiSettingsCard() {
   const save = async () => {
     setSaving(true)
     try {
+      const baseOrigin = typeof window !== "undefined" ? window.location.origin : ""
+      const resolvedWebsiteUrl = config.websiteUrl?.trim() || baseOrigin
+      const resolvedReturnUrl = config.returnUrl?.trim() || (resolvedWebsiteUrl ? `${resolvedWebsiteUrl}/payment/khalti/callback` : "")
       await apiRequest("/settings/khalti/config", {
         method: "PUT",
         body: JSON.stringify({
           epayEnabled: config.epayEnabled,
           env: config.env,
-          websiteUrl: config.websiteUrl,
-          returnUrl: config.returnUrl,
+          websiteUrl: resolvedWebsiteUrl,
+          returnUrl: resolvedReturnUrl,
           secretKey: secretKey.trim() || undefined
         })
       })
       setConfig(prev => ({
         ...prev,
+        websiteUrl: resolvedWebsiteUrl,
+        returnUrl: resolvedReturnUrl,
         secretKeyConfigured: prev.secretKeyConfigured || Boolean(secretKey.trim()),
         serviceEnabled: config.epayEnabled
       }))
@@ -427,28 +432,15 @@ function KhaltiSettingsCard() {
               placeholder={config.secretKeyConfigured ? "Configured - leave blank to keep" : "live_secret_key_..."}
             />
           </div>
-          <div className="space-y-2">
-            <Label>Website URL</Label>
-            <Input
-              value={config.websiteUrl}
-              onChange={(e) => setConfig(prev => ({ ...prev, websiteUrl: e.target.value }))}
-              placeholder="https://cms.arrownet.com.np"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Return URL</Label>
-            <Input
-              value={config.returnUrl}
-              onChange={(e) => setConfig(prev => ({ ...prev, returnUrl: e.target.value }))}
-              placeholder="https://cms.arrownet.com.np/payment/khalti/callback"
-            />
-          </div>
         </div>
 
         <div className="rounded-lg bg-slate-50 dark:bg-slate-900 border p-3 text-xs space-y-1">
           <div className="font-semibold text-muted-foreground uppercase">Web &amp; Mobile API Endpoints</div>
           <div className="font-mono">POST /khalti/epay/initiate &nbsp;|&nbsp; POST /api/khalti/epay/initiate</div>
           <div className="font-mono">POST /khalti/epay/complete &nbsp;|&nbsp; POST /api/khalti/epay/complete</div>
+          <div className="text-muted-foreground pt-1">
+            Callback URL automatically defaults to <span className="font-mono">{typeof window !== "undefined" ? `${window.location.origin}/payment/khalti/callback` : "/payment/khalti/callback"}</span>
+          </div>
         </div>
 
         <div className="flex justify-end">

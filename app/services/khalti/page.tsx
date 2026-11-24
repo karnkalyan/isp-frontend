@@ -23,18 +23,24 @@ export default function KhaltiTransactionsPage() {
   const [status, setStatus] = useState("ALL")
   const [page, setPage] = useState(1)
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 })
+  const [serviceEnabled, setServiceEnabled] = useState<boolean | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
+    setErrorMsg(null)
     try {
       const query = new URLSearchParams({ page: String(page), limit: "25", status })
       if (search.trim()) query.set("search", search.trim())
-      const response = await apiRequest<any>(`/khalti/transactions?${query}`)
+      const response = await apiRequest<any>(`/khalti/transactions?${query}`, { suppressToast: true })
       setTransactions(response.transactions || [])
       setPagination(response.pagination || { total: 0, totalPages: 1 })
+      setServiceEnabled(typeof response.serviceEnabled === "boolean" ? response.serviceEnabled : null)
     } catch (error: any) {
       setTransactions([])
-      toast.error(error.message || "Failed to load Khalti transactions")
+      const msg = error?.message || "Failed to load Khalti transactions"
+      setErrorMsg(msg)
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
@@ -70,6 +76,16 @@ export default function KhaltiTransactionsPage() {
           </div>
         </div>
         <CardContainer title="Khalti ePayment Transactions" description={`${pagination.total} transaction(s)`}>
+          {serviceEnabled === false && (
+            <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+              Khalti service is currently not enabled for this ISP. Enable it from Services or Payment Gateway settings to accept Khalti ePayment v2 renewals.
+            </div>
+          )}
+          {errorMsg && (
+            <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {errorMsg}
+            </div>
+          )}
           <div className="mb-4 flex flex-col gap-3 md:flex-row">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />

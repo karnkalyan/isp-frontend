@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { toast } from "react-hot-toast"
 import { Save, Loader2, Upload, AlertTriangle, Database } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { TruncateDatabaseModal } from "@/components/master-settings/truncate-database-modal"
+
 import { apiRequest, buildApiAssetUrl } from "@/lib/api"
 
 type DiscountEntry = {
@@ -87,7 +87,7 @@ const BRANDING_FIELDS: Array<{
 ]
 
 export function SystemSettings() {
-  const [truncateOpen, setTruncateOpen] = useState(false)
+
   const [settings, setSettings] = useState({
     timezone: "Asia/Kathmandu",
     currency: "NPR",
@@ -1342,30 +1342,7 @@ export function SystemSettings() {
             </div>
           </div>
         </CardContainer>
-
-        <CardContainer
-          title="Database Maintenance (Danger Zone)"
-          description="Selectively truncate customers, leads, packages, plans, billing, tickets/tasks, and FreeRADIUS subscriber entries while preserving users, services, settings, and NAS."
-        >
-          <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-destructive/40 bg-destructive/5 p-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 font-semibold text-destructive">
-                <Database className="h-4 w-4" />
-                Truncate Database
-                <Badge variant="destructive" className="text-[10px] uppercase">Caution</Badge>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Requires master confirmation password. Preserves services, users, settings, and FreeRADIUS NAS.
-              </p>
-            </div>
-            <Button type="button" variant="destructive" onClick={() => setTruncateOpen(true)} className="gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              Truncate Database
-            </Button>
-          </div>
-        </CardContainer>
       </div>
-      <TruncateDatabaseModal open={truncateOpen} onOpenChange={setTruncateOpen} />
     </div>
   )
 }

@@ -57,7 +57,16 @@ export default function SecureSettingsPage() {
       const res = await fetch(`${base}/secure-settings/backup/download`, {
         credentials: "include",
       })
-      if (!res.ok) throw new Error("Failed to download backup")
+      if (!res.ok) {
+        let msg = "Failed to download backup"
+        try {
+          const data = await res.json()
+          if (data?.error || data?.message) msg = data.error || data.message
+        } catch {
+          if (res.status === 404) msg = "Backup endpoint not found. Please ensure the backend service is updated."
+        }
+        throw new Error(msg)
+      }
       const blob = await res.blob()
       const disposition = res.headers.get("content-disposition") || ""
       const match = disposition.match(/filename="([^"]+)"/)

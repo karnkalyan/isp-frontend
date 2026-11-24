@@ -218,10 +218,17 @@ export async function apiRequest<T = any>(
     const payload = await parseResponsePayload(response);
     let payloadStr: string;
 
-    if (payload && typeof payload === "object" && "error" in payload) {
-      payloadStr = String((payload as any).error);
+    if (payload && typeof payload === "object" && ("error" in payload || "message" in payload)) {
+      payloadStr = String((payload as any).error || (payload as any).message);
     } else if (typeof payload === "string") {
-      payloadStr = payload;
+      const trimmed = payload.trim();
+      if (trimmed.startsWith("<!DOCTYPE") || trimmed.startsWith("<html")) {
+        payloadStr = response.status === 404
+          ? "Requested service endpoint was not found. Please ensure the backend service is updated and running."
+          : `Unexpected server response (${response.status}). Please try again.`;
+      } else {
+        payloadStr = trimmed || `${response.status} ${response.statusText}`;
+      }
     } else {
       payloadStr = `${response.status} ${response.statusText}`;
     }
@@ -255,7 +262,7 @@ export async function apiRequest<T = any>(
       throw new Error(payloadStr);
     }
 
-    if (response.status >= 500) {
+    if (response.status >= 500 && (!payloadStr || payloadStr === "Internal Server Error")) {
       payloadStr = "Internal server error. Please try again.";
     }
 
