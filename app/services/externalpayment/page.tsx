@@ -279,7 +279,7 @@ export default function ExternalPaymentPage() {
           </div>
           <div className="flex items-center gap-2">
             <a
-              href="/docs/External_Payment_API_Documentation.pdf"
+              href={origin ? `/api/externalpayment/documentation/pdf?baseUrl=${encodeURIComponent(origin)}` : "/api/externalpayment/documentation/pdf"}
               download="External_Payment_API_Documentation.pdf"
               target="_blank"
               rel="noopener noreferrer"
@@ -1018,7 +1018,7 @@ export default function ExternalPaymentPage() {
                         className="w-full flex items-center justify-center gap-2"
                         onClick={() => {
                           const link = document.createElement("a");
-                          link.href = "/docs/External_Payment_API_Documentation.pdf";
+                          link.href = origin ? `/api/externalpayment/documentation/pdf?baseUrl=${encodeURIComponent(origin)}` : "/api/externalpayment/documentation/pdf";
                           link.download = "External_Payment_API_Documentation.pdf";
                           link.target = "_blank";
                           document.body.appendChild(link);
