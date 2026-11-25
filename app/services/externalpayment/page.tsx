@@ -68,12 +68,39 @@ export default function ExternalPaymentPage() {
   const [configLoading, setConfigLoading] = useState(false)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const [origin, setOrigin] = useState("")
+  const [postmanMode, setPostmanMode] = useState("KHALTI")
+  const [postmanDownloading, setPostmanDownloading] = useState(false)
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       setOrigin(window.location.origin)
     }
   }, [])
+
+  const downloadPostmanCollection = async (modeOverride?: string) => {
+    setPostmanDownloading(true)
+    try {
+      const mode = modeOverride || postmanMode || config?.defaultPaymentMode || "EXTERNAL"
+      const q = new URLSearchParams()
+      if (origin) q.set("baseUrl", origin)
+      if (mode) q.set("paymentMode", mode)
+      const data = await apiRequest<any>(`/externalpayment/documentation/postman?${q.toString()}`)
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `External-Payment-API-${mode}.postman_collection.json`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      toast.success(`Postman collection downloaded (${mode})`)
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to download Postman collection")
+    } finally {
+      setPostmanDownloading(false)
+    }
+  }
 
   const copyToClipboard = (text: string, key: string) => {
     navigator.clipboard.writeText(text)
@@ -289,6 +316,15 @@ export default function ExternalPaymentPage() {
                 Download PDF Docs
               </Button>
             </a>
+            <Button
+              variant="outline"
+              onClick={() => downloadPostmanCollection()}
+              disabled={postmanDownloading}
+              className="flex items-center gap-1.5"
+            >
+              <Code2 className="h-4 w-4" />
+              {postmanDownloading ? "Generating..." : "Download Postman"}
+            </Button>
             <Button
               variant="outline"
               onClick={() => {
@@ -1029,6 +1065,29 @@ export default function ExternalPaymentPage() {
                         <FileDown className="h-4 w-4" />
                         Download PDF Specification
                       </Button>
+                    </div>
+                    <div className="pt-2 border-t space-y-2">
+                      <span className="text-xs font-medium">Partner Payment Mode (Postman)</span>
+                      <div className="flex gap-2">
+                        <Select value={postmanMode} onValueChange={setPostmanMode}>
+                          <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="KHALTI">KHALTI</SelectItem>
+                            <SelectItem value="ESEWA">ESEWA</SelectItem>
+                            <SelectItem value="EXTERNAL">EXTERNAL</SelectItem>
+                            <SelectItem value="CONNECTIPS">CONNECTIPS</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          variant="outline"
+                          className="flex-1 flex items-center justify-center gap-2"
+                          onClick={() => downloadPostmanCollection(postmanMode)}
+                          disabled={postmanDownloading}
+                        >
+                          <Code2 className="h-4 w-4" />
+                          {postmanDownloading ? "Generating..." : "Download Postman JSON"}
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </CardContainer>
