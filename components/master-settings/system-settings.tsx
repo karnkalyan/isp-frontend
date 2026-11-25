@@ -184,6 +184,27 @@ export function SystemSettings() {
     }))
   }
 
+  const [syncingRadius, setSyncingRadius] = useState(false)
+
+  const handleSyncRadiusPasswords = async () => {
+    setSyncingRadius(true)
+    try {
+      const res = await apiRequest<any>("/services/radius/auto-sync-passwords", {
+        method: "POST",
+        body: JSON.stringify({ forceResync: true, limit: 10000 })
+      })
+      if (res?.updatedUsersCount > 0) {
+        toast.success(`Resynced ${res.updatedUsersCount} user password(s) from PPP auth logs!`)
+      } else {
+        toast.success(res?.message || "All registered PPP user passwords are already in sync.")
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to resync RADIUS passwords")
+    } finally {
+      setSyncingRadius(false)
+    }
+  }
+
   const validate = () => {
     const n = settings.newMemberDiscount
     const r = settings.renewalDiscount
@@ -1229,7 +1250,7 @@ export function SystemSettings() {
               />
             </div>
 
-            <div className="md:col-span-2 p-3 border rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200/60 dark:border-emerald-800/40 flex items-center justify-between mt-2">
+            <div className="md:col-span-2 p-3 border rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200/60 dark:border-emerald-800/40 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mt-2">
               <div className="space-y-1 mr-4">
                 <div className="flex items-center gap-2">
                   <Label className="text-sm font-semibold text-emerald-900 dark:text-emerald-300">Auto-Update RADIUS Login Password</Label>
@@ -1241,10 +1262,22 @@ export function SystemSettings() {
                   Automatically capture & update customer's RADIUS/PPPoE password in database and FreeRADIUS whenever an authentication attempt with a different password is made, accepting the connection.
                 </p>
               </div>
-              <Switch
-                checked={settings.auto_update_radius_password ?? false}
-                onCheckedChange={(checked) => updateSetting("auto_update_radius_password", checked)}
-              />
+              <div className="flex items-center gap-3 shrink-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSyncRadiusPasswords}
+                  disabled={syncingRadius}
+                  className="border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100/60 dark:hover:bg-emerald-950/40 text-xs"
+                >
+                  {syncingRadius ? "Resyncing..." : "Resync Passwords from PPP"}
+                </Button>
+                <Switch
+                  checked={settings.auto_update_radius_password ?? false}
+                  onCheckedChange={(checked) => updateSetting("auto_update_radius_password", checked)}
+                />
+              </div>
             </div>
           </div>
         </CardContainer>

@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { apiRequest } from "@/lib/api"
 import { toast } from "react-hot-toast"
 
 const unwrapUsers = (payload: any): any[] => {
@@ -167,6 +168,27 @@ export function RadiusDashboard() {
   const [coaOpen, setCoaOpen] = useState(false)
   const [coaUser, setCoaUser] = useState<any>(null)
   const [coaSubmitting, setCoaSubmitting] = useState(false)
+  const [syncingPasswords, setSyncingPasswords] = useState(false)
+
+  const handleResyncPppPasswords = async () => {
+    setSyncingPasswords(true)
+    try {
+      const res = await apiRequest<any>("/services/radius/auto-sync-passwords", {
+        method: "POST",
+        body: JSON.stringify({ forceResync: true, limit: 10000 })
+      })
+      if (res?.updatedUsersCount > 0) {
+        toast.success(`Resynced ${res.updatedUsersCount} password(s) from PPP auth logs!`)
+        fetchData()
+      } else {
+        toast.success(res?.message || "All PPP passwords are already in sync.")
+      }
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to resync PPP passwords")
+    } finally {
+      setSyncingPasswords(false)
+    }
+  }
   const [coaForm, setCoaForm] = useState({
     action: "disconnect",
     nasIpAddress: "",
@@ -325,7 +347,15 @@ export function RadiusDashboard() {
         title="Radius Users"
         description="FreeRADIUS users, authentication attributes, groups, accounting sessions, and COA controls"
         gradientColor="#6366f1"
-        actions={[{ label: "Refresh", onClick: fetchData, icon: <RefreshCw className="h-4 w-4" />, variant: "outline" }]}
+        actions={[
+          {
+            label: syncingPasswords ? "Resyncing..." : "Resync PPP Passwords",
+            onClick: handleResyncPppPasswords,
+            icon: <RefreshCw className={`h-4 w-4 ${syncingPasswords ? "animate-spin" : ""}`} />,
+            variant: "outline"
+          },
+          { label: "Refresh", onClick: fetchData, icon: <RefreshCw className="h-4 w-4" />, variant: "outline" }
+        ]}
       >
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="relative max-w-md flex-1">

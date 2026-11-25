@@ -143,26 +143,49 @@ export function DisconnectSessionManagement() {
     return () => clearTimeout(handler)
   }, [fullAddressKeywords])
 
-  // Trigger loading state immediately when any filter changes
-  useEffect(() => {
-    setLoading(true)
-  }, [
+  const hasAnyTargetingFilter = useMemo(() => (
+    filters.status !== "all" ||
+    filters.oltId !== "all" ||
+    Boolean(filters.oltPort.trim()) ||
+    filters.splitterId !== "all" ||
+    Boolean(filters.area.trim()) ||
+    selectedHeadOffices.length > 0 ||
+    selectedBranches.length > 0 ||
+    selectedSubBranches.length > 0 ||
+    selectedPackages.length > 0 ||
+    selectedPools.length > 0 ||
+    selectedAddresses.length > 0 ||
+    selectedStreets.length > 0 ||
+    selectedDistricts.length > 0 ||
+    selectedGenders.length > 0 ||
+    selectedMemberships.length > 0 ||
+    debouncedFullAddressKeywords.length > 0 ||
+    (useCsvFilter && csvRows.length > 0)
+  ), [
     filters,
     selectedHeadOffices,
     selectedBranches,
     selectedSubBranches,
-    fullAddressKeywords,
+    selectedPackages,
+    selectedPools,
     selectedAddresses,
     selectedStreets,
     selectedDistricts,
     selectedGenders,
-    selectedPackages,
     selectedMemberships,
-    selectedPools,
+    debouncedFullAddressKeywords,
     useCsvFilter,
-    selectedCsvColumns,
-    csvMatchType
+    csvRows.length
   ])
+
+  // Trigger loading state only when at least one filter is active
+  useEffect(() => {
+    if (hasAnyTargetingFilter) {
+      setLoading(true)
+    } else {
+      setLoading(false)
+    }
+  }, [hasAnyTargetingFilter])
 
   const addFullAddressKeyword = (keyword: string) => {
     const clean = keyword.trim()
@@ -647,6 +670,15 @@ export function DisconnectSessionManagement() {
       if (filters.oltId !== "all") params.append("oltId", filters.oltId)
       if (filters.oltPort) params.append("oltPort", filters.oltPort)
       if (filters.splitterId !== "all") params.append("splitterId", filters.splitterId)
+      if (selectedBranches.length === 1 && selectedHeadOffices.length === 0 && selectedSubBranches.length === 0) {
+        params.append("branchId", String(selectedBranches[0]))
+      }
+      if (selectedSubBranches.length === 1) {
+        params.append("subBranchId", String(selectedSubBranches[0]))
+      }
+      if (selectedPackages.length === 1) {
+        params.append("planId", String(selectedPackages[0]))
+      }
       if (debouncedFullAddressKeywords.length > 0) {
         params.append("area", debouncedFullAddressKeywords.join(","))
       }
@@ -733,13 +765,21 @@ export function DisconnectSessionManagement() {
     }
   }, [filters.status, filters.oltId, filters.oltPort, filters.splitterId, getSelectedBranchScope, debouncedFullAddressKeywords])
 
-  // Debounced trigger for reloading recipient list when dependencies change
+  // Debounced trigger for reloading recipient list ONLY when a filter is active
   useEffect(() => {
+    if (!hasAnyTargetingFilter) {
+      setRawRecipients([])
+      setActiveSessionByUsername({})
+      setSelectedRecipients([])
+      setDuplicateCount(0)
+      setLoading(false)
+      return
+    }
     const handler = setTimeout(() => {
       fetchRecipients()
     }, 500)
     return () => clearTimeout(handler)
-  }, [fetchRecipients])
+  }, [hasAnyTargetingFilter, fetchRecipients])
 
   // Debounced search for connection users manually
   useEffect(() => {

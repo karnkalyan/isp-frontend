@@ -105,7 +105,8 @@ export function EnhancementsSettings() {
     setSyncingRadius(true)
     try {
       const res = await apiRequest<any>("/services/radius/auto-sync-passwords", {
-        method: "POST"
+        method: "POST",
+        body: JSON.stringify({ forceResync: true, limit: 10000 })
       })
       if (res?.updatedUsersCount > 0) {
         toast.success(`Successfully auto-updated ${res.updatedUsersCount} rejected user passwords in RADIUS!`)
