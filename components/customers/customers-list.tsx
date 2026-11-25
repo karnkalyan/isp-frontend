@@ -273,6 +273,9 @@ export function CustomersList({ filters, onResetFilters }: CustomersListProps = 
       if (f?.status && f.status !== "all") {
         params.set("status", f.status)
       }
+      if (f?.onlineStatus && f.onlineStatus !== "all") {
+        params.set("onlineStatus", f.onlineStatus)
+      }
       if (f?.packageId && f.packageId !== "all") {
         params.set("packageId", f.packageId)
       }
@@ -378,6 +381,7 @@ export function CustomersList({ filters, onResetFilters }: CustomersListProps = 
   }, [
     filters?.search,
     filters?.status,
+    filters?.onlineStatus,
     filters?.packageId,
     filters?.branchId,
     filters?.connectionType,
@@ -655,6 +659,7 @@ export function CustomersList({ filters, onResetFilters }: CustomersListProps = 
   const hasActiveFilters = Boolean(
     filters?.search?.trim() ||
     (filters?.status && filters.status !== "all") ||
+    (filters?.onlineStatus && filters.onlineStatus !== "all") ||
     (filters?.packageId && filters.packageId !== "all") ||
     (filters?.branchId && filters.branchId !== "all") ||
     (filters?.connectionType && filters.connectionType !== "all")

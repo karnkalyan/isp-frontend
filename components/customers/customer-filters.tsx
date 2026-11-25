@@ -12,6 +12,7 @@ import { apiRequest } from "@/lib/api"
 export interface CustomerFilterValues {
   search: string
   status: string
+  onlineStatus: string
   packageId: string
   branchId: string
   connectionType: string
@@ -20,6 +21,7 @@ export interface CustomerFilterValues {
 export const defaultCustomerFilters: CustomerFilterValues = {
   search: "",
   status: "all",
+  onlineStatus: "all",
   packageId: "all",
   branchId: "all",
   connectionType: "all",
@@ -163,6 +165,7 @@ export function CustomerFilters({
   const hasAnyActiveFilter =
     Boolean(currentFilters.search) ||
     currentFilters.status !== "all" ||
+    currentFilters.onlineStatus !== "all" ||
     currentFilters.packageId !== "all" ||
     currentFilters.branchId !== "all" ||
     currentFilters.connectionType !== "all"
@@ -207,6 +210,21 @@ export function CustomerFilters({
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="suspended">Suspended</SelectItem>
                 <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Online/Offline Dropdown */}
+            <Select
+              value={currentFilters.onlineStatus}
+              onValueChange={(val) => handleFieldChange("onlineStatus", val)}
+            >
+              <SelectTrigger className="w-[155px] bg-white border-gray-200 dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                <SelectValue placeholder="Online / Offline" />
+              </SelectTrigger>
+              <SelectContent className="bg-white border-gray-200 dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                <SelectItem value="all">All (Online/Offline)</SelectItem>
+                <SelectItem value="online">Online Only</SelectItem>
+                <SelectItem value="offline">Offline Only</SelectItem>
               </SelectContent>
             </Select>
 
