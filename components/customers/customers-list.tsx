@@ -398,47 +398,17 @@ export function CustomersList({ filters, onResetFilters }: CustomersListProps = 
   useEffect(() => {
     if (customers.length === 0) return
 
-    // Initialize statuses from listCustomers response immediately (no stale offline flash)
+    // Use batch-computed radiusRealtimeStatus and ontRealtimeStatus from listCustomers directly (no N+1 /customer/:id calls)
     setConnectionStatuses(prev => {
       const next = { ...prev }
       customers.forEach((c: any) => {
         next[c.id] = {
           radius: c.radiusRealtimeStatus || prev[c.id]?.radius || 'offline',
-          acs: prev[c.id]?.acs || (c.devices?.length ? 'pending' : 'N/A'),
+          acs: c.ontRealtimeStatus || prev[c.id]?.acs || (c.devices?.length ? 'offline' : 'N/A'),
           loading: false
         }
       })
       return next
-    })
-
-    // Only fetch /customer/:id for customers that have ACS/TR069 devices and haven't loaded ACS yet
-    customers.forEach(async (customer: any) => {
-      const cid = customer.id.toString()
-      if (!customer.devices?.length) return
-      if (connectionStatuses[cid] && connectionStatuses[cid].acs !== 'pending' && connectionStatuses[cid].acs !== 'loading') return
-
-      try {
-        const res = await apiRequest<any>(`/customer/${cid}`)
-        if (res) {
-          setConnectionStatuses(prev => ({
-            ...prev,
-            [cid]: {
-              radius: res.radiusRealtimeStatus || customer.radiusRealtimeStatus || 'offline',
-              acs: res.ontRealtimeStatus || 'offline',
-              loading: false
-            }
-          }))
-        }
-      } catch (err) {
-        setConnectionStatuses(prev => ({
-          ...prev,
-          [cid]: {
-            radius: customer.radiusRealtimeStatus || 'offline',
-            acs: 'offline',
-            loading: false
-          }
-        }))
-      }
     })
   }, [customers])
 
