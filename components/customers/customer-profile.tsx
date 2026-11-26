@@ -5876,50 +5876,72 @@ export function CustomerProfile({ customerId: customerIdProp }: CustomerProfileP
             )}
           </CardContainer>
 
-          {customer.devices.filter(d => d.deviceType === "ONT" && d.serialNumber).length > 0 && (
-            <CardContainer title="ACS Device Information" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
-              <Tabs defaultValue={customer.devices.find(d => d.deviceType === "ONT")?.serialNumber}>
-                <TabsList className="w-full flex overflow-x-auto justify-start h-auto scrollbar-none mb-4 bg-muted p-1 rounded-lg">
-                  {customer.devices.filter(d => d.deviceType === "ONT").map((device, idx) => (
-                    <TabsTrigger key={idx} value={device.serialNumber} className="flex-shrink-0">{device.brand} {device.model}</TabsTrigger>
-                  ))}
-                </TabsList>
-                {customer.devices.filter(d => d.deviceType === "ONT").map((device, idx) => (
-                  <TabsContent key={idx} value={device.serialNumber}>
-                    <div className="mb-3 flex justify-end">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="border-amber-500 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20"
-                        onClick={() => setRebootDevice({ ...device, notes: device.notes || "" })}
-                        disabled={rebootingSerial === device.serialNumber}
-                      >
-                        {rebootingSerial === device.serialNumber
-                          ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          : <RotateCcw className="mr-2 h-4 w-4" />}
-                        Reboot Device
-                      </Button>
-                    </div>
-                    <Tabs defaultValue="basic-info">
-                      <TabsList className="w-full flex overflow-x-auto justify-start h-auto scrollbar-none mb-4 bg-muted p-1 rounded-lg">
-                        <TabsTrigger value="basic-info" className="flex-shrink-0">Basic Info</TabsTrigger>
-                        <TabsTrigger value="wan" className="flex-shrink-0">WAN Connections</TabsTrigger>
-                        <TabsTrigger value="wifi" className="flex-shrink-0">WiFi</TabsTrigger>
-                        <TabsTrigger value="lan" className="flex-shrink-0">LAN</TabsTrigger>
-                        <TabsTrigger value="neighbor-devices" className="flex-shrink-0">Connected Devices</TabsTrigger>
-                      </TabsList>
-                      <TabsContent value="basic-info"><TR069DeviceDetails deviceId={device.serialNumber} /></TabsContent>
-                      <TabsContent value="wan"><TR069DeviceWanConnections deviceId={device.serialNumber} /></TabsContent>
-                      <TabsContent value="wifi"><TR069DeviceWifi deviceId={device.serialNumber} /></TabsContent>
-                      <TabsContent value="lan"><TR069DeviceLanInfo deviceId={device.serialNumber} /></TabsContent>
-                      <TabsContent value="neighbor-devices"><TR069DeviceNeighbors deviceId={device.serialNumber} /></TabsContent>
-                    </Tabs>
-                  </TabsContent>
-                ))}
-              </Tabs>
-            </CardContainer>
-          )}
+          {(() => {
+            const acsOntDevices = customer.devices.filter((d) => {
+              if (d.deviceType !== "ONT") return false;
+              const serial = String(d.serialNumber ?? "").trim();
+              return Boolean(
+                serial &&
+                serial.toLowerCase() !== "null" &&
+                serial.toLowerCase() !== "undefined" &&
+                serial.toUpperCase() !== "N/A"
+              );
+            });
+            if (acsOntDevices.length === 0) return null;
+            return (
+              <CardContainer title="ACS Device Information" className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-0 shadow-md">
+                <Tabs defaultValue={String(acsOntDevices[0].serialNumber).trim()}>
+                  <TabsList className="w-full flex overflow-x-auto justify-start h-auto scrollbar-none mb-4 bg-muted p-1 rounded-lg">
+                    {acsOntDevices.map((device, idx) => {
+                      const serial = String(device.serialNumber).trim();
+                      const label = [device.brand, device.model].filter(Boolean).join(" ").trim() || serial;
+                      return (
+                        <TabsTrigger key={device.id ?? serial ?? idx} value={serial} className="flex-shrink-0">
+                          {label}
+                        </TabsTrigger>
+                      );
+                    })}
+                  </TabsList>
+                  {acsOntDevices.map((device, idx) => {
+                    const serial = String(device.serialNumber).trim();
+                    return (
+                      <TabsContent key={device.id ?? serial ?? idx} value={serial}>
+                        <div className="mb-3 flex justify-end">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="border-amber-500 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                            onClick={() => setRebootDevice({ ...device, serialNumber: serial, notes: device.notes || "" })}
+                            disabled={rebootingSerial === serial}
+                          >
+                            {rebootingSerial === serial
+                              ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              : <RotateCcw className="mr-2 h-4 w-4" />}
+                            Reboot Device
+                          </Button>
+                        </div>
+                        <Tabs defaultValue="basic-info">
+                          <TabsList className="w-full flex overflow-x-auto justify-start h-auto scrollbar-none mb-4 bg-muted p-1 rounded-lg">
+                            <TabsTrigger value="basic-info" className="flex-shrink-0">Basic Info</TabsTrigger>
+                            <TabsTrigger value="wan" className="flex-shrink-0">WAN Connections</TabsTrigger>
+                            <TabsTrigger value="wifi" className="flex-shrink-0">WiFi</TabsTrigger>
+                            <TabsTrigger value="lan" className="flex-shrink-0">LAN</TabsTrigger>
+                            <TabsTrigger value="neighbor-devices" className="flex-shrink-0">Connected Devices</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="basic-info"><TR069DeviceDetails deviceId={serial} /></TabsContent>
+                          <TabsContent value="wan"><TR069DeviceWanConnections deviceId={serial} /></TabsContent>
+                          <TabsContent value="wifi"><TR069DeviceWifi deviceId={serial} /></TabsContent>
+                          <TabsContent value="lan"><TR069DeviceLanInfo deviceId={serial} /></TabsContent>
+                          <TabsContent value="neighbor-devices"><TR069DeviceNeighbors deviceId={serial} /></TabsContent>
+                        </Tabs>
+                      </TabsContent>
+                    );
+                  })}
+                </Tabs>
+              </CardContainer>
+            );
+          })()}
         </TabsContent>
 
         <TabsContent value="usage" className="space-y-4">

@@ -26,11 +26,16 @@ export function TR069DeviceNeighbors({ deviceId }: TR069DeviceNeighborsProps) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    const safeId = String(deviceId ?? "").trim();
+    if (!safeId || ["null", "undefined", "n/a"].includes(safeId.toLowerCase())) {
+      setIsLoading(false);
+      return;
+    }
     const fetchConnectedDevices = async () => {
       try {
         setIsLoading(true);
         const data = await apiRequest<{ success: boolean; data: any }>(
-          `/services/genieacs/devices/${deviceId}/connected-devices-info`
+          `/services/genieacs/devices/${encodeURIComponent(safeId)}/connected-devices-info`
         );
         if (data.success) {
           // If data.data is an array, use it; otherwise assume it's an object with connectedDevices

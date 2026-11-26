@@ -353,14 +353,24 @@ export function TR069DeviceWanConnections({ deviceId }: TR069DeviceWanConnection
     };
 
     useEffect(() => {
+        const safeId = String(deviceId ?? "").trim();
+        if (!safeId || ["null", "undefined", "n/a"].includes(safeId.toLowerCase())) {
+            setIsLoading(false);
+            return;
+        }
         fetchWanInfo();
     }, [deviceId]);
 
     const fetchWanInfo = async () => {
+        const safeId = String(deviceId ?? "").trim();
+        if (!safeId || ["null", "undefined", "n/a"].includes(safeId.toLowerCase())) {
+            setIsLoading(false);
+            return;
+        }
         try {
             setIsLoading(true);
             const data = await apiRequest<{ success: boolean; data: any }>(
-                `/services/genieacs/devices/${deviceId}/waninfo`
+                `/services/genieacs/devices/${encodeURIComponent(safeId)}/waninfo`
             );
             if (data.success) {
                 setDeviceSummary(data.data);

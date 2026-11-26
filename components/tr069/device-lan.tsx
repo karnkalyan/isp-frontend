@@ -101,11 +101,16 @@ export function TR069DeviceLanInfo({ deviceId }: TR069DeviceLanInfoProps) {
     const [selectedPort, setSelectedPort] = useState<number>(0);
 
     useEffect(() => {
+        const safeId = String(deviceId ?? "").trim();
+        if (!safeId || ["null", "undefined", "n/a"].includes(safeId.toLowerCase())) {
+            setIsLoading(false);
+            return;
+        }
         const fetchDeviceDetails = async () => {
             try {
                 setIsLoading(true);
                 const response = await apiRequest<{ success: boolean; data: DeviceDetails }>(
-                    `/services/genieacs/devices/${deviceId}/laninfo`
+                    `/services/genieacs/devices/${encodeURIComponent(safeId)}/laninfo`
                 );
                 if (response.success && response.data) {
                     setDeviceDetails(response.data);

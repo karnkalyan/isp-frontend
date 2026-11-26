@@ -53,14 +53,24 @@ export function TR069DeviceWifi({ deviceId }: TR069DeviceWifiProps) {
   });
 
   useEffect(() => {
+    const safeId = String(deviceId ?? "").trim();
+    if (!safeId || ["null", "undefined", "n/a"].includes(safeId.toLowerCase())) {
+      setIsLoading(false);
+      return;
+    }
     fetchWlanInfo();
   }, [deviceId]);
 
   const fetchWlanInfo = async (preferredInstance?: string) => {
+    const safeId = String(deviceId ?? "").trim();
+    if (!safeId || ["null", "undefined", "n/a"].includes(safeId.toLowerCase())) {
+      setIsLoading(false);
+      return;
+    }
     try {
       setIsLoading(true);
       const response = await apiRequest<{ success: boolean; data: any }>(
-        `/services/genieacs/devices/${deviceId}/wlaninfo`
+        `/services/genieacs/devices/${encodeURIComponent(safeId)}/wlaninfo`
       );
       if (response.success) {
         // The data structure has ssidList array

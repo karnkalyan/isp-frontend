@@ -22,7 +22,11 @@ interface TR069DeviceDetailsProps {
 }
 
 export function TR069DeviceDetails({ deviceId }: TR069DeviceDetailsProps) {
-  const safeDeviceId = String(deviceId ?? "");
+  const safeDeviceId = String(deviceId ?? "").trim();
+  const isValidDeviceId = Boolean(
+    safeDeviceId &&
+    !["null", "undefined", "n/a"].includes(safeDeviceId.toLowerCase())
+  );
 
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
   const [wanConnections, setWanConnections] = useState<WanConnection[]>([]);
@@ -59,7 +63,7 @@ export function TR069DeviceDetails({ deviceId }: TR069DeviceDetailsProps) {
   };
 
   useEffect(() => {
-    if (!safeDeviceId) {
+    if (!isValidDeviceId) {
       setIsLoading(false);
       return;
     }
