@@ -1633,6 +1633,8 @@ export function OLTDetailed() {
 
       if (response.success) {
         toast.success("connection successful")
+        setOlts(prev => prev.map(item => item.id === olt.id ? { ...item, status: "online" } : item))
+        setSelectedOLT(prev => (prev && prev.id === olt.id ? { ...prev, status: "online" } : prev))
         setShowSSHTestDialog(true)
       } else {
         toast.error(response.error || "connection failed")

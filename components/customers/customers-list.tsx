@@ -205,6 +205,7 @@ export function CustomersList({ filters, onResetFilters }: CustomersListProps = 
   })
   const router = useRouter()
   const [connectionStatuses, setConnectionStatuses] = useState<Record<string, { radius: string; acs: string; loading: boolean }>>({})
+  const [summary, setSummary] = useState<{ total: number; active: number; inactive: number; suspended: number; online: number } | null>(null)
   const [smsProviders, setSmsProviders] = useState<any[]>([])
   const [selectedSmsProvider, setSelectedSmsProvider] = useState("")
   const [smsCustomer, setSmsCustomer] = useState<Customer | null>(null)
@@ -279,6 +280,9 @@ export function CustomersList({ filters, onResetFilters }: CustomersListProps = 
       if (f?.packageId && f.packageId !== "all") {
         params.set("packageId", f.packageId)
       }
+      if (f?.organizationId && f.organizationId !== "all") {
+        params.set("organizationId", f.organizationId)
+      }
       if (f?.branchId && f.branchId !== "all") {
         params.set("branchId", f.branchId)
       }
@@ -286,12 +290,15 @@ export function CustomersList({ filters, onResetFilters }: CustomersListProps = 
         params.set("connectionType", f.connectionType)
       }
 
-      const data = await apiRequest<CustomersResponse>(`/customer?${params.toString()}`)
+      const data = await apiRequest<CustomersResponse & { summary?: any }>(`/customer?${params.toString()}`)
 
       if (data && Array.isArray(data.data)) {
         setCustomers(data.data)
         if (data.pagination) {
           setPagination(data.pagination)
+        }
+        if (data.summary) {
+          setSummary(data.summary)
         }
       } else {
         setCustomers([])
@@ -383,6 +390,7 @@ export function CustomersList({ filters, onResetFilters }: CustomersListProps = 
     filters?.status,
     filters?.onlineStatus,
     filters?.packageId,
+    filters?.organizationId,
     filters?.branchId,
     filters?.connectionType,
   ])
@@ -390,27 +398,24 @@ export function CustomersList({ filters, onResetFilters }: CustomersListProps = 
   useEffect(() => {
     if (customers.length === 0) return
 
-    // Initialize statuses for these customers if not already present
+    // Initialize statuses from listCustomers response immediately (no stale offline flash)
     setConnectionStatuses(prev => {
       const next = { ...prev }
-      customers.forEach(c => {
-        if (!next[c.id]) {
-          next[c.id] = { radius: 'pending', acs: 'pending', loading: false }
+      customers.forEach((c: any) => {
+        next[c.id] = {
+          radius: c.radiusRealtimeStatus || prev[c.id]?.radius || 'offline',
+          acs: prev[c.id]?.acs || (c.devices?.length ? 'pending' : 'N/A'),
+          loading: false
         }
       })
       return next
     })
 
-    // Asynchronously fetch status for each customer in the list
-    customers.forEach(async (customer) => {
+    // Only fetch /customer/:id for customers that have ACS/TR069 devices and haven't loaded ACS yet
+    customers.forEach(async (customer: any) => {
       const cid = customer.id.toString()
-      // Only fetch if not already loaded or currently loading
-      if (connectionStatuses[cid] && connectionStatuses[cid].radius !== 'pending' && connectionStatuses[cid].radius !== 'loading') return
-
-      setConnectionStatuses(prev => ({
-        ...prev,
-        [cid]: { ...prev[cid], loading: true }
-      }))
+      if (!customer.devices?.length) return
+      if (connectionStatuses[cid] && connectionStatuses[cid].acs !== 'pending' && connectionStatuses[cid].acs !== 'loading') return
 
       try {
         const res = await apiRequest<any>(`/customer/${cid}`)
@@ -418,19 +423,18 @@ export function CustomersList({ filters, onResetFilters }: CustomersListProps = 
           setConnectionStatuses(prev => ({
             ...prev,
             [cid]: {
-              radius: res.radiusRealtimeStatus || 'offline',
+              radius: res.radiusRealtimeStatus || customer.radiusRealtimeStatus || 'offline',
               acs: res.ontRealtimeStatus || 'offline',
               loading: false
             }
           }))
         }
       } catch (err) {
-        console.error(`Failed to fetch status for customer ${cid}`, err)
         setConnectionStatuses(prev => ({
           ...prev,
           [cid]: {
-            radius: 'error',
-            acs: 'error',
+            radius: customer.radiusRealtimeStatus || 'offline',
+            acs: 'offline',
             loading: false
           }
         }))
@@ -661,6 +665,7 @@ export function CustomersList({ filters, onResetFilters }: CustomersListProps = 
     (filters?.status && filters.status !== "all") ||
     (filters?.onlineStatus && filters.onlineStatus !== "all") ||
     (filters?.packageId && filters.packageId !== "all") ||
+    (filters?.organizationId && filters.organizationId !== "all") ||
     (filters?.branchId && filters.branchId !== "all") ||
     (filters?.connectionType && filters.connectionType !== "all")
   )
@@ -688,6 +693,19 @@ export function CustomersList({ filters, onResetFilters }: CustomersListProps = 
       onConfirm={confirmBulkDelete}
     />
     <CardContainer title="Customers" description="All registered customers">
+      {summary && (
+        <div className="mb-3 flex flex-wrap items-center gap-4 rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-medium text-white shadow-sm">
+          <span>Total: <strong className="font-bold">{summary.total.toLocaleString()}</strong></span>
+          <span className="opacity-60">|</span>
+          <span>Active: <strong className="font-bold">{summary.active.toLocaleString()}</strong></span>
+          <span className="opacity-60">|</span>
+          <span>Inactive / Expired: <strong className="font-bold">{summary.inactive.toLocaleString()}</strong></span>
+          <span className="opacity-60">|</span>
+          <span>Suspended: <strong className="font-bold">{summary.suspended.toLocaleString()}</strong></span>
+          <span className="opacity-60">|</span>
+          <span>Online (RADIUS): <strong className="font-bold">{summary.online.toLocaleString()}</strong></span>
+        </div>
+      )}
       <div className="rounded-md border">
         <div className="relative w-full overflow-auto">
           {customers.length === 0 ? (

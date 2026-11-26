@@ -186,15 +186,15 @@ export function SystemSettings() {
 
   const [syncingRadius, setSyncingRadius] = useState(false)
 
-  const handleSyncRadiusPasswords = async () => {
+  const handleSyncRadiusPasswords = async (disconnectSession = true) => {
     setSyncingRadius(true)
     try {
       const res = await apiRequest<any>("/services/radius/auto-sync-passwords", {
         method: "POST",
-        body: JSON.stringify({ forceResync: true, limit: 10000 })
+        body: JSON.stringify({ forceResync: true, limit: 10000, disconnectSession })
       })
       if (res?.updatedUsersCount > 0) {
-        toast.success(`Resynced ${res.updatedUsersCount} user password(s) from PPP auth logs!`)
+        toast.success(`Resynced ${res.updatedUsersCount} user password(s) from PPP auth logs${disconnectSession ? " (sessions disconnected)" : " (no disconnect)"}!`)
       } else {
         toast.success(res?.message || "All registered PPP user passwords are already in sync.")
       }
@@ -1262,16 +1262,26 @@ export function SystemSettings() {
                   Automatically capture & update customer's RADIUS/PPPoE password in database and FreeRADIUS whenever an authentication attempt with a different password is made, accepting the connection.
                 </p>
               </div>
-              <div className="flex items-center gap-3 shrink-0">
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={handleSyncRadiusPasswords}
+                  onClick={() => handleSyncRadiusPasswords(true)}
                   disabled={syncingRadius}
                   className="border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100/60 dark:hover:bg-emerald-950/40 text-xs"
                 >
                   {syncingRadius ? "Resyncing..." : "Resync Passwords from PPP"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleSyncRadiusPasswords(false)}
+                  disabled={syncingRadius}
+                  className="border-blue-500/40 text-blue-700 dark:text-blue-300 hover:bg-blue-100/60 dark:hover:bg-blue-950/40 text-xs"
+                >
+                  {syncingRadius ? "Resyncing..." : "Resync (No Disconnect)"}
                 </Button>
                 <Switch
                   checked={settings.auto_update_radius_password ?? false}

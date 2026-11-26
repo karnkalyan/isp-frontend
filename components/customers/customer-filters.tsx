@@ -5,6 +5,7 @@ import { Search, X, SlidersHorizontal, RotateCcw } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { Badge } from "@/components/ui/badge"
 import { CardContainer } from "@/components/ui/card-container"
 import { apiRequest } from "@/lib/api"
@@ -14,6 +15,7 @@ export interface CustomerFilterValues {
   status: string
   onlineStatus: string
   packageId: string
+  organizationId: string
   branchId: string
   connectionType: string
 }
@@ -23,6 +25,7 @@ export const defaultCustomerFilters: CustomerFilterValues = {
   status: "all",
   onlineStatus: "all",
   packageId: "all",
+  organizationId: "all",
   branchId: "all",
   connectionType: "all",
 }
@@ -38,6 +41,7 @@ interface PackageOption {
 interface BranchOption {
   id: number
   name: string
+  parentId?: number | null
 }
 
 export interface CustomerFiltersProps {
@@ -159,6 +163,7 @@ export function CustomerFilters({
   }
 
   const advancedFilterCount =
+    (currentFilters.organizationId !== "all" ? 1 : 0) +
     (currentFilters.branchId !== "all" ? 1 : 0) +
     (currentFilters.connectionType !== "all" ? 1 : 0)
 
@@ -167,8 +172,38 @@ export function CustomerFilters({
     currentFilters.status !== "all" ||
     currentFilters.onlineStatus !== "all" ||
     currentFilters.packageId !== "all" ||
+    currentFilters.organizationId !== "all" ||
     currentFilters.branchId !== "all" ||
     currentFilters.connectionType !== "all"
+
+  const organizationOptions = [
+    { value: "all", label: "All Organizations" },
+    ...branches
+      .filter((b) => !b.parentId)
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((b) => ({ value: String(b.id), label: b.name })),
+  ]
+
+  const branchOptions = [
+    { value: "all", label: "All Branches" },
+    ...branches
+      .filter((b) => {
+        if (currentFilters.organizationId === "all") return true
+        return String(b.parentId) === currentFilters.organizationId || String(b.id) === currentFilters.organizationId
+      })
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((b) => ({ value: String(b.id), label: b.name })),
+  ]
+
+  const packageOptions = [
+    { value: "all", label: "All Plans" },
+    ...packages
+      .map((pkg) => ({
+        value: String(pkg.id),
+        label: pkg.packageName || pkg.packagePlanDetails?.planName || `Plan #${pkg.id}`,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
+  ]
 
   return (
     <CardContainer title="" gradientColor="#3B82F6" forceDarkMode={false}>
@@ -228,29 +263,15 @@ export function CustomerFilters({
               </SelectContent>
             </Select>
 
-            {/* Plan Dropdown */}
-            <Select
-              value={currentFilters.packageId}
-              onValueChange={(val) => handleFieldChange("packageId", val)}
-            >
-              <SelectTrigger className="w-[160px] bg-white border-gray-200 dark:bg-slate-800 dark:border-slate-700 dark:text-white">
-                <SelectValue placeholder="Plan" />
-              </SelectTrigger>
-              <SelectContent className="bg-white border-gray-200 dark:bg-slate-800 dark:border-slate-700 dark:text-white max-h-60">
-                <SelectItem value="all">All Plans</SelectItem>
-                {packages.map((pkg) => {
-                  const label =
-                    pkg.packageName ||
-                    pkg.packagePlanDetails?.planName ||
-                    `Plan #${pkg.id}`
-                  return (
-                    <SelectItem key={pkg.id} value={String(pkg.id)}>
-                      {label}
-                    </SelectItem>
-                  )
-                })}
-              </SelectContent>
-            </Select>
+            {/* Plan Searchable Dropdown */}
+            <div className="w-[190px]">
+              <SearchableSelect
+                options={packageOptions}
+                value={currentFilters.packageId}
+                onValueChange={(val) => handleFieldChange("packageId", String(val || "all"))}
+                placeholder="All Plans"
+              />
+            </div>
 
             {/* Advanced Filters Toggle */}
             <Button
@@ -289,25 +310,37 @@ export function CustomerFilters({
         {/* Collapsible Advanced Filters Section */}
         {showAdvanced && (
           <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-700 flex flex-wrap items-center gap-4 px-4 pb-2">
-            {/* Branch Filter */}
+            {/* Organization Searchable Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-muted-foreground">Organization:</span>
+              <div className="w-[200px]">
+                <SearchableSelect
+                  options={organizationOptions}
+                  value={currentFilters.organizationId}
+                  onValueChange={(val) => {
+                    const nextOrg = String(val || "all")
+                    notifyChange({
+                      ...currentFilters,
+                      organizationId: nextOrg,
+                      branchId: "all",
+                    })
+                  }}
+                  placeholder="All Organizations"
+                />
+              </div>
+            </div>
+
+            {/* Branch Searchable Filter (filtered by selected Organization) */}
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium text-muted-foreground">Branch:</span>
-              <Select
-                value={currentFilters.branchId}
-                onValueChange={(val) => handleFieldChange("branchId", val)}
-              >
-                <SelectTrigger className="w-[160px] h-8 text-xs bg-white border-gray-200 dark:bg-slate-800 dark:border-slate-700 dark:text-white">
-                  <SelectValue placeholder="All Branches" />
-                </SelectTrigger>
-                <SelectContent className="bg-white border-gray-200 dark:bg-slate-800 dark:border-slate-700 dark:text-white max-h-60">
-                  <SelectItem value="all">All Branches</SelectItem>
-                  {branches.map((b) => (
-                    <SelectItem key={b.id} value={String(b.id)}>
-                      {b.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="w-[200px]">
+                <SearchableSelect
+                  options={branchOptions}
+                  value={currentFilters.branchId}
+                  onValueChange={(val) => handleFieldChange("branchId", String(val || "all"))}
+                  placeholder="All Branches"
+                />
+              </div>
             </div>
 
             {/* Connection Type Filter */}
@@ -338,6 +371,7 @@ export function CustomerFilters({
                 onClick={() => {
                   notifyChange({
                     ...currentFilters,
+                    organizationId: "all",
                     branchId: "all",
                     connectionType: "all",
                   })
