@@ -123,6 +123,7 @@ export function SystemSettings() {
     customerIdIncludeNamePart: true,
     customerIdNamePartLength: 5,
     showLicenseTab: true,
+    isVpsVersion: true,
     leadBranchValidation: "optional",
     allowDuplicateLeadPhone: "false",
     allowDuplicateLeadEmail: "false",
@@ -284,6 +285,7 @@ export function SystemSettings() {
             customerIdIncludeNamePart: data.customerIdIncludeNamePart !== 'false',
             customerIdNamePartLength: parseInt(data.customerIdNamePartLength || '5'),
             showLicenseTab: data.showLicenseTab !== 'false',
+            isVpsVersion: data.isVpsVersion !== 'false',
             leadBranchValidation: data.leadBranchValidation || prev.leadBranchValidation,
             allowDuplicateLeadPhone: data.allowDuplicateLeadPhone || prev.allowDuplicateLeadPhone,
             allowDuplicateLeadEmail: data.allowDuplicateLeadEmail || prev.allowDuplicateLeadEmail,
@@ -1288,6 +1290,24 @@ export function SystemSettings() {
                   onCheckedChange={(checked) => updateSetting("auto_update_radius_password", checked)}
                 />
               </div>
+            </div>
+
+            <div className="md:col-span-2 p-3 border rounded-lg bg-blue-50/50 dark:bg-blue-950/20 border-blue-200/60 dark:border-blue-800/40 flex items-center justify-between mt-1">
+              <div className="space-y-1 mr-4">
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm font-semibold text-blue-900 dark:text-blue-300">Is it VPS Version?</Label>
+                  <span className="text-[10px] font-semibold bg-blue-200/80 text-blue-800 dark:bg-blue-900 dark:text-blue-200 px-1.5 py-0.5 rounded">
+                    {settings.isVpsVersion !== false ? "Yes (Default)" : "No (Secret Key Required)"}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  If Yes (default), all TR-069 devices load directly without requiring a Secret Key. If No, a valid TR-069 Secret Key must be entered to view TR-069 devices.
+                </p>
+              </div>
+              <Switch
+                checked={settings.isVpsVersion !== false}
+                onCheckedChange={(checked) => updateSetting("isVpsVersion", checked)}
+              />
             </div>
           </div>
         </CardContainer>
