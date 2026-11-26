@@ -46,26 +46,69 @@ export function SearchModal({ open, onOpenChange, initialQuery = "" }: SearchMod
     }
 
     try {
-      const response = await apiRequest(`/lead?search=${encodeURIComponent(searchQuery)}`)
-      
-      let dataArray = []
-      if (response && response.data && Array.isArray(response.data)) {
-        dataArray = response.data
-      } else if (Array.isArray(response)) {
-        dataArray = response
+      const encoded = encodeURIComponent(searchQuery.trim())
+      const shouldSearchCustomers = !category || category === "Customers"
+      const shouldSearchLeads = !category || category === "Leads"
+
+      const [customerRes, leadRes] = await Promise.all([
+        shouldSearchCustomers
+          ? apiRequest(`/customer?search=${encoded}&limit=10`).catch(() => null)
+          : Promise.resolve(null),
+        shouldSearchLeads
+          ? apiRequest(`/lead?search=${encoded}&limit=10`).catch(() => null)
+          : Promise.resolve(null),
+      ])
+
+      const extractList = (res: any) => {
+        if (res && Array.isArray(res.data)) return res.data
+        if (Array.isArray(res)) return res
+        return []
       }
 
-      const leadResults: SearchResult[] = dataArray.map((lead: any) => ({
-        id: String(lead.id),
-        title: `${lead.firstName} ${lead.lastName}`,
-        description: `${lead.email || 'No email'} • ${lead.phoneNumber || 'No phone'} • Status: ${lead.status}`,
-        url: `/leads/view/${lead.id}`,
-        category: "Leads",
-        initials: `${lead.firstName[0]}${lead.lastName[0]}`.toUpperCase(),
-        status: lead.status === 'qualified' ? 'active' : lead.status === 'unqualified' ? 'inactive' : 'pending'
-      }))
+      const customerArray = extractList(customerRes)
+      const leadArray = extractList(leadRes)
 
-      setResults(leadResults)
+      const customerResults: SearchResult[] = customerArray.map((c: any) => {
+        const firstName = String(c.firstName || "").trim()
+        const lastName = String(c.lastName || "").trim()
+        const fullName = [firstName, c.middleName, lastName].filter(Boolean).join(" ").trim() || `Customer #${c.id}`
+        const username = c.connectionUsers?.[0]?.username || c.username || ""
+        const initials = `${firstName[0] || ""}${lastName[0] || ""}`.toUpperCase() || fullName.slice(0, 2).toUpperCase()
+        const st = String(c.status || "").toLowerCase()
+        return {
+          id: `customer-${c.id}`,
+          title: fullName,
+          description: [
+            c.customerUniqueId ? `ID: ${c.customerUniqueId}` : null,
+            username ? `@${username}` : null,
+            c.phoneNumber || "No phone",
+            c.email || null,
+            c.status ? `Status: ${c.status}` : null,
+          ].filter(Boolean).join(" • "),
+          url: `/customers/${c.id}`,
+          category: "Customers",
+          avatar: c.profilePicture || undefined,
+          initials,
+          status: st === "active" ? "active" : (st === "suspended" || st === "inactive" || st === "expired") ? "inactive" : "pending",
+        }
+      })
+
+      const leadResults: SearchResult[] = leadArray.map((lead: any) => {
+        const firstName = String(lead.firstName || "").trim()
+        const lastName = String(lead.lastName || "").trim()
+        const initials = `${firstName[0] || ""}${lastName[0] || ""}`.toUpperCase() || "L"
+        return {
+          id: `lead-${lead.id}`,
+          title: `${firstName} ${lastName}`.trim() || `Lead #${lead.id}`,
+          description: `${lead.email || "No email"} • ${lead.phoneNumber || "No phone"} • Status: ${lead.status}`,
+          url: `/leads/view/${lead.id}`,
+          category: "Leads",
+          initials,
+          status: lead.status === "qualified" ? "active" : lead.status === "unqualified" ? "inactive" : "pending",
+        }
+      })
+
+      setResults([...customerResults, ...leadResults])
     } catch (error) {
       console.error("Search failed:", error)
     }
@@ -81,7 +124,7 @@ export function SearchModal({ open, onOpenChange, initialQuery = "" }: SearchMod
   }, [query, selectedCategory])
 
   const handleSelect = (result: SearchResult) => {
-    router.push(`/leads/view/${result.id}`)
+    router.push(result.url)
     if (typeof onOpenChange === "function") {
       onOpenChange(false)
     }
@@ -128,6 +171,8 @@ export function SearchModal({ open, onOpenChange, initialQuery = "" }: SearchMod
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
+      case "Customers":
+        return <User className="h-4 w-4 text-primary" />
       case "Leads":
         return <Users className="h-4 w-4 text-primary" />
       default:
@@ -163,7 +208,7 @@ export function SearchModal({ open, onOpenChange, initialQuery = "" }: SearchMod
             <div className="relative w-full">
               <CommandInput
                 ref={inputRef}
-                placeholder="Search for leads by name, email or phone..."
+                placeholder="Search customers or leads by name, username, email or phone..."
                 className="flex h-10 w-full bg-transparent py-2 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 border-none"
                 value={query}
                 onValueChange={handleQueryChange}
@@ -199,8 +244,16 @@ export function SearchModal({ open, onOpenChange, initialQuery = "" }: SearchMod
                     />
                   </svg>
                 </div>
-                <p className="text-sm text-muted-foreground">Type to search leads</p>
+                <p className="text-sm text-muted-foreground">Type to search customers or leads</p>
                 <div className="mt-6 flex flex-wrap justify-center gap-2 px-6">
+                  <Button
+                    variant={selectedCategory === "Customers" ? "default" : "outline"}
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => handleCategorySelect("Customers")}
+                  >
+                    Customers
+                  </Button>
                   <Button
                     variant={selectedCategory === "Leads" ? "default" : "outline"}
                     size="sm"
@@ -230,12 +283,12 @@ export function SearchModal({ open, onOpenChange, initialQuery = "" }: SearchMod
                       />
                     </svg>
                   </div>
-                  <p className="text-sm text-muted-foreground">No leads found for "{query}"</p>
+                  <p className="text-sm text-muted-foreground">No results found for "{query}"</p>
                 </div>
               </CommandEmpty>
             ) : (
               <>
-                {["Leads"].map((category) => {
+                {["Customers", "Leads"].map((category) => {
                   const categoryResults = results.filter((result) => result.category === category)
                   if (categoryResults.length === 0) return null
 
@@ -248,7 +301,7 @@ export function SearchModal({ open, onOpenChange, initialQuery = "" }: SearchMod
                           className="mx-2 my-1 rounded-md cursor-pointer transition-all duration-200 hover:bg-primary/10"
                         >
                           <div className="flex items-center gap-2 w-full py-1">
-                            {result.category === "Leads" ? (
+                            {result.category === "Customers" || result.category === "Leads" ? (
                               <Avatar className="h-8 w-8">
                                 <AvatarImage src={result.avatar || "/placeholder.svg"} alt={result.title} />
                                 <AvatarFallback>{result.initials}</AvatarFallback>
