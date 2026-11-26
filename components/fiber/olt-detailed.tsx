@@ -737,10 +737,10 @@ export function OLTDetailed() {
   const [splitterSearchQuery, setSplitterSearchQuery] = useState("")
   const [splitterPage, setSplitterPage] = useState(1)
 
-  // OLT Pagination - Default 10 per page
+  // OLT Pagination - Default 25 per page
   const [oltPagination, setOltPagination] = useState<PaginationInfo>({
     page: 1,
-    limit: 10,
+    limit: 25,
     total: 0,
     totalPages: 1,
     hasNextPage: false,
@@ -929,12 +929,12 @@ export function OLTDetailed() {
   }, [])
 
   // Fetch OLTs with pagination
-  const fetchOLTs = async (page = 1) => {
+  const fetchOLTs = async (page = 1, pageLimit = oltPagination.limit || 25) => {
     try {
       setLoading(true)
       const params = new URLSearchParams({
         page: page.toString(),
-        limit: "10"
+        limit: String(pageLimit)
       })
 
       if (searchQuery) params.append('search', searchQuery)
@@ -949,13 +949,21 @@ export function OLTDetailed() {
 
       if (response.success) {
         setOlts(response.data || [])
-        setOltPagination(response.pagination || {
+        const pg = response.pagination || {
           page: 1,
-          limit: 10,
+          limit: pageLimit,
           total: 0,
-          totalPages: 1,
-          hasNextPage: false,
-          hasPreviousPage: false
+          totalPages: 1
+        }
+        const curPage = Number(pg.page || page || 1)
+        const totPages = Math.max(1, Number(pg.totalPages || Math.ceil((pg.total || 0) / (pg.limit || pageLimit)) || 1))
+        setOltPagination({
+          page: curPage,
+          limit: Number(pg.limit || pageLimit),
+          total: Number(pg.total || 0),
+          totalPages: totPages,
+          hasNextPage: pg.hasNextPage ?? (curPage < totPages),
+          hasPreviousPage: pg.hasPreviousPage ?? (curPage > 1)
         })
 
         if (response.data?.length > 0 && !selectedOLT) {
@@ -3611,11 +3619,20 @@ export function OLTDetailed() {
                         Showing {(oltPagination.page - 1) * oltPagination.limit + 1} to {Math.min(oltPagination.page * oltPagination.limit, oltPagination.total)} of {oltPagination.total} OLTs
                       </div>
                       <div className="flex items-center gap-2">
+                        <select
+                          value={oltPagination.limit}
+                          onChange={(e) => fetchOLTs(1, Number(e.target.value))}
+                          className="h-8 rounded-md border bg-background px-2 text-xs"
+                        >
+                          {[10, 25, 50, 100, 200].map((n) => (
+                            <option key={n} value={n}>{n} / page</option>
+                          ))}
+                        </select>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handlePageChange(oltPagination.page - 1)}
-                          disabled={!oltPagination.hasPreviousPage}
+                          disabled={oltPagination.page <= 1}
                         >
                           <ChevronLeft className="h-4 w-4" />
                         </Button>
@@ -3626,7 +3643,7 @@ export function OLTDetailed() {
                           variant="outline"
                           size="sm"
                           onClick={() => handlePageChange(oltPagination.page + 1)}
-                          disabled={!oltPagination.hasNextPage}
+                          disabled={oltPagination.page >= oltPagination.totalPages}
                         >
                           <ChevronRight className="h-4 w-4" />
                         </Button>
