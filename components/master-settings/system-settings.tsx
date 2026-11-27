@@ -186,6 +186,43 @@ export function SystemSettings() {
   }
 
   const [syncingRadius, setSyncingRadius] = useState(false)
+  const [deduplicatingRadius, setDeduplicatingRadius] = useState(false)
+
+  const handleDeduplicateRadius = async () => {
+    setDeduplicatingRadius(true)
+    try {
+      const preview = await apiRequest<any>("/services/radius/deduplicate", {
+        method: "POST",
+        body: JSON.stringify({ dryRun: true })
+      })
+      const totalFound = Number(preview?.totalDuplicatesFound || 0)
+      if (totalFound === 0) {
+        toast.success("No duplicate RADIUS entries found.")
+        return
+      }
+      const confirmed = window.confirm(
+        `Found ${totalFound} older duplicate RADIUS rows:\n` +
+        `• radcheck: ${preview?.radcheck?.duplicatesFound || 0}\n` +
+        `• radusergroup: ${preview?.radusergroup?.duplicatesFound || 0}\n` +
+        `• radgroupreply: ${preview?.radgroupreply?.duplicatesFound || 0}\n\n` +
+        `Keep the latest row for each user/group and delete all older duplicates?`
+      )
+      if (!confirmed) return
+
+      const res = await apiRequest<any>("/services/radius/deduplicate", {
+        method: "POST",
+        body: JSON.stringify({ dryRun: false })
+      })
+      toast.success(
+        `Cleaned ${res?.totalDeleted || 0} duplicate RADIUS rows (kept latest): ` +
+        `radcheck=${res?.radcheck?.deleted || 0}, radusergroup=${res?.radusergroup?.deleted || 0}, radgroupreply=${res?.radgroupreply?.deleted || 0}`
+      )
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to deduplicate RADIUS entries")
+    } finally {
+      setDeduplicatingRadius(false)
+    }
+  }
 
   const handleSyncRadiusPasswords = async (disconnectSession = true) => {
     setSyncingRadius(true)
@@ -1284,6 +1321,16 @@ export function SystemSettings() {
                   className="border-blue-500/40 text-blue-700 dark:text-blue-300 hover:bg-blue-100/60 dark:hover:bg-blue-950/40 text-xs"
                 >
                   {syncingRadius ? "Resyncing..." : "Resync (No Disconnect)"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDeduplicateRadius}
+                  disabled={deduplicatingRadius || syncingRadius}
+                  className="border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-100/60 dark:hover:bg-amber-950/40 text-xs"
+                >
+                  {deduplicatingRadius ? "Checking Duplicates..." : "Clean Duplicates (Keep Latest)"}
                 </Button>
                 <Switch
                   checked={settings.auto_update_radius_password ?? false}
